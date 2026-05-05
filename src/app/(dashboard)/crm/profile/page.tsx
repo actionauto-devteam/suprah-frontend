@@ -176,7 +176,7 @@ export default function CrmProfilePage() {
         const av = p?.avatar || p?.avatarUrl;
         if (av) setMainAvatar(av);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Debounced search
@@ -334,7 +334,7 @@ export default function CrmProfilePage() {
     <div className="h-[calc(100dvh-5rem)] flex flex-col bg-background overflow-hidden">
 
       {/* ── Sticky Header ───────────────────────────────────────────────────── */}
-      <div className="border-b border-border/30 bg-background flex-shrink-0 relative z-30">
+      <div className="border-b border-border/30 bg-background shrink-0 relative z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 space-y-3">
 
           {/* Title row */}
@@ -380,11 +380,10 @@ export default function CrmProfilePage() {
                         setSearchResults([]);
                         setActiveTab("profile");
                       }}
-                      className={`w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left ${
-                        i < searchResults.length - 1 ? "border-b border-border/20" : ""
-                      }`}
+                      className={`w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left ${i < searchResults.length - 1 ? "border-b border-border/20" : ""
+                        }`}
                     >
-                      <Avatar className="h-8 w-8 ring-1 ring-border/30 flex-shrink-0">
+                      <Avatar className="h-8 w-8 ring-1 ring-border/30 shrink-0">
                         <AvatarImage src={u.avatar} />
                         <AvatarFallback className="bg-slate-700 text-white text-xs font-bold">
                           {initials(u.fullName)}
@@ -394,7 +393,7 @@ export default function CrmProfilePage() {
                         <p className="text-[13px] font-semibold truncate">{u.fullName}</p>
                         <p className="text-[12px] text-muted-foreground/60">{u.username}</p>
                       </div>
-                      <span className="text-[11px] text-emerald-500/80 capitalize flex-shrink-0 border border-emerald-500/30 px-2 py-0.5 rounded-sm">
+                      <span className="text-[11px] text-emerald-500/80 capitalize shrink-0 border border-emerald-500/30 px-2 py-0.5 rounded-sm">
                         {u.role}
                       </span>
                     </button>
@@ -412,14 +411,14 @@ export default function CrmProfilePage() {
       </div>
 
       {/* ── Scrollable Content ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/40">
+      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0.75 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/40">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 space-y-5">
 
           {/* Viewing another user banner */}
           {!isOwnProfile && viewedUser && (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-3">
               <div className="flex items-center gap-2 min-w-0">
-                <User className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                <User className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                 <span className="text-[13px] text-muted-foreground">
                   Viewing{" "}
                   <span className="font-semibold text-foreground">
@@ -433,7 +432,7 @@ export default function CrmProfilePage() {
                   setViewedUser(currentUser);
                   setActiveTab("profile");
                 }}
-                className="flex items-center gap-1 text-[12px] text-emerald-500 hover:text-emerald-400 transition-colors flex-shrink-0"
+                className="flex items-center gap-1 text-[12px] text-emerald-500 hover:text-emerald-400 transition-colors shrink-0"
               >
                 <ArrowLeft className="h-3 w-3" />
                 Back to my profile
@@ -448,11 +447,10 @@ export default function CrmProfilePage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 disabled={tab === "activity" && !isOwnProfile}
-                className={`px-1 mr-6 pb-3 text-[14px] font-medium border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  activeTab === tab
-                    ? "border-emerald-500 text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-1 mr-6 pb-3 text-[14px] font-medium border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${activeTab === tab
+                  ? "border-emerald-500 text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {tab === "profile" ? "User Profile" : "Activity Log"}
               </button>
@@ -469,8 +467,8 @@ export default function CrmProfilePage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-5">
                       {/* Avatar */}
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="h-[68px] w-[68px] ring-2 ring-border/30 shadow-lg">
+                      <div className="relative shrink-0">
+                        <Avatar className="h-17 w-17 ring-2 ring-border/30 shadow-lg">
                           <AvatarImage src={resolvedAvatar} />
                           <AvatarFallback className="bg-slate-700 text-white text-xl font-bold">
                             {initials(user.fullName)}
@@ -490,7 +488,7 @@ export default function CrmProfilePage() {
                           Joined {formatDate(user.createdAt)}
                         </p>
                         <div className="flex items-center flex-wrap gap-2 mt-2.5">
-                          <span className="inline-flex items-center border border-emerald-500/40 text-emerald-500 bg-emerald-500/10 capitalize text-[11px] h-[22px] px-2.5 rounded-sm font-medium">
+                          <span className="inline-flex items-center border border-emerald-500/40 text-emerald-500 bg-emerald-500/10 capitalize text-[11px] h-5.5 px-2.5 rounded-sm font-medium">
                             {user.role}
                           </span>
                           <span className="text-[12px] text-muted-foreground/60 font-mono">
@@ -501,7 +499,7 @@ export default function CrmProfilePage() {
                     </div>
 
                     {/* Action button */}
-                    <div className="flex-shrink-0 pt-0.5">
+                    <div className="shrink-0 pt-0.5">
                       {isOwnProfile ? (
                         <Button
                           size="sm"
@@ -553,16 +551,15 @@ export default function CrmProfilePage() {
                     <div className="divide-y divide-border/20">
                       {/* Status */}
                       <div className="flex items-center justify-between px-5 py-3.5 gap-4">
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <Shield className="h-[17px] w-[17px] text-muted-foreground/40" />
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Shield className="h-4.25 w-4.25 text-muted-foreground/40" />
                           <span className="text-[14px] text-muted-foreground">Status</span>
                         </div>
                         <span
-                          className={`inline-flex items-center text-[12px] px-2.5 py-0.5 rounded-full font-medium ${
-                            viewedIsActive
-                              ? "bg-emerald-500/15 text-emerald-400"
-                              : "bg-red-500/15 text-red-400"
-                          }`}
+                          className={`inline-flex items-center text-[12px] px-2.5 py-0.5 rounded-full font-medium ${viewedIsActive
+                            ? "bg-emerald-500/15 text-emerald-400"
+                            : "bg-red-500/15 text-red-400"
+                            }`}
                         >
                           {viewedIsActive ? "Active" : "Inactive"}
                         </span>
@@ -668,7 +665,7 @@ export default function CrmProfilePage() {
 
             {saveError && (
               <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-4 py-3">
-                <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
                 <p className="text-[13px] text-destructive">{saveError}</p>
               </div>
             )}
@@ -719,8 +716,8 @@ function InfoRow({
 }) {
   return (
     <div className="flex items-center justify-between px-5 py-3.5 gap-4">
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <Icon className="h-[17px] w-[17px] text-muted-foreground/40" />
+      <div className="flex items-center gap-3 shrink-0">
+        <Icon className="h-4.25 w-4.25 text-muted-foreground/40" />
         <span className="text-[14px] text-muted-foreground">{label}</span>
       </div>
       <span
@@ -836,8 +833,8 @@ function ActivityLogSection({
           apiClient.get("/api/profile/activities?limit=200"),
           token
             ? apiClient.get("/api/crm/time-logs", {
-                headers: { Authorization: `Bearer ${token}` },
-              })
+              headers: { Authorization: `Bearer ${token}` },
+            })
             : Promise.resolve(null),
         ]);
 
@@ -984,7 +981,7 @@ function ActivityLogSection({
           <div className="px-5 py-1 divide-y divide-border/20">
             {recent.map((item) => (
               <div key={item.id} className="flex items-start gap-4 py-3.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-[7px] flex-shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.75 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-medium leading-snug">{item.title}</p>
                   <p className="text-[12px] text-muted-foreground/55 mt-0.5">
@@ -1022,10 +1019,10 @@ function ActivityLogSection({
   const filtered = selectedMonth === "all"
     ? items
     : items.filter((item) => {
-        const d = new Date(item.timestamp);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        return key === selectedMonth;
-      });
+      const d = new Date(item.timestamp);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return key === selectedMonth;
+    });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
@@ -1128,7 +1125,7 @@ function ActivityLogSection({
                   return (
                     <div key={item.id} className="flex items-start gap-4 px-5 py-4">
                       <div
-                        className={`h-9 w-9 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5 ${className}`}
+                        className={`h-9 w-9 rounded-full shrink-0 flex items-center justify-center mt-0.5 ${className}`}
                       >
                         <Icon className="h-4 w-4" />
                       </div>
@@ -1140,7 +1137,7 @@ function ActivityLogSection({
                           </p>
                         )}
                       </div>
-                      <span className="text-[12px] text-muted-foreground/55 flex-shrink-0 pt-0.5 tabular-nums">
+                      <span className="text-[12px] text-muted-foreground/55 shrink-0 pt-0.5 tabular-nums">
                         {formatTime(item.timestamp)}
                       </span>
                     </div>
