@@ -65,6 +65,7 @@ export function LeadsTab() {
 
   const [replyMessage, setReplyMessage] = React.useState('')
   const [isSending, setIsSending] = React.useState(false)
+  const [isScheduling, setIsScheduling] = React.useState(false)
   const [apptOpen, setApptOpen] = React.useState(false)
   const [apptForm, setApptForm] = React.useState({
     date: '',
@@ -248,10 +249,10 @@ export function LeadsTab() {
     if (!selectedLead || !apptForm.date || !apptForm.time || !apptForm.title) {
       addToast('error', 'Title, date & time required'); return
     }
+    setIsScheduling(true)
     try {
       const token = await getToken(); if (!token) { addToast('error', 'Auth required'); return }
 
-      // Senior Fix: Calculate end time based on duration
       const start = new Date(`${apptForm.date}T${apptForm.time}`)
       const duration = parseInt(apptForm.duration || '30')
       const end = new Date(start.getTime() + duration * 60 * 1000)
@@ -262,12 +263,25 @@ export function LeadsTab() {
         endTime: end.toISOString()
       }, { headers: { Authorization: `Bearer ${token}` } })
 
-      updateLeadStatus({ id: selectedLead._id, status: 'Appointment Set' })
+      // Backend now handles status transition to 'Appointment Set'
       addToast('success', 'Appointment scheduled')
       setApptOpen(false)
       setApptForm({ date: '', time: '', notes: '', locationOrVehicle: '', title: '', type: 'in-person', duration: '30' })
       await refetch()
-    } catch { addToast('error', 'Failed to save appointment') }
+    } catch (err: any) {
+      const status = err?.response?.status
+      const backendMessage = err?.response?.data?.message
+      
+      if (status === 401) {
+        addToast('error', 'Google Calendar not connected. Please go to Settings.')
+      } else if (status === 409 || status === 400) {
+        addToast('error', backendMessage || 'Time Slot Unavailable: You have a conflicting appointment.')
+      } else {
+        addToast('error', 'Failed to save appointment')
+      }
+    } finally {
+      setIsScheduling(false)
+    }
   }
 
   const handleCalculateQuote = async (formData: any) => {
@@ -402,6 +416,7 @@ export function LeadsTab() {
         apptForm={apptForm}
         setApptForm={setApptForm}
         onSave={handleAppt}
+        isSubmitting={isScheduling}
       />
 
       <ShippingQuoteModal

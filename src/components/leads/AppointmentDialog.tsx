@@ -19,6 +19,7 @@ interface AppointmentDialogProps {
   }
   setApptForm: (form: any) => void
   onSave: () => void
+  isSubmitting?: boolean
 }
 
 export const AppointmentDialog = React.memo(({
@@ -27,7 +28,8 @@ export const AppointmentDialog = React.memo(({
   lead,
   apptForm,
   setApptForm,
-  onSave
+  onSave,
+  isSubmitting = false
 }: AppointmentDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,10 +133,10 @@ export const AppointmentDialog = React.memo(({
           </button>
           <button
             onClick={onSave}
-            disabled={!apptForm.date || !apptForm.time || !apptForm.title}
+            disabled={!apptForm.date || !apptForm.time || !apptForm.title || isSubmitting}
             className="px-4 h-8 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-900/20"
           >
-            Save & Schedule
+            {isSubmitting ? 'Saving...' : 'Save & Schedule'}
           </button>
         </DialogFooter>
       </DialogContent>

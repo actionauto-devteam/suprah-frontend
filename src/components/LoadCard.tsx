@@ -13,6 +13,7 @@ import { Load, LoadStatus } from "@/types/load"
 import { useRouter } from "next/navigation"
 import { generateLoadPDF } from "@/utils/pdfGenerator"
 import { EditLoadModal } from "@/components/EditLoadModal"
+import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
 
 interface LoadCardProps {
@@ -73,6 +74,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
   const router = useRouter()
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [isExporting, setIsExporting] = React.useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
 
   const pickup = load.pickupLocation
   const delivery = load.deliveryLocation
@@ -177,7 +179,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
                         onClick={(e) => {
                           e.stopPropagation()
-                          onDelete(load._id)
+                          setIsDeleteDialogOpen(true)
                         }}
                         disabled={isDeleting || load.status === "In-Transit" || load.status === "Delivered"}
                       >
@@ -313,6 +315,21 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
           onSave={onUpdate}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={() => {
+          if (onDelete) {
+            onDelete(load._id)
+            setIsDeleteDialogOpen(false)
+          }
+        }}
+        title="Delete Load"
+        description={`Are you sure you want to delete load ${load.loadNumber}? This action cannot be undone.`}
+        confirmText="Yes, Delete Load"
+        variant="danger"
+      />
     </>
   )
 }
