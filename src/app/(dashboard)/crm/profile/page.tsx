@@ -742,6 +742,9 @@ const IMPORTANT_ACTIVITY_TYPES = new Set([
   "time-out",
   "profile_update",
   "avatar_updated",
+  "shipment_created",
+  "shipment_updated",
+  "shipment_deleted",
   "load_created",
   "load_updated",
   "load_deleted",
@@ -764,7 +767,7 @@ function getActivityStyle(type: string): {
     return { Icon: LogIn, className: "bg-emerald-500/15 text-emerald-400" };
   if (t === "time-out")
     return { Icon: LogOut, className: "bg-orange-500/15 text-orange-400" };
-  if (t.startsWith("load"))
+  if (t.startsWith("load") || t.startsWith("shipment"))
     return { Icon: Truck, className: "bg-blue-500/15 text-blue-400" };
   if (t.startsWith("quote"))
     return { Icon: FileText, className: "bg-indigo-500/15 text-indigo-400" };
