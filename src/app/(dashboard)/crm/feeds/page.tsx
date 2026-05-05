@@ -985,7 +985,7 @@ export default function FeedsPage() {
 
       {/* ── Sticky header ── */}
       <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/90 backdrop-blur-xl">
-        <div className="flex items-center gap-4 h-14 px-6 max-w-2xl mx-auto">
+        <div className="flex items-center gap-4 h-14 px-6 max-w-4xl mx-auto">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl shrink-0" onClick={() => router.push("/crm/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -1009,13 +1009,13 @@ export default function FeedsPage() {
         </div>
 
         {/* Tab bar sits below the header row, inside the sticky wrapper */}
-        <div className="px-6 max-w-2xl mx-auto">
+        <div className="px-6 max-w-4xl mx-auto">
           <TabBar active={activeTab} onChange={setActiveTab} />
         </div>
       </header>
 
       {/* ── Main content ── */}
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4 pb-20">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6 pb-20">
 
         {/* ── Team Feeds tab ── */}
         {activeTab === "feeds" && (

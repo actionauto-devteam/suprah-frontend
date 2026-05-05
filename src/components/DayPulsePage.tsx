@@ -23,6 +23,9 @@ import {
   RefreshCw,
   MessageCircle,
   Building2,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -39,19 +42,19 @@ import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 // ─── Department definitions ───────────────────────────────────────────────────
 
 export const DEPARTMENTS = [
-  { key: "SalesAndFinance",  label: "Sales & Finance", color: "emerald" },
-  { key: "Accounting",       label: "Accounting",       color: "sky"     },
-  { key: "Recon",            label: "Recon",            color: "amber"   },
-  { key: "Marketing",        label: "Marketing",        color: "pink"    },
-  { key: "OnlineTeam",       label: "Online Team",      color: "violet"  },
-  { key: "WebDevTeam",       label: "Web Dev",          color: "blue"    },
-  { key: "WholesaleTeam",    label: "Wholesale",        color: "orange"  },
-  { key: "BuyingTeam",       label: "Buying",           color: "teal"    },
-  { key: "OperationsTeam",   label: "Operations",       color: "rose"    },
-  { key: "LotTechTeam",      label: "Lot Tech",         color: "indigo"  },
-  { key: "FundingTeam",      label: "Funding",          color: "lime"    },
-  { key: "ProspectsTeam",    label: "Prospects",        color: "cyan"    },
-  { key: "PriceCheckTeam",   label: "Price Check",      color: "fuchsia" },
+  { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald" },
+  { key: "Accounting", label: "Accounting", color: "sky" },
+  { key: "Recon", label: "Recon", color: "amber" },
+  { key: "Marketing", label: "Marketing", color: "pink" },
+  { key: "OnlineTeam", label: "Online Team", color: "violet" },
+  { key: "WebDevTeam", label: "Web Dev", color: "blue" },
+  { key: "WholesaleTeam", label: "Wholesale", color: "orange" },
+  { key: "BuyingTeam", label: "Buying", color: "teal" },
+  { key: "OperationsTeam", label: "Operations", color: "rose" },
+  { key: "LotTechTeam", label: "Lot Tech", color: "indigo" },
+  { key: "FundingTeam", label: "Funding", color: "lime" },
+  { key: "ProspectsTeam", label: "Prospects", color: "cyan" },
+  { key: "PriceCheckTeam", label: "Price Check", color: "fuchsia" },
 ] as const
 
 export type DepartmentKey = typeof DEPARTMENTS[number]["key"]
@@ -60,19 +63,19 @@ export type DepartmentKey = typeof DEPARTMENTS[number]["key"]
 const DEPT_STYLES: Record<string, {
   tab: string; tabActive: string; badge: string; ring: string; glow: string; dot: string
 }> = {
-  emerald:  { tab: "text-emerald-400/60 hover:text-emerald-400", tabActive: "text-emerald-400 border-b-2 border-emerald-400", badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", ring: "ring-emerald-500/30", glow: "shadow-emerald-500/10", dot: "bg-emerald-400" },
-  sky:      { tab: "text-sky-400/60 hover:text-sky-400",         tabActive: "text-sky-400 border-b-2 border-sky-400",         badge: "bg-sky-500/10 text-sky-400 border-sky-500/20",         ring: "ring-sky-500/30",     glow: "shadow-sky-500/10",     dot: "bg-sky-400" },
-  amber:    { tab: "text-amber-400/60 hover:text-amber-400",     tabActive: "text-amber-400 border-b-2 border-amber-400",     badge: "bg-amber-500/10 text-amber-400 border-amber-500/20",   ring: "ring-amber-500/30",   glow: "shadow-amber-500/10",   dot: "bg-amber-400" },
-  pink:     { tab: "text-pink-400/60 hover:text-pink-400",       tabActive: "text-pink-400 border-b-2 border-pink-400",       badge: "bg-pink-500/10 text-pink-400 border-pink-500/20",     ring: "ring-pink-500/30",    glow: "shadow-pink-500/10",    dot: "bg-pink-400" },
-  violet:   { tab: "text-violet-400/60 hover:text-violet-400",   tabActive: "text-violet-400 border-b-2 border-violet-400",   badge: "bg-violet-500/10 text-violet-400 border-violet-500/20", ring: "ring-violet-500/30", glow: "shadow-violet-500/10",  dot: "bg-violet-400" },
-  blue:     { tab: "text-blue-400/60 hover:text-blue-400",       tabActive: "text-blue-400 border-b-2 border-blue-400",       badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",     ring: "ring-blue-500/30",    glow: "shadow-blue-500/10",    dot: "bg-blue-400" },
-  orange:   { tab: "text-orange-400/60 hover:text-orange-400",   tabActive: "text-orange-400 border-b-2 border-orange-400",   badge: "bg-orange-500/10 text-orange-400 border-orange-500/20", ring: "ring-orange-500/30", glow: "shadow-orange-500/10",  dot: "bg-orange-400" },
-  teal:     { tab: "text-teal-400/60 hover:text-teal-400",       tabActive: "text-teal-400 border-b-2 border-teal-400",       badge: "bg-teal-500/10 text-teal-400 border-teal-500/20",     ring: "ring-teal-500/30",    glow: "shadow-teal-500/10",    dot: "bg-teal-400" },
-  rose:     { tab: "text-rose-400/60 hover:text-rose-400",       tabActive: "text-rose-400 border-b-2 border-rose-400",       badge: "bg-rose-500/10 text-rose-400 border-rose-500/20",     ring: "ring-rose-500/30",    glow: "shadow-rose-500/10",    dot: "bg-rose-400" },
-  indigo:   { tab: "text-indigo-400/60 hover:text-indigo-400",   tabActive: "text-indigo-400 border-b-2 border-indigo-400",   badge: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20", ring: "ring-indigo-500/30", glow: "shadow-indigo-500/10",  dot: "bg-indigo-400" },
-  lime:     { tab: "text-lime-400/60 hover:text-lime-400",       tabActive: "text-lime-400 border-b-2 border-lime-400",       badge: "bg-lime-500/10 text-lime-400 border-lime-500/20",     ring: "ring-lime-500/30",    glow: "shadow-lime-500/10",    dot: "bg-lime-400" },
-  cyan:     { tab: "text-cyan-400/60 hover:text-cyan-400",       tabActive: "text-cyan-400 border-b-2 border-cyan-400",       badge: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",     ring: "ring-cyan-500/30",    glow: "shadow-cyan-500/10",    dot: "bg-cyan-400" },
-  fuchsia:  { tab: "text-fuchsia-400/60 hover:text-fuchsia-400", tabActive: "text-fuchsia-400 border-b-2 border-fuchsia-400", badge: "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20", ring: "ring-fuchsia-500/30", glow: "shadow-fuchsia-500/10", dot: "bg-fuchsia-400" },
+  emerald: { tab: "text-emerald-400/60 hover:text-emerald-400", tabActive: "text-emerald-400 border-b-2 border-emerald-400", badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", ring: "ring-emerald-500/30", glow: "shadow-emerald-500/10", dot: "bg-emerald-400" },
+  sky: { tab: "text-sky-400/60 hover:text-sky-400", tabActive: "text-sky-400 border-b-2 border-sky-400", badge: "bg-sky-500/10 text-sky-400 border-sky-500/20", ring: "ring-sky-500/30", glow: "shadow-sky-500/10", dot: "bg-sky-400" },
+  amber: { tab: "text-amber-400/60 hover:text-amber-400", tabActive: "text-amber-400 border-b-2 border-amber-400", badge: "bg-amber-500/10 text-amber-400 border-amber-500/20", ring: "ring-amber-500/30", glow: "shadow-amber-500/10", dot: "bg-amber-400" },
+  pink: { tab: "text-pink-400/60 hover:text-pink-400", tabActive: "text-pink-400 border-b-2 border-pink-400", badge: "bg-pink-500/10 text-pink-400 border-pink-500/20", ring: "ring-pink-500/30", glow: "shadow-pink-500/10", dot: "bg-pink-400" },
+  violet: { tab: "text-violet-400/60 hover:text-violet-400", tabActive: "text-violet-400 border-b-2 border-violet-400", badge: "bg-violet-500/10 text-violet-400 border-violet-500/20", ring: "ring-violet-500/30", glow: "shadow-violet-500/10", dot: "bg-violet-400" },
+  blue: { tab: "text-blue-400/60 hover:text-blue-400", tabActive: "text-blue-400 border-b-2 border-blue-400", badge: "bg-blue-500/10 text-blue-400 border-blue-500/20", ring: "ring-blue-500/30", glow: "shadow-blue-500/10", dot: "bg-blue-400" },
+  orange: { tab: "text-orange-400/60 hover:text-orange-400", tabActive: "text-orange-400 border-b-2 border-orange-400", badge: "bg-orange-500/10 text-orange-400 border-orange-500/20", ring: "ring-orange-500/30", glow: "shadow-orange-500/10", dot: "bg-orange-400" },
+  teal: { tab: "text-teal-400/60 hover:text-teal-400", tabActive: "text-teal-400 border-b-2 border-teal-400", badge: "bg-teal-500/10 text-teal-400 border-teal-500/20", ring: "ring-teal-500/30", glow: "shadow-teal-500/10", dot: "bg-teal-400" },
+  rose: { tab: "text-rose-400/60 hover:text-rose-400", tabActive: "text-rose-400 border-b-2 border-rose-400", badge: "bg-rose-500/10 text-rose-400 border-rose-500/20", ring: "ring-rose-500/30", glow: "shadow-rose-500/10", dot: "bg-rose-400" },
+  indigo: { tab: "text-indigo-400/60 hover:text-indigo-400", tabActive: "text-indigo-400 border-b-2 border-indigo-400", badge: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20", ring: "ring-indigo-500/30", glow: "shadow-indigo-500/10", dot: "bg-indigo-400" },
+  lime: { tab: "text-lime-400/60 hover:text-lime-400", tabActive: "text-lime-400 border-b-2 border-lime-400", badge: "bg-lime-500/10 text-lime-400 border-lime-500/20", ring: "ring-lime-500/30", glow: "shadow-lime-500/10", dot: "bg-lime-400" },
+  cyan: { tab: "text-cyan-400/60 hover:text-cyan-400", tabActive: "text-cyan-400 border-b-2 border-cyan-400", badge: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20", ring: "ring-cyan-500/30", glow: "shadow-cyan-500/10", dot: "bg-cyan-400" },
+  fuchsia: { tab: "text-fuchsia-400/60 hover:text-fuchsia-400", tabActive: "text-fuchsia-400 border-b-2 border-fuchsia-400", badge: "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20", ring: "ring-fuchsia-500/30", glow: "shadow-fuchsia-500/10", dot: "bg-fuchsia-400" },
 }
 
 function getDeptStyle(color: string) {
@@ -92,8 +95,18 @@ interface DayPulseReport {
   accomplishment: string
   blockers: string
   inProgress: string
+  attachments?: DayPulseAttachment[]
   isEdited: boolean
   createdAt: string
+}
+
+interface DayPulseAttachment {
+  url: string
+  fileKey: string
+  originalName: string
+  mimeType: string
+  size: number
+  thumbnailUrl?: string | null
 }
 
 interface Comment {
@@ -119,14 +132,20 @@ interface ReactionSummary { [key: string]: { count: number; users: string[] } }
 interface ReactionState { summary: ReactionSummary; myReaction: ReactionType | null }
 
 const REACTIONS = [
-  { type: "like"  as ReactionType, emoji: "👍", label: "Like",  color: "text-blue-500",   bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love"  as ReactionType, emoji: "❤️", label: "Love",  color: "text-red-500",    bg: "bg-red-500/10 hover:bg-red-500/20 border-red-500/30" },
-  { type: "haha"  as ReactionType, emoji: "😂", label: "Haha",  color: "text-yellow-500", bg: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30" },
-  { type: "wow"   as ReactionType, emoji: "😮", label: "Wow",   color: "text-yellow-400", bg: "bg-yellow-400/10 hover:bg-yellow-400/20 border-yellow-400/30" },
-  { type: "sad"   as ReactionType, emoji: "😢", label: "Sad",   color: "text-sky-400",    bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
+  { type: "like" as ReactionType, emoji: "👍", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
+  { type: "love" as ReactionType, emoji: "❤️", label: "Love", color: "text-red-500", bg: "bg-red-500/10 hover:bg-red-500/20 border-red-500/30" },
+  { type: "haha" as ReactionType, emoji: "😂", label: "Haha", color: "text-yellow-500", bg: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30" },
+  { type: "wow" as ReactionType, emoji: "😮", label: "Wow", color: "text-yellow-400", bg: "bg-yellow-400/10 hover:bg-yellow-400/20 border-yellow-400/30" },
+  { type: "sad" as ReactionType, emoji: "😢", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
   { type: "angry" as ReactionType, emoji: "😡", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
+
+const PAGE_PANEL = "rounded-2xl border border-border/40 bg-card"
+const PAGE_SECTION = "rounded-2xl border border-border/40 bg-card"
+const MAX_DAYPULSE_ATTACHMENTS = 5
+const MAX_DAYPULSE_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
+const DAYPULSE_ATTACHMENT_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,14 +156,30 @@ function ini(n: string) {
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const s = Math.floor(diff / 1000)
-  if (s < 60)  return "just now"
+  if (s < 60) return "just now"
   const m = Math.floor(s / 60)
-  if (m < 60)  return `${m}m ago`
+  if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
-  if (h < 24)  return `${h}h ago`
+  if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
-  if (d < 7)   return `${d}d ago`
+  if (d < 7) return `${d}d ago`
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "0 B"
+  if (bytes < 1024) return `${bytes} B`
+
+  const units = ["KB", "MB", "GB"]
+  let value = bytes / 1024
+  let unitIndex = 0
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+
+  return `${value >= 10 || unitIndex === 0 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
 function fullDate(dateStr: string): string {
@@ -167,8 +202,8 @@ function todayStr(): string {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  admin:    "text-violet-500 bg-violet-500/10 border-violet-500/20",
-  manager:  "text-sky-500 bg-sky-500/10 border-sky-500/20",
+  admin: "text-violet-500 bg-violet-500/10 border-violet-500/20",
+  manager: "text-sky-500 bg-sky-500/10 border-sky-500/20",
   employee: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
 }
 
@@ -192,9 +227,9 @@ function ReactionBar({
   reactionState: ReactionState; onReactionChange: (s: ReactionState) => void; compact?: boolean
 }) {
   const [showPicker, setShowPicker] = React.useState(false)
-  const [loading, setLoading]       = React.useState(false)
-  const pickerRef  = React.useRef<HTMLDivElement>(null)
-  const btnRef     = React.useRef<HTMLButtonElement>(null)
+  const [loading, setLoading] = React.useState(false)
+  const pickerRef = React.useRef<HTMLDivElement>(null)
+  const btnRef = React.useRef<HTMLButtonElement>(null)
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
@@ -224,9 +259,9 @@ function ReactionBar({
   }
 
   const { summary, myReaction } = reactionState
-  const total      = totalReactions(summary)
-  const topEmojis  = topReactionEmojis(summary)
-  const myMeta     = myReaction ? REACTION_MAP[myReaction] : null
+  const total = totalReactions(summary)
+  const topEmojis = topReactionEmojis(summary)
+  const myMeta = myReaction ? REACTION_MAP[myReaction] : null
 
   return (
     <div className={`flex items-center gap-2 ${compact ? "" : "mt-0.5"}`}>
@@ -324,7 +359,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
   onDeleted: (id: string) => void; reactionState: ReactionState; onReactionChange: (s: ReactionState) => void
 }) {
   const [showDelete, setShowDelete] = React.useState(false)
-  const [deleting, setDeleting]     = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
   const canDelete = comment.userId === currentUser._id || currentUser.role === "admin"
 
   const handleDelete = async () => {
@@ -351,7 +386,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
                 {comment.authorRole}
               </Badge>
             </div>
-            <p className="text-xs leading-relaxed whitespace-pre-wrap break-words text-foreground/80">{comment.content}</p>
+            <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{comment.content}</p>
           </div>
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
             <span className="text-[10px] text-muted-foreground/35 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
@@ -376,14 +411,14 @@ function CommentSection({ reportId, currentUser, token }: {
   const COLLAPSE_AT = 4
   const SHOW_WHEN_COLLAPSED = 2
 
-  const [comments, setComments]             = React.useState<Comment[]>([])
+  const [comments, setComments] = React.useState<Comment[]>([])
   const [commentReactions, setCommentReactions] = React.useState<Record<string, ReactionState>>({})
-  const [loading, setLoading]               = React.useState(false)
-  const [showAll, setShowAll]               = React.useState(false)
-  const [newComment, setNewComment]         = React.useState("")
-  const [submitting, setSubmitting]         = React.useState(false)
-  const [error, setError]                   = React.useState("")
-  const [showEmoji, setShowEmoji]           = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [showAll, setShowAll] = React.useState(false)
+  const [newComment, setNewComment] = React.useState("")
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState("")
+  const [showEmoji, setShowEmoji] = React.useState(false)
   const inputRef = React.useRef<HTMLTextAreaElement>(null)
   const emojiRef = React.useRef<HTMLDivElement>(null)
 
@@ -409,7 +444,7 @@ function CommentSection({ reportId, currentUser, token }: {
           } catch { }
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
   }, [reportId, token])
 
@@ -506,19 +541,19 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
   const dept = DEPARTMENTS.find((d) => d.key === report.department)
   const style = getDeptStyle(dept?.color ?? "emerald")
 
-  const [isEditing, setIsEditing]     = React.useState(false)
-  const [editAcc, setEditAcc]         = React.useState(report.accomplishment)
-  const [editBlk, setEditBlk]         = React.useState(report.blockers)
-  const [editInp, setEditInp]         = React.useState(report.inProgress)
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [editAcc, setEditAcc] = React.useState(report.accomplishment)
+  const [editBlk, setEditBlk] = React.useState(report.blockers)
+  const [editInp, setEditInp] = React.useState(report.inProgress)
   const [editLoading, setEditLoading] = React.useState(false)
-  const [editError, setEditError]     = React.useState("")
+  const [editError, setEditError] = React.useState("")
   const [showDeleteModal, setShowDeleteModal] = React.useState(false)
-  const [deleteLoading, setDeleteLoading]     = React.useState(false)
-  const [showComments, setShowComments]       = React.useState(false)
+  const [deleteLoading, setDeleteLoading] = React.useState(false)
+  const [showComments, setShowComments] = React.useState(false)
 
-  const isOwner   = report.userId === currentUser._id
-  const isAdmin   = currentUser.role === "admin"
-  const canEdit   = isOwner
+  const isOwner = report.userId === currentUser._id
+  const isAdmin = currentUser.role === "admin"
+  const canEdit = isOwner
   const canDelete = isOwner || isAdmin
 
   const handleSave = async () => {
@@ -550,10 +585,10 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
     <>
       {showDeleteModal && <DeleteModal onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
 
-      <article className={`group rounded-2xl border border-border/40 bg-card overflow-hidden transition-all duration-200 hover:border-border/60 hover:shadow-lg ${style.glow}`}>
+      <article className={`group rounded-2xl border border-border/40 bg-card overflow-hidden transition-all duration-200 hover:border-border/50 ${style.glow}`}>
 
         {/* ── Header band ── */}
-        <div className="flex items-start justify-between gap-3 p-5 pb-4">
+        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar className={`h-9 w-9 shrink-0 ring-2 ${style.ring}`}>
               <AvatarImage src={report.authorAvatar} />
@@ -561,16 +596,16 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
             </Avatar>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-bold truncate leading-none">{report.authorName}</p>
-                <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-full capitalize font-semibold leading-none border ${ROLE_COLORS[report.authorRole] ?? ROLE_COLORS.employee}`}>
+                <p className="text-[15px] font-semibold truncate leading-none text-foreground">{report.authorName}</p>
+                <Badge variant="outline" className={`text-[8px] h-5 px-2 rounded-full capitalize font-semibold leading-none border ${ROLE_COLORS[report.authorRole] ?? ROLE_COLORS.employee}`}>
                   {report.authorRole}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <p className="text-[10px] text-muted-foreground/40 cursor-default" title={fullDate(report.createdAt)}>{timeAgo(report.createdAt)}</p>
-                {report.isEdited && <span className="text-[10px] text-muted-foreground/30 italic">(edited)</span>}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <p className="text-[10px] text-muted-foreground/45 cursor-default" title={fullDate(report.createdAt)}>{timeAgo(report.createdAt)}</p>
+                {report.isEdited && <span className="text-[10px] text-muted-foreground/35 italic">(edited)</span>}
                 {/* Department badge */}
-                <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${style.badge}`}>
+                <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full border ${style.badge}`}>
                   <Hash className="h-2 w-2" />{dept?.label}
                 </span>
               </div>
@@ -580,7 +615,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           {(canEdit || canDelete) && !isEditing && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -605,11 +640,11 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           <div className="px-5 pb-5 space-y-3">
             {[
               { label: "Accomplishment", icon: <CheckCircle2 className="h-3.5 w-3.5" />, value: editAcc, onChange: setEditAcc, placeholder: "What did you accomplish today?" },
-              { label: "Blockers",       icon: <AlertCircle  className="h-3.5 w-3.5" />, value: editBlk, onChange: setEditBlk, placeholder: "What is blocking your progress?" },
-              { label: "In Progress",    icon: <Clock3       className="h-3.5 w-3.5" />, value: editInp, onChange: setEditInp, placeholder: "What are you currently working on?" },
+              { label: "Blockers", icon: <AlertCircle className="h-3.5 w-3.5" />, value: editBlk, onChange: setEditBlk, placeholder: "What is blocking your progress?" },
+              { label: "In Progress", icon: <Clock3 className="h-3.5 w-3.5" />, value: editInp, onChange: setEditInp, placeholder: "What are you currently working on?" },
             ].map(({ label, icon, value, onChange, placeholder }) => (
               <div key={label}>
-                <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1.5">{icon}{label}</label>
+                <label className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/55">{icon}{label}</label>
                 <textarea
                   value={value}
                   onChange={(e) => { onChange(e.target.value); setEditError("") }}
@@ -630,32 +665,79 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
             </div>
           </div>
         ) : (
-          <div className="px-5 pb-4 space-y-3">
+          <div className="px-5 pb-5 space-y-3.5">
             {[
               { label: "Accomplishment", icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />, content: report.accomplishment, bg: "bg-emerald-500/5 border-emerald-500/15" },
-              { label: "Blockers",       icon: <AlertCircle  className="h-3.5 w-3.5 text-red-500"   />, content: report.blockers,       bg: "bg-red-500/5 border-red-500/15" },
-              { label: "In Progress",    icon: <Clock3       className="h-3.5 w-3.5 text-amber-500" />, content: report.inProgress,     bg: "bg-amber-500/5 border-amber-500/15" },
+              { label: "Blockers", icon: <AlertCircle className="h-3.5 w-3.5 text-red-500" />, content: report.blockers, bg: "bg-red-500/5 border-red-500/15" },
+              { label: "In Progress", icon: <Clock3 className="h-3.5 w-3.5 text-amber-500" />, content: report.inProgress, bg: "bg-amber-500/5 border-amber-500/15" },
             ].map(({ label, icon, content, bg }) => (
-              <div key={label} className={`rounded-xl border p-3 ${bg}`}>
-                <div className="flex items-center gap-1.5 mb-1.5">
+              <div key={label} className={`rounded-xl border p-3.5 ${bg}`}>
+                <div className="flex items-center gap-1.5 mb-2">
                   {icon}
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">{label}</span>
                 </div>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/85">{content}</p>
+                <p className="text-sm leading-7 whitespace-pre-wrap wrap-break-word text-foreground/85">{content}</p>
               </div>
             ))}
+
+            {report.attachments?.length ? (
+              <div className="rounded-xl border border-border/40 bg-muted/20 p-3.5">
+                <div className="mb-3 flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Attachments</span>
+                  <Badge variant="outline" className="h-5 rounded-full border-border/40 px-2 text-[9px] font-semibold">
+                    {report.attachments.length}
+                  </Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {report.attachments.map((attachment) => {
+                    const isImage = attachment.mimeType.startsWith("image/")
+
+                    return (
+                      <a
+                        key={attachment.fileKey}
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 transition-colors hover:border-border/60 hover:bg-muted/30"
+                      >
+                        {isImage && attachment.thumbnailUrl ? (
+                          <img
+                            src={attachment.thumbnailUrl}
+                            alt={attachment.originalName}
+                            className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-border/30"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                            {attachment.mimeType.includes("pdf") || attachment.mimeType.includes("word") ? (
+                              <FileText className="h-4 w-4" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4" />
+                            )}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">{attachment.originalName}</p>
+                          <p className="text-[10px] text-muted-foreground/55">{formatBytes(attachment.size)}</p>
+                        </div>
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 
         {/* ── Footer: reactions + comment toggle ── */}
-        <div className="px-5 pb-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-5 pb-5 flex items-center justify-between gap-3 flex-wrap">
           <ReactionBar
             targetType="post" targetId={report._id} token={token}
             reactionState={reactionState} onReactionChange={onReactionChange}
           />
           <button
             onClick={() => setShowComments((p) => !p)}
-            className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/45 hover:text-muted-foreground/75 transition-colors"
           >
             <MessageCircle className="h-3.5 w-3.5" />
             {showComments ? "Hide comments" : "Comments"}
@@ -678,30 +760,89 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
 function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   currentUser: CrmUser; token: string; selectedDept: DepartmentKey | null; onPosted: (r: DayPulseReport) => void
 }) {
-  const [open, setOpen]               = React.useState(false)
-  const [dept, setDept]               = React.useState<DepartmentKey | null>(selectedDept)
-  const [date, setDate]               = React.useState(todayStr())
-  const [accomplishment, setAcc]      = React.useState("")
-  const [blockers, setBlk]            = React.useState("")
-  const [inProgress, setInp]          = React.useState("")
-  const [submitting, setSubmitting]   = React.useState(false)
-  const [error, setError]             = React.useState("")
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  const [open, setOpen] = React.useState(false)
+  const [dept, setDept] = React.useState<DepartmentKey | null>(selectedDept)
+  const [date, setDate] = React.useState(todayStr())
+  const [accomplishment, setAcc] = React.useState("")
+  const [blockers, setBlk] = React.useState("")
+  const [inProgress, setInp] = React.useState("")
+  const [pendingAttachments, setPendingAttachments] = React.useState<File[]>([])
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState("")
 
   // Sync dept with selected tab
   React.useEffect(() => { setDept(selectedDept) }, [selectedDept])
 
   const canSubmit = !!dept && !!date && accomplishment.trim() && blockers.trim() && inProgress.trim()
 
+  const handleAttachmentPick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || [])
+    event.target.value = ""
+
+    if (!selectedFiles.length) return
+
+    if (pendingAttachments.length + selectedFiles.length > MAX_DAYPULSE_ATTACHMENTS) {
+      setError(`You can attach up to ${MAX_DAYPULSE_ATTACHMENTS} files.`)
+      return
+    }
+
+    const allowedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".pdf", ".doc", ".docx"]
+    const allowedMimeTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]
+
+    for (const file of selectedFiles) {
+      if (file.size === 0) {
+        setError(`${file.name} is empty and cannot be attached.`)
+        return
+      }
+
+      if (file.size > MAX_DAYPULSE_ATTACHMENT_SIZE_BYTES) {
+        setError(`${file.name} exceeds 25 MB.`)
+        return
+      }
+
+      const extension = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase() : ""
+      if (!allowedExtensions.includes(extension) && !allowedMimeTypes.includes(file.type)) {
+        setError("Only PNG, JPG, PDF, and DOCX files are allowed.")
+        return
+      }
+    }
+
+    setPendingAttachments((prev) => [...prev, ...selectedFiles])
+    setError("")
+  }
+
+  const removeAttachment = (index: number) => {
+    setPendingAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async () => {
     if (!canSubmit) { setError("Please fill in all fields and select a department."); return }
     setSubmitting(true); setError("")
     try {
-      const res = await apiClient.post("/api/crm/daypulse",
-        { department: dept, reportDate: date, accomplishment: accomplishment.trim(), blockers: blockers.trim(), inProgress: inProgress.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const payload = new FormData()
+      payload.append("department", dept)
+      payload.append("reportDate", date)
+      payload.append("accomplishment", accomplishment.trim())
+      payload.append("blockers", blockers.trim())
+      payload.append("inProgress", inProgress.trim())
+      pendingAttachments.forEach((file) => payload.append("attachments", file))
+
+      const res = await apiClient.post(
+        "/api/crm/daypulse",
+        payload,
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
       )
       onPosted(res.data?.data?.report)
-      setAcc(""); setBlk(""); setInp("")
+      setAcc(""); setBlk(""); setInp(""); setPendingAttachments([])
+      if (fileInputRef.current) fileInputRef.current.value = ""
       setOpen(false)
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to submit report")
@@ -712,34 +853,37 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   const deptStyle = getDeptStyle(selectedDeptMeta?.color ?? "emerald")
 
   return (
-    <div className={`rounded-2xl border bg-card transition-all duration-300 ${open ? "border-emerald-500/30 shadow-md shadow-emerald-500/5" : "border-border/40"}`}>
+    <div className={`rounded-[28px] border bg-card transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}>
       {/* Collapsed trigger */}
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="w-full flex items-center gap-3 p-4 text-left"
+          className="w-full flex items-center gap-4 p-5 text-left"
         >
-          <Avatar className="h-9 w-9 shrink-0 ring-2 ring-border/30">
+          <Avatar className="h-10 w-10 shrink-0 ring-2 ring-border/30">
             <AvatarImage src={currentUser.avatar} />
             <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(currentUser.fullName)}</AvatarFallback>
           </Avatar>
-          <div className="flex-1 rounded-xl bg-muted/30 border border-border/30 px-4 py-2.5 text-sm text-muted-foreground/40 hover:bg-muted/50 transition-colors">
-            File your DayPulse report…
+          <div className="flex-1 rounded-2xl bg-muted/30 border border-border/30 px-4 py-3 text-sm text-muted-foreground/50 hover:bg-muted/50 transition-colors">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground/35">New report</span>
+            File your DayPulse update…
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/40">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/45 shrink-0">
             <CalendarDays className="h-3.5 w-3.5" />
             {date}
           </div>
         </button>
       ) : (
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-5">
           {/* Form header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="mt-0.5 h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Sparkles className="h-4 w-4 text-emerald-500" />
               </div>
-              <span className="text-sm font-bold">New DayPulse Report</span>
+              <div className="min-w-0">
+                <span className="block text-sm font-bold text-foreground">New DayPulse Report</span>
+              </div>
             </div>
             <button onClick={() => { setOpen(false); setError("") }} className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
               <X className="h-4 w-4" />
@@ -747,15 +891,15 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           </div>
 
           {/* Row: Department selector + Date picker */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {/* Department */}
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1.5 flex items-center gap-1">
+              <label className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
                 <Hash className="h-3 w-3" /> Department <span className="text-red-500">*</span>
               </label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className={`w-full flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all
+                  <button className={`w-full flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs font-semibold transition-all
                     ${dept ? `${deptStyle.badge} border-current` : "border-border/40 text-muted-foreground/50 hover:border-border/70"}`}
                   >
                     <span className="flex items-center gap-1.5 truncate">
@@ -764,13 +908,13 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                     <ChevronDown className="h-3 w-3 shrink-0" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-52 rounded-xl border-border/40 shadow-xl p-1 max-h-64 overflow-y-auto">
+                <DropdownMenuContent className="w-56 rounded-2xl border-border/40 shadow-xl p-1.5 max-h-64 overflow-y-auto">
                   {DEPARTMENTS.map((d) => {
                     const s = getDeptStyle(d.color)
                     return (
                       <DropdownMenuItem
                         key={d.key}
-                        className={`rounded-lg text-xs h-8 gap-2 cursor-pointer font-semibold ${dept === d.key ? s.badge : ""}`}
+                        className={`rounded-xl text-xs h-9 gap-2 cursor-pointer font-semibold ${dept === d.key ? s.badge : ""}`}
                         onClick={() => setDept(d.key)}
                       >
                         <span>{d.label}</span>
@@ -783,7 +927,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
 
             {/* Date */}
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1.5 flex items-center gap-1">
+              <label className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
                 <CalendarDays className="h-3 w-3" /> Report Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -791,7 +935,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                 value={date}
                 max={todayStr()}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-xl border border-border/40 bg-muted/20 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/40 transition-all text-foreground/80"
+                className="w-full rounded-2xl border border-border/40 bg-muted/20 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/40 transition-all text-foreground/80"
               />
             </div>
           </div>
@@ -799,11 +943,11 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           {/* Structured sections */}
           {[
             { label: "Accomplishment", icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />, value: accomplishment, onChange: setAcc, placeholder: "What did you accomplish today? Include completed tasks, closed deals, resolved issues…" },
-            { label: "Blockers",       icon: <AlertCircle  className="h-3.5 w-3.5 text-red-500"   />, value: blockers,       onChange: setBlk, placeholder: "What obstacles or dependencies are slowing you down? Who do you need help from?" },
-            { label: "In Progress",    icon: <Clock3       className="h-3.5 w-3.5 text-amber-500" />, value: inProgress,     onChange: setInp, placeholder: "What are you actively working on right now? What will you tackle next?" },
+            { label: "Blockers", icon: <AlertCircle className="h-3.5 w-3.5 text-red-500" />, value: blockers, onChange: setBlk, placeholder: "What obstacles or dependencies are slowing you down? Who do you need help from?" },
+            { label: "In Progress", icon: <Clock3 className="h-3.5 w-3.5 text-amber-500" />, value: inProgress, onChange: setInp, placeholder: "What are you actively working on right now? What will you tackle next?" },
           ].map(({ label, icon, value, onChange, placeholder }) => (
             <div key={label}>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+              <label className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
                 {icon}{label} <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -811,32 +955,90 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                 onChange={(e) => { onChange(e.target.value); setError("") }}
                 rows={3} maxLength={5000}
                 placeholder={placeholder}
-                className="w-full rounded-xl border border-border/40 bg-muted/20 text-sm p-3 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 leading-relaxed placeholder:text-muted-foreground/25 transition-all"
+                className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 leading-relaxed placeholder:text-muted-foreground/25 transition-all"
               />
-              <div className="text-right">
+              <div className="mt-1.5 text-right">
                 <span className={`text-[9px] tabular-nums ${value.length > 4500 ? "text-red-500" : "text-muted-foreground/25"}`}>{value.length}/5000</span>
               </div>
             </div>
           ))}
 
+          <div className="rounded-2xl border border-border/40 bg-muted/10 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
+                  <Paperclip className="h-3 w-3" /> Attach Files
+                </label>
+                <p className="mt-1 text-[10px] text-muted-foreground/40">PNG, JPG, PDF, DOCX · 25 MB max each · up to {MAX_DAYPULSE_ATTACHMENTS} files</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-xl border-border/40 bg-card text-xs gap-2"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="h-3.5 w-3.5" />
+                Attach File
+              </Button>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={DAYPULSE_ATTACHMENT_ACCEPT}
+              multiple
+              className="hidden"
+              onChange={handleAttachmentPick}
+            />
+
+            {pendingAttachments.length > 0 ? (
+              <div className="space-y-2">
+                {pendingAttachments.map((file, index) => {
+                  const isImage = file.type.startsWith("image/")
+
+                  return (
+                    <div key={`${file.name}-${file.size}-${file.lastModified}-${index}`} className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
+                        {isImage ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                        <p className="text-[10px] text-muted-foreground/55">{formatBytes(file.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        className="rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground/75"
+                        aria-label={`Remove ${file.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
+
           {error && (
-            <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3">
               <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-              <p className="text-xs text-red-500">{error}</p>
+              <p className="text-xs leading-5 text-red-500">{error}</p>
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-[10px] text-muted-foreground/25">Ctrl+Enter to submit</p>
+          <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-border/20">
+            <p className="pt-3 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/25">Ctrl+Enter to submit</p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="h-9 rounded-xl text-xs" onClick={() => { setOpen(false); setError("") }} disabled={submitting}>
+              <Button variant="ghost" size="sm" className="h-10 rounded-xl text-xs px-4" onClick={() => { setOpen(false); setError("") }} disabled={submitting}>
                 Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleSubmit}
                 disabled={submitting || !canSubmit}
-                className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-2 px-4 disabled:opacity-40"
+                className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-2 px-5 disabled:opacity-40"
               >
                 {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 Submit Report
@@ -900,7 +1102,7 @@ function DeptTabBar({ selected, onSelect }: {
   selected: DepartmentKey | null; onSelect: (d: DepartmentKey | null) => void
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft]   = React.useState(false)
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
   const [canScrollRight, setCanScrollRight] = React.useState(true)
 
   const checkScroll = React.useCallback(() => {
@@ -927,12 +1129,12 @@ function DeptTabBar({ selected, onSelect }: {
     scrollRef.current?.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" })
 
   return (
-    <div className="flex items-center gap-1 w-full min-w-0">
+    <div className="flex items-center gap-2 w-full min-w-0">
       {/* Left arrow */}
       <button
         onClick={() => nudge("left")}
         disabled={!canScrollLeft}
-        className="shrink-0 h-7 w-7 rounded-full border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
+        className="shrink-0 h-8 w-8 rounded-full border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
       </button>
@@ -940,7 +1142,7 @@ function DeptTabBar({ selected, onSelect }: {
       {/* Tab strip — the key: clip here intentionally with overflow-hidden, scroll via JS */}
       <div
         ref={scrollRef}
-        className="flex items-center gap-1 flex-1 min-w-0"
+        className="flex items-center gap-1.5 flex-1 min-w-0"
         style={{
           overflowX: "auto",
           overflowY: "visible",
@@ -951,11 +1153,11 @@ function DeptTabBar({ selected, onSelect }: {
       >
         {/* hide webkit scrollbar */}
         <style>{`#dept-scroll::-webkit-scrollbar{display:none}`}</style>
-        <div id="dept-scroll" className="flex items-center gap-1 pb-0.5">
+        <div id="dept-scroll" className="flex items-center gap-1.5 pb-0.5">
           {/* All tab */}
           <button
             onClick={() => onSelect(null)}
-            className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border
+            className={`shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border
               ${selected === null
                 ? "bg-foreground text-background border-foreground"
                 : "border-border/30 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
@@ -971,7 +1173,7 @@ function DeptTabBar({ selected, onSelect }: {
               <button
                 key={d.key}
                 onClick={() => onSelect(d.key)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border
+                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border
                   ${isActive
                     ? `${s.badge} border-current`
                     : "border-border/30 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
@@ -989,7 +1191,7 @@ function DeptTabBar({ selected, onSelect }: {
       <button
         onClick={() => nudge("right")}
         disabled={!canScrollRight}
-        className="shrink-0 h-7 w-7 rounded-full border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
+        className="shrink-0 h-8 w-8 rounded-full border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
       >
         <ChevronRight className="h-3.5 w-3.5" />
       </button>
@@ -1001,15 +1203,15 @@ function DeptTabBar({ selected, onSelect }: {
 export default function DayPulsePage({ currentUser, token }: {
   currentUser: CrmUser; token: string
 }) {
-  const [selectedDept, setSelectedDept]     = React.useState<DepartmentKey | null>(null)
-  const [selectedDate, setSelectedDate]     = React.useState(todayStr())
-  const [reports, setReports]               = React.useState<DayPulseReport[]>([])
-  const [postReactions, setPostReactions]   = React.useState<Record<string, ReactionState>>({})
-  const [loading, setLoading]               = React.useState(false)
-  const [loadingMore, setLoadingMore]       = React.useState(false)
-  const [hasMore, setHasMore]               = React.useState(false)
-  const [page, setPage]                     = React.useState(1)
-  const [refreshing, setRefreshing]         = React.useState(false)
+  const [selectedDept, setSelectedDept] = React.useState<DepartmentKey | null>(null)
+  const [selectedDate, setSelectedDate] = React.useState(todayStr())
+  const [reports, setReports] = React.useState<DayPulseReport[]>([])
+  const [postReactions, setPostReactions] = React.useState<Record<string, ReactionState>>({})
+  const [loading, setLoading] = React.useState(false)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [hasMore, setHasMore] = React.useState(false)
+  const [page, setPage] = React.useState(1)
+  const [refreshing, setRefreshing] = React.useState(false)
   const observerRef = React.useRef<HTMLDivElement>(null)
 
   const PAGE_LIMIT = 20
@@ -1047,7 +1249,7 @@ export default function DayPulsePage({ currentUser, token }: {
       .then(({ reports, hasMore, reactions }) => {
         setReports(reports); setPostReactions(reactions); setHasMore(hasMore); setPage(1)
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
   }, [token, fetchReports])
 
@@ -1060,7 +1262,7 @@ export default function DayPulsePage({ currentUser, token }: {
     )
     obs.observe(observerRef.current)
     return () => obs.disconnect()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore, reports])
 
   const loadMore = async () => {
@@ -1088,103 +1290,118 @@ export default function DayPulsePage({ currentUser, token }: {
   const deptMeta = DEPARTMENTS.find((d) => d.key === selectedDept)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <section className={`${PAGE_PANEL} p-4 sm:p-5`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/45">CRM Feed Module</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">DayPulse</h2>
+          </div>
 
-      {/* ── Date navigator + refresh ── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="space-y-0.5">
-          <p className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest">Viewing reports for</p>
-          <p className="text-sm font-bold text-foreground/80">{formatReportDate(selectedDate)}</p>
+          <div className="grid gap-2 sm:min-w-70 sm:grid-cols-2">
+            <div className="rounded-2xl border border-border/40 bg-muted/30 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/40">Selected date</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{formatReportDate(selectedDate)}</p>
+            </div>
+            <div className="rounded-2xl border border-border/40 bg-muted/30 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/40">Scope</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{deptMeta ? deptMeta.label : "All Teams"}</p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <DateNavigator selectedDate={selectedDate} onDateChange={(d) => setSelectedDate(d)} />
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg shrink-0" onClick={handleRefresh} disabled={refreshing} title="Refresh">
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+      </section>
+
+      <section className={`${PAGE_SECTION} p-4 sm:p-5 space-y-4`}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/45">Viewing reports for</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <DateNavigator selectedDate={selectedDate} onDateChange={(d) => setSelectedDate(d)} />
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl shrink-0 border border-border/30" onClick={handleRefresh} disabled={refreshing} title="Refresh">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
+        <DeptTabBar selected={selectedDept} onSelect={setSelectedDept} />
+
+        <ReportComposer
+          currentUser={currentUser} token={token}
+          selectedDept={selectedDept}
+          onPosted={(r) => {
+            setReports((prev) => [r, ...prev])
+            setPostReactions((prev) => ({ ...prev, [r._id]: { summary: {}, myReaction: null } }))
+          }}
+        />
+
+        <div className="flex items-center gap-3 pt-1">
+          <div className="flex-1 h-px bg-border/30" />
+          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/30">
+            {deptMeta ? <><Hash className="h-2.5 w-2.5" /><span>{deptMeta.label}</span></> : "All Teams"}
+          </p>
+          <div className="flex-1 h-px bg-border/30" />
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/30">Loading reports…</p>
+          </div>
+        ) : reports.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-18">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl border-2 border-dashed border-border/25 bg-muted/10">
+              <CalendarDays className="h-7 w-7 text-muted-foreground/15" />
+            </div>
+            <div className="max-w-md space-y-2 text-center">
+              <p className="text-base font-semibold tracking-tight text-muted-foreground/45">No reports for this day</p>
+              <p className="text-sm leading-6 text-muted-foreground/25">
+                {selectedDept ? `No #${deptMeta?.label} reports on ${selectedDate}.` : `No reports on ${selectedDate}.`} Be the first to file one!
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {reports.map((report) => (
+              <ReportCard
+                key={report._id}
+                report={report}
+                currentUser={currentUser}
+                token={token}
+                onUpdated={(u) => setReports((prev) => prev.map((r) => (r._id === u._id ? u : r)))}
+                onDeleted={(id) => {
+                  setReports((prev) => prev.filter((r) => r._id !== id))
+                  setPostReactions((prev) => { const n = { ...prev }; delete n[id]; return n })
+                }}
+                reactionState={postReactions[report._id] ?? { summary: {}, myReaction: null }}
+                onReactionChange={(s) => setPostReactions((prev) => ({ ...prev, [report._id]: s }))}
+              />
+            ))}
+          </div>
+        )}
+
+        <div ref={observerRef} className="h-1" />
+
+        {loadingMore && (
+          <div className="flex justify-center py-5">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
+          </div>
+        )}
+
+        {!hasMore && reports.length > 0 && (
+          <div className="flex items-center gap-3 py-4">
+            <div className="flex-1 h-px bg-border/20" />
+            <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/25">End of reports</p>
+            <div className="flex-1 h-px bg-border/20" />
+          </div>
+        )}
+
+        {hasMore && !loadingMore && (
+          <Button variant="outline" className="w-full h-11 rounded-2xl text-xs gap-2 border-border/30 hover:border-emerald-500/30" onClick={loadMore}>
+            <ChevronDown className="h-4 w-4" /> Load more reports
           </Button>
-        </div>
-      </div>
-
-      {/* ── Department tab bar ── */}
-      <DeptTabBar selected={selectedDept} onSelect={setSelectedDept} />
-
-      {/* ── Report composer ── */}
-      <ReportComposer
-        currentUser={currentUser} token={token}
-        selectedDept={selectedDept}
-        onPosted={(r) => {
-          setReports((prev) => [r, ...prev])
-          setPostReactions((prev) => ({ ...prev, [r._id]: { summary: {}, myReaction: null } }))
-        }}
-      />
-
-      {/* ── Separator ── */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-border/30" />
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/25 flex items-center gap-1">
-          {deptMeta ? <><Hash className="h-2.5 w-2.5" /><span>{deptMeta.label}</span></> : "All Teams"}
-        </p>
-        <div className="flex-1 h-px bg-border/30" />
-      </div>
-
-      {/* ── Reports list ── */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
-          <p className="text-xs text-muted-foreground/30 uppercase tracking-widest">Loading reports…</p>
-        </div>
-      ) : reports.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-20">
-          <div className="h-16 w-16 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center">
-            <CalendarDays className="h-7 w-7 text-muted-foreground/15" />
-          </div>
-          <div className="text-center space-y-1">
-            <p className="text-sm font-semibold text-muted-foreground/40">No reports for this day</p>
-            <p className="text-xs text-muted-foreground/25">
-              {selectedDept ? `No #${deptMeta?.label} reports on ${selectedDate}.` : `No reports on ${selectedDate}.`} Be the first to file one!
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {reports.map((report) => (
-            <ReportCard
-              key={report._id}
-              report={report}
-              currentUser={currentUser}
-              token={token}
-              onUpdated={(u) => setReports((prev) => prev.map((r) => (r._id === u._id ? u : r)))}
-              onDeleted={(id) => {
-                setReports((prev) => prev.filter((r) => r._id !== id))
-                setPostReactions((prev) => { const n = { ...prev }; delete n[id]; return n })
-              }}
-              reactionState={postReactions[report._id] ?? { summary: {}, myReaction: null }}
-              onReactionChange={(s) => setPostReactions((prev) => ({ ...prev, [report._id]: s }))}
-            />
-          ))}
-        </div>
-      )}
-
-      <div ref={observerRef} className="h-1" />
-
-      {loadingMore && (
-        <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
-        </div>
-      )}
-
-      {!hasMore && reports.length > 0 && (
-        <div className="flex items-center gap-3 py-4">
-          <div className="flex-1 h-px bg-border/20" />
-          <p className="text-[10px] text-muted-foreground/25 font-medium uppercase tracking-widest">End of reports</p>
-          <div className="flex-1 h-px bg-border/20" />
-        </div>
-      )}
-
-      {hasMore && !loadingMore && (
-        <Button variant="outline" className="w-full rounded-xl h-10 text-xs gap-2 border-border/30 hover:border-emerald-500/30" onClick={loadMore}>
-          <ChevronDown className="h-4 w-4" /> Load more reports
-        </Button>
-      )}
+        )}
+      </section>
     </div>
   )
 }

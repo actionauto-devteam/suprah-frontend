@@ -162,7 +162,7 @@ export default function CrmSettingsPage() {
                       {ini(user.fullName)}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
+                  <span className="hidden sm:inline text-xs font-medium max-w-25 truncate">
                     {user.fullName}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
@@ -225,7 +225,7 @@ export default function CrmSettingsPage() {
       </header>
 
       {/* ── Page Content ── */}
-      <main className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Page header */}
         <div className="flex items-center gap-4">
           <Button
@@ -339,7 +339,7 @@ export default function CrmSettingsPage() {
             </div>
 
             {/* Admin-only notice */}
-            <div className="rounded-2xl border border-border/30 bg-muted/[0.015] px-6 py-4">
+            <div className="rounded-2xl border border-border/30 bg-muted/1.5 px-6 py-4">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="h-4 w-4 text-emerald-500/60 mt-0.5 shrink-0" />
                 <div>

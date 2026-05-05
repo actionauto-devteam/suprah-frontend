@@ -1,11 +1,35 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, UserX, MoreVertical, Pencil, Trash2, PowerOff, Power, KeyRound } from "lucide-react"
+import {
+  Loader2,
+  UserX,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  PowerOff,
+  Power,
+  KeyRound,
+  Search,
+  Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,16 +58,30 @@ interface CrmUserRow {
   fullName: string
   username: string
   email: string
+  avatar?: string
   role: "employee" | "manager" | "admin"
   isActive: boolean
   lastLoginAt?: string
   createdAt: string
 }
 
+interface PaginationMeta {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
 interface UsersTableProps {
   token: string
   refreshKey: number
 }
+
+type SortField = "fullName" | "username" | "role" | "status" | "createdAt"
+type SortOrder = "asc" | "desc"
+type RoleFilter = "all" | "employee" | "manager" | "admin"
+type StatusFilter = "all" | "active" | "inactive"
+type DateJoinedFilter = "all" | "7d" | "30d" | "90d" | "year"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,20 +127,62 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   return (
     <Badge
       variant="outline"
-      className={`text-[10px] h-5 px-2 rounded-full font-semibold ${
-        isActive
+      className={`text-[10px] h-5 px-2 rounded-full font-semibold ${isActive
           ? "bg-green-500/10 text-green-600 border-green-500/20"
           : "bg-red-500/8 text-red-500 border-red-500/20"
-      }`}
+        }`}
     >
       <span
-        className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${
-          isActive ? "bg-green-500" : "bg-red-400"
-        }`}
+        className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${isActive ? "bg-green-500" : "bg-red-400"
+          }`}
       />
       {isActive ? "Active" : "Inactive"}
     </Badge>
   )
+}
+
+function SortHeaderButton({
+  label,
+  field,
+  activeSortBy,
+  sortOrder,
+  onSort,
+}: {
+  label: string
+  field: SortField
+  activeSortBy: SortField
+  sortOrder: SortOrder
+  onSort: (field: SortField) => void
+}) {
+  const isActive = activeSortBy === field
+  const SortIcon = isActive ? (sortOrder === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(field)}
+      className="inline-flex items-center gap-1 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 transition-colors hover:text-muted-foreground/70"
+    >
+      {label}
+      <SortIcon className="h-3 w-3" />
+    </button>
+  )
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = error as {
+      response?: {
+        data?: {
+          message?: string
+        }
+      }
+    }
+
+    return response.response?.data?.message || fallback
+  }
+
+  return error instanceof Error ? error.message || fallback : fallback
 }
 
 // ─── Skeleton Row ─────────────────────────────────────────────────────────────
@@ -142,26 +222,141 @@ function SkeletonRow() {
 
 export function UsersTable({ token, refreshKey }: UsersTableProps) {
   const [users, setUsers] = React.useState<CrmUserRow[]>([])
+  const [pagination, setPagination] = React.useState<PaginationMeta>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  })
   const [loading, setLoading] = React.useState(true)
   const [actioningId, setActioningId] = React.useState<string | null>(null)
   const [editTarget, setEditTarget] = React.useState<CrmUserRow | null>(null)
   const [resetTarget, setResetTarget] = React.useState<CrmUserRow | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<CrmUserRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+  const [searchTerm, setSearchTerm] = React.useState("")
+  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all")
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
+  const [dateJoinedFilter, setDateJoinedFilter] = React.useState<DateJoinedFilter>("all")
+  const [sortBy, setSortBy] = React.useState<SortField>("createdAt")
+  const [sortOrder, setSortOrder] = React.useState<SortOrder>("desc")
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(10)
 
-  const fetchUsers = React.useCallback(() => {
+  const hasFilters =
+    searchTerm.trim().length > 0 ||
+    roleFilter !== "all" ||
+    statusFilter !== "all" ||
+    dateJoinedFilter !== "all"
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setRoleFilter("all")
+    setStatusFilter("all")
+    setDateJoinedFilter("all")
+    setSortBy("createdAt")
+    setSortOrder("desc")
+    setPage(1)
+    setPageSize(10)
+  }
+
+  const fetchUsers = React.useCallback(async (targetPage: number) => {
     if (!token) return
     setLoading(true)
-    apiClient
-      .get("/api/crm/users", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setUsers(res.data?.data?.users || []))
-      .catch(() => setUsers([]))
-      .finally(() => setLoading(false))
-  }, [token])
+    const params = new URLSearchParams({
+      page: String(targetPage),
+      limit: String(pageSize),
+      sortBy,
+      sortOrder,
+    })
+
+    if (searchTerm.trim()) {
+      params.set("search", searchTerm.trim())
+    }
+
+    if (roleFilter !== "all") {
+      params.set("role", roleFilter)
+    }
+
+    if (statusFilter !== "all") {
+      params.set("status", statusFilter)
+    }
+
+    if (dateJoinedFilter !== "all") {
+      params.set("dateJoined", dateJoinedFilter)
+    }
+
+    try {
+      const res = await apiClient.get(`/api/crm/users?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      const data = res.data?.data || res.data
+      const nextUsers = data?.users || []
+      const nextPagination = data?.pagination || {
+        page: targetPage,
+        limit: pageSize,
+        total: data?.total || nextUsers.length,
+        totalPages: Math.ceil((data?.total || nextUsers.length) / pageSize),
+      }
+
+      if (nextPagination.totalPages > 0 && targetPage > nextPagination.totalPages) {
+        setPage(nextPagination.totalPages)
+        return
+      }
+
+      setUsers(nextUsers)
+      setPagination({
+        page: nextPagination.page || targetPage,
+        limit: nextPagination.limit || pageSize,
+        total: nextPagination.total || nextUsers.length,
+        totalPages:
+          nextPagination.totalPages ||
+          Math.ceil((nextPagination.total || nextUsers.length) / (nextPagination.limit || pageSize)),
+      })
+    } catch {
+      setUsers([])
+      setPagination({
+        page: targetPage,
+        limit: pageSize,
+        total: 0,
+        totalPages: 0,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [token, pageSize, sortBy, sortOrder, searchTerm, roleFilter, statusFilter, dateJoinedFilter])
 
   React.useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers, refreshKey])
+    fetchUsers(page)
+  }, [fetchUsers, page, refreshKey])
+
+  const handleSort = (field: SortField) => {
+    setPage(1)
+    if (sortBy === field) {
+      setSortOrder((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortBy(field)
+    setSortOrder("asc")
+  }
+
+  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1
+  const endItem = Math.min(pagination.page * pagination.limit, pagination.total)
+  const totalPages = pagination.totalPages
+  const pageButtons = React.useMemo(() => {
+    if (totalPages <= 0) return []
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1)
+    }
+
+    const start = Math.max(1, page - 2)
+    const end = Math.min(totalPages, start + 4)
+    const normalizedStart = Math.max(1, end - 4)
+
+    return Array.from({ length: end - normalizedStart + 1 }, (_, index) => normalizedStart + index)
+  }, [page, totalPages])
 
   // ── Toggle active/inactive ──
   const handleToggleStatus = async (user: CrmUserRow) => {
@@ -173,9 +368,9 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
         { headers: { Authorization: `Bearer ${token}` } }
       )
       toast.success(`${user.fullName} has been ${user.isActive ? "deactivated" : "reactivated"}.`)
-      fetchUsers()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to update status.")
+      fetchUsers(page)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to update status."))
     } finally {
       setActioningId(null)
     }
@@ -191,196 +386,398 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
       })
       toast.success(`${deleteTarget.fullName} has been deleted.`)
       setDeleteTarget(null)
-      fetchUsers()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to delete user.")
+      fetchUsers(page)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to delete user."))
     } finally {
       setDeleting(false)
     }
   }
 
-  // ── Loading state ──
-  if (loading) {
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/30">
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">User</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Employee ID</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Role</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Status</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Joined</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <SkeletonRow key={i} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
+  const isEmpty = !loading && users.length === 0
+  const emptyMessage = hasFilters ? "No results found" : "No users found"
+  const emptyDescription = hasFilters
+    ? "Try adjusting the search, filters, or sort order."
+    : "Create a new CRM account by clicking the button above."
 
-  // ── Empty state ──
-  if (users.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-        <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center mb-4">
-          <UserX className="h-6 w-6 text-muted-foreground/15" />
-        </div>
-        <p className="text-sm font-semibold text-muted-foreground/40">No users found</p>
-        <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
-          Create a new CRM account by clicking the button above.
-        </p>
-      </div>
-    )
-  }
-
-  // ── Table ──
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/30 bg-muted/2">
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">User</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Employee ID</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Role</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Status</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Joined</th>
-              <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr
-                key={u._id}
-                className="border-b border-border/20 last:border-0 hover:bg-muted/2.5 transition-colors"
+      <div className="rounded-b-2xl border-t border-border/30 bg-background/40">
+        <div className="px-5 py-4 border-b border-border/20 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground/50">
+                Search, filter, sort, and page through CRM users.
+              </p>
+              <p className="text-[11px] text-muted-foreground/30 mt-0.5">
+                Search by name, email, or employee ID.
+              </p>
+            </div>
+            {hasFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={clearFilters}
+                className="h-8 rounded-xl border border-border/40 text-xs font-semibold gap-2"
               >
-                {/* User */}
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-7 w-7 shrink-0">
-                      <AvatarImage src={undefined} />
-                      <AvatarFallback
-                        className={`text-[9px] font-bold text-white ${
-                          u.role === "admin"
-                            ? "bg-violet-500"
-                            : u.role === "manager"
-                            ? "bg-blue-500"
-                            : "bg-emerald-600"
-                        }`}
-                      >
-                        {ini(u.fullName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate leading-tight">{u.fullName}</p>
-                      <p className="text-[11px] text-muted-foreground/40 truncate mt-0.5">{u.email}</p>
-                    </div>
-                  </div>
-                </td>
+                <Filter className="h-3.5 w-3.5" />
+                Reset Filters
+              </Button>
+            )}
+          </div>
 
-                {/* Employee ID */}
-                <td className="px-5 py-3.5">
-                  <span className="text-xs font-mono text-muted-foreground/60 bg-muted/30 px-2 py-0.5 rounded-md">
-                    {u.username}
-                  </span>
-                </td>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(4,minmax(0,1fr))]">
+            <div className="relative lg:col-span-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value)
+                  setPage(1)
+                }}
+                placeholder="Search users by name, email, or employee ID"
+                className="h-9 rounded-xl border-border/40 bg-background/60 pl-9 text-xs"
+              />
+            </div>
 
-                {/* Role */}
-                <td className="px-5 py-3.5">
-                  <RoleBadge role={u.role} />
-                </td>
+            <Select
+              value={roleFilter}
+              onValueChange={(value) => {
+                setRoleFilter(value as RoleFilter)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl border-border/40 bg-background/60 text-xs">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
 
-                {/* Status */}
-                <td className="px-5 py-3.5">
-                  <StatusBadge isActive={u.isActive} />
-                </td>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value as StatusFilter)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl border-border/40 bg-background/60 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
 
-                {/* Joined */}
-                <td className="px-5 py-3.5">
-                  <span className="text-[11px] text-muted-foreground/40">
-                    {formatDate(u.createdAt)}
-                  </span>
-                </td>
+            <Select
+              value={dateJoinedFilter}
+              onValueChange={(value) => {
+                setDateJoinedFilter(value as DateJoinedFilter)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl border-border/40 bg-background/60 text-xs">
+                <SelectValue placeholder="Date joined" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any date</SelectItem>
+                <SelectItem value="7d">Last 7 days</SelectItem>
+                <SelectItem value="30d">Last 30 days</SelectItem>
+                <SelectItem value="90d">Last 90 days</SelectItem>
+                <SelectItem value="year">This year</SelectItem>
+              </SelectContent>
+            </Select>
 
-                {/* Actions */}
-                <td className="px-5 py-3.5">
-                  {actioningId === u._id ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-                  ) : (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground/40 hover:text-muted-foreground/70">
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44 rounded-xl p-1 shadow-lg border-border/40">
-                        <DropdownMenuItem
-                          onClick={() => setEditTarget(u)}
-                          className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                          Edit User
-                        </DropdownMenuItem>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => {
+                setPageSize(Number(value))
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl border-border/40 bg-background/60 text-xs">
+                <SelectValue placeholder="Rows" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 per page</SelectItem>
+                <SelectItem value="20">20 per page</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-                        <DropdownMenuItem
-                          onClick={() => setResetTarget(u)}
-                          className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
-                        >
-                          <KeyRound className="h-3.5 w-3.5 text-amber-500" />
-                          <span className="text-amber-600">Reset Password</span>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          onClick={() => handleToggleStatus(u)}
-                          className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
-                        >
-                          {u.isActive ? (
-                            <>
-                              <PowerOff className="h-3.5 w-3.5 text-amber-500" />
-                              <span className="text-amber-600">Deactivate</span>
-                            </>
-                          ) : (
-                            <>
-                              <Power className="h-3.5 w-3.5 text-emerald-500" />
-                              <span className="text-emerald-600">Reactivate</span>
-                            </>
-                          )}
-                        </DropdownMenuItem>
-
-                        <DropdownMenuSeparator className="my-1" />
-
-                        <DropdownMenuItem
-                          onClick={() => setDeleteTarget(u)}
-                          className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/30 bg-muted/2">
+                <th className="px-5 py-3 text-left">
+                  <SortHeaderButton
+                    label="User"
+                    field="fullName"
+                    activeSortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="px-5 py-3 text-left">
+                  <SortHeaderButton
+                    label="Employee ID"
+                    field="username"
+                    activeSortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="px-5 py-3 text-left">
+                  <SortHeaderButton
+                    label="Role"
+                    field="role"
+                    activeSortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="px-5 py-3 text-left">
+                  <SortHeaderButton
+                    label="Status"
+                    field="status"
+                    activeSortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="px-5 py-3 text-left">
+                  <SortHeaderButton
+                    label="Joined"
+                    field="createdAt"
+                    activeSortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                  Actions
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading
+                ? Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+                  <SkeletonRow key={i} />
+                ))
+                : isEmpty
+                  ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-16">
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center mb-4">
+                            <UserX className="h-6 w-6 text-muted-foreground/15" />
+                          </div>
+                          <p className="text-sm font-semibold text-muted-foreground/40">
+                            {emptyMessage}
+                          </p>
+                          <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+                            {emptyDescription}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                  : users.map((u) => (
+                    <tr
+                      key={u._id}
+                      className="border-b border-border/20 last:border-0 hover:bg-muted/2.5 transition-colors"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarImage src={u.avatar} />
+                            <AvatarFallback
+                              className={`text-[9px] font-bold text-white ${u.role === "admin"
+                                  ? "bg-violet-500"
+                                  : u.role === "manager"
+                                    ? "bg-blue-500"
+                                    : "bg-emerald-600"
+                                }`}
+                            >
+                              {ini(u.fullName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold truncate leading-tight">{u.fullName}</p>
+                            <p className="text-[11px] text-muted-foreground/40 truncate mt-0.5">{u.email}</p>
+                          </div>
+                        </div>
+                      </td>
 
-        {/* Footer count */}
-        <div className="px-5 py-3 border-t border-border/20 flex items-center justify-between">
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs font-mono text-muted-foreground/60 bg-muted/30 px-2 py-0.5 rounded-md">
+                          {u.username}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <RoleBadge role={u.role} />
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <StatusBadge isActive={u.isActive} />
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <span className="text-[11px] text-muted-foreground/40">
+                          {formatDate(u.createdAt)}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        {actioningId === u._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground/40 hover:text-muted-foreground/70">
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44 rounded-xl p-1 shadow-lg border-border/40">
+                              <DropdownMenuItem
+                                onClick={() => setEditTarget(u)}
+                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                                Edit User
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => setResetTarget(u)}
+                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+                              >
+                                <KeyRound className="h-3.5 w-3.5 text-amber-500" />
+                                <span className="text-amber-600">Reset Password</span>
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => handleToggleStatus(u)}
+                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+                              >
+                                {u.isActive ? (
+                                  <>
+                                    <PowerOff className="h-3.5 w-3.5 text-amber-500" />
+                                    <span className="text-amber-600">Deactivate</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Power className="h-3.5 w-3.5 text-emerald-500" />
+                                    <span className="text-emerald-600">Reactivate</span>
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+
+                              <DropdownMenuSeparator className="my-1" />
+
+                              <DropdownMenuItem
+                                onClick={() => setDeleteTarget(u)}
+                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-muted-foreground/30">
-            {users.length} {users.length === 1 ? "user" : "users"} total
+            {pagination.total === 0
+              ? hasFilters
+                ? "No results match the selected search and filters."
+                : "No users available."
+              : `Showing ${startItem}-${endItem} of ${pagination.total} users`}
           </p>
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
-            <p className="text-[11px] text-muted-foreground/30">
-              {users.filter((u) => u.isActive).length} active
-            </p>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pagination.page <= 1 || loading}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="h-8 rounded-xl border border-border/40 px-3 text-xs font-semibold gap-1.5"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Prev
+            </Button>
+
+            {pageButtons.length > 0 && pageButtons[0] > 1 && (
+              <>
+                <Button
+                  type="button"
+                  variant={pagination.page === 1 ? "default" : "ghost"}
+                  size="sm"
+                  disabled={loading}
+                  onClick={() => setPage(1)}
+                  className="h-8 min-w-8 rounded-xl border border-border/40 px-3 text-xs font-semibold"
+                >
+                  1
+                </Button>
+                <span className="px-1 text-xs text-muted-foreground/30">…</span>
+              </>
+            )}
+
+            {pageButtons.map((buttonPage) => (
+              <Button
+                key={buttonPage}
+                type="button"
+                variant={pagination.page === buttonPage ? "default" : "ghost"}
+                size="sm"
+                disabled={loading}
+                onClick={() => setPage(buttonPage)}
+                className="h-8 min-w-8 rounded-xl border border-border/40 px-3 text-xs font-semibold"
+              >
+                {buttonPage}
+              </Button>
+            ))}
+
+            {pageButtons.length > 0 && pageButtons[pageButtons.length - 1] < totalPages && (
+              <>
+                <span className="px-1 text-xs text-muted-foreground/30">…</span>
+                <Button
+                  type="button"
+                  variant={pagination.page === totalPages ? "default" : "ghost"}
+                  size="sm"
+                  disabled={loading}
+                  onClick={() => setPage(totalPages)}
+                  className="h-8 min-w-8 rounded-xl border border-border/40 px-3 text-xs font-semibold"
+                >
+                  {totalPages}
+                </Button>
+              </>
+            )}
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pagination.page >= pagination.totalPages || loading || pagination.totalPages === 0}
+              onClick={() => setPage((current) => current + 1)}
+              className="h-8 rounded-xl border border-border/40 px-3 text-xs font-semibold gap-1.5"
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
       </div>
@@ -393,7 +790,7 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
         user={editTarget}
         onUpdated={() => {
           setEditTarget(null)
-          fetchUsers()
+          fetchUsers(page)
         }}
       />
 

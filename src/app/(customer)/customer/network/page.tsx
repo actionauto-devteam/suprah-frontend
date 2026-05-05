@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Gift, Crosshair, RefreshCw } from "lucide-react"
 import mapboxgl from "mapbox-gl"
-import "mapbox-gl/dist/mapbox-gl.css"
+
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 
@@ -256,7 +256,7 @@ export default function ServiceNetworkPage() {
             <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
 
                 {/* Left Col: Locations List */}
-                <div className="w-full lg:w-[400px] flex flex-col gap-4 overflow-y-auto pr-2 pb-8 custom-scrollbar">
+                <div className="w-full lg:w-100 flex flex-col gap-4 overflow-y-auto pr-2 pb-8 custom-scrollbar">
 
                     {/* Membership Card */}
                     {/* <Card className="p-0 overflow-hidden relative border-none shadow-xl bg-gradient-to-br from-green-600 to-emerald-900 shrink-0">
@@ -341,11 +341,11 @@ export default function ServiceNetworkPage() {
                 </div>
 
                 {/* Right Col: Interactive Map */}
-                <div className="flex-1 min-h-[500px] flex flex-col">
+                <div className="flex-1 min-h-125 flex flex-col">
                     <Card className="flex-1 w-full h-full bg-zinc-100 dark:bg-zinc-900 border-border/50 shadow-inner overflow-hidden relative">
                         {!mapboxgl.supported() ? (
                             <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-10">
-                                <p className="text-sm text-muted-foreground bg-black/80 px-4 py-2 rounded-full text-white">Mapbox requires a WebGL-compatible browser.</p>
+                                <p className="text-sm text-muted-foreground bg-black/80 px-4 py-2 rounded-full">Mapbox requires a WebGL-compatible browser.</p>
                             </div>
                         ) : mapboxToken ? (
                             <div ref={mapRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }} />

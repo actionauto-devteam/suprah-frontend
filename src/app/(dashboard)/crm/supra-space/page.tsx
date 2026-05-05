@@ -1538,7 +1538,7 @@ export default function SupraSpacePage() {
         </aside>
 
         {/* ── Chat area ── */}
-        <main className="flex-1 flex flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
+        <main className="flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
 
           {/* Empty state */}
           {!activeId && (
@@ -1632,7 +1632,7 @@ export default function SupraSpacePage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto py-4 space-y-1 ss4-scroll">
+              <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll">
                 {hasMore[activeId] && (
                   <div className="flex justify-center pb-3">
                     <button
@@ -1687,7 +1687,7 @@ export default function SupraSpacePage() {
               </div>
 
               {/* ── Input area ── */}
-              <div className="shrink-0 px-4 pb-4 space-y-2">
+              <div className="shrink-0 px-4 pb-2 pt-2 space-y-1.5">
                 {/* Reply bar */}
                 {replyTo && (
                   <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">

@@ -85,7 +85,7 @@ function StatCard({
 }) {
   return (
     <div
-      className={`flex-1 min-w-[110px] rounded-lg border bg-card px-4 py-3 ${accent}`}
+      className={`flex-1 min-w-27.5 rounded-lg border bg-card px-4 py-3 ${accent}`}
     >
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
@@ -160,29 +160,29 @@ function DriverPreview({ loads }: { loads: Load[] }) {
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-y-auto max-h-[340px]">
+            <div className="overflow-y-auto max-h-85">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/60 hover:bg-muted/60">
-                    <TableHead className="text-xs font-semibold w-[160px]">
+                    <TableHead className="text-xs font-semibold w-40">
                       Driver
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-[150px]">
+                    <TableHead className="text-xs font-semibold w-37.5">
                       Vehicle
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-[150px]">
+                    <TableHead className="text-xs font-semibold w-37.5">
                       Customer
                     </TableHead>
                     <TableHead className="text-xs font-semibold">
                       Route
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-[90px]">
+                    <TableHead className="text-xs font-semibold w-22.5">
                       Delivered
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-[100px]">
+                    <TableHead className="text-xs font-semibold w-25">
                       Status
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-[90px]">
+                    <TableHead className="text-xs font-semibold w-22.5">
                       Approval
                     </TableHead>
                   </TableRow>
@@ -201,7 +201,7 @@ function DriverPreview({ loads }: { loads: Load[] }) {
                       </TableCell>
                       <TableCell>
                         <span
-                          className="inline-block max-w-[200px] truncate text-muted-foreground"
+                          className="inline-block max-w-50 truncate text-muted-foreground"
                           title={loadRoute(s)}
                         >
                           {loadRoute(s)}
@@ -306,8 +306,8 @@ function BillingPreview({
           </div>
         ) : (
           <div className="rounded-xl border border-border/70 bg-card/30 p-2 sm:p-3">
-            <div className="overflow-y-auto overflow-x-auto max-h-[350px] rounded-md">
-              <Table className="w-full table-auto min-w-[640px] md:min-w-0">
+            <div className="overflow-y-auto overflow-x-auto max-h-87.5 rounded-md">
+              <Table className="w-full table-auto min-w-160 md:min-w-0">
                 <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
                   <TableRow className="bg-transparent hover:bg-transparent">
                     <TableHead className="text-xs font-semibold">
@@ -334,7 +334,7 @@ function BillingPreview({
                         {p.customerName}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        <span className="block truncate max-w-[200px]" title={p.description}>
+                        <span className="block truncate max-w-50" title={p.description}>
                           {p.description}
                         </span>
                       </TableCell>
@@ -370,8 +370,8 @@ function BillingPreview({
           </div>
         ) : (
           <div className="rounded-xl border border-border/70 bg-card/30 p-2 sm:p-3">
-            <div className="overflow-y-auto overflow-x-auto max-h-[350px] rounded-md">
-              <Table className="w-full table-auto min-w-[640px] md:min-w-0">
+            <div className="overflow-y-auto overflow-x-auto max-h-87.5 rounded-md">
+              <Table className="w-full table-auto min-w-160 md:min-w-0">
                 <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
                   <TableRow className="bg-transparent hover:bg-transparent">
                     <TableHead className="text-xs font-semibold">
@@ -398,7 +398,7 @@ function BillingPreview({
                         {p.driverName}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        <span className="block truncate max-w-[200px]" title={p.description || "—"}>
+                        <span className="block truncate max-w-50" title={p.description || "—"}>
                           {p.description || "—"}
                         </span>
                       </TableCell>
@@ -456,15 +456,15 @@ export function ReportPreviewModal({
     >
       <DialogContent
         showCloseButton={false}
-        className="w-[96vw] max-w-[1200px] p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col rounded-2xl"
+        className="w-[96vw] max-w-300 p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col rounded-2xl"
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-start gap-3">
             <div
               className={`size-10 rounded-lg flex items-center justify-center border ${isDriver
-                  ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
-                  : "bg-violet-50 dark:bg-violet-950/50 border-violet-200 dark:border-violet-800"
+                ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
+                : "bg-violet-50 dark:bg-violet-950/50 border-violet-200 dark:border-violet-800"
                 }`}
             >
               <FileText className={`size-4.5 ${accentColor}`} />

@@ -44,6 +44,12 @@ const T = {
   redBg: "rgba(220,38,38,0.12)",
 };
 
+const panelStyle = {
+  background: T.surface,
+  border: `0.5px solid ${T.border}`,
+  borderRadius: 18,
+};
+
 function SummaryCard({
   label,
   value,
@@ -62,17 +68,16 @@ function SummaryCard({
   return (
     <div
       style={{
-        background: T.surface,
-        border: `0.5px solid ${T.border}`,
-        borderRadius: 14,
-        padding: "14px 16px",
+        ...panelStyle,
+        padding: "18px 18px 16px",
+        boxShadow: "0 1px 0 rgba(15, 23, 42, 0.02)",
       }}
     >
       <div
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 10,
+          width: 36,
+          height: 36,
+          borderRadius: 12,
           background: bg,
           display: "flex",
           alignItems: "center",
@@ -84,20 +89,20 @@ function SummaryCard({
       </div>
       <p
         style={{
-          fontSize: 11,
+          fontSize: 10,
           color: T.textMute,
           margin: 0,
           textTransform: "uppercase",
-          letterSpacing: "0.08em",
+          letterSpacing: "0.12em",
           fontWeight: 700,
         }}
       >
         {label}
       </p>
-      <p style={{ fontSize: 24, fontWeight: 700, color: T.text, margin: "6px 0 0" }}>
+      <p style={{ fontSize: 28, lineHeight: 1.05, fontWeight: 700, color: T.text, margin: "8px 0 0" }}>
         {value}
       </p>
-      <p style={{ fontSize: 11, color: T.textSub, margin: "4px 0 0" }}>{sub}</p>
+      <p style={{ fontSize: 12, color: T.textSub, margin: "6px 0 0", lineHeight: 1.5 }}>{sub}</p>
     </div>
   );
 }
@@ -271,32 +276,32 @@ export default function CustomerPaymentsPage() {
   // ── Payment flow view ──────────────────────────────────────────
   if (selectedPayment && !paymentSuccess) {
     return (
-      <div className="max-w-lg mx-auto p-6">
+      <div className="max-w-xl mx-auto p-6">
         <button
           onClick={handleBackToList}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+          className="mb-5 flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
           Back to Payments
         </button>
 
         <Card className="border-border shadow-lg">
-          <CardHeader className="border-b border-border bg-muted/30">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-600/10 rounded-lg">
+          <CardHeader className="border-b border-border bg-muted/30 px-6 py-5">
+            <div className="flex items-center gap-3.5">
+              <div className="rounded-xl bg-green-600/10 p-2.5">
                 <CreditCard className="size-5 text-green-600" />
               </div>
               <div>
-                <CardTitle className="text-lg">Complete Your Payment</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-xl tracking-tight">Complete Your Payment</CardTitle>
+                <CardDescription className="mt-1 text-sm leading-6">
                   {selectedPayment.invoiceNumber || "Invoice"} &middot; {selectedPayment.description}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-6 md:p-7">
             {paymentError ? (
-              <div className="text-center py-8 space-y-4">
+              <div className="space-y-4 py-8 text-center">
                 <XCircle className="size-12 mx-auto text-destructive" />
                 <p className="text-destructive font-medium">{paymentError}</p>
                 <Button variant="outline" onClick={() => handlePayNow(selectedPayment)}>
@@ -326,14 +331,14 @@ export default function CustomerPaymentsPage() {
   // ── Payment success ────────────────────────────────────────────
   if (paymentSuccess) {
     return (
-      <div className="max-w-lg mx-auto p-6">
+      <div className="max-w-xl mx-auto p-6">
         <Card className="border-emerald-200 dark:border-emerald-800 shadow-lg">
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="size-16 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+          <CardContent className="space-y-4 p-8 text-center md:p-10">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900">
               <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Payment Successful!</h2>
-            <p className="text-muted-foreground">Your payment has been processed successfully.</p>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Payment Successful!</h2>
+            <p className="text-sm leading-6 text-muted-foreground">Your payment has been processed successfully.</p>
             <Button onClick={handleBackToList} className="mt-4">
               <ArrowRight className="size-4 mr-2" />
               Back to Payments
@@ -355,8 +360,8 @@ export default function CustomerPaymentsPage() {
       `}</style>
 
       <div style={{ background: T.bg, minHeight: "100%", colorScheme: theme }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 20px 60px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 20px 72px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, marginBottom: 20 }}>
             <Link
               href="/customer"
               style={{
@@ -370,21 +375,20 @@ export default function CustomerPaymentsPage() {
             >
               <ChevronLeft style={{ width: 14, height: 14 }} /> Home
             </Link>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.text }}>My Payments</h1>
+            <h1 style={{ margin: 0, fontSize: 20, lineHeight: 1.1, fontWeight: 700, color: T.text }}>My Payments</h1>
           </div>
 
           <section
             style={{
               animation: "pageFade 0.35s ease both",
-              background: T.surface,
-              border: `0.5px solid ${T.border}`,
-              borderRadius: 16,
-              padding: 20,
-              marginBottom: 16,
+              ...panelStyle,
+              padding: 24,
+              marginBottom: 20,
+              boxShadow: "0 1px 0 rgba(15, 23, 42, 0.02)",
             }}
           >
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between" }}>
-              <div style={{ maxWidth: 720 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ maxWidth: 720, display: "grid", gap: 10 }}>
                 <p
                   style={{
                     fontSize: 10,
@@ -398,10 +402,10 @@ export default function CustomerPaymentsPage() {
                 >
                   Billing overview
                 </p>
-                <h2 style={{ fontSize: 30, lineHeight: 1.1, fontWeight: 700, color: T.text, margin: 0 }}>
+                <h2 style={{ fontSize: 34, lineHeight: 1.08, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.03em" }}>
                   Track invoices, payment status, and history in one place.
                 </h2>
-                <p style={{ fontSize: 13, color: T.textSub, margin: "10px 0 0", maxWidth: 640 }}>
+                <p style={{ fontSize: 14, lineHeight: 1.7, color: T.textSub, margin: 0, maxWidth: 640 }}>
                   This page now follows the same card-based hierarchy as the main payments dashboard,
                   so the layout feels consistent and easier to scan.
                 </p>
@@ -411,7 +415,7 @@ export default function CustomerPaymentsPage() {
                 style={{
                   minWidth: 240,
                   display: "grid",
-                  gap: 8,
+                  gap: 10,
                   alignContent: "start",
                 }}
               >
@@ -420,9 +424,10 @@ export default function CustomerPaymentsPage() {
                     borderRadius: 12,
                     background: T.accentBg,
                     color: T.accent,
-                    padding: "10px 12px",
+                    padding: "12px 14px",
                     fontSize: 12,
                     fontWeight: 600,
+                    lineHeight: 1.5,
                   }}
                 >
                   {stats?.pendingCount ?? pending.length} invoices need attention
@@ -432,9 +437,10 @@ export default function CustomerPaymentsPage() {
                     borderRadius: 12,
                     background: T.greenBg,
                     color: T.green,
-                    padding: "10px 12px",
+                    padding: "12px 14px",
                     fontSize: 12,
                     fontWeight: 600,
+                    lineHeight: 1.5,
                   }}
                 >
                   {totalPaidCount} completed payments recorded
@@ -447,8 +453,8 @@ export default function CustomerPaymentsPage() {
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
-              gap: 12,
-              marginBottom: 16,
+              gap: 16,
+              marginBottom: 20,
             }}
           >
             <SummaryCard
@@ -487,19 +493,17 @@ export default function CustomerPaymentsPage() {
 
           <section
             style={{
-              background: T.surface,
-              border: `0.5px solid ${T.border}`,
-              borderRadius: 16,
+              ...panelStyle,
               overflow: "hidden",
-              marginBottom: 16,
+              marginBottom: 20,
             }}
           >
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
-                gap: 12,
-                padding: 14,
+                gap: 14,
+                padding: 16,
                 alignItems: "center",
                 borderBottom: `0.5px solid ${T.border}`,
               }}
@@ -523,10 +527,10 @@ export default function CustomerPaymentsPage() {
                   style={{
                     width: "100%",
                     boxSizing: "border-box",
-                    paddingLeft: 34,
+                    paddingLeft: 36,
                     paddingRight: 12,
-                    paddingTop: 10,
-                    paddingBottom: 10,
+                    paddingTop: 11,
+                    paddingBottom: 11,
                     background: T.hi,
                     border: `0.5px solid ${T.borderHi}`,
                     borderRadius: 10,
@@ -542,7 +546,7 @@ export default function CustomerPaymentsPage() {
                 onClick={fetchPayments}
                 style={{
                   marginLeft: "auto",
-                  padding: "9px 11px",
+                  padding: "10px 12px",
                   background: "transparent",
                   border: `0.5px solid ${T.border}`,
                   borderRadius: 10,
@@ -560,8 +564,8 @@ export default function CustomerPaymentsPage() {
             <div
               style={{
                 display: "flex",
-                gap: 8,
-                padding: 10,
+                gap: 10,
+                padding: 12,
                 borderBottom: `0.5px solid ${T.border}`,
                 overflowX: "auto",
               }}
@@ -604,21 +608,19 @@ export default function CustomerPaymentsPage() {
             </div>
           </section>
 
-          <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gap: 20 }}>
             <Card
               style={{
-                background: T.surface,
-                border: `0.5px solid ${T.border}`,
-                borderRadius: 16,
+                ...panelStyle,
                 overflow: "hidden",
                 padding: 0,
               }}
             >
-              <CardHeader style={{ padding: "16px 16px 14px", borderBottom: `0.5px solid ${T.border}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-                  <div>
-                    <CardTitle>Pending Invoices</CardTitle>
-                    <CardDescription>
+              <CardHeader style={{ padding: "18px 18px 16px", borderBottom: `0.5px solid ${T.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <CardTitle className="text-[15px] font-semibold tracking-tight">Pending Invoices</CardTitle>
+                    <CardDescription className="text-sm leading-6">
                       {pending.length ? `${pending.length} invoices need payment` : "No pending invoices right now."}
                     </CardDescription>
                   </div>
@@ -629,8 +631,9 @@ export default function CustomerPaymentsPage() {
                       color: T.amber,
                       background: T.amberBg,
                       borderRadius: 999,
-                      padding: "6px 10px",
+                      padding: "7px 12px",
                       whiteSpace: "nowrap",
+                      lineHeight: 1.4,
                     }}
                   >
                     {formatCurrency(actionRequiredAmount)}
@@ -699,10 +702,10 @@ export default function CustomerPaymentsPage() {
               }}
             >
               <CardHeader style={{ padding: "16px 16px 14px", borderBottom: `0.5px solid ${T.border}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-                  <div>
-                    <CardTitle>Payment History</CardTitle>
-                    <CardDescription>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <CardTitle className="text-[15px] font-semibold tracking-tight">Payment History</CardTitle>
+                    <CardDescription className="text-sm leading-6">
                       {history.length ? `${history.length} completed or archived payments` : "No payment history yet."}
                     </CardDescription>
                   </div>
@@ -713,8 +716,9 @@ export default function CustomerPaymentsPage() {
                       color: T.green,
                       background: T.greenBg,
                       borderRadius: 999,
-                      padding: "6px 10px",
+                      padding: "7px 12px",
                       whiteSpace: "nowrap",
+                      lineHeight: 1.4,
                     }}
                   >
                     {formatCurrency(totalPaidAmount)}

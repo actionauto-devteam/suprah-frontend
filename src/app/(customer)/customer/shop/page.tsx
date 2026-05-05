@@ -250,7 +250,7 @@ function ShopVehiclesContent() {
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6 shrink-0">
                 <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-foreground uppercase italic tracking-tighter">Shop Vehicles</h1>
+                    <h1 className="text-3xl font-extrabold tracking-tight text-foreground uppercase italic">Shop Vehicles</h1>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-lg">
                         Browse our premium inventory. Take advantage of Member Exclusive pricing.
                     </p>
@@ -299,7 +299,7 @@ function ShopVehiclesContent() {
                 {isLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {[...Array(6)].map((_, i) => (
-                            <div key={i} className="h-[450px] bg-zinc-100 dark:bg-zinc-900 rounded-2xl animate-pulse" />
+                            <div key={i} className="h-112.5 bg-zinc-100 dark:bg-zinc-900 rounded-2xl animate-pulse" />
                         ))}
                     </div>
                 ) : (
