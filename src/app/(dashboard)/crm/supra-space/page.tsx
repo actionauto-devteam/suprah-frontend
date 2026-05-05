@@ -1074,6 +1074,34 @@ export default function SupraSpacePage() {
     };
   }, []);
 
+  // Auto-open DM when arriving from CRM profile "Message" button (?userId=xxx)
+  const autoOpenHandledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (loading || !token || autoOpenHandledRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get('userId');
+    if (!targetUserId) return;
+    autoOpenHandledRef.current = true;
+    apiClient
+      .post(
+        '/api/supraspace/conversations/direct',
+        { targetUserId },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      .then((r) => {
+        const c = r.data?.data;
+        if (!c) return;
+        setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
+        setActiveId(c._id);
+        setSideOpen(false);
+        // Remove ?userId from URL without a full reload
+        const url = new URL(window.location.href);
+        url.searchParams.delete('userId');
+        window.history.replaceState({}, '', url.toString());
+      })
+      .catch(() => {});
+  }, [loading, token]);
+
   const showUploadNotice = React.useCallback((kind: 'success' | 'error' | 'info', text: string) => {
     if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current);
     setUploadNotice({ kind, text });
