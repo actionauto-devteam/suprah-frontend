@@ -2,8 +2,8 @@
 
 /**
  * /crm/supra-leo/page.tsx
- * Full-screen Autrix AI chat page — automotive dashboard theme.
- * File name preserved; branding updated to "Supra Autrix AI".
+ * Full-screen Autrix AI chat page — redesigned to match SupraLeoPanel theme.
+ * Green-accent automotive intelligence dashboard. Dark + Light mode support.
  */
 
 import * as React from 'react'
@@ -12,217 +12,876 @@ import {
   ArrowLeft, Send, Square, Trash2,
   Loader2, Calendar, Clock, MessageSquare,
   Fingerprint, Rss, User, Zap,
-  ChevronRight,
+  ChevronRight, RefreshCw,
 } from 'lucide-react'
 import { SupraLeoAvatar } from '@/components/supra-leo-ai/SupraLeoAvatar'
 import { useSupraLeoChat, ChatModule, ChatMessage } from '@/hooks/useSupraLeoChat'
 import { apiClient } from '@/lib/api-client'
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-if (typeof document !== 'undefined' && !document.getElementById('ax-page-styles')) {
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = 'https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400&display=swap'
-  document.head.appendChild(link)
+// ─── Inject Styles ────────────────────────────────────────────────────────────
+const PAGE_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
-  const s = document.createElement('style')
-  s.id = 'ax-page-styles'
-  s.textContent = `
-    /* ── Design tokens ── */
-    .axp {
-      --bg:      #060D1A;
-      --bg2:     #0A1628;
-      --surf:    #0F1E35;
-      --surf2:   #162440;
-      --bd:      rgba(59,130,246,0.13);
-      --bd2:     rgba(255,255,255,0.055);
-      --acc:     #3B82F6;
-      --acc2:    #60A5FA;
-      --orange:  #F59E0B;
-      --silver:  #94AFC6;
-      --tx1:     rgba(220,235,255,0.95);
-      --tx2:     rgba(140,175,220,0.68);
-      --tx3:     rgba(80,130,185,0.38);
-      --green:   #10B981;
-      --red:     #EF4444;
-      --glass:   rgba(9,18,36,0.88);
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--tx1);
-      -webkit-font-smoothing: antialiased;
-    }
-    .axp.light {
-      --bg:    #F0F5FB;
-      --bg2:   #E2ECF8;
-      --surf:  #FFFFFF;
-      --surf2: #F4F8FE;
-      --bd:    rgba(37,99,235,0.11);
-      --bd2:   rgba(0,0,0,0.07);
-      --acc:   #2563EB;
-      --acc2:  #3B82F6;
-      --silver:#6B8BAE;
-      --tx1:   #081A30;
-      --tx2:   rgba(10,50,100,0.65);
-      --tx3:   rgba(10,50,100,0.38);
-      --glass: rgba(255,255,255,0.95);
-    }
+/* ── Dark tokens (default) ── */
+[data-axp-page] {
+  --p-bg:       #030a05;
+  --p-bg2:      #061009;
+  --p-surf:     #091810;
+  --p-surf2:    #0d2016;
+  --p-surf3:    #11291b;
+  --p-bd:       rgba(34,197,94,0.15);
+  --p-bd2:      rgba(34,197,94,0.07);
+  --p-bd3:      rgba(255,255,255,0.04);
+  --p-acc:      #22c55e;
+  --p-acc2:     #4ade80;
+  --p-acc3:     #86efac;
+  --p-acc-dim:  rgba(34,197,94,0.12);
+  --p-tx:       rgba(220,255,235,0.95);
+  --p-tx2:      rgba(134,203,160,0.72);
+  --p-tx3:      rgba(74,163,112,0.42);
+  --p-green:    #22c55e;
+  --p-red:      #f87171;
+  --p-amber:    #fbbf24;
+  --p-blue:     #60a5fa;
+  --p-purple:   #a78bfa;
+  --p-teal:     #34d399;
+  --p-sh:       0 4px 24px rgba(0,0,0,0.7), 0 1px 0 rgba(34,197,94,0.1);
+  --p-glow:     0 0 60px rgba(34,197,94,0.06);
+  --p-glass:    rgba(6,16,9,0.94);
+  --p-grad:     linear-gradient(135deg, #091810 0%, #061009 100%);
+  font-family: 'Space Grotesk', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+  background: var(--p-bg);
+  color: var(--p-tx);
+}
 
-    /* Typography */
-    .axp-heading { font-family: 'Rajdhani', sans-serif; }
-    .axp-mono    { font-family: 'JetBrains Mono', monospace; }
+/* ── Light mode via media query ── */
+@media (prefers-color-scheme: light) {
+  [data-axp-page] {
+    --p-bg:       #f0faf4;
+    --p-bg2:      #e6f7ec;
+    --p-surf:     #ffffff;
+    --p-surf2:    #f4fcf7;
+    --p-surf3:    #edf8f2;
+    --p-bd:       rgba(22,163,74,0.18);
+    --p-bd2:      rgba(22,163,74,0.09);
+    --p-bd3:      rgba(0,0,0,0.06);
+    --p-acc:      #16a34a;
+    --p-acc2:     #15803d;
+    --p-acc3:     #166534;
+    --p-acc-dim:  rgba(22,163,74,0.10);
+    --p-tx:       #052e16;
+    --p-tx2:      rgba(5,46,22,0.68);
+    --p-tx3:      rgba(5,46,22,0.38);
+    --p-green:    #16a34a;
+    --p-red:      #dc2626;
+    --p-amber:    #d97706;
+    --p-blue:     #2563eb;
+    --p-purple:   #7c3aed;
+    --p-teal:     #0d9488;
+    --p-sh:       0 4px 20px rgba(0,0,0,0.08), 0 1px 0 rgba(22,163,74,0.12);
+    --p-glow:     0 0 60px rgba(22,163,74,0.06);
+    --p-glass:    rgba(255,255,255,0.97);
+    --p-grad:     linear-gradient(135deg, #ffffff 0%, #f4fcf7 100%);
+    color-scheme: light;
+  }
+}
 
-    /* ── Shimmer line ── */
-    @keyframes ax-shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
-    .axp-shimmer {
-      height: 1px;
-      background: linear-gradient(90deg, transparent 0%, var(--acc2) 30%, rgba(255,255,255,.7) 50%, var(--acc2) 70%, transparent 100%);
-      background-size: 200% 100%;
-      animation: ax-shimmer 4s linear infinite;
-    }
+/* ── .dark class override ── */
+.dark [data-axp-page] {
+  --p-bg:       #030a05;
+  --p-bg2:      #061009;
+  --p-surf:     #091810;
+  --p-surf2:    #0d2016;
+  --p-surf3:    #11291b;
+  --p-bd:       rgba(34,197,94,0.15);
+  --p-bd2:      rgba(34,197,94,0.07);
+  --p-bd3:      rgba(255,255,255,0.04);
+  --p-acc:      #22c55e;
+  --p-acc2:     #4ade80;
+  --p-acc3:     #86efac;
+  --p-acc-dim:  rgba(34,197,94,0.12);
+  --p-tx:       rgba(220,255,235,0.95);
+  --p-tx2:      rgba(134,203,160,0.72);
+  --p-tx3:      rgba(74,163,112,0.42);
+  --p-green:    #22c55e;
+  --p-red:      #f87171;
+  --p-amber:    #fbbf24;
+  --p-sh:       0 4px 24px rgba(0,0,0,0.7), 0 1px 0 rgba(34,197,94,0.1);
+  --p-glow:     0 0 60px rgba(34,197,94,0.08);
+  --p-glass:    rgba(6,16,9,0.94);
+  --p-grad:     linear-gradient(135deg, #091810 0%, #061009 100%);
+  color-scheme: dark;
+}
 
-    /* ── Module pills ── */
-    .axp-pill {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 5px 12px; border-radius: 99px;
-      border: 1px solid var(--bd); background: transparent;
-      cursor: pointer; transition: all .18s; color: var(--tx2);
-      font-size: 11px; font-weight: 500; letter-spacing: .04em;
-      white-space: nowrap; font-family: 'DM Sans', sans-serif;
-    }
-    .axp-pill:hover { border-color: rgba(59,130,246,.3); color: var(--acc2); background: rgba(59,130,246,.07); }
-    .axp-pill.active { border-color: rgba(59,130,246,.35); color: var(--acc2); background: rgba(59,130,246,.1); }
+/* ── .light class override ── */
+.light [data-axp-page] {
+  --p-bg:       #f0faf4;
+  --p-bg2:      #e6f7ec;
+  --p-surf:     #ffffff;
+  --p-surf2:    #f4fcf7;
+  --p-surf3:    #edf8f2;
+  --p-bd:       rgba(22,163,74,0.18);
+  --p-bd2:      rgba(22,163,74,0.09);
+  --p-bd3:      rgba(0,0,0,0.06);
+  --p-acc:      #16a34a;
+  --p-acc2:     #15803d;
+  --p-acc3:     #166534;
+  --p-acc-dim:  rgba(22,163,74,0.10);
+  --p-tx:       #052e16;
+  --p-tx2:      rgba(5,46,22,0.68);
+  --p-tx3:      rgba(5,46,22,0.38);
+  --p-green:    #16a34a;
+  --p-red:      #dc2626;
+  --p-amber:    #d97706;
+  --p-blue:     #2563eb;
+  --p-sh:       0 4px 20px rgba(0,0,0,0.08), 0 1px 0 rgba(22,163,74,0.12);
+  --p-glow:     0 0 60px rgba(22,163,74,0.06);
+  --p-glass:    rgba(255,255,255,0.97);
+  --p-grad:     linear-gradient(135deg, #ffffff 0%, #f4fcf7 100%);
+  color-scheme: light;
+}
 
-    /* ── Messages ── */
-    .axp-msg-user {
-      background: rgba(59,130,246,.10);
-      border: 1px solid rgba(59,130,246,.22);
-      border-radius: 14px 14px 4px 14px;
-      padding: 10px 14px;
-      font-size: 13.5px; line-height: 1.65; font-weight: 300; color: var(--tx1);
-      max-width: min(72%, 520px);
-      white-space: pre-wrap; word-break: break-word;
-    }
-    .axp-msg-ai {
-      background: var(--surf);
-      border: 1px solid var(--bd);
-      border-radius: 4px 14px 14px 14px;
-      padding: 12px 16px;
-      font-size: 13.5px; line-height: 1.7; font-weight: 300; color: var(--tx1);
-      max-width: min(82%, 620px);
-      white-space: pre-wrap; word-break: break-word;
-      position: relative; overflow: hidden;
-    }
-    .axp-msg-ai::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent 20%, rgba(59,130,246,.25) 50%, transparent 80%);
-    }
-    .axp-msg-ai code {
-      font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
-      background: var(--surf2); border: 1px solid var(--bd2);
-      border-radius: 4px; padding: 1px 5px;
-    }
-    .axp-msg-ai pre {
-      background: var(--bg); border: 1px solid var(--bd);
-      border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0;
-    }
-    .axp-msg-ai pre code { background: none; border: none; padding: 0; }
-    .axp-msg-ai strong { color: var(--acc2); font-weight: 600; }
-    .axp-msg-ai em { color: var(--tx2); }
-    .axp-msg-ai ul, .axp-msg-ai ol { padding-left: 20px; margin: 6px 0; }
-    .axp-msg-ai li { margin-bottom: 4px; }
-    .axp-msg-ai h1, .axp-msg-ai h2, .axp-msg-ai h3 {
-      font-family: 'Rajdhani', sans-serif;
-      color: var(--acc2); margin: 10px 0 5px; font-weight: 700; letter-spacing: .05em;
-    }
+/* ── Animations ── */
+@keyframes axpg-in      { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes axpg-dot     { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.2;transform:scale(.6)} }
+@keyframes axpg-spin    { to{transform:rotate(360deg)} }
+@keyframes axpg-shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+@keyframes axpg-blink   { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes axpg-msg     { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes axpg-scan    { 0%{transform:translateY(-100%);opacity:.35} 100%{transform:translateY(600%);opacity:0} }
+@keyframes axpg-wave    { 0%,100%{transform:scaleY(.12)} 50%{transform:scaleY(1)} }
+@keyframes axpg-pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes axpg-slide-r { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
 
-    /* ── Cursor blink ── */
-    @keyframes ax-blink { 0%,100%{opacity:1} 50%{opacity:0} }
-    .axp-cursor {
-      display: inline-block; width: 2px; height: .85em;
-      background: var(--acc); margin-left: 2px;
-      vertical-align: text-bottom; border-radius: 1px;
-      animation: ax-blink .85s step-end infinite;
-    }
+[data-axp-page] *, [data-axp-page] *::before, [data-axp-page] *::after { box-sizing: border-box; }
 
-    /* ── Typing dots ── */
-    @keyframes ax-dot { 0%,100%{opacity:.2;transform:scale(.7)} 50%{opacity:1;transform:scale(1)} }
-    .axp-typing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--acc); display: inline-block; }
+/* ── Layout shell ── */
+.apg-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  position: relative;
+}
 
-    /* ── Input ── */
-    .axp-input {
-      background: transparent; border: none; outline: none; resize: none;
-      font-family: 'DM Sans', sans-serif; font-size: 13.5px; font-weight: 300;
-      color: var(--tx1); line-height: 1.55; width: 100%;
-      min-height: 24px; max-height: 140px; overflow-y: auto;
-      -webkit-user-select: text; user-select: text;
-    }
-    .axp-input::placeholder { color: var(--tx3); }
+/* ── Background grid ── */
+.apg-grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  opacity: 0.022;
+}
 
-    /* ── Quick prompts ── */
-    .axp-quick {
-      border: 1px solid var(--bd); background: transparent;
-      border-radius: 10px; padding: 9px 13px;
-      font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400;
-      color: var(--tx2); cursor: pointer; text-align: left;
-      transition: all .16s; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    }
-    .axp-quick:hover { border-color: rgba(59,130,246,.28); color: var(--acc2); background: rgba(59,130,246,.06); }
+/* ── Shimmer bar ── */
+.apg-shimmer {
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(34,197,94,0.4) 25%,
+    rgba(134,239,172,0.9) 50%,
+    rgba(34,197,94,0.4) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: axpg-shimmer 3.5s linear infinite;
+  flex-shrink: 0;
+}
 
-    /* ── Scrollbar ── */
-    .axp-scroll::-webkit-scrollbar { width: 3px; }
-    .axp-scroll::-webkit-scrollbar-track { background: transparent; }
-    .axp-scroll::-webkit-scrollbar-thumb { background: rgba(59,130,246,.2); border-radius: 2px; }
+/* ── Top bar ── */
+.apg-topbar {
+  background: var(--p-glass);
+  border-bottom: 1px solid var(--p-bd);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
 
-    /* ── Scan line animation ── */
-    @keyframes ax-scan { 0%{transform:translateY(-100%);opacity:.4} 100%{transform:translateY(1000%);opacity:0} }
+.apg-topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  position: relative;
+}
 
-    /* ── Message row ── */
-    @keyframes ax-fade-up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-    .axp-msg-row { animation: ax-fade-up .22s ease forwards; }
+/* Diagonal accent */
+.apg-topbar-inner::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 240px;
+  background: linear-gradient(270deg, var(--p-acc-dim) 0%, transparent 100%);
+  pointer-events: none;
+}
 
-    /* ── HUD grid ── */
-    .axp-hud-grid {
-      position: absolute; inset: 0; pointer-events: none; overflow: hidden;
-    }
+.apg-back-btn {
+  width: 34px; height: 34px;
+  border: 1px solid var(--p-bd2);
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  color: var(--p-tx3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .18s;
+  padding: 0;
+  position: relative;
+  z-index: 1;
+}
+.apg-back-btn:hover {
+  border-color: var(--p-bd);
+  background: var(--p-acc-dim);
+  color: var(--p-acc2);
+}
 
-    /* ── Icon btn ── */
-    .axp-icon-btn {
-      border: 1px solid var(--bd); background: none;
-      border-radius: 10px; cursor: pointer; color: var(--tx3);
-      display: flex; align-items: center; justify-content: center;
-      transition: all .16s; padding: 0; flex-shrink: 0;
-    }
-    .axp-icon-btn:hover { border-color: rgba(59,130,246,.3); color: var(--acc2); background: rgba(59,130,246,.07); }
-    .axp-icon-btn.danger:hover { border-color: rgba(239,68,68,.3); color: var(--red); background: rgba(239,68,68,.06); }
+.apg-brand {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
 
-    /* ── Status badge ── */
-    .axp-status-badge {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 10px; border-radius: 6px;
-      border: 1px solid var(--bd); background: rgba(59,130,246,.06);
-    }
+.apg-brand-name {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--p-acc2);
+  letter-spacing: .07em;
+  line-height: 1;
+  text-transform: uppercase;
+}
 
-    /* ── Responsive ── */
-    @media (max-width: 640px) {
-      .axp-msg-user, .axp-msg-ai { max-width: 92%; font-size: 13px; }
-      .axp-pill { font-size: 10px; padding: 4px 10px; }
-    }
-    @media (max-width: 768px) {
-      .axp-header-meta { display: none !important; }
-    }
-  `
-  document.head.appendChild(s)
+.apg-brand-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--p-tx3);
+  margin-top: 3px;
+  display: block;
+}
+
+.apg-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--p-bd2);
+  border-radius: 6px;
+  background: var(--p-acc-dim);
+  position: relative;
+  z-index: 1;
+}
+
+.apg-status-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--p-green);
+  box-shadow: 0 0 6px rgba(34,197,94,.7);
+  animation: axpg-pulse 2s ease-in-out infinite;
+}
+
+.apg-status-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--p-acc2);
+}
+
+.apg-msg-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: .1em;
+  color: var(--p-tx3);
+  position: relative;
+  z-index: 1;
+}
+
+.apg-icon-btn {
+  width: 34px; height: 34px;
+  border: 1px solid var(--p-bd2);
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  color: var(--p-tx3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .18s;
+  padding: 0;
+  position: relative;
+  z-index: 1;
+}
+.apg-icon-btn:hover {
+  border-color: var(--p-bd);
+  background: var(--p-acc-dim);
+  color: var(--p-acc2);
+}
+.apg-icon-btn.dng:hover {
+  border-color: rgba(248,113,113,.3);
+  background: rgba(248,113,113,.07);
+  color: var(--p-red);
+}
+
+/* ── Module pills row ── */
+.apg-modules {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.apg-modules::-webkit-scrollbar { display: none; }
+
+.apg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  height: 28px;
+  border-radius: 99px;
+  border: 1px solid var(--p-bd2);
+  background: transparent;
+  cursor: pointer;
+  transition: all .18s;
+  color: var(--p-tx3);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  letter-spacing: .03em;
+}
+.apg-pill:hover {
+  border-color: var(--p-bd);
+  color: var(--p-tx2);
+  background: var(--p-surf2);
+}
+.apg-pill.active {
+  border-color: rgba(34,197,94,.35);
+  color: var(--p-acc2);
+  background: rgba(34,197,94,.1);
+  font-weight: 600;
+}
+
+/* ── Messages scroll area ── */
+.apg-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 0;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+}
+.apg-messages::-webkit-scrollbar { width: 3px; }
+.apg-messages::-webkit-scrollbar-track { background: transparent; }
+.apg-messages::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }
+
+/* ── Message rows ── */
+.apg-msg-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 20px;
+  animation: axpg-msg .22s cubic-bezier(.16,1,.3,1) forwards;
+}
+.apg-msg-row.user { flex-direction: row-reverse; }
+
+.apg-avatar-wrap { flex-shrink: 0; margin-bottom: 2px; }
+
+.apg-user-avatar {
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(34,197,94,.22);
+  background: rgba(34,197,94,.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.apg-bubble-user {
+  max-width: min(72%, 540px);
+  background: rgba(34,197,94,.1);
+  border: 1px solid rgba(34,197,94,.22);
+  border-radius: 14px 14px 4px 14px;
+  padding: 11px 15px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--p-tx);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  overflow: hidden;
+}
+
+.apg-bubble-ai {
+  max-width: min(82%, 680px);
+  background: var(--p-surf);
+  border: 1px solid var(--p-bd2);
+  border-radius: 4px 14px 14px 14px;
+  padding: 13px 17px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 300;
+  color: var(--p-tx2);
+  line-height: 1.72;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  overflow: hidden;
+}
+
+/* AI bubble top shimmer */
+.apg-bubble-ai::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 10%,
+    rgba(34,197,94,.25) 50%,
+    transparent 90%
+  );
+}
+
+/* Left accent bar */
+.apg-bubble-ai::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--p-acc) 0%, transparent 100%);
+  border-radius: 4px 0 0 4px;
+}
+
+/* Markdown styles inside AI bubble */
+.apg-bubble-ai strong { color: var(--p-acc2); font-weight: 600; }
+.apg-bubble-ai em { color: var(--p-tx); font-style: italic; }
+.apg-bubble-ai h1, .apg-bubble-ai h2, .apg-bubble-ai h3 {
+  font-family: 'Exo 2', sans-serif;
+  color: var(--p-acc2);
+  font-weight: 700;
+  letter-spacing: .05em;
+  margin: 10px 0 5px;
+}
+.apg-bubble-ai h1 { font-size: 15px; }
+.apg-bubble-ai h2 { font-size: 13.5px; }
+.apg-bubble-ai h3 { font-size: 12.5px; }
+.apg-bubble-ai code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  background: var(--p-surf3);
+  border: 1px solid var(--p-bd2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--p-acc3);
+}
+.apg-bubble-ai pre {
+  background: var(--p-bg);
+  border: 1px solid var(--p-bd);
+  border-radius: 9px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 9px 0;
+}
+.apg-bubble-ai pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+}
+.apg-bubble-ai ul, .apg-bubble-ai ol { padding-left: 18px; margin: 6px 0; }
+.apg-bubble-ai li { margin-bottom: 4px; }
+
+/* ── Typing indicator ── */
+.apg-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 0;
+}
+.apg-typing-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--p-acc);
+  animation: axpg-dot 1.1s ease-in-out infinite;
+}
+
+/* ── Cursor blink ── */
+.apg-cursor {
+  display: inline-block;
+  width: 2px; height: .85em;
+  background: var(--p-acc);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: axpg-blink .85s step-end infinite;
+}
+
+/* ── Date separator ── */
+.apg-date-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+.apg-date-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--p-bd), transparent);
+}
+.apg-date-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--p-tx3);
+  white-space: nowrap;
+}
+
+/* ── Empty state ── */
+.apg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 55vh;
+  gap: 28px;
+  padding: 0 24px;
+  text-align: center;
+  animation: axpg-in .4s cubic-bezier(.16,1,.3,1) forwards;
+}
+
+.apg-empty-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--p-acc2);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.apg-empty-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--p-tx3);
+  max-width: 300px;
+}
+
+.apg-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.apg-prompt-lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--p-tx3);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.apg-prompt-lbl::before { content: '◈'; color: var(--p-acc); font-size: 9px; opacity: .7; }
+.apg-prompt-lbl::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--p-bd), transparent); }
+
+.apg-quick-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--p-bd2);
+  border-radius: 11px;
+  background: var(--p-surf2);
+  color: var(--p-tx3);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all .18s;
+  text-align: left;
+}
+.apg-quick-btn:hover {
+  border-color: var(--p-bd);
+  color: var(--p-acc2);
+  background: var(--p-acc-dim);
+  transform: translateX(3px);
+}
+
+/* ── Load more / error ── */
+.apg-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+.apg-load-more-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--p-tx3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color .16s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.apg-load-more-btn:hover { color: var(--p-acc2); }
+
+.apg-error-msg {
+  display: flex;
+  justify-content: center;
+  padding: 0 20px;
+}
+.apg-error-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(248,113,113,.22);
+  background: rgba(248,113,113,.05);
+  font-size: 12px;
+  color: var(--p-red);
+}
+
+/* ── Input bar ── */
+.apg-input-bar {
+  flex-shrink: 0;
+  border-top: 1px solid var(--p-bd);
+  background: var(--p-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  position: relative;
+  z-index: 10;
+}
+
+.apg-input-inner {
+  padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+
+.apg-input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--p-surf);
+  border: 1px solid var(--p-bd2);
+  border-radius: 14px;
+  padding: 10px 10px 10px 16px;
+  transition: border-color .18s, box-shadow .18s;
+}
+.apg-input-wrap:focus-within {
+  border-color: rgba(34,197,94,.35);
+  box-shadow: 0 0 0 3px rgba(34,197,94,.06);
+}
+
+.apg-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 300;
+  color: var(--p-tx);
+  line-height: 1.55;
+  min-height: 24px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 0; margin: 0;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.apg-textarea::placeholder { color: var(--p-tx3); }
+.apg-textarea:disabled { opacity: .4; cursor: not-allowed; }
+.apg-textarea::-webkit-scrollbar { width: 2px; }
+.apg-textarea::-webkit-scrollbar-thumb { background: var(--p-bd); }
+
+.apg-send-btn {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all .18s;
+  padding: 0;
+}
+.apg-send-btn.active {
+  background: linear-gradient(135deg, var(--p-acc) 0%, #16a34a 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(34,197,94,.3);
+}
+.apg-send-btn.active:hover {
+  background: linear-gradient(135deg, var(--p-acc2) 0%, var(--p-acc) 100%);
+  box-shadow: 0 3px 18px rgba(34,197,94,.4);
+  transform: translateY(-1px);
+}
+.apg-send-btn.stop {
+  background: rgba(248,113,113,.1);
+  border: 1px solid rgba(248,113,113,.25);
+  color: var(--p-red);
+}
+.apg-send-btn.stop:hover {
+  background: rgba(248,113,113,.18);
+  border-color: rgba(248,113,113,.4);
+}
+.apg-send-btn.inactive {
+  background: var(--p-surf2);
+  border: 1px solid var(--p-bd2);
+  color: var(--p-tx3);
+  cursor: default;
+}
+
+.apg-input-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  text-align: center;
+  color: var(--p-tx3);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+/* ── Confirm modal ── */
+.apg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+}
+
+.apg-modal {
+  background: var(--p-surf);
+  border: 1px solid var(--p-bd);
+  border-radius: 18px;
+  padding: 24px;
+  width: 100%;
+  max-width: 320px;
+  box-shadow: var(--p-sh);
+  position: relative;
+  overflow: hidden;
+  animation: axpg-in .22s cubic-bezier(.16,1,.3,1) forwards;
+}
+
+.apg-modal-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--p-acc2);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  margin: 10px 0 8px;
+}
+
+.apg-modal-body {
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--p-tx2);
+  line-height: 1.65;
+  margin-bottom: 20px;
+}
+
+.apg-modal-btns { display: flex; gap: 10px; }
+
+.apg-modal-cancel {
+  flex: 1; height: 40px; border-radius: 11px;
+  border: 1px solid var(--p-bd2);
+  background: transparent;
+  color: var(--p-tx2);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; cursor: pointer;
+  transition: all .16s;
+}
+.apg-modal-cancel:hover { background: var(--p-surf2); border-color: var(--p-bd); }
+
+.apg-modal-confirm {
+  flex: 1; height: 40px; border-radius: 11px;
+  background: var(--p-red);
+  border: 1px solid rgba(248,113,113,.4);
+  color: #fff;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all .16s;
+}
+.apg-modal-confirm:hover { background: #f87171; }
+
+/* ── Loading spinner ── */
+.apg-center-loader {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .apg-topbar-inner { padding: 10px 14px; }
+  .apg-modules { padding: 0 14px 10px; }
+  .apg-msg-row { padding: 0 14px; }
+  .apg-date-sep { padding: 0 14px; }
+  .apg-input-inner { padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .apg-empty { min-height: 48vh; }
+  .apg-bubble-user, .apg-bubble-ai { max-width: 92%; font-size: 13px; }
+  .apg-status-badge { display: none !important; }
+  .apg-msg-count { display: none !important; }
+  .apg-brand-name { font-size: 15px; }
+}
+`
+
+function injectPageCSS() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('ax-page-v2')) return
+  const el = document.createElement('style')
+  el.id = 'ax-page-v2'
+  el.textContent = PAGE_CSS
+  document.head.appendChild(el)
 }
 
 // ─── Modules ──────────────────────────────────────────────────────────────────
 const MODULES: { id: ChatModule; label: string; icon: React.ReactNode; hint: string }[] = [
-  { id: 'general',     label: 'General',     icon: <Zap className="h-3.5 w-3.5" />,         hint: 'Ask anything about the CRM' },
-  { id: 'appointments',label: 'Appointments',icon: <Calendar className="h-3.5 w-3.5" />,     hint: 'Leads, bookings & scheduling' },
-  { id: 'timeproof',   label: 'Timeproof',   icon: <Clock className="h-3.5 w-3.5" />,        hint: 'Attendance & work hours' },
-  { id: 'supraspace',  label: 'Supra Space', icon: <MessageSquare className="h-3.5 w-3.5" />,hint: 'Team messaging insights' },
-  { id: 'biometrics',  label: 'Biometrics',  icon: <Fingerprint className="h-3.5 w-3.5" />, hint: 'Security & credentials' },
-  { id: 'feeds',       label: 'Feeds',       icon: <Rss className="h-3.5 w-3.5" />,          hint: 'Team activity & posts' },
+  { id: 'general',      label: 'General',      icon: <Zap className="h-3 w-3" />,          hint: 'Ask anything about the CRM' },
+  { id: 'appointments', label: 'Appointments',  icon: <Calendar className="h-3 w-3" />,      hint: 'Leads, bookings & scheduling' },
+  { id: 'timeproof',    label: 'Timeproof',     icon: <Clock className="h-3 w-3" />,         hint: 'Attendance & work hours' },
+  { id: 'supraspace',   label: 'Supra Space',   icon: <MessageSquare className="h-3 w-3" />, hint: 'Team messaging insights' },
+  { id: 'biometrics',   label: 'Biometrics',    icon: <Fingerprint className="h-3 w-3" />,   hint: 'Security & credentials' },
+  { id: 'feeds',        label: 'Feeds',         icon: <Rss className="h-3 w-3" />,           hint: 'Team activity & posts' },
 ]
 
 const QUICK_PROMPTS: Record<ChatModule, string[]> = {
@@ -235,25 +894,48 @@ const QUICK_PROMPTS: Record<ChatModule, string[]> = {
 }
 
 interface SupraLeoStatus {
-  context?: {
-    chatMessages?: number
-  }
+  context?: { chatMessages?: number }
 }
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 function renderMarkdown(text: string): string {
   return text
+    .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
     .replace(/^- (.+)$/gm, '<li>$1</li>')
     .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>')
+}
+
+// ─── HUD background grid ──────────────────────────────────────────────────────
+function HUDGrid() {
+  return (
+    <div className="apg-grid-bg" aria-hidden>
+      <svg width="100%" height="100%">
+        <defs>
+          <pattern id="apg-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+            <path d="M 48 0 L 0 0 0 48" fill="none" stroke="var(--p-acc)" strokeWidth="0.7" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#apg-grid)" />
+      </svg>
+      {/* Scan line */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: 80,
+        background: 'linear-gradient(180deg, rgba(34,197,94,.05) 0%, transparent 100%)',
+        animation: 'axpg-scan 9s linear infinite',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  )
 }
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
@@ -264,32 +946,39 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 
   if (isUser) {
     return (
-      <div className="axp-msg-row flex justify-end gap-3 px-4">
-        <div className="axp-msg-user">{msg.content}</div>
-        <div
-          className="h-8 w-8 rounded-xl shrink-0 flex items-center justify-center"
-          style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)' }}
-        >
-          <User className="h-4 w-4" style={{ color: 'var(--acc2)' }} />
+      <div className="apg-msg-row user">
+        <div className="apg-user-avatar">
+          <User size={13} style={{ color: 'var(--p-acc2)' }} />
         </div>
+        <div className="apg-bubble-user">{msg.content}</div>
       </div>
     )
   }
 
   return (
-    <div className="axp-msg-row flex gap-3 px-4">
-      <SupraLeoAvatar state={isStreaming ? 'speaking' : 'idle'} size={32} animate={isStreaming} style={{ flexShrink: 0, marginTop: 2 }} />
-      <div className="axp-msg-ai flex-1">
+    <div className="apg-msg-row">
+      <div className="apg-avatar-wrap">
+        <SupraLeoAvatar
+          state={isStreaming ? 'speaking' : 'idle'}
+          size={30}
+          animate={!!isStreaming}
+        />
+      </div>
+      <div className="apg-bubble-ai">
         {isEmpty ? (
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
+          <div className="apg-typing">
             {[0, 1, 2].map(i => (
-              <span key={i} className="axp-typing-dot" style={{ animation: `ax-dot 1.1s ${i * 0.18}s ease-in-out infinite` }} />
+              <div
+                key={i}
+                className="apg-typing-dot"
+                style={{ animationDelay: `${i * 0.18}s` }}
+              />
             ))}
           </div>
         ) : (
           <>
             <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
-            {isStreaming && <span className="axp-cursor" />}
+            {isStreaming && msg.content && <span className="apg-cursor" />}
           </>
         )}
       </div>
@@ -302,36 +991,16 @@ function DateSep({ date }: { date: string | Date }) {
   const d = new Date(date)
   const now = new Date()
   const diff = Math.floor((now.getTime() - d.getTime()) / 86400000)
-  const label = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const label =
+    diff === 0 ? 'Today' :
+    diff === 1 ? 'Yesterday' :
+    d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2">
-      <div style={{ flex: 1, height: 1, background: 'var(--bd)' }} />
-      <span className="axp-mono" style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--tx3)' }}>{label}</span>
-      <div style={{ flex: 1, height: 1, background: 'var(--bd)' }} />
-    </div>
-  )
-}
-
-// ─── HUD Background grid ──────────────────────────────────────────────────────
-function HUDGrid() {
-  return (
-    <div className="axp-hud-grid" aria-hidden>
-      <svg width="100%" height="100%" style={{ opacity: 0.025 }}>
-        <defs>
-          <pattern id="hud-grid" width="48" height="48" patternUnits="userSpaceOnUse">
-            <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#3B82F6" strokeWidth="0.6" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#hud-grid)" />
-      </svg>
-      {/* Scan line */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: '60px',
-        background: 'linear-gradient(180deg, rgba(59,130,246,.04) 0%, transparent 100%)',
-        animation: 'ax-scan 8s linear infinite',
-        pointerEvents: 'none',
-      }} />
+    <div className="apg-date-sep">
+      <div className="apg-date-line" />
+      <span className="apg-date-label">{label}</span>
+      <div className="apg-date-line" />
     </div>
   )
 }
@@ -356,17 +1025,18 @@ export default function SupraLeoPage() {
   const fromPath = searchParams.get('from') || '/crm/dashboard'
   const lastMessageContent = messages[messages.length - 1]?.content
 
+  // Inject CSS once
+  React.useEffect(() => { injectPageCSS() }, [])
+
+  // Module from URL
   React.useEffect(() => {
     const requestedModule = searchParams.get('module')
     if (!requestedModule) return
-
-    const isValidModule = MODULES.some(mod => mod.id === requestedModule)
-    if (isValidModule) {
-      setActiveModule(requestedModule as ChatModule)
-    }
+    const isValid = MODULES.some(m => m.id === requestedModule)
+    if (isValid) setActiveModule(requestedModule as ChatModule)
   }, [searchParams])
 
-  // Auth check + status load
+  // Auth check + status
   React.useEffect(() => {
     const token = localStorage.getItem('crm_token')
     if (!token) { router.replace('/crm'); return }
@@ -406,11 +1076,7 @@ export default function SupraLeoPage() {
   }
 
   const handleBack = React.useCallback(() => {
-    if (fromPath.startsWith('/crm/')) {
-      router.push(fromPath)
-      return
-    }
-    router.push('/crm/dashboard')
+    router.push(fromPath.startsWith('/crm/') ? fromPath : '/crm/dashboard')
   }, [fromPath, router])
 
   const quickPrompts = QUICK_PROMPTS[activeModule]
@@ -431,295 +1097,208 @@ export default function SupraLeoPage() {
     return groups
   }, [messages])
 
+  const activeModuleData = MODULES.find(m => m.id === activeModule)
+
   return (
-    <div
-      className="axp flex h-full min-h-0 flex-col overflow-hidden"
-      style={{ position: 'relative', height: '100%', maxHeight: '100%' }}
-    >
-      <HUDGrid />
+    <div data-axp-page>
+      <div className="apg-shell">
+        <HUDGrid />
 
-      {/* ── Top bar ── */}
-      <div style={{
-        background: 'rgba(6,13,26,0.92)',
-        borderBottom: '1px solid var(--bd)',
-        backdropFilter: 'blur(20px)',
-        flexShrink: 0, position: 'relative', zIndex: 10,
-      }}>
-        <div className="axp-shimmer" />
+        {/* ── Top Bar ── */}
+        <div className="apg-topbar">
+          <div className="apg-shimmer" />
 
-        <div className="flex items-center gap-3 px-4 sm:px-5 h-14">
-          {/* Back */}
-          <button
-            onClick={handleBack}
-            className="axp-icon-btn h-9 w-9 sm:h-8 sm:w-8"
-            style={{ borderRadius: 10 }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-
-          {/* Brand */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <SupraLeoAvatar state={isLoading ? 'speaking' : 'idle'} size={36} animate={isLoading} />
-            <div className="min-w-0">
-              <div className="axp-heading" style={{ fontSize: 16, fontWeight: 700, color: 'var(--acc2)', letterSpacing: '.10em', lineHeight: 1, textTransform: 'uppercase' }}>
-                Suprah Autrix AI
-              </div>
-              <div className="axp-mono" style={{ fontSize: 7.5, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--tx3)', marginTop: 3 }}>
-                Driven by Intelligence
-              </div>
-            </div>
-          </div>
-
-          {/* Status */}
-          {status && (
-            <div className="axp-status-badge hidden sm:flex">
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 6px rgba(16,185,129,0.7)' }} />
-              <span className="axp-mono" style={{ fontSize: 8.5, letterSpacing: '.15em', color: 'var(--acc)', textTransform: 'uppercase' }}>Online</span>
-            </div>
-          )}
-
-          {/* Message count */}
-          {status?.context && (
-            <span className="axp-header-meta axp-mono" style={{ fontSize: 9, color: 'var(--tx3)' }}>
-              {status.context.chatMessages} msgs
-            </span>
-          )}
-
-          {/* Clear */}
-          {messages.length > 0 && (
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="axp-icon-btn danger h-8 w-8"
-              title="Clear chat history"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
+          <div className="apg-topbar-inner">
+            {/* Back */}
+            <button className="apg-back-btn" onClick={handleBack} title="Go back">
+              <ArrowLeft size={15} />
             </button>
-          )}
-        </div>
 
-        {/* Module pills */}
-        <div className="flex items-center gap-2 px-4 sm:px-5 pb-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          {MODULES.map(mod => (
-            <button
-              key={mod.id}
-              className={`axp-pill ${activeModule === mod.id ? 'active' : ''}`}
-              onClick={() => setActiveModule(mod.id)}
-            >
-              {mod.icon}
-              <span>{mod.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Messages ── */}
-      <div
-        ref={scrollRef}
-        className="axp-scroll flex-1 overflow-y-auto space-y-4 py-4 min-h-0"
-        style={{ position: 'relative', zIndex: 1 }}
-      >
-
-        {hasMore && !isLoadingHistory && (
-          <div className="flex justify-center py-2">
-            <button
-              onClick={loadMoreHistory}
-              className="axp-mono"
-              style={{ fontSize: 9.5, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--tx3)', background: 'none', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--acc)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--tx3)')}
-            >
-              ↑ Load earlier messages
-            </button>
-          </div>
-        )}
-
-        {isLoadingHistory && (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'rgba(59,130,246,.35)' }} />
-          </div>
-        )}
-
-        {/* Empty state */}
-        {showEmpty && (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] gap-8 px-6 text-center">
-            <div>
-              <SupraLeoAvatar state="idle" size={72} animate style={{ margin: '0 auto 16px' }} />
-              <div className="axp-heading" style={{ fontSize: 24, fontWeight: 700, color: 'var(--acc2)', marginBottom: 8, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-                How can I assist?
-              </div>
-              <div className="axp-mono" style={{ fontSize: 10, color: 'var(--tx3)', maxWidth: 320, letterSpacing: '.12em' }}>
-                DRIVEN BY INTELLIGENCE · {MODULES.find(m => m.id === activeModule)?.hint?.toUpperCase()}
+            {/* Brand */}
+            <div className="apg-brand">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <SupraLeoAvatar
+                  state={isLoading ? 'speaking' : 'idle'}
+                  size={38}
+                  animate={isLoading}
+                />
+                <div>
+                  <div className="apg-brand-name">Suprah Autrix AI</div>
+                  <span className="apg-brand-sub">Dealership Intelligence System</span>
+                </div>
               </div>
             </div>
 
-            <div style={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="axp-mono" style={{ fontSize: 8, letterSpacing: '.22em', color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 2 }}>
-                Quick starts
+            {/* Status badge */}
+            {status && (
+              <div className="apg-status-badge">
+                <div className="apg-status-dot" />
+                <span className="apg-status-label">Online</span>
               </div>
-              {quickPrompts.map(p => (
-                <button
-                  key={p}
-                  className="axp-quick"
-                  onClick={() => { setInputText(p); textareaRef.current?.focus() }}
-                >
-                  <span>{p}</span>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-40" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Messages */}
-        {groupedMessages.map((group, gi) => (
-          <React.Fragment key={gi}>
-            <DateSep date={group.date} />
-            {group.messages.map((msg, mi) => (
-              <MessageBubble key={msg._id || `${gi}-${mi}`} msg={msg} />
+            {/* Message count */}
+            {status?.context?.chatMessages != null && (
+              <span className="apg-msg-count">
+                {status.context.chatMessages} msgs
+              </span>
+            )}
+
+            {/* Clear history */}
+            {messages.length > 0 && (
+              <button
+                className="apg-icon-btn dng"
+                title="Clear chat history"
+                onClick={() => setShowClearConfirm(true)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Module pills */}
+          <div className="apg-modules">
+            {MODULES.map(mod => (
+              <button
+                key={mod.id}
+                className={`apg-pill ${activeModule === mod.id ? 'active' : ''}`}
+                onClick={() => setActiveModule(mod.id)}
+              >
+                {mod.icon}
+                <span>{mod.label}</span>
+              </button>
             ))}
-          </React.Fragment>
-        ))}
+          </div>
+        </div>
 
-        {/* Error */}
-        {error && (
-          <div className="flex justify-center px-4">
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 14px', borderRadius: 8,
-              border: '1px solid rgba(239,68,68,.22)',
-              background: 'rgba(239,68,68,.05)',
-              fontSize: 12, color: '#EF4444',
-            }}>
-              {error}
+        {/* ── Messages area ── */}
+        <div ref={scrollRef} className="apg-messages">
+
+          {/* Load more */}
+          {hasMore && !isLoadingHistory && (
+            <div className="apg-load-more">
+              <button className="apg-load-more-btn" onClick={loadMoreHistory}>
+                <RefreshCw size={9} />
+                Load earlier messages
+              </button>
+            </div>
+          )}
+
+          {/* History loading */}
+          {isLoadingHistory && (
+            <div className="apg-center-loader">
+              <Loader2
+                size={20}
+                style={{ animation: 'axpg-spin .9s linear infinite', color: 'var(--p-acc)', opacity: .5 }}
+              />
+            </div>
+          )}
+
+          {/* Empty state */}
+          {showEmpty && (
+            <div className="apg-empty">
+              <div>
+                <SupraLeoAvatar state="idle" size={68} animate style={{ margin: '0 auto 16px' }} />
+                <div className="apg-empty-title">How can I assist?</div>
+                <div className="apg-empty-sub">
+                  Driven by Intelligence · {activeModuleData?.hint}
+                </div>
+              </div>
+
+              <div className="apg-prompts">
+                <div className="apg-prompt-lbl">Quick starts</div>
+                {quickPrompts.map(p => (
+                  <button
+                    key={p}
+                    className="apg-quick-btn"
+                    onClick={() => { setInputText(p); textareaRef.current?.focus() }}
+                  >
+                    <span>{p}</span>
+                    <ChevronRight size={12} style={{ opacity: .4, flexShrink: 0 }} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Message groups */}
+          {groupedMessages.map((group, gi) => (
+            <React.Fragment key={gi}>
+              <DateSep date={group.date} />
+              {group.messages.map((msg, mi) => (
+                <MessageBubble key={msg._id || `${gi}-${mi}`} msg={msg} />
+              ))}
+            </React.Fragment>
+          ))}
+
+          {/* Error */}
+          {error && (
+            <div className="apg-error-msg">
+              <div className="apg-error-inner">{error}</div>
+            </div>
+          )}
+
+          <div style={{ height: 8 }} />
+        </div>
+
+        {/* ── Input Bar ── */}
+        <div className="apg-input-bar">
+          <div className="apg-shimmer" />
+          <div className="apg-input-inner">
+            <div className="apg-input-wrap">
+              <textarea
+                ref={textareaRef}
+                className="apg-textarea"
+                value={inputText}
+                onChange={e => setInputText(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder={`Ask Autrix AI about ${activeModuleData?.label.toLowerCase()}…`}
+                rows={1}
+                disabled={isLoading}
+              />
+              <div style={{ paddingBottom: 2 }}>
+                {isLoading ? (
+                  <button className="apg-send-btn stop" onClick={stopGeneration}>
+                    <Square size={13} />
+                  </button>
+                ) : (
+                  <button
+                    className={`apg-send-btn ${inputText.trim() ? 'active' : 'inactive'}`}
+                    onClick={handleSend}
+                    disabled={!inputText.trim()}
+                  >
+                    <Send size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="apg-input-hint">
+              Enter to send · Shift+Enter for newline
+            </div>
+          </div>
+        </div>
+
+        {/* ── Clear confirm modal ── */}
+        {showClearConfirm && (
+          <div className="apg-overlay" onClick={() => setShowClearConfirm(false)}>
+            <div className="apg-modal" onClick={e => e.stopPropagation()}>
+              <div className="apg-shimmer" style={{ position: 'absolute', top: 0, left: 0, right: 0 }} />
+              <div className="apg-modal-title">Clear History?</div>
+              <div className="apg-modal-body">
+                This will permanently delete all {messages.length} message{messages.length !== 1 ? 's' : ''}. This action cannot be undone.
+              </div>
+              <div className="apg-modal-btns">
+                <button className="apg-modal-cancel" onClick={() => setShowClearConfirm(false)}>
+                  Cancel
+                </button>
+                <button className="apg-modal-confirm" onClick={handleClear}>
+                  Clear All
+                </button>
+              </div>
             </div>
           </div>
         )}
-
-        <div style={{ height: 8 }} />
       </div>
-
-      {/* ── Input bar ── */}
-      <div style={{
-        flexShrink: 0,
-        borderTop: '1px solid var(--bd)',
-        background: 'rgba(6,13,26,0.95)',
-        backdropFilter: 'blur(20px)',
-        position: 'relative', zIndex: 10,
-      }}>
-        <div className="axp-shimmer" />
-        <div style={{ padding: '10px 12px calc(12px + env(safe-area-inset-bottom, 0px))' }}>
-          <div
-            style={{
-              display: 'flex', alignItems: 'flex-end', gap: 10,
-              background: 'var(--surf)',
-              border: '1px solid var(--bd)',
-              borderRadius: 14,
-              padding: '10px 10px 10px 14px',
-              transition: 'border-color .18s',
-            }}
-            onFocusCapture={e => (e.currentTarget.style.borderColor = 'rgba(59,130,246,.35)')}
-            onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--bd)')}
-          >
-            <textarea
-              ref={textareaRef}
-              className="axp-input axp-scroll"
-              value={inputText}
-              onChange={e => setInputText(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={`Ask Autrix AI about ${MODULES.find(m => m.id === activeModule)?.label.toLowerCase()}…`}
-              rows={1}
-              disabled={isLoading}
-              style={{ flex: 1 }}
-            />
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, paddingBottom: 2 }}>
-              {isLoading ? (
-                <button
-                  onClick={stopGeneration}
-                  style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)',
-                    color: '#EF4444', cursor: 'pointer',
-                  }}
-                >
-                  <Square className="h-3.5 w-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleSend}
-                  disabled={!inputText.trim()}
-                  style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: inputText.trim() ? 'var(--acc)' : 'var(--surf2)',
-                    border: `1px solid ${inputText.trim() ? 'var(--acc)' : 'var(--bd)'}`,
-                    color: inputText.trim() ? '#fff' : 'var(--tx3)',
-                    cursor: inputText.trim() ? 'pointer' : 'default',
-                    transition: 'all .18s',
-                    boxShadow: inputText.trim() ? '0 0 12px rgba(59,130,246,.3)' : 'none',
-                  }}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="axp-mono" style={{ fontSize: 8, textAlign: 'center', color: 'var(--tx3)', letterSpacing: '.14em', marginTop: 8 }}>
-            ENTER TO SEND · SHIFT+ENTER FOR NEWLINE
-          </div>
-        </div>
-      </div>
-
-      {/* ── Clear confirm modal ── */}
-      {showClearConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)',
-          padding: '16px',
-        }}>
-          <div style={{
-            background: 'var(--surf)', border: '1px solid var(--bd)',
-            borderRadius: 16, padding: 24,
-            width: '100%', maxWidth: 320,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-            position: 'relative', overflow: 'hidden',
-          }}>
-            <div className="axp-shimmer" style={{ position: 'absolute', top: 0, left: 0, right: 0 }} />
-            <div className="axp-heading" style={{ fontSize: 16, fontWeight: 700, color: 'var(--acc2)', marginBottom: 8, letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 8 }}>
-              Clear History?
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--tx2)', fontWeight: 300, marginBottom: 20, lineHeight: 1.6 }}>
-              This will permanently delete all {messages.length} messages. This action cannot be undone.
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                style={{
-                  flex: 1, height: 40, borderRadius: 10,
-                  border: '1px solid var(--bd)', background: 'transparent',
-                  color: 'var(--tx2)', cursor: 'pointer', fontSize: 13,
-                  fontFamily: 'DM Sans, sans-serif',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleClear}
-                style={{
-                  flex: 1, height: 40, borderRadius: 10,
-                  background: '#EF4444', border: '1px solid rgba(239,68,68,.4)',
-                  color: '#fff', cursor: 'pointer', fontSize: 13,
-                  fontWeight: 600, fontFamily: 'DM Sans, sans-serif',
-                }}
-              >
-                Clear All
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

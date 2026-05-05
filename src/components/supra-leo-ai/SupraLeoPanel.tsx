@@ -7,12 +7,13 @@ import {
   ChevronRight, Calendar, Clock, Fingerprint, Rss, Maximize2,
   RefreshCw, AlertTriangle, Zap, BookOpen, FileText, CalendarPlus,
   Star, Sparkles, Mail, Phone, User, Tag, TrendingUp, ChevronDown,
+  Car, Gauge, Shield, Wrench,
 } from 'lucide-react'
 import { SupraLeoAvatar, type LeoState } from './SupraLeoAvatar'
 import { apiClient } from '@/lib/api-client'
 import { useRouter } from 'next/navigation'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────────
 export type SpeakState =
   | 'idle' | 'fetching' | 'speaking' | 'paused'
   | 'waiting-command' | 'listening' | 'listening-reply'
@@ -47,190 +48,258 @@ interface PanelProps {
   onSendReply: () => Promise<void>
 }
 
-// ─── Panel CSS ────────────────────────────────────────────────────────────────
+// ─── Panel CSS ─────────────────────────────────────────────────────────────────
 export const UPDATED_PANEL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400&display=swap');
- 
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
 /* ── Dark tokens (default) ── */
 [data-axp] {
-  --p-bg:      #060D1A;
-  --p-bg2:     #0A1628;
-  --p-surf:    #0F1E35;
-  --p-surf2:   #162440;
-  --p-bd:      rgba(59,130,246,0.14);
-  --p-bd2:     rgba(255,255,255,0.06);
-  --p-acc:     #3B82F6;
-  --p-acc2:    #60A5FA;
-  --p-orange:  #F59E0B;
-  --p-silver:  #94AFC6;
-  --p-tx:      rgba(220,235,255,0.95);
-  --p-tx2:     rgba(140,175,220,0.68);
-  --p-tx3:     rgba(80,130,185,0.38);
-  --p-green:   #10B981;
-  --p-red:     #EF4444;
-  --p-blue:    #3B82F6;
-  --p-amber:   #F59E0B;
-  --p-purple:  #8B5CF6;
-  --p-sh:      0 2px 12px rgba(0,0,0,0.55), 0 8px 32px rgba(0,0,0,0.40), 0 0 0 1px rgba(59,130,246,0.06);
-  --p-glass:   rgba(9,18,36,0.92);
-  font-family: 'DM Sans', sans-serif;
+  --p-bg:       #030a05;
+  --p-bg2:      #061009;
+  --p-surf:     #091810;
+  --p-surf2:    #0d2016;
+  --p-surf3:    #11291b;
+  --p-bd:       rgba(34,197,94,0.15);
+  --p-bd2:      rgba(34,197,94,0.07);
+  --p-bd3:      rgba(255,255,255,0.04);
+  --p-acc:      #22c55e;
+  --p-acc2:     #4ade80;
+  --p-acc3:     #86efac;
+  --p-acc-dim:  rgba(34,197,94,0.12);
+  --p-silver:   #6b9e80;
+  --p-tx:       rgba(220,255,235,0.95);
+  --p-tx2:      rgba(134,203,160,0.72);
+  --p-tx3:      rgba(74,163,112,0.42);
+  --p-green:    #22c55e;
+  --p-red:      #f87171;
+  --p-amber:    #fbbf24;
+  --p-blue:     #60a5fa;
+  --p-purple:   #a78bfa;
+  --p-teal:     #34d399;
+  --p-sh:       0 4px 24px rgba(0,0,0,0.7), 0 1px 0 rgba(34,197,94,0.1);
+  --p-glow:     0 0 40px rgba(34,197,94,0.08);
+  --p-glass:    rgba(6,16,9,0.94);
+  --p-grad:     linear-gradient(135deg, #091810 0%, #061009 100%);
+  font-family: 'Space Grotesk', sans-serif;
   -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
 }
- 
-/* ── System light mode ── */
+
+/* ── Light mode ── */
 @media (prefers-color-scheme: light) {
   [data-axp] {
-    --p-bg:    #F0F5FB;
-    --p-bg2:   #E2ECF8;
-    --p-surf:  #FFFFFF;
-    --p-surf2: #F4F8FE;
-    --p-bd:    rgba(37,99,235,0.14);
-    --p-bd2:   rgba(0,0,0,0.08);
-    --p-acc:   #2563EB;
-    --p-acc2:  #3B82F6;
-    --p-silver:#6B8BAE;
-    --p-tx:    #0B1F3A;
-    --p-tx2:   rgba(10,50,100,0.70);
-    --p-tx3:   rgba(10,50,100,0.38);
-    --p-sh:    0 2px 12px rgba(0,0,0,0.08), 0 8px 28px rgba(37,99,235,0.08);
-    --p-glass: rgba(255,255,255,0.96);
+    --p-bg:       #f0faf4;
+    --p-bg2:      #e6f7ec;
+    --p-surf:     #ffffff;
+    --p-surf2:    #f4fcf7;
+    --p-surf3:    #edf8f2;
+    --p-bd:       rgba(22,163,74,0.18);
+    --p-bd2:      rgba(22,163,74,0.09);
+    --p-bd3:      rgba(0,0,0,0.06);
+    --p-acc:      #16a34a;
+    --p-acc2:     #15803d;
+    --p-acc3:     #166534;
+    --p-acc-dim:  rgba(22,163,74,0.10);
+    --p-silver:   #4b8b63;
+    --p-tx:       #052e16;
+    --p-tx2:      rgba(5,46,22,0.68);
+    --p-tx3:      rgba(5,46,22,0.38);
+    --p-green:    #16a34a;
+    --p-red:      #dc2626;
+    --p-amber:    #d97706;
+    --p-blue:     #2563eb;
+    --p-purple:   #7c3aed;
+    --p-teal:     #0d9488;
+    --p-sh:       0 4px 20px rgba(0,0,0,0.08), 0 1px 0 rgba(22,163,74,0.12);
+    --p-glow:     0 0 40px rgba(22,163,74,0.06);
+    --p-glass:    rgba(255,255,255,0.97);
+    --p-grad:     linear-gradient(135deg, #ffffff 0%, #f4fcf7 100%);
+    color-scheme: light;
   }
 }
- 
-/* ── Class-based dark override ── */
+
+/* ── .dark class override ── */
 .dark [data-axp] {
-  --p-bg:      #060D1A;
-  --p-bg2:     #0A1628;
-  --p-surf:    #0F1E35;
-  --p-surf2:   #162440;
-  --p-bd:      rgba(59,130,246,0.14);
-  --p-bd2:     rgba(255,255,255,0.06);
-  --p-acc:     #3B82F6;
-  --p-acc2:    #60A5FA;
-  --p-tx:      rgba(220,235,255,0.95);
-  --p-tx2:     rgba(140,175,220,0.68);
-  --p-tx3:     rgba(80,130,185,0.38);
-  --p-sh:      0 2px 12px rgba(0,0,0,0.55), 0 8px 32px rgba(0,0,0,0.40);
-  --p-glass:   rgba(9,18,36,0.92);
+  --p-bg:       #030a05;
+  --p-bg2:      #061009;
+  --p-surf:     #091810;
+  --p-surf2:    #0d2016;
+  --p-surf3:    #11291b;
+  --p-bd:       rgba(34,197,94,0.15);
+  --p-bd2:      rgba(34,197,94,0.07);
+  --p-bd3:      rgba(255,255,255,0.04);
+  --p-acc:      #22c55e;
+  --p-acc2:     #4ade80;
+  --p-acc3:     #86efac;
+  --p-acc-dim:  rgba(34,197,94,0.12);
+  --p-tx:       rgba(220,255,235,0.95);
+  --p-tx2:      rgba(134,203,160,0.72);
+  --p-tx3:      rgba(74,163,112,0.42);
+  --p-green:    #22c55e;
+  --p-red:      #f87171;
+  --p-amber:    #fbbf24;
+  --p-sh:       0 4px 24px rgba(0,0,0,0.7), 0 1px 0 rgba(34,197,94,0.1);
+  --p-glow:     0 0 40px rgba(34,197,94,0.08);
+  --p-glass:    rgba(6,16,9,0.94);
+  --p-grad:     linear-gradient(135deg, #091810 0%, #061009 100%);
+  color-scheme: dark;
 }
- 
-/* ── Class-based light override ── */
+
+/* ── .light class override ── */
 .light [data-axp] {
-  --p-bg:    #F0F5FB;
-  --p-bg2:   #E2ECF8;
-  --p-surf:  #FFFFFF;
-  --p-surf2: #F4F8FE;
-  --p-bd:    rgba(37,99,235,0.14);
-  --p-bd2:   rgba(0,0,0,0.08);
-  --p-acc:   #2563EB;
-  --p-acc2:  #3B82F6;
-  --p-tx:    #0B1F3A;
-  --p-tx2:   rgba(10,50,100,0.70);
-  --p-tx3:   rgba(10,50,100,0.38);
-  --p-sh:    0 2px 12px rgba(0,0,0,0.08), 0 8px 28px rgba(37,99,235,0.08);
-  --p-glass: rgba(255,255,255,0.96);
+  --p-bg:       #f0faf4;
+  --p-bg2:      #e6f7ec;
+  --p-surf:     #ffffff;
+  --p-surf2:    #f4fcf7;
+  --p-surf3:    #edf8f2;
+  --p-bd:       rgba(22,163,74,0.18);
+  --p-bd2:      rgba(22,163,74,0.09);
+  --p-bd3:      rgba(0,0,0,0.06);
+  --p-acc:      #16a34a;
+  --p-acc2:     #15803d;
+  --p-acc3:     #166534;
+  --p-acc-dim:  rgba(22,163,74,0.10);
+  --p-tx:       #052e16;
+  --p-tx2:      rgba(5,46,22,0.68);
+  --p-tx3:      rgba(5,46,22,0.38);
+  --p-green:    #16a34a;
+  --p-red:      #dc2626;
+  --p-amber:    #d97706;
+  --p-blue:     #2563eb;
+  --p-sh:       0 4px 20px rgba(0,0,0,0.08), 0 1px 0 rgba(22,163,74,0.12);
+  --p-glow:     0 0 40px rgba(22,163,74,0.06);
+  --p-glass:    rgba(255,255,255,0.97);
+  --p-grad:     linear-gradient(135deg, #ffffff 0%, #f4fcf7 100%);
+  color-scheme: light;
 }
- 
-/* Animations */
-@keyframes axp-in    { from{opacity:0;transform:translateY(8px) scale(.99)} to{opacity:1;transform:translateY(0) scale(1)} }
-@keyframes axp-dot   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.2;transform:scale(.65)} }
-@keyframes axp-spin  { to{transform:rotate(360deg)} }
-@keyframes axp-wave  { 0%,100%{transform:scaleY(.12)} 50%{transform:scaleY(1)} }
-@keyframes axp-cur   { 0%,100%{opacity:1} 50%{opacity:0} }
-@keyframes axp-msg   { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-@keyframes axp-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0)} 50%{box-shadow:0 0 0 4px rgba(59,130,246,0.15)} }
-@keyframes axp-scan  { 0%{transform:translateY(-100%);opacity:.5} 100%{transform:translateY(400px);opacity:0} }
+
+/* ── Animations ── */
+@keyframes axp-in      { from{opacity:0;transform:translateY(10px) scale(.98)} to{opacity:1;transform:translateY(0) scale(1)} }
+@keyframes axp-dot     { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.2;transform:scale(.6)} }
+@keyframes axp-spin    { to{transform:rotate(360deg)} }
+@keyframes axp-wave    { 0%,100%{transform:scaleY(.1)} 50%{transform:scaleY(1)} }
+@keyframes axp-cur     { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes axp-msg     { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes axp-scan    { 0%{transform:translateY(-150%);opacity:.7} 100%{transform:translateY(200%);opacity:0} }
 @keyframes axp-shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
-@keyframes axp-slide-in { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:translateX(0)} }
-@keyframes axp-pop  { 0%{transform:scale(0.85);opacity:0} 60%{transform:scale(1.03)} 100%{transform:scale(1);opacity:1} }
-@keyframes axp-glow { 0%,100%{opacity:0.5} 50%{opacity:1} }
- 
+@keyframes axp-slide   { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+@keyframes axp-pop     { 0%{transform:scale(0.88);opacity:0} 60%{transform:scale(1.02)} 100%{transform:scale(1);opacity:1} }
+@keyframes axp-glow-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} 50%{box-shadow:0 0 0 4px rgba(34,197,94,0.12)} }
+@keyframes axp-track   { 0%{stroke-dashoffset:283} 100%{stroke-dashoffset:0} }
+
 [data-axp] { color: var(--p-tx); box-sizing: border-box; }
 [data-axp] *, [data-axp] *::before, [data-axp] *::after { box-sizing: border-box; }
- 
+
 /* ── Panel shell ── */
 .axp-panel {
-  width: min(380px, calc(100vw - 32px));
+  width: min(400px, calc(100vw - 28px));
   background: var(--p-glass);
   border: 1px solid var(--p-bd);
-  border-radius: 16px;
-  box-shadow: var(--p-sh);
+  border-radius: 18px;
+  box-shadow: var(--p-sh), var(--p-glow);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
-  max-height: min(620px, calc(100vh - 100px));
-  max-height: min(620px, calc(100dvh - 100px));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  max-height: min(640px, calc(100vh - 100px));
+  max-height: min(640px, calc(100dvh - 100px));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: axp-in .3s cubic-bezier(.16,1,.3,1) forwards;
 }
+
+/* Shimmer top line */
 .axp-panel::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
   z-index: 5;
-  background: linear-gradient(90deg, transparent 0%, var(--p-acc2) 30%, rgba(200,230,255,.8) 50%, var(--p-acc2) 70%, transparent 100%);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(34,197,94,0.4) 25%,
+    rgba(134,239,172,0.9) 50%,
+    rgba(34,197,94,0.4) 75%,
+    transparent 100%
+  );
   background-size: 200% 100%;
-  animation: axp-shimmer 4s linear infinite;
+  animation: axp-shimmer 3.5s linear infinite;
 }
+
+/* Scan line effect */
 .axp-panel::after {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 40px;
-  background: linear-gradient(180deg, rgba(59,130,246,.03) 0%, transparent 100%);
-  animation: axp-scan 6s linear infinite;
+  height: 60px;
+  background: linear-gradient(180deg, rgba(34,197,94,.04) 0%, transparent 100%);
+  animation: axp-scan 7s linear infinite;
   pointer-events: none;
   z-index: 1;
 }
- 
+
 /* ── Header ── */
 .axp-hdr {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 14px 16px;
   background: var(--p-surf);
   border-bottom: 1px solid var(--p-bd2);
   flex-shrink: 0;
   position: relative;
   z-index: 2;
 }
-.axp-hdr-text { flex: 1; min-width: 0; }
+
+/* Diagonal accent in header */
+.axp-hdr::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 180px;
+  background: linear-gradient(270deg, var(--p-acc-dim) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.axp-hdr-text { flex: 1; min-width: 0; position: relative; z-index: 1; }
+
 .axp-name {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
   color: var(--p-acc2);
-  letter-spacing: .10em;
+  letter-spacing: .06em;
   line-height: 1;
   margin-bottom: 3px;
   text-transform: uppercase;
 }
+
 .axp-slogan {
   font-family: 'JetBrains Mono', monospace;
   font-size: 7px;
-  letter-spacing: .16em;
+  letter-spacing: .20em;
   text-transform: uppercase;
   color: var(--p-tx3);
   display: block;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
+
 .axp-status {
   display: flex;
   align-items: center;
   gap: 5px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 7.5px;
-  letter-spacing: .15em;
+  letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--p-tx3);
 }
-.axp-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+
+.axp-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
 .axp-icon-btn {
-  width: 26px; height: 26px;
-  border-radius: 7px;
+  width: 30px; height: 30px;
+  border-radius: 9px;
   border: 1px solid var(--p-bd2);
   background: none;
   cursor: pointer;
@@ -239,51 +308,62 @@ export const UPDATED_PANEL_CSS = `
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all .15s;
+  transition: all .18s;
   padding: 0;
+  position: relative;
+  z-index: 1;
 }
+
 .axp-icon-btn:hover {
-  border-color: rgba(59,130,246,.3);
-  background: rgba(59,130,246,.08);
+  border-color: var(--p-bd);
+  background: var(--p-acc-dim);
   color: var(--p-acc2);
 }
+
 .axp-icon-btn.close:hover {
-  border-color: rgba(239,68,68,.3);
-  background: rgba(239,68,68,.07);
+  border-color: rgba(248,113,113,.3);
+  background: rgba(248,113,113,.07);
   color: var(--p-red);
 }
- 
+
 /* ── Tabs ── */
 .axp-tabs {
   display: flex;
   background: var(--p-surf);
   border-bottom: 1px solid var(--p-bd2);
   flex-shrink: 0;
-  position: relative;
+  gap: 0;
 }
+
 .axp-tab {
   flex: 1;
-  height: 36px;
+  height: 38px;
   border: none;
   background: none;
   cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--p-tx3);
   border-bottom: 2px solid transparent;
-  transition: all .18s;
+  transition: all .2s;
   letter-spacing: .04em;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
+
 .axp-tab.on {
   color: var(--p-acc2);
   border-bottom-color: var(--p-acc);
+  background: rgba(34,197,94,.04);
 }
-.axp-tab:not(.on):hover { color: var(--p-tx2); }
+
+.axp-tab:not(.on):hover { color: var(--p-tx2); background: rgba(34,197,94,.02); }
+
 .axp-tab-badge {
-  position: absolute;
-  top: 5px; right: 8px;
   min-width: 14px; height: 14px;
   border-radius: 7px;
   background: var(--p-red);
@@ -295,433 +375,646 @@ export const UPDATED_PANEL_CSS = `
   justify-content: center;
   padding: 0 3px;
 }
- 
+
 /* ── Body ── */
 .axp-body {
-  padding: 12px 14px;
+  padding: 13px 15px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 9px;
   flex: 1;
 }
-.axp-body::-webkit-scrollbar { width: 2px; }
-.axp-body::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 1px; }
- 
+
+.axp-body::-webkit-scrollbar { width: 3px; }
+.axp-body::-webkit-scrollbar-track { background: transparent; }
+.axp-body::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }
+
 .axp-lbl {
   font-family: 'JetBrains Mono', monospace;
   font-size: 7.5px;
-  letter-spacing: .2em;
+  letter-spacing: .22em;
   text-transform: uppercase;
   color: var(--p-tx3);
-  margin-bottom: 6px;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
+
+.axp-lbl::before {
+  content: '';
+  width: 12px; height: 1px;
+  background: var(--p-acc);
+  opacity: 0.5;
+}
+
 .axp-div {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--p-bd), transparent);
   flex-shrink: 0;
 }
- 
-/* Cards */
+
+/* ── Cards ── */
 .axp-card {
-  border: 1px solid var(--p-bd);
-  border-radius: 10px;
-  padding: 11px 13px;
-  background: var(--p-surf);
+  border: 1px solid var(--p-bd2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--p-surf2);
   position: relative;
   overflow: hidden;
+  transition: border-color .2s;
 }
+
+.axp-card:hover { border-color: var(--p-bd); }
+
 .axp-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 20%, var(--p-acc)30 50%, transparent 80%);
+  top: 0; left: 0;
+  width: 3px; bottom: 0;
+  background: linear-gradient(180deg, var(--p-acc) 0%, transparent 100%);
+  border-radius: 12px 0 0 12px;
 }
-.axp-card-sender { font-size: 12px; font-weight: 600; color: var(--p-acc2); margin-bottom: 2px; }
+
+.axp-card-sender { font-size: 12.5px; font-weight: 600; color: var(--p-acc2); margin-bottom: 2px; }
 .axp-card-subj { font-size: 11.5px; color: var(--p-tx2); margin-bottom: 5px; }
 .axp-card-snip {
-  font-size: 11px; color: var(--p-tx3); line-height: 1.55;
-  border-top: 1px solid var(--p-bd2); padding-top: 5px;
+  font-size: 11px; color: var(--p-tx3); line-height: 1.6;
+  border-top: 1px solid var(--p-bd3); padding-top: 5px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
- 
-/* States */
+
+/* ── Wait state ── */
 .axp-wait {
-  border: 1px solid rgba(16,185,129,.22);
-  background: rgba(16,185,129,.045);
-  border-radius: 10px;
-  padding: 11px 13px;
+  border: 1px solid rgba(34,197,94,.2);
+  background: rgba(34,197,94,.04);
+  border-radius: 12px;
+  padding: 13px;
 }
+
 .axp-wait-title {
-  font-size: 11px; font-weight: 600; color: var(--p-green);
-  margin-bottom: 9px; display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; color: var(--p-green);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
 }
-.axp-wait-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
+
+.axp-wait-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+
 .axp-wait-btn {
-  height: 30px; border: 1px solid; border-radius: 7px;
-  font-family: 'DM Sans', sans-serif; font-size: 10.5px; font-weight: 500;
-  cursor: pointer; transition: all .15s;
-  display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 8px;
+  height: 32px; border: 1px solid; border-radius: 9px;
+  font-family: 'Space Grotesk', sans-serif; font-size: 10.5px; font-weight: 500;
+  cursor: pointer; transition: all .18s;
+  display: flex; align-items: center; justify-content: center; gap: 5px; padding: 0 8px;
 }
-.axp-wait-v { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.25); color: var(--p-green); }
-.axp-wait-v:hover { background: rgba(16,185,129,.15); }
-.axp-wait-d { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.25); color: var(--p-acc2); }
-.axp-wait-d:hover { background: rgba(59,130,246,.15); }
+
+.axp-wait-v {
+  background: rgba(34,197,94,.08);
+  border-color: rgba(34,197,94,.25);
+  color: var(--p-green);
+}
+.axp-wait-v:hover { background: rgba(34,197,94,.15); border-color: rgba(34,197,94,.4); }
+
+.axp-wait-d {
+  background: rgba(74,222,128,.06);
+  border-color: rgba(74,222,128,.2);
+  color: var(--p-acc3);
+}
+.axp-wait-d:hover { background: rgba(74,222,128,.12); }
+
 .axp-wait-x {
-  width: 100%; height: 26px; background: none;
-  border: 1px solid var(--p-bd2); border-radius: 7px;
-  font-family: 'DM Sans', sans-serif; font-size: 10px; color: var(--p-tx3);
+  width: 100%; height: 28px; background: none;
+  border: 1px solid var(--p-bd3); border-radius: 9px;
+  font-family: 'Space Grotesk', sans-serif; font-size: 10.5px; color: var(--p-tx3);
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;
-  transition: all .14s;
+  transition: all .16s;
 }
-.axp-wait-x:hover { color: var(--p-tx2); background: var(--p-surf2); }
- 
-/* Listening */
+.axp-wait-x:hover { color: var(--p-tx2); background: var(--p-surf3); border-color: var(--p-bd2); }
+
+/* ── Listening ── */
 .axp-listen {
-  display: flex; flex-direction: column; align-items: center; gap: 9px;
-  padding: 14px 13px;
-  border: 1px solid rgba(16,185,129,.22);
-  background: rgba(16,185,129,.04);
-  border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 16px 13px;
+  border: 1px solid rgba(34,197,94,.22);
+  background: rgba(34,197,94,.04);
+  border-radius: 12px;
 }
+
 .axp-listen-lbl {
-  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: .16em;
+  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: .18em;
   color: var(--p-green); text-transform: uppercase;
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 6px;
 }
-.axp-listen-hint { font-size: 11px; font-weight: 300; color: rgba(16,185,129,.52); text-align: center; font-style: italic; }
+
+.axp-listen-hint {
+  font-size: 11px; font-weight: 300; color: rgba(34,197,94,.45);
+  text-align: center; font-style: italic;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
 .axp-wavebar {
-  width: 2px; border-radius: 2px; background: var(--p-green);
-  transform-origin: center; animation: axp-wave .5s ease-in-out infinite;
+  width: 2.5px; border-radius: 3px;
+  background: linear-gradient(180deg, var(--p-acc2) 0%, var(--p-acc) 100%);
+  transform-origin: center;
+  animation: axp-wave .5s ease-in-out infinite;
 }
+
 .axp-transcript {
   border-left: 2px solid var(--p-acc);
-  padding: 8px 10px;
-  background: rgba(59,130,246,.06);
-  border-radius: 0 8px 8px 0;
-  font-size: 12px; font-weight: 300; font-style: italic; color: var(--p-tx2);
+  padding: 8px 11px;
+  background: rgba(34,197,94,.06);
+  border-radius: 0 9px 9px 0;
+  font-size: 12px; font-weight: 300; font-style: italic;
+  color: var(--p-tx2);
   line-height: 1.65; max-height: 70px; overflow-y: auto; width: 100%;
+  font-family: 'Space Grotesk', sans-serif;
 }
- 
-/* Error / Done */
+
+/* ── Error / Done ── */
 .axp-err {
-  display: flex; align-items: flex-start; gap: 8px; padding: 10px 11px;
-  border: 1px solid rgba(239,68,68,.2); background: rgba(239,68,68,.05); border-radius: 10px;
+  display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px;
+  border: 1px solid rgba(248,113,113,.22);
+  background: rgba(248,113,113,.05);
+  border-radius: 12px;
 }
-.axp-err p { font-size: 12px; color: rgba(239,68,68,.85); line-height: 1.55; margin: 0; }
+.axp-err p { font-size: 12px; color: var(--p-red); line-height: 1.55; margin: 0; }
+
 .axp-done {
-  display: flex; align-items: center; gap: 8px; padding: 10px 11px;
-  border: 1px solid rgba(16,185,129,.2); background: rgba(16,185,129,.04); border-radius: 10px;
+  display: flex; align-items: center; gap: 9px; padding: 11px 13px;
+  border: 1px solid rgba(34,197,94,.22);
+  background: rgba(34,197,94,.05);
+  border-radius: 12px;
 }
 .axp-done p { font-size: 12px; color: var(--p-green); margin: 0; }
-.axp-empty { text-align: center; padding: 20px 0 12px; }
- 
-/* Reply & Input */
+
+.axp-empty { text-align: center; padding: 18px 0 10px; }
+
+/* ── Reply & Input ── */
 .axp-reply {
   border-top: 1px solid var(--p-bd2);
-  padding: 10px 14px 12px;
+  padding: 10px 15px 13px;
   flex-shrink: 0;
   background: var(--p-surf);
 }
+
 .axp-input-row {
   display: flex; gap: 7px; align-items: flex-end;
-  border: 1px solid var(--p-bd2); border-radius: 10px;
-  padding: 7px 8px 7px 11px;
+  border: 1px solid var(--p-bd2); border-radius: 11px;
+  padding: 7px 8px 7px 12px;
   background: var(--p-bg2);
-  transition: border-color .15s;
+  transition: border-color .18s, box-shadow .18s;
 }
-.axp-input-row:focus-within { border-color: rgba(59,130,246,.35); }
+
+.axp-input-row:focus-within {
+  border-color: rgba(34,197,94,.35);
+  box-shadow: 0 0 0 3px rgba(34,197,94,.06);
+}
+
 .axp-ta {
   flex: 1; background: transparent; border: none; outline: none; resize: none;
-  font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 300;
+  font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 300;
   color: var(--p-tx); line-height: 1.5; min-height: 20px; max-height: 80px;
   overflow-y: auto; padding: 0; margin: 0;
   -webkit-user-select: text; user-select: text;
 }
 .axp-ta::placeholder { color: var(--p-tx3); }
-.axp-ta:disabled { opacity: .5; cursor: not-allowed; }
- 
-/* Send button */
+.axp-ta:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Send button ── */
 .axp-send {
-  width: 28px; height: 28px;
-  border: 1px solid var(--p-acc);
-  border-radius: 7px;
-  background: var(--p-acc);
+  width: 30px; height: 30px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--p-acc) 0%, #16a34a 100%);
   color: #fff;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; transition: all .15s; padding: 0;
+  flex-shrink: 0; transition: all .18s; padding: 0;
+  box-shadow: 0 2px 8px rgba(34,197,94,.25);
 }
-.axp-send:hover { background: var(--p-acc2); border-color: var(--p-acc2); }
-.axp-send:disabled { opacity: .35; cursor: default; }
- 
-/* Action buttons */
+.axp-send:hover {
+  background: linear-gradient(135deg, var(--p-acc2) 0%, var(--p-acc) 100%);
+  box-shadow: 0 3px 14px rgba(34,197,94,.35);
+  transform: translateY(-1px);
+}
+.axp-send:disabled { opacity: .3; cursor: default; transform: none; box-shadow: none; }
+
+/* ── Action buttons ── */
 .axp-actions {
   display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0;
-  padding: 9px 14px 11px;
+  padding: 9px 15px 12px;
   border-top: 1px solid var(--p-bd2);
   background: var(--p-surf);
 }
+
 .axp-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  height: 27px; padding: 0 9px;
-  border: 1px solid var(--p-bd);
-  border-radius: 7px;
+  height: 29px; padding: 0 10px;
+  border: 1px solid var(--p-bd2);
+  border-radius: 9px;
   background: none; color: var(--p-tx2);
-  font-family: 'DM Sans', sans-serif; font-size: 10.5px; font-weight: 500;
-  cursor: pointer; transition: all .14s; white-space: nowrap;
+  font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all .16s; white-space: nowrap;
 }
-.axp-btn:hover { border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.07); color: var(--p-acc2); }
-.axp-btn:disabled { opacity: .35; cursor: default; }
-.axp-btn.pri { background: var(--p-acc); border-color: var(--p-acc); color: #fff; font-weight: 600; }
-.axp-btn.pri:hover { background: var(--p-acc2); border-color: var(--p-acc2); }
-.axp-btn.dng { border-color: rgba(239,68,68,.22); color: var(--p-red); }
-.axp-btn.dng:hover { background: rgba(239,68,68,.07); border-color: rgba(239,68,68,.35); }
- 
-/* Chat */
+
+.axp-btn:hover {
+  border-color: var(--p-bd);
+  background: var(--p-acc-dim);
+  color: var(--p-acc2);
+}
+.axp-btn:disabled { opacity: .3; cursor: default; }
+
+.axp-btn.pri {
+  background: linear-gradient(135deg, var(--p-acc) 0%, #16a34a 100%);
+  border-color: transparent;
+  color: #fff; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(34,197,94,.25);
+}
+.axp-btn.pri:hover {
+  background: linear-gradient(135deg, var(--p-acc2) 0%, var(--p-acc) 100%);
+  box-shadow: 0 3px 14px rgba(34,197,94,.35);
+}
+
+.axp-btn.dng { border-color: rgba(248,113,113,.18); color: var(--p-red); }
+.axp-btn.dng:hover {
+  background: rgba(248,113,113,.07);
+  border-color: rgba(248,113,113,.32);
+}
+
+/* ── Chat ── */
 .axp-chat-wrap { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
+
 .axp-chat-scroll {
-  overflow-y: auto; padding: 10px 14px;
-  display: flex; flex-direction: column; gap: 9px; flex: 1;
+  overflow-y: auto; padding: 12px 15px;
+  display: flex; flex-direction: column; gap: 10px; flex: 1;
 }
-.axp-chat-scroll::-webkit-scrollbar { width: 2px; }
-.axp-chat-scroll::-webkit-scrollbar-thumb { background: var(--p-bd); }
-.axp-msg-row { display: flex; align-items: flex-end; gap: 6px; animation: axp-msg .22s ease forwards; }
+.axp-chat-scroll::-webkit-scrollbar { width: 3px; }
+.axp-chat-scroll::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }
+
+.axp-msg-row { display: flex; align-items: flex-end; gap: 7px; animation: axp-msg .22s ease forwards; }
 .axp-msg-row.usr { flex-direction: row-reverse; }
+
 .axp-bubble {
-  max-width: 85%; padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 12px; line-height: 1.65; font-weight: 300;
+  max-width: 85%; padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 12.5px; line-height: 1.65; font-weight: 400;
   white-space: pre-wrap; word-break: break-word;
+  font-family: 'Space Grotesk', sans-serif;
 }
+
 .axp-bubble.usr {
-  background: rgba(59,130,246,.12);
-  border: 1px solid rgba(59,130,246,.22);
+  background: rgba(34,197,94,.12);
+  border: 1px solid rgba(34,197,94,.22);
   color: var(--p-tx);
-  border-radius: 12px 12px 4px 12px;
+  border-radius: 14px 14px 4px 14px;
 }
+
 .axp-bubble.leo {
-  background: var(--p-surf);
+  background: var(--p-surf2);
   border: 1px solid var(--p-bd2);
   color: var(--p-tx2);
-  border-radius: 4px 12px 12px 12px;
+  border-radius: 4px 14px 14px 14px;
 }
+
 .axp-cur {
-  display: inline-block; width: 1.5px; height: .82em;
+  display: inline-block; width: 2px; height: .85em;
   background: var(--p-acc); margin-left: 2px;
   vertical-align: text-bottom; border-radius: 1px;
   animation: axp-cur .85s step-end infinite;
 }
-.axp-typing { display: flex; gap: 3px; align-items: center; padding: 3px 2px; }
-.axp-typing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--p-acc); animation: axp-dot 1.1s ease-in-out infinite; }
- 
+
+.axp-typing { display: flex; gap: 4px; align-items: center; padding: 4px 2px; }
+.axp-typing-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--p-acc);
+  animation: axp-dot 1.1s ease-in-out infinite;
+}
+
 .axp-quick-btn {
   display: flex; align-items: center; justify-content: space-between;
-  width: 100%; height: 30px; padding: 0 10px;
-  border: 1px solid var(--p-bd);
-  border-radius: 8px;
-  background: rgba(59,130,246,.04);
+  width: 100%; height: 34px; padding: 0 12px;
+  border: 1px solid var(--p-bd2);
+  border-radius: 10px;
+  background: var(--p-surf2);
   color: var(--p-tx3);
-  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 400;
-  cursor: pointer; transition: all .15s; text-align: left;
+  font-family: 'Space Grotesk', sans-serif; font-size: 11.5px; font-weight: 400;
+  cursor: pointer; transition: all .18s; text-align: left;
 }
-.axp-quick-btn:hover { border-color: rgba(59,130,246,.28); color: var(--p-acc2); background: rgba(59,130,246,.09); }
- 
-/* ── ASSISTANT TAB ── */
+
+.axp-quick-btn:hover {
+  border-color: var(--p-bd);
+  color: var(--p-acc2);
+  background: var(--p-acc-dim);
+  transform: translateX(3px);
+}
+
+/* ── Assistant Tab ── */
 .axp-assist-scroll {
   overflow-y: auto; flex: 1;
   display: flex; flex-direction: column;
-  padding: 10px 14px; gap: 8px;
+  padding: 12px 15px; gap: 9px;
 }
-.axp-assist-scroll::-webkit-scrollbar { width: 2px; }
-.axp-assist-scroll::-webkit-scrollbar-thumb { background: var(--p-bd); }
- 
+.axp-assist-scroll::-webkit-scrollbar { width: 3px; }
+.axp-assist-scroll::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }
+
 .axp-section-hdr {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px; letter-spacing: .22em; text-transform: uppercase;
+  font-size: 8px; letter-spacing: .24em; text-transform: uppercase;
   color: var(--p-tx3); padding: 4px 0 6px;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 8px;
+}
+.axp-section-hdr::before {
+  content: '◈';
+  color: var(--p-acc);
+  font-size: 9px;
+  opacity: 0.7;
 }
 .axp-section-hdr::after {
   content: ''; flex: 1; height: 1px;
   background: linear-gradient(90deg, var(--p-bd), transparent);
 }
- 
+
+/* ── Action cards ── */
 .axp-action-card {
   border: 1px solid var(--p-bd2);
-  border-radius: 10px;
-  background: var(--p-surf);
+  border-radius: 12px;
+  background: var(--p-surf2);
   overflow: hidden;
-  transition: border-color .18s, box-shadow .18s;
-  animation: axp-slide-in .22s ease forwards;
+  transition: border-color .2s, box-shadow .2s, transform .2s;
+  animation: axp-slide .24s ease forwards;
 }
+
 .axp-action-card:hover {
-  border-color: rgba(59,130,246,.22);
-  box-shadow: 0 2px 12px rgba(59,130,246,.08);
+  border-color: var(--p-bd);
+  box-shadow: 0 4px 16px rgba(34,197,94,.07);
+  transform: translateY(-1px);
 }
+
 .axp-action-card-hdr {
-  display: flex; align-items: center; gap: 9px;
-  padding: 9px 12px; cursor: pointer;
-  transition: background .15s;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px; cursor: pointer;
+  transition: background .18s;
 }
-.axp-action-card-hdr:hover { background: rgba(59,130,246,.04); }
+.axp-action-card-hdr:hover { background: var(--p-acc-dim); }
+
 .axp-action-icon {
-  width: 28px; height: 28px; border-radius: 8px;
+  width: 30px; height: 30px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  flex-shrink: 0; border: 1px solid rgba(34,197,94,.12);
 }
+
 .axp-action-title {
   flex: 1;
-  font-size: 12px; font-weight: 600; color: var(--p-tx);
+  font-size: 12.5px; font-weight: 600; color: var(--p-tx);
   line-height: 1.2;
+  font-family: 'Space Grotesk', sans-serif;
 }
+
 .axp-action-sub {
-  font-size: 10px; font-weight: 300; color: var(--p-tx3); margin-top: 1px;
+  font-size: 10px; font-weight: 300; color: var(--p-tx3); margin-top: 1.5px;
+  font-family: 'Space Grotesk', sans-serif;
 }
+
 .axp-action-body {
-  padding: 0 12px 11px;
+  padding: 0 13px 13px;
   border-top: 1px solid var(--p-bd2);
-  margin-top: -1px;
 }
+
 .axp-action-result {
   font-size: 12px; font-weight: 300; color: var(--p-tx2);
-  line-height: 1.65; white-space: pre-wrap;
+  line-height: 1.7; white-space: pre-wrap;
   max-height: 200px; overflow-y: auto;
-  padding: 8px 0;
+  padding: 9px 0;
+  font-family: 'Space Grotesk', sans-serif;
 }
 .axp-action-result::-webkit-scrollbar { width: 2px; }
 .axp-action-result::-webkit-scrollbar-thumb { background: var(--p-bd); }
- 
+
 .axp-gen-btn {
   display: inline-flex; align-items: center; gap: 5px;
-  height: 28px; padding: 0 12px; margin-top: 8px;
-  border: 1px solid rgba(59,130,246,.28);
-  border-radius: 7px;
-  background: rgba(59,130,246,.08);
+  height: 30px; padding: 0 13px; margin-top: 8px;
+  border: 1px solid rgba(34,197,94,.3);
+  border-radius: 9px;
+  background: rgba(34,197,94,.09);
   color: var(--p-acc2);
-  font-family: 'DM Sans', sans-serif; font-size: 10.5px; font-weight: 500;
-  cursor: pointer; transition: all .15s;
+  font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all .18s;
 }
-.axp-gen-btn:hover { background: rgba(59,130,246,.15); }
-.axp-gen-btn:disabled { opacity: .4; cursor: default; }
- 
+.axp-gen-btn:hover {
+  background: rgba(34,197,94,.16);
+  border-color: rgba(34,197,94,.45);
+  transform: translateY(-1px);
+}
+.axp-gen-btn:disabled { opacity: .35; cursor: default; transform: none; }
+
 .axp-copy-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  height: 24px; padding: 0 8px; margin-top: 5px;
-  border: 1px solid var(--p-bd2); border-radius: 6px;
+  height: 25px; padding: 0 9px; margin-top: 5px;
+  border: 1px solid var(--p-bd2); border-radius: 7px;
   background: transparent; color: var(--p-tx3);
-  font-size: 9.5px; cursor: pointer; transition: all .14s;
+  font-size: 9.5px; cursor: pointer; transition: all .16s;
+  font-family: 'Space Grotesk', sans-serif;
 }
-.axp-copy-btn:hover { color: var(--p-acc2); border-color: rgba(59,130,246,.25); }
- 
+.axp-copy-btn:hover { color: var(--p-acc2); border-color: var(--p-bd); }
+
 .axp-lead-row {
-  display: flex; align-items: center; gap: 7px;
-  padding: 5px 0; border-bottom: 1px solid var(--p-bd2);
-  font-size: 11px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid var(--p-bd3);
+  font-size: 11.5px;
 }
 .axp-lead-row:last-child { border-bottom: none; }
-.axp-lead-key { color: var(--p-tx3); min-width: 60px; }
-.axp-lead-val { color: var(--p-tx); font-weight: 500; }
- 
-.axp-appt-form { display: flex; flex-direction: column; gap: 7px; padding: 8px 0; }
-.axp-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.axp-lead-key { color: var(--p-tx3); min-width: 62px; font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .08em; }
+.axp-lead-val { color: var(--p-tx); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+.axp-appt-form { display: flex; flex-direction: column; gap: 8px; padding: 9px 0; }
+.axp-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
 .axp-field-lbl {
   font-family: 'JetBrains Mono', monospace; font-size: 7.5px;
-  letter-spacing: .15em; text-transform: uppercase; color: var(--p-tx3); margin-bottom: 3px;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--p-tx3); margin-bottom: 4px;
 }
+
 .axp-field-input {
-  width: 100%; height: 30px;
+  width: 100%; height: 32px;
   background: var(--p-bg2);
-  border: 1px solid var(--p-bd2); border-radius: 7px;
-  padding: 0 9px;
-  font-family: 'DM Sans', sans-serif; font-size: 11.5px; color: var(--p-tx);
-  outline: none; transition: border-color .14s;
+  border: 1px solid var(--p-bd2); border-radius: 9px;
+  padding: 0 10px;
+  font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--p-tx);
+  outline: none; transition: border-color .16s, box-shadow .16s;
 }
-.axp-field-input:focus { border-color: rgba(59,130,246,.35); }
- 
+.axp-field-input:focus {
+  border-color: rgba(34,197,94,.35);
+  box-shadow: 0 0 0 3px rgba(34,197,94,.06);
+}
+
 .axp-chip {
   display: inline-flex; align-items: center;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px; font-weight: 600; letter-spacing: .1em;
-  padding: 3px 8px; border-radius: 99px;
+  font-size: 8px; font-weight: 600; letter-spacing: .1em;
+  padding: 3px 9px; border-radius: 99px;
   border: 1px solid; text-transform: uppercase;
 }
- 
+
+/* ── Reminder tab ── */
 .axp-reminder-wrap { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
-.axp-reminder-body { overflow-y: auto; padding: 10px 14px; flex: 1; }
-.axp-reminder-body::-webkit-scrollbar { width: 2px; }
-.axp-reminder-body::-webkit-scrollbar-thumb { background: var(--p-bd); }
+.axp-reminder-body { overflow-y: auto; padding: 12px 15px; flex: 1; }
+.axp-reminder-body::-webkit-scrollbar { width: 3px; }
+.axp-reminder-body::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }
+
 .axp-mod-sel {
-  display: flex; gap: 5px; flex-wrap: wrap;
-  padding: 9px 14px; border-bottom: 1px solid var(--p-bd2);
+  display: flex; gap: 5px; flex-wrap: wrap; align-items: center;
+  padding: 9px 15px; border-bottom: 1px solid var(--p-bd2);
   background: var(--p-surf); flex-shrink: 0;
 }
+
 .axp-mod-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  height: 24px; padding: 0 8px;
+  height: 26px; padding: 0 9px;
   border: 1px solid var(--p-bd2); border-radius: 99px;
   background: transparent; color: var(--p-tx3);
-  font-size: 10px; font-weight: 500; cursor: pointer; transition: all .15s;
+  font-size: 10.5px; font-weight: 500; cursor: pointer; transition: all .16s;
+  font-family: 'Space Grotesk', sans-serif;
 }
-.axp-mod-btn:hover { border-color: rgba(59,130,246,.25); color: var(--p-acc2); background: rgba(59,130,246,.07); }
-.axp-mod-btn.active { border-color: rgba(59,130,246,.3); color: var(--p-acc); background: rgba(59,130,246,.10); }
- 
-.axp-reminder-item {
-  border: 1px solid var(--p-bd2); border-radius: 8px;
-  padding: 8px 10px; margin-bottom: 6px; transition: border-color .15s;
+.axp-mod-btn:hover {
+  border-color: var(--p-bd);
+  color: var(--p-acc2);
+  background: var(--p-acc-dim);
 }
-.axp-reminder-item:hover { border-color: var(--p-bd); }
-.axp-reminder-item.warn { border-color: rgba(245,158,11,.25); background: rgba(245,158,11,.04); }
-.axp-reminder-item.info { border-color: rgba(59,130,246,.2); background: rgba(59,130,246,.04); }
-.axp-reminder-item.success { border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.04); }
+.axp-mod-btn.active {
+  border-color: rgba(34,197,94,.35);
+  color: var(--p-acc2);
+  background: rgba(34,197,94,.12);
+  font-weight: 600;
+}
 
+.axp-reminder-item {
+  border: 1px solid var(--p-bd3);
+  border-radius: 10px;
+  padding: 9px 11px; margin-bottom: 6px;
+  transition: border-color .18s, transform .18s;
+  background: var(--p-surf2);
+}
+.axp-reminder-item:hover {
+  border-color: var(--p-bd2);
+  transform: translateX(3px);
+}
+.axp-reminder-item.warn {
+  border-color: rgba(251,191,36,.22);
+  background: rgba(251,191,36,.03);
+}
+.axp-reminder-item.info {
+  border-color: rgba(34,197,94,.18);
+  background: rgba(34,197,94,.03);
+}
+.axp-reminder-item.success {
+  border-color: rgba(52,211,153,.2);
+  background: rgba(52,211,153,.03);
+}
+
+/* ── Stats bar (Reminder tab summary) ── */
+.axp-stats-row {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
+  margin-bottom: 12px;
+}
+
+.axp-stat-card {
+  border: 1px solid var(--p-bd2);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--p-surf3);
+  text-align: center;
+}
+
+.axp-stat-num {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 20px; font-weight: 700;
+  color: var(--p-acc2); line-height: 1;
+  margin-bottom: 3px;
+}
+
+.axp-stat-lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--p-tx3);
+}
+
+/* ── Chat input at bottom of chat tab ── */
+.axp-chat-input-wrap {
+  padding: 9px 15px 11px;
+  border-top: 1px solid var(--p-bd2);
+  background: var(--p-surf);
+  flex-shrink: 0;
+}
+
+/* ── Progress ring for speaking ── */
+.axp-speaking-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+/* Responsive */
 @media (max-width: 767px) {
   .axp-panel {
-    width: min(380px, calc(100vw - 24px));
-    max-height: calc(100vh - var(--supra-leo-bottom, 7rem) - 16px);
-    max-height: calc(100dvh - var(--supra-leo-bottom, 7rem) - 16px);
-    border-radius: 14px;
+    width: min(400px, calc(100vw - 20px));
+    max-height: calc(100dvh - var(--supra-leo-bottom, 6.5rem) - 14px);
+    border-radius: 15px;
   }
 
   .axp-hdr,
-  .axp-mod-sel,
   .axp-reply,
-  .axp-actions {
+  .axp-actions,
+  .axp-mod-sel {
     padding-left: 12px;
     padding-right: 12px;
   }
 
   .axp-body,
   .axp-chat-scroll,
-  .axp-reminder-body {
+  .axp-assist-scroll,
+  .axp-reminder-body,
+  .axp-chat-input-wrap {
     padding-left: 12px;
     padding-right: 12px;
   }
+
+  .axp-stats-row { grid-template-columns: repeat(4, 1fr); }
+  .axp-stat-num { font-size: 16px; }
 }
 `
 
 function injectPanelCSS() {
   if (typeof document === 'undefined') return
-  if (document.getElementById('ax-panel-v2')) return
+  if (document.getElementById('ax-panel-v3')) return
   const el = document.createElement('style')
-  el.id = 'ax-panel-v2'
+  el.id = 'ax-panel-v3'
   el.textContent = UPDATED_PANEL_CSS
   document.head.appendChild(el)
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getToken(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem('crm_token') || ''
+}
+
+function apiUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL || ''
+  return `${base}${path}`
+}
+
 // ─── Status maps ──────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<SpeakState, { label: string; dotColor: string; pulse: boolean }> = {
-  idle: { label: 'Standby', dotColor: 'rgba(59,130,246,.35)', pulse: false },
-  fetching: { label: 'Fetching…', dotColor: '#8B5CF6', pulse: true },
-  speaking: { label: 'Speaking', dotColor: '#F59E0B', pulse: true },
-  paused: { label: 'Paused', dotColor: 'rgba(59,130,246,.35)', pulse: false },
-  'waiting-command': { label: 'Awaiting', dotColor: '#10B981', pulse: false },
-  listening: { label: 'Listening', dotColor: '#10B981', pulse: true },
-  'listening-reply': { label: 'Dictating', dotColor: '#10B981', pulse: true },
-  sending: { label: 'Sending…', dotColor: '#F59E0B', pulse: true },
-  done: { label: 'Complete', dotColor: '#10B981', pulse: false },
-  error: { label: 'Error', dotColor: '#EF4444', pulse: false },
+  idle:              { label: 'Standby',   dotColor: 'rgba(34,197,94,.35)', pulse: false },
+  fetching:          { label: 'Fetching…', dotColor: '#a78bfa',             pulse: true  },
+  speaking:          { label: 'Speaking',  dotColor: '#4ade80',             pulse: true  },
+  paused:            { label: 'Paused',    dotColor: 'rgba(34,197,94,.35)', pulse: false },
+  'waiting-command': { label: 'Awaiting',  dotColor: '#22c55e',             pulse: false },
+  listening:         { label: 'Listening', dotColor: '#22c55e',             pulse: true  },
+  'listening-reply': { label: 'Dictating', dotColor: '#22c55e',             pulse: true  },
+  sending:           { label: 'Sending…',  dotColor: '#4ade80',             pulse: true  },
+  done:              { label: 'Complete',  dotColor: '#22c55e',             pulse: false },
+  error:             { label: 'Error',     dotColor: '#f87171',             pulse: false },
 }
 
 const LEO_STATE: Record<SpeakState, LeoState> = {
@@ -732,35 +1025,36 @@ const LEO_STATE: Record<SpeakState, LeoState> = {
 
 // ─── Reminder modules ─────────────────────────────────────────────────────────
 const REMINDER_MODULES = [
-  { id: 'appointments', label: 'Appts', icon: <Calendar className="h-3 w-3" /> },
-  { id: 'timeproof', label: 'Time', icon: <Clock className="h-3 w-3" /> },
-  { id: 'supraspace', label: 'Space', icon: <MessageSquare className="h-3 w-3" /> },
-  { id: 'biometrics', label: 'Bio', icon: <Fingerprint className="h-3 w-3" /> },
-  { id: 'feeds', label: 'Feeds', icon: <Rss className="h-3 w-3" /> },
+  { id: 'appointments', label: 'Appts',  icon: <Calendar className="h-3 w-3" /> },
+  { id: 'timeproof',    label: 'Time',   icon: <Clock className="h-3 w-3" /> },
+  { id: 'supraspace',   label: 'Space',  icon: <MessageSquare className="h-3 w-3" /> },
+  { id: 'biometrics',   label: 'Bio',    icon: <Fingerprint className="h-3 w-3" /> },
+  { id: 'feeds',        label: 'Feeds',  icon: <Rss className="h-3 w-3" /> },
 ]
 
-// ─── Quick prompts ────────────────────────────────────────────────────────────
+// ─── Quick prompts ─────────────────────────────────────────────────────────────
 const QUICK_PROMPTS: Record<string, string[]> = {
   appointments: ['Summarize my leads today', 'Draft a follow-up email', "What's on my schedule?"],
-  timeproof: ['Hours worked this week?', 'Am I on track with attendance?', 'Generate my timeproof summary'],
-  supraspace: ['Messages needing attention?', 'Draft a team announcement', 'Summarize unread threads'],
-  biometrics: ['Explain biometric login', 'SSH key best practices', 'Review my security status'],
-  feeds: ['What did the team post?', 'Write a motivational post', 'Summarize team activity'],
-  general: ['Help with a lead follow-up', 'Draft a professional email', 'What should I prioritize?'],
+  timeproof:    ['Hours worked this week?', 'Am I on track with attendance?', 'Generate my timeproof summary'],
+  supraspace:   ['Messages needing attention?', 'Draft a team announcement', 'Summarize unread threads'],
+  biometrics:   ['Explain biometric login', 'SSH key best practices', 'Review my security status'],
+  feeds:        ['What did the team post?', 'Write a motivational post', 'Summarize team activity'],
+  general:      ['Help with a lead follow-up', 'Draft a professional email', 'What should I prioritize?'],
 }
 
-// ─── Waveform ─────────────────────────────────────────────────────────────────
+// ─── Waveform ──────────────────────────────────────────────────────────────────
 function Waveform({ active }: { active: boolean }) {
   if (!active) return null
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 14 }}>
-      {Array.from({ length: 11 }).map((_, i) => {
-        const edge = i < 1 || i > 9
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2.5, height: 16 }}>
+      {Array.from({ length: 9 }).map((_, i) => {
+        const edge = i === 0 || i === 8
         return (
           <div key={i} className="axp-wavebar" style={{
-            height: edge ? 3 : 12, opacity: edge ? 0.2 : 0.75,
-            animationDuration: `${(0.32 + i * 0.04).toFixed(2)}s`,
-            animationDelay: `${(i * 0.038).toFixed(2)}s`,
+            height: edge ? 4 : 13,
+            opacity: edge ? 0.2 : 0.8,
+            animationDuration: `${(0.30 + i * 0.045).toFixed(2)}s`,
+            animationDelay: `${(i * 0.042).toFixed(2)}s`,
           }} />
         )
       })}
@@ -768,7 +1062,26 @@ function Waveform({ active }: { active: boolean }) {
   )
 }
 
-// ─── Chat Tab ─────────────────────────────────────────────────────────────────
+// ─── AI Generate helper ────────────────────────────────────────────────────────
+async function aiGenerate(prompt: string, module: string): Promise<string> {
+  const token = getToken()
+  const res = await fetch(apiUrl('/api/supraleo/chat'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ message: prompt, module, stream: false }),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.message || `AI error ${res.status}`)
+  }
+  const data = await res.json()
+  return data?.data?.message || ''
+}
+
+// ─── Chat Tab ──────────────────────────────────────────────────────────────────
 interface ChatMsg { id: string; role: 'user' | 'leo'; text: string; streaming?: boolean }
 
 function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
@@ -777,8 +1090,6 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
   const [loading, setLoading] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const abortRef = React.useRef<AbortController | null>(null)
-
-  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('crm_token') || '' : ''
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -789,29 +1100,40 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
     if (!text || loading) return
     const uid = Date.now().toString()
     const lid = (Date.now() + 1).toString()
-    setMessages(prev => [...prev,
-    { id: uid, role: 'user', text },
-    { id: lid, role: 'leo', text: '', streaming: true },
+    setMessages(prev => [
+      ...prev,
+      { id: uid, role: 'user', text },
+      { id: lid, role: 'leo', text: '', streaming: true },
     ])
     setInput('')
     setLoading(true)
 
     try {
       abortRef.current = new AbortController()
-      const res = await fetch('/api/supraleo/chat', {
+      const res = await fetch(apiUrl('/api/supraleo/chat'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: JSON.stringify({ message: text, module: activeModule, stream: true }),
         signal: abortRef.current.signal,
       })
-      if (!res.ok || !res.body) throw new Error('API error')
+
+      if (!res.ok || !res.body) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(errBody?.message || 'API error')
+      }
+
       const reader = res.body.getReader()
       const dec = new TextDecoder()
       let acc = ''
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        for (const line of dec.decode(value, { stream: true }).split('\n')) {
+        const chunk = dec.decode(value, { stream: true })
+        for (const line of chunk.split('\n')) {
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6).trim()
           if (!raw) continue
@@ -822,17 +1144,20 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
               setMessages(prev => prev.map(m => m.id === lid ? { ...m, text: acc } : m))
             } else if (p.type === 'done') {
               setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
+            } else if (p.type === 'error') {
+              throw new Error(p.message || 'Stream error')
             }
-          } catch { }
+          } catch { /* ignore chunk parse errors */ }
         }
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setMessages(prev => prev.map(m => m.id === lid ? { ...m, text: 'Something went wrong. Please try again.', streaming: false } : m))
-      } else {
-        setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
-      }
-    } finally { setLoading(false) }
+      const errMsg = err.name === 'AbortError' ? '' : (err.message || 'Something went wrong.')
+      setMessages(prev => prev.map(m =>
+        m.id === lid ? { ...m, text: errMsg || m.text, streaming: false } : m
+      ))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -845,21 +1170,32 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
     <div className="axp-chat-wrap">
       <div ref={scrollRef} className="axp-chat-scroll">
         {messages.length === 0 && (
-          <div className="axp-empty" style={{ padding: '14px 0 8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <SupraLeoAvatar state="idle" size={40} animate />
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 15, fontWeight: 700, color: 'var(--p-acc2)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center' }}>
+          <div className="axp-empty">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <SupraLeoAvatar state="idle" size={46} animate />
+              <div style={{
+                fontFamily: "'Exo 2', sans-serif",
+                fontSize: 16, fontWeight: 800,
+                color: 'var(--p-acc2)',
+                letterSpacing: '.06em',
+                textTransform: 'uppercase',
+                textAlign: 'center',
+              }}>
                 How can I help?
               </div>
-              <div style={{ fontSize: 11, color: 'var(--p-tx3)', fontWeight: 300, textAlign: 'center', fontFamily: "'JetBrains Mono', monospace", letterSpacing: '.06em' }}>
-                Driven by Intelligence
+              <div style={{
+                fontSize: 10, color: 'var(--p-tx3)', fontWeight: 300, textAlign: 'center',
+                fontFamily: "'JetBrains Mono', monospace", letterSpacing: '.12em',
+                textTransform: 'uppercase',
+              }}>
+                AI-Powered Dealership Intelligence
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {prompts.map(p => (
                 <button key={p} className="axp-quick-btn" onClick={() => send(p)}>
                   {p}
-                  <ChevronRight size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
+                  <ChevronRight size={11} style={{ opacity: 0.4, flexShrink: 0 }} />
                 </button>
               ))}
             </div>
@@ -869,12 +1205,18 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
         {messages.map(msg => (
           <div key={msg.id} className={`axp-msg-row ${msg.role === 'user' ? 'usr' : ''}`}>
             {msg.role === 'leo' && (
-              <SupraLeoAvatar state={msg.streaming ? 'thinking' : 'idle'} size={22} animate={!!msg.streaming} />
+              <SupraLeoAvatar
+                state={msg.streaming ? 'thinking' : 'idle'}
+                size={24}
+                animate={!!msg.streaming}
+              />
             )}
             <div className={`axp-bubble ${msg.role === 'user' ? 'usr' : 'leo'}`}>
               {msg.role === 'leo' && msg.text === '' && msg.streaming ? (
                 <div className="axp-typing">
-                  {[0, 1, 2].map(i => <div key={i} className="axp-typing-dot" style={{ animationDelay: `${i * 0.16}s` }} />)}
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="axp-typing-dot" style={{ animationDelay: `${i * 0.18}s` }} />
+                  ))}
                 </div>
               ) : (
                 <>
@@ -887,9 +1229,7 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
         ))}
       </div>
 
-      <div className="axp-div" style={{ margin: '0 14px' }} />
-
-      <div style={{ padding: '8px 14px 10px' }}>
+      <div className="axp-chat-input-wrap">
         <div className="axp-input-row">
           <textarea
             className="axp-ta"
@@ -902,11 +1242,11 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
           />
           {loading ? (
             <button className="axp-send" onClick={() => abortRef.current?.abort()}>
-              <Square size={10} />
+              <Square size={11} />
             </button>
           ) : (
             <button className="axp-send" onClick={() => send()} disabled={!input.trim()}>
-              <Send size={10} />
+              <Send size={11} />
             </button>
           )}
         </div>
@@ -915,14 +1255,12 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
   )
 }
 
-// ─── Reminder Tab ─────────────────────────────────────────────────────────────
+// ─── Reminder Tab ──────────────────────────────────────────────────────────────
 function ReminderTab() {
   const [selectedModule, setSelectedModule] = React.useState('appointments')
   const [loading, setLoading] = React.useState(false)
   const [data, setData] = React.useState<any>(null)
   const [error, setError] = React.useState('')
-
-  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('crm_token') || '' : ''
 
   const fetchReminders = React.useCallback(async (mod: string) => {
     const token = getToken()
@@ -935,22 +1273,30 @@ function ReminderTab() {
       setData(res.data?.data)
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to load data')
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   React.useEffect(() => { fetchReminders(selectedModule) }, [selectedModule, fetchReminders])
 
-  const fmtTime = (d: string) => new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const fmtTime = (d: string) =>
+    new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   const renderContent = () => {
     if (loading) return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-        <Loader2 size={18} style={{ animation: 'axp-spin .9s linear infinite', color: 'var(--p-acc)' }} />
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '28px 0' }}>
+        <Loader2 size={20} style={{ animation: 'axp-spin .9s linear infinite', color: 'var(--p-acc)' }} />
       </div>
     )
     if (error) return (
-      <div style={{ padding: '12px', fontSize: 12, color: 'var(--p-red)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 8, background: 'rgba(239,68,68,.04)' }}>
+      <div style={{
+        padding: '12px', fontSize: 12, color: 'var(--p-red)',
+        border: '1px solid rgba(248,113,113,.2)', borderRadius: 10,
+        background: 'rgba(248,113,113,.04)',
+      }}>
         {error}
       </div>
     )
@@ -961,48 +1307,210 @@ function ReminderTab() {
         const { today = [], newLeads = [], pendingLeads = [], counts } = data
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            <div className="axp-stats-row">
               {[
-                { label: `${counts?.todayAppointments || 0} Today`, bg: 'rgba(16,185,129,.08)', bd: 'rgba(16,185,129,.25)', c: 'var(--p-green)' },
-                { label: `${counts?.upcomingThisWeek || 0} Week`, bg: 'rgba(59,130,246,.08)', bd: 'rgba(59,130,246,.25)', c: 'var(--p-acc)' },
-                { label: `${counts?.newLeads || 0} New`, bg: 'rgba(139,92,246,.08)', bd: 'rgba(139,92,246,.25)', c: 'var(--p-purple)' },
-                { label: `${counts?.pendingLeads || 0} Pending`, bg: 'rgba(245,158,11,.08)', bd: 'rgba(245,158,11,.25)', c: 'var(--p-amber)' },
+                { num: counts?.todayAppointments || 0, label: 'Today',   c: 'var(--p-acc2)',   bg: 'rgba(34,197,94,.08)',  bd: 'rgba(34,197,94,.18)' },
+                { num: counts?.upcomingThisWeek || 0,  label: 'Week',    c: 'var(--p-teal)',   bg: 'rgba(52,211,153,.08)', bd: 'rgba(52,211,153,.18)' },
+                { num: counts?.newLeads || 0,          label: 'New',     c: 'var(--p-purple)', bg: 'rgba(167,139,250,.08)',bd: 'rgba(167,139,250,.18)' },
+                { num: counts?.pendingLeads || 0,      label: 'Pending', c: 'var(--p-amber)',  bg: 'rgba(251,191,36,.08)', bd: 'rgba(251,191,36,.18)' },
               ].map(c => (
-                <span key={c.label} className="axp-chip" style={{ background: c.bg, borderColor: c.bd, color: c.c }}>{c.label}</span>
+                <div key={c.label} className="axp-stat-card" style={{ background: c.bg, borderColor: c.bd }}>
+                  <div className="axp-stat-num" style={{ color: c.c }}>{c.num}</div>
+                  <div className="axp-stat-lbl">{c.label}</div>
+                </div>
               ))}
             </div>
+
             {today.length > 0 && (
               <div>
                 <div className="axp-lbl">Today's Schedule</div>
                 {today.map((a: any, i: number) => (
                   <div key={i} className="axp-reminder-item success">
-                    <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--p-tx)', marginBottom: 2 }}>{a.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{fmtTime(a.startTime)} · {a.type} · {a.status}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{a.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--p-tx3)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.06em' }}>
+                      {fmtTime(a.startTime)} · {a.type} · {a.status}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
+
             {newLeads.length > 0 && (
               <div>
                 <div className="axp-lbl">New Leads</div>
                 {newLeads.slice(0, 5).map((l: any, i: number) => (
                   <div key={i} className="axp-reminder-item info">
-                    <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
                     <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{l.source} · {fmtDate(l.createdAt)}</div>
                   </div>
                 ))}
-                {newLeads.length > 5 && <div style={{ fontSize: 10, color: 'var(--p-tx3)', textAlign: 'center', padding: '4px 0' }}>+{newLeads.length - 5} more</div>}
+                {newLeads.length > 5 && (
+                  <div style={{ fontSize: 10, color: 'var(--p-tx3)', textAlign: 'center', padding: '4px 0' }}>
+                    +{newLeads.length - 5} more
+                  </div>
+                )}
               </div>
             )}
-            {today.length === 0 && newLeads.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--p-tx3)', fontSize: 12 }}>
-                <CheckCircle2 size={20} style={{ color: 'var(--p-green)', margin: '0 auto 6px', display: 'block' }} />
-                All clear for now.
+
+            {pendingLeads.length > 0 && (
+              <div>
+                <div className="axp-lbl">Pending Leads</div>
+                {pendingLeads.slice(0, 3).map((l: any, i: number) => (
+                  <div key={i} className="axp-reminder-item warn">
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
+                    <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{l.status} · {fmtDate(l.createdAt)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {today.length === 0 && newLeads.length === 0 && pendingLeads.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--p-tx3)', fontSize: 12 }}>
+                <CheckCircle2 size={22} style={{ color: 'var(--p-green)', margin: '0 auto 8px', display: 'block' }} />
+                All clear for today.
               </div>
             )}
           </div>
         )
       }
+
+      case 'timeproof': {
+        const { today: tp, alerts = [], weekLogsCount } = data
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              <span className="axp-chip" style={{
+                background: tp?.isLive ? 'rgba(34,197,94,.1)' : 'rgba(74,222,128,.07)',
+                borderColor: tp?.isLive ? 'rgba(34,197,94,.3)' : 'rgba(74,222,128,.2)',
+                color: tp?.isLive ? 'var(--p-green)' : 'var(--p-acc3)',
+              }}>
+                {tp?.isLive ? '● Live' : tp?.hasClockedIn ? 'Clocked Out' : 'Not Clocked In'}
+              </span>
+              {tp?.workedHours && (
+                <span className="axp-chip" style={{ background: 'rgba(251,191,36,.08)', borderColor: 'rgba(251,191,36,.25)', color: 'var(--p-amber)' }}>
+                  {tp.workedHours}h Today
+                </span>
+              )}
+              <span className="axp-chip" style={{ background: 'rgba(167,139,250,.08)', borderColor: 'rgba(167,139,250,.25)', color: 'var(--p-purple)' }}>
+                {weekLogsCount || 0} Logs / Week
+              </span>
+            </div>
+            {tp?.timeIn && (
+              <div className="axp-reminder-item success">
+                <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>Time In</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p-tx)', fontFamily: 'Exo 2, sans-serif' }}>
+                  {new Date(tp.timeIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            )}
+            {tp?.timeOut && (
+              <div className="axp-reminder-item info">
+                <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>Time Out</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p-tx)', fontFamily: 'Exo 2, sans-serif' }}>
+                  {new Date(tp.timeOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            )}
+            {alerts.map((a: any, i: number) => (
+              <div key={i} className={`axp-reminder-item ${a.type === 'warning' ? 'warn' : 'info'}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                  <AlertTriangle size={11} style={{ color: a.type === 'warning' ? 'var(--p-amber)' : 'var(--p-acc)', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--p-tx2)' }}>{a.message}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      }
+
+      case 'supraspace': {
+        const { unreadMessages = [], counts } = data
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              <span className="axp-chip" style={{ background: 'rgba(248,113,113,.08)', borderColor: 'rgba(248,113,113,.25)', color: 'var(--p-red)' }}>
+                {counts?.unread || 0} Unread
+              </span>
+              <span className="axp-chip" style={{ background: 'rgba(34,197,94,.08)', borderColor: 'rgba(34,197,94,.25)', color: 'var(--p-green)' }}>
+                {counts?.activeConversations || 0} Active
+              </span>
+            </div>
+            {unreadMessages.length > 0 ? (
+              <div>
+                <div className="axp-lbl">Unread Messages</div>
+                {unreadMessages.slice(0, 5).map((m: any, i: number) => (
+                  <div key={i} className="axp-reminder-item info">
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>
+                      {m.sender?.fullName || 'Unknown'}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--p-tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--p-tx3)', fontSize: 12 }}>
+                <CheckCircle2 size={22} style={{ color: 'var(--p-green)', margin: '0 auto 8px', display: 'block' }} />
+                No unread messages.
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      case 'biometrics': {
+        const { alerts = [] } = data
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {alerts.map((a: any, i: number) => (
+              <div key={i} className="axp-reminder-item info">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                  <Fingerprint size={11} style={{ color: 'var(--p-acc)', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--p-tx2)' }}>{a.message}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      }
+
+      case 'feeds': {
+        const { newPosts = [], counts } = data
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              <span className="axp-chip" style={{ background: 'rgba(34,197,94,.08)', borderColor: 'rgba(34,197,94,.25)', color: 'var(--p-green)' }}>
+                {counts?.newPostsToday || 0} Posts Today
+              </span>
+              <span className="axp-chip" style={{ background: 'rgba(52,211,153,.08)', borderColor: 'rgba(52,211,153,.25)', color: 'var(--p-teal)' }}>
+                {counts?.newCommentsToday || 0} Comments
+              </span>
+            </div>
+            {newPosts.length > 0 ? (
+              <div>
+                <div className="axp-lbl">Recent Posts</div>
+                {newPosts.slice(0, 4).map((p: any, i: number) => (
+                  <div key={i} className="axp-reminder-item success">
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>
+                      {p.authorName}
+                      <span style={{ color: 'var(--p-tx3)', fontWeight: 300, marginLeft: 4 }}>· {p.authorRole}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--p-tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--p-tx3)', fontSize: 12 }}>
+                No new posts today.
+              </div>
+            )}
+          </div>
+        )
+      }
+
       default: return null
     }
   }
@@ -1011,11 +1519,20 @@ function ReminderTab() {
     <div className="axp-reminder-wrap">
       <div className="axp-mod-sel">
         {REMINDER_MODULES.map(m => (
-          <button key={m.id} className={`axp-mod-btn ${selectedModule === m.id ? 'active' : ''}`} onClick={() => setSelectedModule(m.id)}>
+          <button
+            key={m.id}
+            className={`axp-mod-btn ${selectedModule === m.id ? 'active' : ''}`}
+            onClick={() => setSelectedModule(m.id)}
+          >
             {m.icon} {m.label}
           </button>
         ))}
-        <button onClick={() => fetchReminders(selectedModule)} className="axp-mod-btn" title="Refresh" style={{ marginLeft: 'auto' }}>
+        <button
+          onClick={() => fetchReminders(selectedModule)}
+          className="axp-mod-btn"
+          title="Refresh"
+          style={{ marginLeft: 'auto' }}
+        >
           <RefreshCw size={10} />
         </button>
       </div>
@@ -1024,47 +1541,41 @@ function ReminderTab() {
   )
 }
 
-// ─── Assistant Action Card ────────────────────────────────────────────────────
+// ─── Action Card ───────────────────────────────────────────────────────────────
 interface ActionCardProps {
   icon: React.ReactNode
   iconBg: string
+  iconBd?: string
   title: string
   subtitle: string
   children: React.ReactNode
   defaultOpen?: boolean
 }
 
-function ActionCard({ icon, iconBg, title, subtitle, children, defaultOpen = false }: ActionCardProps) {
+function ActionCard({ icon, iconBg, iconBd, title, subtitle, children, defaultOpen = false }: ActionCardProps) {
   const [open, setOpen] = React.useState(defaultOpen)
   return (
     <div className="axp-action-card">
       <div className="axp-action-card-hdr" onClick={() => setOpen(p => !p)}>
-        <div className="axp-action-icon" style={{ background: iconBg }}>{icon}</div>
+        <div className="axp-action-icon" style={{ background: iconBg, borderColor: iconBd || 'rgba(34,197,94,.1)' }}>
+          {icon}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="axp-action-title">{title}</div>
           <div className="axp-action-sub">{subtitle}</div>
         </div>
-        <ChevronDown size={12} style={{ color: 'var(--p-tx3)', transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'rotate(0)' }} />
+        <ChevronDown size={12} style={{
+          color: 'var(--p-tx3)',
+          transition: 'transform .22s',
+          transform: open ? 'rotate(180deg)' : 'rotate(0)',
+        }} />
       </div>
       {open && <div className="axp-action-body">{children}</div>}
     </div>
   )
 }
 
-// ─── AI Generate helper ───────────────────────────────────────────────────────
-async function aiGenerate(prompt: string, module: string): Promise<string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('crm_token') || '' : ''
-  const res = await fetch('/api/supraleo/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message: prompt, module, stream: false }),
-  })
-  if (!res.ok) throw new Error('AI error')
-  const data = await res.json()
-  return data?.data?.message || ''
-}
-
-// ─── Book Appointment Card ────────────────────────────────────────────────────
+// ─── Book Appointment Card ─────────────────────────────────────────────────────
 function BookAppointmentCard({ message }: { message: SupraLeoMessage | null }) {
   const [form, setForm] = React.useState({ title: '', date: '', time: '', notes: '', location: '' })
   const [loading, setLoading] = React.useState(false)
@@ -1077,7 +1588,7 @@ function BookAppointmentCard({ message }: { message: SupraLeoMessage | null }) {
     if (!form.date || !form.time) { setErr('Date and time are required'); return }
     setLoading(true); setErr('')
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('crm_token') || '' : ''
+      const token = getToken()
       await apiClient.post('/api/appointments', {
         title: form.title || `Appointment${message?.sender ? ` with ${message.sender}` : ''}`,
         startTime: new Date(`${form.date}T${form.time}`).toISOString(),
@@ -1086,18 +1597,25 @@ function BookAppointmentCard({ message }: { message: SupraLeoMessage | null }) {
         location: form.location,
         status: 'pending',
         type: 'appointment',
+        ...(message?.leadId ? { leadId: message.leadId } : {}),
       }, { headers: { Authorization: `Bearer ${token}` } })
       setDone(true)
     } catch (e: any) {
       setErr(e?.response?.data?.message || 'Failed to book appointment')
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (done) return (
-    <div style={{ padding: '12px 0', textAlign: 'center' }}>
-      <CheckCircle2 size={22} style={{ color: 'var(--p-green)', margin: '0 auto 6px', display: 'block' }} />
-      <div style={{ fontSize: 12, color: 'var(--p-green)', fontWeight: 600 }}>Appointment Booked!</div>
-      <button className="axp-copy-btn" style={{ margin: '6px auto 0' }} onClick={() => setDone(false)}>Book Another</button>
+    <div style={{ padding: '14px 0', textAlign: 'center' }}>
+      <CheckCircle2 size={24} style={{ color: 'var(--p-green)', margin: '0 auto 7px', display: 'block' }} />
+      <div style={{ fontSize: 13, color: 'var(--p-green)', fontWeight: 600, fontFamily: 'Exo 2, sans-serif' }}>
+        Appointment Booked!
+      </div>
+      <button className="axp-copy-btn" style={{ margin: '7px auto 0' }} onClick={() => setDone(false)}>
+        Book Another
+      </button>
     </div>
   )
 
@@ -1124,71 +1642,99 @@ function BookAppointmentCard({ message }: { message: SupraLeoMessage | null }) {
       </div>
       <div>
         <div className="axp-field-lbl">Location</div>
-        <input className="axp-field-input" value={form.location} onChange={e => set('location', e.target.value)} placeholder="Dealership / Video Call" />
+        <input
+          className="axp-field-input"
+          value={form.location}
+          onChange={e => set('location', e.target.value)}
+          placeholder="Dealership / Video Call"
+        />
       </div>
       <div>
         <div className="axp-field-lbl">Notes</div>
-        <input className="axp-field-input" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional notes…" />
+        <input
+          className="axp-field-input"
+          value={form.notes}
+          onChange={e => set('notes', e.target.value)}
+          placeholder="Optional notes…"
+        />
       </div>
-      {err && <div style={{ fontSize: 10.5, color: 'var(--p-red)' }}>{err}</div>}
+      {err && <div style={{ fontSize: 10.5, color: 'var(--p-red)', fontWeight: 500 }}>{err}</div>}
       <button
         className="axp-gen-btn"
-        style={{ background: 'var(--p-acc)', borderColor: 'var(--p-acc)', color: '#fff', marginTop: 4 }}
-        onClick={handleBook} disabled={loading}
+        style={{
+          background: 'linear-gradient(135deg, var(--p-acc) 0%, #16a34a 100%)',
+          borderColor: 'transparent', color: '#fff', marginTop: 4,
+          boxShadow: '0 2px 10px rgba(34,197,94,.25)',
+        }}
+        onClick={handleBook}
+        disabled={loading}
       >
-        {loading ? <Loader2 size={10} style={{ animation: 'axp-spin .9s linear infinite' }} /> : <CalendarPlus size={10} />}
+        {loading
+          ? <Loader2 size={11} style={{ animation: 'axp-spin .9s linear infinite' }} />
+          : <CalendarPlus size={11} />}
         {loading ? 'Booking…' : 'Confirm Appointment'}
       </button>
     </div>
   )
 }
 
-// ─── Reply Composer Card ──────────────────────────────────────────────────────
+// ─── Reply Composer Card ───────────────────────────────────────────────────────
 function ReplyComposerCard({ message }: { message: SupraLeoMessage | null }) {
   const [tone, setTone] = React.useState<'professional' | 'friendly' | 'follow-up' | 'custom'>('professional')
   const [customPrompt, setCustomPrompt] = React.useState('')
   const [result, setResult] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
+  const [error, setError] = React.useState('')
 
   const tones = [
     { id: 'professional', label: 'Professional' },
-    { id: 'friendly', label: 'Friendly' },
-    { id: 'follow-up', label: 'Follow-Up' },
-    { id: 'custom', label: 'Custom' },
+    { id: 'friendly',     label: 'Friendly'     },
+    { id: 'follow-up',    label: 'Follow-Up'    },
+    { id: 'custom',       label: 'Custom'       },
   ] as const
 
   const handleGenerate = async () => {
-    setLoading(true); setResult('')
+    setLoading(true); setResult(''); setError('')
     try {
-      const senderInfo = message ? `Lead: ${message.sender || 'Customer'} (${message.senderEmail || ''}), Subject: ${message.subject || ''}` : 'a new automotive inquiry'
+      const senderInfo = message
+        ? `Lead: ${message.sender || 'Customer'} (${message.senderEmail || ''}), Subject: ${message.subject || ''}, Status: ${message.status || 'New'}`
+        : 'a new automotive inquiry'
       const prompt = tone === 'custom'
         ? `${customPrompt}\n\nContext: ${senderInfo}`
-        : `Write a ${tone} reply email to ${senderInfo}. The reply should be for an automotive dealership CRM context. Keep it concise and action-oriented.`
+        : `Write a ${tone} reply email to ${senderInfo}. Automotive dealership CRM context. Concise and action-oriented. Format with Subject: and Body: sections.`
       const text = await aiGenerate(prompt, 'appointments')
       setResult(text)
-    } catch { setResult('Failed to generate reply. Please try again.') }
-    finally { setLoading(false) }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to generate. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCopy = () => {
+    if (!result) return
     navigator.clipboard.writeText(result)
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
   }
 
   return (
-    <div style={{ paddingTop: 8 }}>
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+    <div style={{ paddingTop: 9 }}>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 9 }}>
         {tones.map(t => (
-          <button key={t.id} onClick={() => setTone(t.id as any)}
+          <button
+            key={t.id}
+            onClick={() => setTone(t.id as any)}
             style={{
-              height: 24, padding: '0 8px', borderRadius: 99,
-              border: `1px solid ${tone === t.id ? 'rgba(59,130,246,.4)' : 'var(--p-bd2)'}`,
-              background: tone === t.id ? 'rgba(59,130,246,.12)' : 'transparent',
+              height: 26, padding: '0 9px', borderRadius: 99,
+              border: `1px solid ${tone === t.id ? 'rgba(34,197,94,.4)' : 'var(--p-bd2)'}`,
+              background: tone === t.id ? 'rgba(34,197,94,.12)' : 'transparent',
               color: tone === t.id ? 'var(--p-acc2)' : 'var(--p-tx3)',
-              fontSize: 10, cursor: 'pointer', transition: 'all .14s',
-            }}>
+              fontSize: 10.5, cursor: 'pointer', transition: 'all .16s',
+              fontFamily: 'Space Grotesk, sans-serif', fontWeight: tone === t.id ? 600 : 400,
+            }}
+          >
             {t.label}
           </button>
         ))}
@@ -1196,21 +1742,34 @@ function ReplyComposerCard({ message }: { message: SupraLeoMessage | null }) {
       {tone === 'custom' && (
         <textarea
           className="axp-ta"
-          style={{ border: '1px solid var(--p-bd2)', borderRadius: 8, padding: '7px 9px', marginBottom: 7, width: '100%', minHeight: 50, background: 'var(--p-bg2)' }}
+          style={{
+            border: '1px solid var(--p-bd2)', borderRadius: 10,
+            padding: '8px 10px', marginBottom: 8, width: '100%',
+            minHeight: 54, background: 'var(--p-bg2)',
+          }}
           value={customPrompt}
           onChange={e => setCustomPrompt(e.target.value)}
           placeholder="Describe what you want to say…"
         />
       )}
-      <button className="axp-gen-btn" onClick={handleGenerate} disabled={loading || (tone === 'custom' && !customPrompt.trim())}>
-        {loading ? <Loader2 size={10} style={{ animation: 'axp-spin .9s linear infinite' }} /> : <Sparkles size={10} />}
+      <button
+        className="axp-gen-btn"
+        onClick={handleGenerate}
+        disabled={loading || (tone === 'custom' && !customPrompt.trim())}
+      >
+        {loading
+          ? <Loader2 size={11} style={{ animation: 'axp-spin .9s linear infinite' }} />
+          : <Sparkles size={11} />}
         {loading ? 'Generating…' : 'Generate Reply'}
       </button>
+      {error && <div style={{ marginTop: 7, fontSize: 11, color: 'var(--p-red)' }}>{error}</div>}
       {result && (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 9 }}>
           <div className="axp-action-result">{result}</div>
           <button className="axp-copy-btn" onClick={handleCopy}>
-            {copied ? <CheckCircle2 size={9} style={{ color: 'var(--p-green)' }} /> : <FileText size={9} />}
+            {copied
+              ? <CheckCircle2 size={9} style={{ color: 'var(--p-green)' }} />
+              : <FileText size={9} />}
             {copied ? 'Copied!' : 'Copy'}
           </button>
         </div>
@@ -1219,94 +1778,112 @@ function ReplyComposerCard({ message }: { message: SupraLeoMessage | null }) {
   )
 }
 
-// ─── Lead Summary Card ────────────────────────────────────────────────────────
+// ─── Lead Summary Card ─────────────────────────────────────────────────────────
 function LeadSummaryCard({ message }: { message: SupraLeoMessage | null }) {
   const [result, setResult] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
 
   const handleSummarize = async () => {
     if (!message) return
-    setLoading(true); setResult('')
+    setLoading(true); setResult(''); setError('')
     try {
-      const prompt = `Summarize this lead message and provide key action points:
-Sender: ${message.sender} (${message.senderEmail})
-Subject: ${message.subject}
-Status: ${message.status}
-Snippet: ${message.snippet}
+      const prompt = `Analyze this automotive lead:
+Sender: ${message.sender || 'Unknown'} (${message.senderEmail || 'no email'})
+Subject: ${message.subject || 'No subject'}
+Status: ${message.status || 'New'}
+Snippet: ${message.snippet || 'No content'}
 
-Provide: 1) Key points from the message 2) Customer intent 3) Recommended next action 4) Priority level`
+Provide:
+1. **Key Points** — what the customer wants
+2. **Intent** — buying stage
+3. **Next Action** — specific step today
+4. **Priority** — High/Medium/Low with reason`
       const text = await aiGenerate(prompt, 'appointments')
       setResult(text)
-    } catch { setResult('Failed to summarize. Please try again.') }
-    finally { setLoading(false) }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to summarize.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (!message) return (
-    <div style={{ padding: '10px 0', textAlign: 'center', color: 'var(--p-tx3)', fontSize: 11 }}>
+    <div style={{ padding: '12px 0', textAlign: 'center', color: 'var(--p-tx3)', fontSize: 11 }}>
       Open a lead message to summarize it.
     </div>
   )
 
   return (
-    <div style={{ paddingTop: 8 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 9 }}>
+    <div style={{ paddingTop: 9 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
         {[
-          { icon: <User size={9} />, key: 'Sender', val: message.sender },
-          { icon: <Mail size={9} />, key: 'Email', val: message.senderEmail },
-          { icon: <Tag size={9} />, key: 'Subject', val: message.subject },
-          { icon: <Star size={9} />, key: 'Status', val: message.status },
+          { icon: <User size={9} />,  key: 'Sender',  val: message.sender },
+          { icon: <Mail size={9} />,  key: 'Email',   val: message.senderEmail },
+          { icon: <Tag size={9} />,   key: 'Subject', val: message.subject },
+          { icon: <Star size={9} />,  key: 'Status',  val: message.status },
         ].filter(r => r.val).map(r => (
           <div key={r.key} className="axp-lead-row">
-            <span style={{ color: 'var(--p-tx3)', display: 'flex', alignItems: 'center', gap: 3, minWidth: 64 }}>{r.icon}<span className="axp-lead-key">{r.key}</span></span>
-            <span className="axp-lead-val" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.val}</span>
+            <span style={{ color: 'var(--p-tx3)', display: 'flex', alignItems: 'center', gap: 4, minWidth: 68 }}>
+              {r.icon}
+              <span className="axp-lead-key">{r.key}</span>
+            </span>
+            <span className="axp-lead-val">{r.val}</span>
           </div>
         ))}
       </div>
       <button className="axp-gen-btn" onClick={handleSummarize} disabled={loading}>
-        {loading ? <Loader2 size={10} style={{ animation: 'axp-spin .9s linear infinite' }} /> : <BookOpen size={10} />}
+        {loading
+          ? <Loader2 size={11} style={{ animation: 'axp-spin .9s linear infinite' }} />
+          : <BookOpen size={11} />}
         {loading ? 'Analyzing…' : 'Summarize Lead'}
       </button>
-      {result && (
-        <div style={{ marginTop: 8 }}>
-          <div className="axp-action-result">{result}</div>
-        </div>
-      )}
+      {error && <div style={{ marginTop: 7, fontSize: 11, color: 'var(--p-red)' }}>{error}</div>}
+      {result && <div className="axp-action-result" style={{ marginTop: 9 }}>{result}</div>}
     </div>
   )
 }
 
-// ─── Follow-Up Strategy Card ──────────────────────────────────────────────────
+// ─── Follow-Up Strategy Card ───────────────────────────────────────────────────
 function FollowUpCard({ message }: { message: SupraLeoMessage | null }) {
   const [result, setResult] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
 
   const handleGenerate = async () => {
-    setLoading(true); setResult('')
+    setLoading(true); setResult(''); setError('')
     try {
       const context = message
-        ? `Lead: ${message.sender}, Status: ${message.status}, Subject: ${message.subject}`
+        ? `Lead: ${message.sender || 'Customer'}, Status: ${message.status || 'New'}, Subject: ${message.subject || 'General inquiry'}`
         : 'a general automotive lead'
       const text = await aiGenerate(
-        `Create a 3-step follow-up strategy for ${context}. Include: timing, channel (call/email/text), and key talking points for each step. Be specific and actionable.`,
+        `Create a 3-step follow-up strategy for ${context} at an automotive dealership.
+For each step: Step & Timing, Channel, Key talking points (2-3), Goal. Be specific and conversion-focused.`,
         'appointments'
       )
       setResult(text)
-    } catch { setResult('Failed to generate strategy.') }
-    finally { setLoading(false) }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to generate strategy.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div style={{ paddingTop: 8 }}>
+    <div style={{ paddingTop: 9 }}>
       <button className="axp-gen-btn" onClick={handleGenerate} disabled={loading}>
-        {loading ? <Loader2 size={10} style={{ animation: 'axp-spin .9s linear infinite' }} /> : <TrendingUp size={10} />}
+        {loading
+          ? <Loader2 size={11} style={{ animation: 'axp-spin .9s linear infinite' }} />
+          : <TrendingUp size={11} />}
         {loading ? 'Planning…' : 'Generate Strategy'}
       </button>
-      {result && <div className="axp-action-result" style={{ marginTop: 8 }}>{result}</div>}
+      {error && <div style={{ marginTop: 7, fontSize: 11, color: 'var(--p-red)' }}>{error}</div>}
+      {result && <div className="axp-action-result" style={{ marginTop: 9 }}>{result}</div>}
     </div>
   )
 }
 
-// ─── Assistant Tab ────────────────────────────────────────────────────────────
+// ─── Assistant Tab ─────────────────────────────────────────────────────────────
 function AssistantTab({
   state, message, errorMsg, voiceName, transcript,
   onStop, onPause, onResume, onReplay,
@@ -1325,38 +1902,49 @@ function AssistantTab({
     }
   }, [editing])
 
-  const isSpeaking = state === 'speaking'
-  const isPaused = state === 'paused'
-  const isWaiting = state === 'waiting-command'
+  const isSpeaking  = state === 'speaking'
+  const isPaused    = state === 'paused'
+  const isWaiting   = state === 'waiting-command'
   const isListening = state === 'listening'
-  const isReplyMic = state === 'listening-reply'
-  const isSending = state === 'sending'
-  const isDone = state === 'done'
-  const isError = state === 'error'
-  const isIdle = state === 'idle'
-  const isFetching = state === 'fetching'
-  const isActive = isSpeaking || isPaused || isListening || isReplyMic || isSending
-  const waveActive = isSpeaking || isListening || isReplyMic
+  const isReplyMic  = state === 'listening-reply'
+  const isSending   = state === 'sending'
+  const isDone      = state === 'done'
+  const isError     = state === 'error'
+  const isIdle      = state === 'idle'
+  const isFetching  = state === 'fetching'
+  const isActive    = isSpeaking || isPaused || isListening || isReplyMic || isSending
+  const hasMessage  = !!message
 
-  const hasMessage = !!message
+  const handleQuickReplySend = async () => {
+    if (!reply.trim()) return
+    onSetTranscript(reply.trim())
+    setReply('')
+    await new Promise(r => setTimeout(r, 50))
+    await onSendReply()
+  }
 
   return (
     <>
       <div className="axp-assist-scroll">
         {isError && errorMsg && (
           <div className="axp-err">
-            <AlertCircle size={13} style={{ color: 'var(--p-red)', flexShrink: 0, marginTop: 1 }} />
+            <AlertCircle size={14} style={{ color: 'var(--p-red)', flexShrink: 0, marginTop: 1 }} />
             <p>{errorMsg}</p>
           </div>
         )}
 
-        {/* Voice state UI */}
         {isWaiting && (
           <div className="axp-wait">
-            <div className="axp-wait-title"><CheckCircle2 size={11} /> Done reading — what next?</div>
+            <div className="axp-wait-title">
+              <CheckCircle2 size={12} /> Done reading — what's next?
+            </div>
             <div className="axp-wait-grid">
-              <button className="axp-wait-btn axp-wait-v" onClick={onStartListeningForCommand}><Mic size={10} /> Reply by Voice</button>
-              <button className="axp-wait-btn axp-wait-d" onClick={onStartReplyListening}><MessageSquare size={10} /> Dictate Reply</button>
+              <button className="axp-wait-btn axp-wait-v" onClick={onStartListeningForCommand}>
+                <Mic size={10} /> Voice Reply
+              </button>
+              <button className="axp-wait-btn axp-wait-d" onClick={onStartReplyListening}>
+                <MessageSquare size={10} /> Dictate
+              </button>
             </div>
             <button className="axp-wait-x" onClick={onStop}><X size={9} /> Close</button>
           </div>
@@ -1365,7 +1953,12 @@ function AssistantTab({
         {isListening && (
           <div className="axp-listen">
             <div className="axp-listen-lbl">
-              <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--p-green)', boxShadow: '0 0 7px rgba(16,185,129,.7)', animation: 'axp-dot .7s ease-in-out infinite' }} />
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: 'var(--p-green)',
+                boxShadow: '0 0 8px rgba(34,197,94,.8)',
+                animation: 'axp-dot .7s ease-in-out infinite',
+              }} />
               Listening for command
             </div>
             <Waveform active />
@@ -1376,7 +1969,12 @@ function AssistantTab({
         {isReplyMic && (
           <div className="axp-listen">
             <div className="axp-listen-lbl">
-              <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--p-green)', boxShadow: '0 0 7px rgba(16,185,129,.7)', animation: 'axp-dot .7s ease-in-out infinite' }} />
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: 'var(--p-green)',
+                boxShadow: '0 0 8px rgba(34,197,94,.8)',
+                animation: 'axp-dot .7s ease-in-out infinite',
+              }} />
               Dictating your reply
             </div>
             <Waveform active />
@@ -1386,9 +1984,15 @@ function AssistantTab({
         )}
 
         {isSending && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', border: '1px solid rgba(59,130,246,.22)', background: 'rgba(59,130,246,.06)', borderRadius: 10 }}>
-            <Loader2 size={13} style={{ color: 'var(--p-acc)', animation: 'axp-spin .9s linear infinite' }} />
-            <span style={{ fontSize: 12, color: 'var(--p-acc2)' }}>Sending reply…</span>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px',
+            border: '1px solid rgba(34,197,94,.2)',
+            background: 'rgba(34,197,94,.05)', borderRadius: 12,
+          }}>
+            <Loader2 size={14} style={{ color: 'var(--p-acc)', animation: 'axp-spin .9s linear infinite' }} />
+            <span style={{ fontSize: 12.5, color: 'var(--p-acc2)', fontFamily: 'Space Grotesk, sans-serif' }}>
+              Sending reply…
+            </span>
           </div>
         )}
 
@@ -1397,8 +2001,12 @@ function AssistantTab({
             <div className="axp-lbl">Your Reply</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
               <div className="axp-transcript" style={{ flex: 1 }}>{transcript}</div>
-              <button className="axp-btn" style={{ padding: '0 7px', height: 26, flexShrink: 0 }} onClick={() => { setEditText(transcript); setEditing(true) }}>
-                <Edit3 size={9} />
+              <button
+                className="axp-btn"
+                style={{ padding: '0 8px', height: 28, flexShrink: 0 }}
+                onClick={() => { setEditText(transcript); setEditing(true) }}
+              >
+                <Edit3 size={10} />
               </button>
             </div>
           </div>
@@ -1408,59 +2016,59 @@ function AssistantTab({
           <div>
             <div className="axp-lbl">Edit Reply</div>
             <div className="axp-input-row">
-              <textarea ref={editRef} className="axp-ta" value={editText} onChange={e => setEditText(e.target.value)} rows={4} style={{ height: 78 }} />
+              <textarea
+                ref={editRef}
+                className="axp-ta"
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                rows={4}
+                style={{ height: 82 }}
+              />
             </div>
-            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', marginTop: 5 }}>
+            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', marginTop: 6 }}>
               <button className="axp-btn" onClick={() => setEditing(false)}>Cancel</button>
               <button className="axp-btn pri" onClick={() => { onSetTranscript(editText); setEditing(false) }}>Save</button>
             </div>
           </div>
         )}
 
-        {/* ── AI Action Cards ── */}
         {!isListening && !isReplyMic && !isWaiting && !isSending && (
           <>
-            <div className="axp-section-hdr" style={{ marginTop: 4 }}>AI Assistance</div>
-
-            {/* Book Appointment */}
+            <div className="axp-section-hdr" style={{ marginTop: 4 }}>AI Tools</div>
             <ActionCard
-              icon={<CalendarPlus size={13} style={{ color: '#10B981' }} />}
-              iconBg="rgba(16,185,129,.12)"
+              icon={<CalendarPlus size={13} style={{ color: '#4ade80' }} />}
+              iconBg="rgba(34,197,94,.12)"
               title="Book Appointment"
-              subtitle="Schedule a new appointment with a lead"
+              subtitle="Schedule with a lead"
               defaultOpen={false}
             >
               <BookAppointmentCard message={message} />
             </ActionCard>
-
-            {/* Custom Reply Generator */}
             <ActionCard
-              icon={<Mail size={13} style={{ color: '#60A5FA' }} />}
-              iconBg="rgba(59,130,246,.12)"
+              icon={<Mail size={13} style={{ color: '#86efac' }} />}
+              iconBg="rgba(74,222,128,.1)"
               title="Craft Reply"
-              subtitle="AI-powered reply tailored to this lead"
+              subtitle="AI-powered email tailored to this lead"
               defaultOpen={hasMessage}
             >
               <ReplyComposerCard message={message} />
             </ActionCard>
-
-            {/* Lead Summary */}
             <ActionCard
-              icon={<BookOpen size={13} style={{ color: '#8B5CF6' }} />}
-              iconBg="rgba(139,92,246,.12)"
+              icon={<BookOpen size={13} style={{ color: '#a78bfa' }} />}
+              iconBg="rgba(167,139,250,.1)"
+              iconBd="rgba(167,139,250,.15)"
               title="Summarize Lead"
-              subtitle="Extract key points & recommended actions"
+              subtitle="Key points & recommended actions"
               defaultOpen={hasMessage}
             >
               <LeadSummaryCard message={message} />
             </ActionCard>
-
-            {/* Follow-up Strategy */}
             <ActionCard
-              icon={<TrendingUp size={13} style={{ color: '#F59E0B' }} />}
-              iconBg="rgba(245,158,11,.12)"
+              icon={<TrendingUp size={13} style={{ color: '#fbbf24' }} />}
+              iconBg="rgba(251,191,36,.1)"
+              iconBd="rgba(251,191,36,.15)"
               title="Follow-Up Strategy"
-              subtitle="Generate a multi-step engagement plan"
+              subtitle="Multi-step engagement plan"
             >
               <FollowUpCard message={message} />
             </ActionCard>
@@ -1468,7 +2076,6 @@ function AssistantTab({
         )}
       </div>
 
-      {/* Reply input */}
       {(state !== 'idle' || hasMessage) && !isWaiting && (
         <div className="axp-reply">
           <div className="axp-lbl">Quick Reply</div>
@@ -1477,47 +2084,69 @@ function AssistantTab({
               className="axp-ta"
               value={reply}
               onChange={e => setReply(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendReply(); setReply('') } }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuickReplySend() }
+              }}
               placeholder="Compose your reply…"
               rows={1}
+              disabled={isSending}
             />
-            <button className="axp-send" onClick={() => { onSendReply(); setReply('') }} disabled={!reply.trim()}>
-              <Send size={10} />
+            <button
+              className="axp-send"
+              onClick={handleQuickReplySend}
+              disabled={!reply.trim() || isSending}
+            >
+              {isSending
+                ? <Loader2 size={11} style={{ animation: 'axp-spin .9s linear infinite' }} />
+                : <Send size={11} />}
             </button>
           </div>
         </div>
       )}
 
-      {/* Actions footer */}
       <div className="axp-actions">
         {isDone && transcript ? (
           <>
-            <button className="axp-btn pri" onClick={onSendReply} disabled={!transcript.trim()}><Send size={9} /> Send</button>
-            <button className="axp-btn" onClick={onStartReplyListening}><RotateCcw size={9} /> Re-dictate</button>
-            <button className="axp-btn" onClick={() => { setEditText(transcript); setEditing(true) }}><Edit3 size={9} /> Edit</button>
-            <button className="axp-btn dng" onClick={onStop}><X size={9} /> Discard</button>
+            <button className="axp-btn pri" onClick={onSendReply} disabled={!transcript.trim()}>
+              <Send size={10} /> Send
+            </button>
+            <button className="axp-btn" onClick={onStartReplyListening}>
+              <RotateCcw size={10} /> Re-dictate
+            </button>
+            <button className="axp-btn" onClick={() => { setEditText(transcript); setEditing(true) }}>
+              <Edit3 size={10} /> Edit
+            </button>
+            <button className="axp-btn dng" onClick={onStop}>
+              <X size={10} /> Discard
+            </button>
           </>
         ) : !isWaiting && (
           <>
             {(isSpeaking || isPaused) && (
               <button className="axp-btn" onClick={isPaused ? onResume : onPause}>
-                {isPaused ? <Play size={9} /> : <Pause size={9} />}
+                {isPaused ? <Play size={10} /> : <Pause size={10} />}
                 {isPaused ? 'Resume' : 'Pause'}
               </button>
             )}
             {(isIdle || hasMessage) && !isFetching && (
-              <button className="axp-btn" onClick={onReplay}><Play size={9} /> {message ? 'Read Aloud' : 'Read'}</button>
+              <button className="axp-btn" onClick={onReplay}>
+                <Play size={10} /> {message ? 'Read Aloud' : 'Read'}
+              </button>
             )}
             {isFetching && (
               <button className="axp-btn" disabled>
-                <Loader2 size={9} style={{ animation: 'axp-spin .9s linear infinite' }} /> Fetching…
+                <Loader2 size={10} style={{ animation: 'axp-spin .9s linear infinite' }} /> Fetching…
               </button>
             )}
             {!isListening && hasMessage && (
-              <button className="axp-btn" onClick={onStartReplyListening}><Mic size={9} /> Voice Reply</button>
+              <button className="axp-btn" onClick={onStartReplyListening}>
+                <Mic size={10} /> Voice Reply
+              </button>
             )}
             {isActive && (
-              <button className="axp-btn dng" onClick={onStop}><Square size={9} /> Stop</button>
+              <button className="axp-btn dng" onClick={onStop}>
+                <Square size={10} /> Stop
+              </button>
             )}
           </>
         )}
@@ -1526,7 +2155,7 @@ function AssistantTab({
   )
 }
 
-// ─── Main Panel ───────────────────────────────────────────────────────────────
+// ─── Main Panel ────────────────────────────────────────────────────────────────
 export function SupraLeoPanel({
   state, module, fromPath, email, message, errorMsg, voiceName, transcript,
   onStop, onPause, onResume, onClose, onReplay,
@@ -1543,64 +2172,90 @@ export function SupraLeoPanel({
     if (message) { setActiveModule('appointments'); setTab('assistant') }
   }, [message])
 
+  React.useEffect(() => {
+    if (module) setActiveModule(module)
+  }, [module])
+
   const st = STATUS_MAP[state]
   const waveActive = state === 'speaking' || state === 'listening' || state === 'listening-reply'
 
   return (
     <div data-axp>
       <div className="axp-panel">
-        {/* Header */}
+
+        {/* ── Header ── */}
         <div className="axp-hdr">
-          <SupraLeoAvatar state={LEO_STATE[state]} size={40} animate />
+          <SupraLeoAvatar state={LEO_STATE[state]} size={44} animate />
           <div className="axp-hdr-text">
-            <div className="axp-name">Autrix AI</div>
-            <span className="axp-slogan">Driven by Intelligence</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="axp-name">Suprah Autrix AI</div>
+            <span className="axp-slogan">Dealership Intelligence System</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div className="axp-status">
-                <div className="axp-dot" style={{
-                  background: st.dotColor,
-                  boxShadow: st.pulse ? `0 0 5px ${st.dotColor}` : 'none',
-                  animation: st.pulse ? 'axp-dot 1.4s ease-in-out infinite' : 'none',
-                }} />
+                <div
+                  className="axp-dot"
+                  style={{
+                    background: st.dotColor,
+                    boxShadow: st.pulse ? `0 0 6px ${st.dotColor}` : 'none',
+                    animation: st.pulse ? 'axp-dot 1.4s ease-in-out infinite' : 'none',
+                  }}
+                />
                 <span>{st.label}</span>
                 {voiceName && (
                   <>
-                    <span style={{ opacity: 0.3 }}>·</span>
-                    <Volume2 size={7} style={{ opacity: 0.4 }} />
-                    <span style={{ maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{voiceName}</span>
+                    <span style={{ opacity: 0.25 }}>·</span>
+                    <Volume2 size={8} style={{ opacity: 0.4 }} />
+                    <span style={{ maxWidth: 56, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {voiceName}
+                    </span>
                   </>
                 )}
               </div>
               <Waveform active={waveActive} />
             </div>
           </div>
+
           <button
             className="axp-icon-btn"
+            title="Expand to full screen"
             onClick={() => {
               onClose()
               const params = new URLSearchParams({
-                module,
+                module: activeModule,
                 from: fromPath || '/crm/dashboard',
               })
               router.push(`/crm/supra-leo?${params.toString()}`)
             }}
-            title="Expand"
           >
-            <Maximize2 size={11} />
+            <Maximize2 size={12} />
           </button>
           <button className="axp-icon-btn close" onClick={onClose}>
-            <X size={11} />
+            <X size={12} />
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <div className="axp-tabs">
-          <button className={`axp-tab ${tab === 'chat' ? 'on' : ''}`} onClick={() => setTab('chat')}>Chat</button>
-          <button className={`axp-tab ${tab === 'assistant' ? 'on' : ''}`} onClick={() => setTab('assistant')}>Assistant</button>
-          <button className={`axp-tab ${tab === 'reminder' ? 'on' : ''}`} onClick={() => setTab('reminder')}>Reminder</button>
+          <button
+            className={`axp-tab ${tab === 'chat' ? 'on' : ''}`}
+            onClick={() => setTab('chat')}
+          >
+            <MessageSquare size={11} /> Chat
+          </button>
+          <button
+            className={`axp-tab ${tab === 'assistant' ? 'on' : ''}`}
+            onClick={() => setTab('assistant')}
+          >
+            <Zap size={11} /> Assistant
+          </button>
+          <button
+            className={`axp-tab ${tab === 'reminder' ? 'on' : ''}`}
+            onClick={() => setTab('reminder')}
+          >
+            <Car size={11} /> Leads
+          </button>
         </div>
 
-        {/* Tab Content */}
+        {/* ── Tab Content ── */}
         {tab === 'chat' && <ChatTab activeModule={activeModule} />}
         {tab === 'reminder' && <ReminderTab />}
         {tab === 'assistant' && (
