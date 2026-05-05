@@ -4,7 +4,8 @@ import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Plus, CalendarDays } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, CalendarDays, Clock, MapPin } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Appointment } from "@/types/appointment"
 import {
   format,
@@ -267,15 +268,64 @@ export function AppointmentCalendar({
                   })}
 
                   {dayAppointments.length > 3 && (
-                    <button
-                      className="w-full pl-1 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (dayAppointments[3]) onSelectAppointment(dayAppointments[3])
-                      }}
-                    >
-                      +{dayAppointments.length - 3} more
-                    </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="w-full pl-1 text-left text-[10px] font-medium text-muted-foreground transition-colors hover:text-emerald-500"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          +{dayAppointments.length - 3} more events
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0 shadow-2xl border-emerald-500/20" align="start">
+                        <div className="p-3 border-b bg-muted/30 backdrop-blur-sm">
+                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                            {format(day, "EEEE, MMM do")}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px]">
+                              {dayAppointments.length} total events
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="p-2 space-y-1.5 max-h-[350px] overflow-y-auto scrollbar-thin">
+                          {dayAppointments.map((apt) => {
+                            const start = safeDate(apt.startTime)
+                            const end = safeDate(apt.endTime)
+                            return (
+                              <button
+                                key={apt._id}
+                                className={`w-full rounded-xl border p-3 text-left transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${getEntryTypeColor(apt.entryType)}`}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onSelectAppointment(apt)
+                                }}
+                              >
+                                <div className="flex justify-between items-start mb-1.5">
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold opacity-70 mb-0.5">
+                                      <Clock className="size-3" />
+                                      {start ? format(start, "h:mm a") : ""}
+                                      {end && ` - ${format(end, "h:mm a")}`}
+                                    </div>
+                                    <span className="font-bold text-sm tracking-tight leading-tight line-clamp-2">{apt.title}</span>
+                                  </div>
+                                  <Badge variant="outline" className="text-[9px] uppercase tracking-tighter h-4 px-1 bg-white/20 border-black/5">
+                                    {apt.entryType}
+                                  </Badge>
+                                </div>
+                                {apt.location && (
+                                  <div className="flex items-center gap-1.5 text-[10px] opacity-60 mt-1 truncate">
+                                    <MapPin className="size-3 shrink-0" />
+                                    {apt.location}
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   )}
                 </div>
               </div>

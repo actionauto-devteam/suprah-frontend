@@ -13,6 +13,7 @@ import { useAuth } from "@/providers/AuthProvider"
 interface User {
   _id: string
   name: string
+  fullName?: string
   email: string
   avatar?: string
 }
@@ -131,7 +132,7 @@ export function UserSearch({
         <div className="flex flex-wrap gap-2 mb-2">
           {selectedUserObjects.map(user => (
             <Badge key={user._id} variant="secondary" className="gap-1">
-              {user.name}
+              {user.fullName || user.name}
               <button
                 type="button"
                 onClick={() => handleRemove(user._id)}
@@ -158,7 +159,7 @@ export function UserSearch({
                 ? placeholder
                 : multiple
                 ? `${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''} selected`
-                : selectedUserObjects[0]?.name
+                : selectedUserObjects[0]?.fullName || selectedUserObjects[0]?.name
               }
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -207,7 +208,7 @@ export function UserSearch({
                         )}
                       />
                       <div className="flex flex-col">
-                        <span className="font-medium">{user.name}</span>
+                        <span className="font-medium">{user.fullName || user.name}</span>
                         <span className="text-xs text-muted-foreground">{user.email}</span>
                       </div>
                     </CommandItem>

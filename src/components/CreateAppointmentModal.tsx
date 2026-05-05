@@ -435,7 +435,7 @@ export function CreateAppointmentModal({
                     <SelectItem value="none">None</SelectItem>
                     {conversations.map((conv) => (
                       <SelectItem key={conv._id} value={conv._id}>
-                        {conv.type === 'group' ? conv.name : `Chat with ${conv.participants[0]?.name}`}
+                        {conv.type === 'group' ? conv.name : `Chat with ${conv.participants[0]?.fullName || conv.participants[0]?.name}`}
                       </SelectItem>
                     ))}
                   </SelectContent>

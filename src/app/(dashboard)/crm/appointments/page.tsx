@@ -191,13 +191,13 @@ function AppointmentsPageInner() {
       total: globalAppointments.length,
       upcoming: globalAppointments.filter((apt: any) => {
         const start = new Date(apt.startTime)
-        return start >= today && apt.status !== "cancelled"
+        return start >= today && !['cancelled', 'completed', 'no-show'].includes(apt.status)
       }).length,
       today: globalAppointments.filter((apt: any) => {
         const start = new Date(apt.startTime)
-        return start >= today && start < tomorrow && apt.status !== "cancelled"
+        return start >= today && start < tomorrow && !['cancelled', 'completed', 'no-show'].includes(apt.status)
       }).length,
-      cancelled: globalAppointments.filter((apt: any) => apt.status === "cancelled").length,
+      cancelled: globalAppointments.filter((apt: any) => apt.status === 'cancelled').length,
     }
   }, [globalAppointments])
 
@@ -333,7 +333,7 @@ function AppointmentsPageInner() {
                           const start = new Date(apt.startTime);
                           const today = new Date();
                           today.setHours(0, 0, 0, 0);
-                          return start >= today && apt.status !== "cancelled";
+                          return start >= today && !['cancelled', 'completed', 'no-show'].includes(apt.status);
                         })
                         .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
                         .slice(0, 20)
@@ -629,7 +629,7 @@ function AppointmentsPageInner() {
                               const today = new Date();
                               today.setHours(0, 0, 0, 0);
                               return (
-                                start >= today && apt.status !== "cancelled"
+                                start >= today && !['cancelled', 'completed', 'no-show'].includes(apt.status)
                               );
                             })
                             .sort(

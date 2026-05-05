@@ -1,5 +1,5 @@
 export type AppointmentType = 'in-person' | 'phone' | 'video' | 'other';
-export type AppointmentStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'completed';
+export type AppointmentStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'no-show';
 export type EntryType = 'event' | 'task' | 'reminder' | 'appointment';
 
 export interface GuestResponse {
@@ -14,6 +14,7 @@ export interface GuestResponse {
 export interface Participant {
   _id: string;
   name: string;
+  fullName?: string;
   email: string;
   avatar?: string;
 }
@@ -53,6 +54,10 @@ export interface Appointment {
   googleCalendarEventId?: string;
   meetingLink?: string;
   notes?: string;
+  outcomeNotes?: string;
+
+  createdByModel?: string;
+  participantModel?: string;
 
   // Customer booking information
   customerBooking?: CustomerBooking;

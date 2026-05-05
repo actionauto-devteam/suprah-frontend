@@ -144,8 +144,10 @@ export function AppointmentDetailsModal({
         endTime: appointment.endTime,
         location: appointment.location || '',
         type: appointment.type,
+        status: appointment.status,
         meetingLink: appointment.meetingLink || '',
         notes: appointment.notes || '',
+        outcomeNotes: appointment.outcomeNotes || '',
         participants: appointment.participants.map(p => p._id),
         // Store full guest objects for reference
         guestEmailsData: appointment.guestEmails || [],
@@ -178,6 +180,7 @@ export function AppointmentDetailsModal({
       case 'scheduled': return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
       case 'cancelled': return 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
       case 'completed': return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+      case 'no-show': return 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
     }
   }
@@ -218,6 +221,13 @@ export function AppointmentDetailsModal({
         return
       }
 
+      // Outcome Tracking: Mandatory notes for terminal statuses
+      if (['completed', 'no-show'].includes(editData.status) && !editData.outcomeNotes?.trim()) {
+        setError(`Outcome notes are required when marking as ${editData.status.replace('-', ' ')}`)
+        setIsSubmitting(false)
+        return
+      }
+
       // Format guestEmails properly - merge new emails with existing guest data
       const formattedGuestEmails = editData.guestEmails.length > 0
         ? editData.guestEmails.map((email: string) => {
@@ -245,6 +255,8 @@ export function AppointmentDetailsModal({
         type: editData.type,
         meetingLink: editData.meetingLink || undefined,
         notes: editData.notes || undefined,
+        status: editData.status,
+        outcomeNotes: editData.outcomeNotes || undefined,
         participants: editData.participants,
         guestEmails: formattedGuestEmails
       })
@@ -464,6 +476,34 @@ export function AppointmentDetailsModal({
             )}
           </div>
 
+          {/* Status Selection */}
+          <div className="space-y-2">
+            <Label>Status</Label>
+            {isEditing ? (
+              <Select
+                value={editData.status}
+                onValueChange={(value) => setEditData({ ...editData, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="no-show">No-Show</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Badge className={getStatusColor(appointment.status)}>
+                  {appointment.status.replace('-', ' ')}
+                </Badge>
+              </div>
+            )}
+          </div>
+
           {/* Meeting Link */}
           {(isEditing || appointment.meetingLink) && (
             <div className="space-y-2">
@@ -513,9 +553,9 @@ export function AppointmentDetailsModal({
                     ) : (
                       <div className="size-4 rounded-full bg-green-100 dark:bg-green-950" />
                     )}
-                    {participant.name}
+                    {participant.fullName || participant.name}
                     {participant._id === appointment.createdBy._id && (
-                      <span className="text-xs text-muted-foreground">(Organizer)</span>
+                      <span className="text-xs text-muted-foreground ml-1">(Organizer)</span>
                     )}
                   </Badge>
                 ))}
@@ -601,9 +641,32 @@ export function AppointmentDetailsModal({
             </div>
           )}
 
+          {/* Outcome Notes (Conditional) */}
+          {(isEditing ? ['completed', 'no-show'].includes(editData.status) : ['completed', 'no-show'].includes(appointment.status)) && (
+            <div className="space-y-2 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+              <Label className="text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <CheckCircle className="size-4" />
+                Outcome Notes {isEditing && <span className="text-rose-500">*</span>}
+              </Label>
+              {isEditing ? (
+                <Textarea
+                  placeholder="What was the result of this appointment?"
+                  value={editData.outcomeNotes}
+                  onChange={(e) => setEditData({ ...editData, outcomeNotes: e.target.value })}
+                  rows={3}
+                  className="bg-white dark:bg-background border-amber-200 dark:border-amber-800 focus:ring-amber-500"
+                />
+              ) : (
+                <p className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap">
+                  {appointment.outcomeNotes || "No outcome notes provided."}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Metadata */}
           <div className="pt-4 border-t text-xs text-muted-foreground space-y-1">
-            <p>Created by: {appointment.createdBy.name} ({appointment.createdBy.email})</p>
+            <p>Created by: {appointment.createdBy.fullName || appointment.createdBy.name} ({appointment.createdBy.email})</p>
             <p>Created: {format(new Date(appointment.createdAt), 'PPp')}</p>
             {appointment.updatedAt !== appointment.createdAt && (
               <p>Last updated: {format(new Date(appointment.updatedAt), 'PPp')}</p>
