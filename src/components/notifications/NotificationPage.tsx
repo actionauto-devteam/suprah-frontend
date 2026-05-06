@@ -36,7 +36,8 @@ import { NotificationItem } from './NotificationItem';
 import { NotificationDriverModal } from './NotificationDriverModal';
 import { NotificationEmptyState, NotificationLoadingState } from './NotificationEmptyState';
 import { NotificationErrorBoundary } from './NotificationErrorBoundary';
-import { getNotificationCategory } from './notification-utils';
+import { NotificationDetailsModal } from './NotificationDetailsModal';
+import { getNotificationCategory, getNotificationRoute } from './notification-utils';
 
 type TabFilter = 'all' | 'unread' | 'read';
 type TypeFilter = 'all' | Notification['type'];
@@ -103,6 +104,8 @@ export function NotificationPage() {
   );
   const [modalNotification, setModalNotification] = useState<Notification | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailsNotification, setDetailsNotification] = useState<Notification | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     fetchNotifications({ limit: 0, skip: 0 });
@@ -203,13 +206,20 @@ export function NotificationPage() {
     [dateFrom, dateTo, timeFrom, timeTo, typeFilter, metadataOnly, broadcastOnly]
   );
 
-  const handleDriverRequestClick = useCallback((notification: Notification) => {
+  const handleNotificationClick = useCallback((notification: Notification) => {
     if (notification.type === 'driver_request') {
       setModalNotification(notification);
       setModalOpen(true);
       if (!notification.isRead) markAsRead(notification._id);
+      return;
     }
-  }, [markAsRead]);
+
+    const route = getNotificationRoute(notification, pathname);
+    if (!route) {
+      setDetailsNotification(notification);
+      setDetailsOpen(true);
+    }
+  }, [markAsRead, pathname]);
 
   const categoryCount = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -405,13 +415,13 @@ export function NotificationPage() {
                 </Tabs>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center xl:flex-1 xl:justify-end">
-                  <div className="relative w-full sm:w-72 xl:w-80">
+                  <div className="relative w-full sm:flex-1 min-w-55">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search notifications..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="h-10 rounded-2xl pl-9 text-sm transition-shadow focus-visible:ring-emerald-500/30"
+                      className="h-10 w-full rounded-2xl pl-9 text-sm transition-shadow focus-visible:ring-emerald-500/30"
                     />
                   </div>
 
@@ -561,7 +571,7 @@ export function NotificationPage() {
           </Card>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-            <Card className="overflow-hidden border-border/50 bg-card/90 shadow-sm shadow-black/5 animate-fade-in-up [animation-delay:220ms]">
+            <Card className="overflow-hidden border-border/50 bg-card/90 shadow-sm shadow-black/5 animate-fade-in-up [animation-delay:220ms] flex flex-col max-h-[min(70vh,720px)]">
               <CardHeader className="border-b border-border/50 px-5 py-4 sm:px-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -576,7 +586,7 @@ export function NotificationPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-0">
+              <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto notification-scrollbar">
                 {isLoading ? (
                   <NotificationLoadingState />
                 ) : filteredNotifications.length === 0 ? (
@@ -589,7 +599,7 @@ export function NotificationPage() {
                         notification={notification}
                         onMarkAsRead={markAsRead}
                         onDelete={deleteNotification}
-                        onClick={handleDriverRequestClick}
+                        onClick={handleNotificationClick}
                       />
                     ))}
                   </div>
@@ -682,6 +692,12 @@ export function NotificationPage() {
         notification={modalNotification}
         open={modalOpen}
         onOpenChange={setModalOpen}
+      />
+
+      <NotificationDetailsModal
+        notification={detailsNotification}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
       />
     </NotificationErrorBoundary>
   );

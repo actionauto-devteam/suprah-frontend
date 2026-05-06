@@ -173,7 +173,7 @@ export function NotificationBell() {
 
         <DropdownMenuContent
           align="end"
-          className="w-95 sm:w-105 p-0 shadow-xl border border-border/50 rounded-2xl overflow-hidden flex flex-col max-h-135 bg-card/95"
+          className="w-95 sm:w-105 p-0 shadow-xl border border-border/50 rounded-2xl overflow-hidden flex flex-col max-h-[min(70vh,540px)] bg-card/95"
         >
           <NotificationErrorBoundary>
             <NotificationDropdownContent onDriverRequestClick={handleDriverRequestClick} />

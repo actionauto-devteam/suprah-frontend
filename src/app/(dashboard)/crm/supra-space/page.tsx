@@ -230,6 +230,33 @@ if (typeof document !== 'undefined') {
       border-radius: 18px 18px 18px 4px;
       box-shadow: var(--shadow-sm);
     }
+    .ss4-msg-column {
+      width: fit-content;
+      max-width: min(68%, 42rem);
+    }
+    .ss4-msg-bubble {
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    .ss4-attachment-item {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+    }
+    .ss4-attachment-media {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      object-fit: cover;
+    }
+    .ss4-attachment-video {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+    }
 
     /* ── Input area ─────────────────────────────────────── */
     .ss4-input-wrap {
@@ -397,11 +424,17 @@ if (typeof document !== 'undefined') {
 
     /* ── Section label ──────────────────────────────────── */
     .ss4-section-label {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-1);
       font-size: 10px;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.3);
-      font-weight: 600;
+      color: var(--text-secondary);
+      font-weight: 700;
     }
 
     /* ── Scrollbar ──────────────────────────────────────── */
@@ -673,7 +706,7 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete }: {
         <div className="w-8 shrink-0" />
       )}
 
-      <div className={cn('flex flex-col gap-1 max-w-[68%]', isOwn && 'items-end')}>
+      <div className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
         {/* Sender name */}
         {showAvatar && !isOwn && (
           <span className="px-1 font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -697,21 +730,21 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete }: {
 
         {/* Bubble */}
         <div className={cn(
-          'px-4 py-2.5 text-sm leading-relaxed wrap-break-word',
+          'ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed wrap-break-word',
           isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other'
         )}>
           {message.attachments.filter(a => a.mimeType.startsWith('image/')).map((att, i) => (
-            <a key={`img-${i}`} href={att.url} target="_blank" rel="noreferrer" className="block mb-2 last:mb-0">
-              <img src={att.url} alt={att.originalName} className="rounded-xl object-cover" style={{ maxHeight: 220, maxWidth: '100%' }} />
+            <a key={`img-${i}`} href={att.url} target="_blank" rel="noreferrer" className="ss4-attachment-item mb-2 last:mb-0">
+              <img src={att.url} alt={att.originalName} className="ss4-attachment-media rounded-xl" style={{ maxHeight: 220 }} />
             </a>
           ))}
           {message.attachments.filter(isVideoAttachment).map((att, i) => (
-            <div key={`video-${i}`} className="mb-2 last:mb-0">
+            <div key={`video-${i}`} className="ss4-attachment-item mb-2 last:mb-0">
               <video
                 controls
                 preload="metadata"
-                className="rounded-xl"
-                style={{ maxHeight: 260, maxWidth: '100%' }}
+                className="ss4-attachment-video rounded-xl"
+                style={{ maxHeight: 260 }}
               >
                 <source src={att.url} type={att.mimeType || 'video/mp4'} />
                 Your browser does not support the video tag.
@@ -724,7 +757,7 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete }: {
           ))}
           {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !isVideoAttachment(a)).map((att, i) => (
             <a key={`file-${i}`} href={att.url} target="_blank" rel="noreferrer"
-              className={cn('flex items-center gap-3 rounded-xl p-2.5 mb-2 last:mb-0 transition-opacity hover:opacity-80', isOwn ? 'ss4-file-own' : 'ss4-file-other')}
+              className={cn('ss4-attachment-item flex items-center gap-3 rounded-xl p-2.5 mb-2 last:mb-0 transition-opacity hover:opacity-80', isOwn ? 'ss4-file-own' : 'ss4-file-other')}
             >
               <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: isOwn ? 'rgba(255,255,255,0.12)' : 'var(--accent-muted)' }}>
                 <FileText className="h-4 w-4" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }} />
@@ -1099,7 +1132,7 @@ export default function SupraSpacePage() {
         url.searchParams.delete('userId');
         window.history.replaceState({}, '', url.toString());
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [loading, token]);
 
   const showUploadNotice = React.useCallback((kind: 'success' | 'error' | 'info', text: string) => {

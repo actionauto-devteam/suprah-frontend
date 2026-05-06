@@ -103,8 +103,8 @@ function NotificationItem({ notification, onMarkAsRead, onDelete, onClick }: Not
   return (
     <div
       className={cn(
-        'group relative p-4 transition-all duration-300 hover:bg-gradient-to-r hover:from-transparent hover:to-gray-50 dark:hover:to-gray-800/50',
-        !notification.isRead && 'bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/30 dark:to-transparent border-l-2 border-l-emerald-500',
+        'group relative p-4 transition-all duration-300 hover:bg-linear-to-r hover:from-transparent hover:to-gray-50 dark:hover:to-gray-800/50',
+        !notification.isRead && 'bg-linear-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/30 dark:to-transparent border-l-2 border-l-emerald-500',
         notification.isRead && 'border-l-2 border-l-transparent',
         isClickable && 'cursor-pointer hover:scale-[1.01]'
       )}
@@ -127,7 +127,7 @@ function NotificationItem({ notification, onMarkAsRead, onDelete, onClick }: Not
       <div className="flex items-start gap-3 pl-3">
         {/* Icon */}
         <div className={cn(
-          'flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl',
+          'shrink-0 w-11 h-11 rounded-xl bg-linear-to-br flex items-center justify-center text-white shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl',
           getNotificationColor(notification.type)
         )}>
           {getNotificationIcon(notification.type)}
@@ -364,7 +364,7 @@ function NotificationContent({ onDriverRequestClick }: { onDriverRequestClick: (
   return (
     <>
       {/* Header with animated gradient */}
-      <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-4 py-4 border-b animate-gradient">
+      <div className="sticky top-0 z-10 bg-linear-to-r from-emerald-500 via-teal-500 to-cyan-500 px-4 py-4 border-b animate-gradient">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center animate-bounce-in">
@@ -422,7 +422,7 @@ function NotificationContent({ onDriverRequestClick }: { onDriverRequestClick: (
       )}
 
       {/* Notifications List */}
-      <ScrollArea className="h-[400px]">
+      <ScrollArea className="h-100">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-3">
@@ -436,13 +436,13 @@ function NotificationContent({ onDriverRequestClick }: { onDriverRequestClick: (
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 animate-fade-in-up">
             <div className="relative w-20 h-20 mb-4">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-950 dark:to-teal-950 rounded-full animate-pulse-glow" />
+              <div className="absolute inset-0 bg-linear-to-br from-emerald-100 to-teal-100 dark:from-emerald-950 dark:to-teal-950 rounded-full animate-pulse-glow" />
               <div className="relative w-full h-full flex items-center justify-center">
                 <Bell className="size-10 text-emerald-500 dark:text-emerald-400" />
               </div>
             </div>
             <h4 className="text-sm font-semibold text-foreground mb-1">No notifications</h4>
-            <p className="text-xs text-muted-foreground text-center max-w-[200px]">
+            <p className="text-xs text-muted-foreground text-center max-w-50">
               Nothing to show right now. Check back for updates.
             </p>
           </div>
@@ -464,7 +464,7 @@ function NotificationContent({ onDriverRequestClick }: { onDriverRequestClick: (
 
       {/* Footer */}
       {notifications.length > 0 && (
-        <div className="sticky bottom-0 bg-gradient-to-t from-background to-background/80 backdrop-blur-sm border-t px-4 py-3">
+        <div className="sticky bottom-0 bg-linear-to-t from-background to-background/80 backdrop-blur-sm border-t px-4 py-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
@@ -516,7 +516,7 @@ export function NotificationBell() {
             )} />
             {unreadCount > 0 && (
               <>
-                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-[11px] font-bold text-white bg-gradient-to-br from-red-500 to-rose-600 rounded-full shadow-lg border-2 border-background">
+                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-5.5 h-5.5 px-1.5 text-[11px] font-bold text-white bg-linear-to-br from-red-500 to-rose-600 rounded-full shadow-lg border-2 border-background">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
                 <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75" />
@@ -529,7 +529,7 @@ export function NotificationBell() {
 
         <DropdownMenuContent
           align="end"
-          className="w-[380px] sm:w-[420px] p-0 shadow-2xl border-2 rounded-xl overflow-hidden animate-scale-in"
+          className="w-95 sm:w-105 p-0 shadow-2xl border-2 rounded-xl overflow-hidden animate-scale-in"
         >
           <NotificationErrorBoundary>
             <NotificationContent onDriverRequestClick={handleDriverRequestClick} />

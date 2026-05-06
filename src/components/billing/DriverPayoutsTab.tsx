@@ -447,7 +447,7 @@ export function DriverPayoutsTab({
 
       {/* ── Create Payout Dialog ── */}
       <Dialog open={!!createPayoutTarget} onOpenChange={o => { if (!o) onPayoutClose(); }}>
-        <DialogContent className="!p-0 !border-0 !bg-transparent !shadow-none sm:max-w-md overflow-hidden rounded-2xl [&>button]:hidden w-[calc(100%-2rem)]">
+        <DialogContent className="p-0! border-0! bg-transparent! shadow-none! sm:max-w-md overflow-hidden rounded-2xl [&>button]:hidden w-[calc(100%-2rem)]">
           {createPayoutTarget && (
             <SupraShell onClose={onPayoutClose}>
               <div style={{ paddingRight: 30, marginBottom: 18 }}>

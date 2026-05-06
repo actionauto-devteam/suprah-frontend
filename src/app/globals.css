@@ -10,6 +10,7 @@
   --breakpoint-xxs: 360px;
   --breakpoint-xs: 475px;
 }
+
 @import "mapbox-gl/dist/mapbox-gl.css";
 
 /* ── Fullscreen mode ─────────────────────────────────── */
@@ -290,46 +291,33 @@ body.app-fullscreen .main-content {
 
 /* Dedicated scrollbar style for compact notification overlays */
 .notification-scrollbar {
-  --notification-scrollbar-track: color-mix(
-    in oklab,
-    var(--muted) 60%,
-    transparent
-  );
-  --notification-scrollbar-thumb: color-mix(
-    in oklab,
-    var(--muted-foreground) 42%,
-    transparent
-  );
-  --notification-scrollbar-thumb-hover: color-mix(
-    in oklab,
-    var(--muted-foreground) 60%,
-    transparent
-  );
+  --notification-scrollbar-track: color-mix(in oklab,
+      var(--muted) 60%,
+      transparent);
+  --notification-scrollbar-thumb: color-mix(in oklab,
+      var(--muted-foreground) 42%,
+      transparent);
+  --notification-scrollbar-thumb-hover: color-mix(in oklab,
+      var(--muted-foreground) 60%,
+      transparent);
   scrollbar-width: thin;
-  scrollbar-color: var(--notification-scrollbar-thumb)
-    var(--notification-scrollbar-track);
+  scrollbar-color: var(--notification-scrollbar-thumb) var(--notification-scrollbar-track);
 }
 
 .dark .notification-scrollbar {
-  --notification-scrollbar-track: color-mix(
-    in oklab,
-    var(--card) 75%,
-    black 25%
-  );
-  --notification-scrollbar-thumb: color-mix(
-    in oklab,
-    var(--foreground) 32%,
-    transparent
-  );
-  --notification-scrollbar-thumb-hover: color-mix(
-    in oklab,
-    var(--foreground) 48%,
-    transparent
-  );
+  --notification-scrollbar-track: color-mix(in oklab,
+      var(--card) 75%,
+      black 25%);
+  --notification-scrollbar-thumb: color-mix(in oklab,
+      var(--foreground) 32%,
+      transparent);
+  --notification-scrollbar-thumb-hover: color-mix(in oklab,
+      var(--foreground) 48%,
+      transparent);
 }
 
 .notification-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
 }
 
 .notification-scrollbar::-webkit-scrollbar-track {
@@ -352,16 +340,12 @@ body.app-fullscreen .main-content {
 /* Dedicated scrollbar style for modal/table surfaces in dark UI */
 .modal-scrollbar {
   --modal-scrollbar-track: color-mix(in oklab, var(--card) 82%, transparent);
-  --modal-scrollbar-thumb: color-mix(
-    in oklab,
-    var(--foreground) 26%,
-    transparent
-  );
-  --modal-scrollbar-thumb-hover: color-mix(
-    in oklab,
-    var(--foreground) 42%,
-    transparent
-  );
+  --modal-scrollbar-thumb: color-mix(in oklab,
+      var(--foreground) 26%,
+      transparent);
+  --modal-scrollbar-thumb-hover: color-mix(in oklab,
+      var(--foreground) 42%,
+      transparent);
   scrollbar-width: thin;
   scrollbar-color: var(--modal-scrollbar-thumb) var(--modal-scrollbar-track);
   scrollbar-gutter: stable;
@@ -369,16 +353,12 @@ body.app-fullscreen .main-content {
 
 .dark .modal-scrollbar {
   --modal-scrollbar-track: color-mix(in oklab, var(--card) 78%, black 22%);
-  --modal-scrollbar-thumb: color-mix(
-    in oklab,
-    var(--foreground) 24%,
-    transparent
-  );
-  --modal-scrollbar-thumb-hover: color-mix(
-    in oklab,
-    var(--foreground) 38%,
-    transparent
-  );
+  --modal-scrollbar-thumb: color-mix(in oklab,
+      var(--foreground) 24%,
+      transparent);
+  --modal-scrollbar-thumb-hover: color-mix(in oklab,
+      var(--foreground) 38%,
+      transparent);
 }
 
 .modal-scrollbar::-webkit-scrollbar {
@@ -435,6 +415,7 @@ body.app-fullscreen .main-content {
 
 /* Profile Banner Animations */
 @keyframes gradientShift {
+
   0%,
   100% {
     background-position: 0% 50%;
@@ -446,6 +427,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0px) rotate(0deg);
@@ -471,6 +453,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes pulse-glow {
+
   0%,
   100% {
     opacity: 0.4;
@@ -600,6 +583,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes wiggle {
+
   0%,
   100% {
     transform: rotate(0deg);
@@ -627,6 +611,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes bellSwing {
+
   0%,
   100% {
     transform: rotate(0deg);
@@ -672,6 +657,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes glow {
+
   0%,
   100% {
     box-shadow: 0 0 5px rgba(34, 197, 94, 0.3);
@@ -686,6 +672,7 @@ body.app-fullscreen .main-content {
 
 /* Throbbing status aura */
 @keyframes statusAura {
+
   0%,
   100% {
     box-shadow:
@@ -708,6 +695,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes borderGlow {
+
   0%,
   100% {
     border-color: rgba(34, 197, 94, 0.3);
@@ -854,6 +842,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes softPulse {
+
   0%,
   100% {
     opacity: 1;
@@ -926,14 +915,12 @@ body.app-fullscreen .main-content {
   }
 
   .animate-shimmer-loading {
-    background: linear-gradient(
-      90deg,
-      var(--color-muted) 0%,
-      var(--color-muted) 20%,
-      var(--color-border) 50%,
-      var(--color-muted) 80%,
-      var(--color-muted) 100%
-    );
+    background: linear-gradient(90deg,
+        var(--color-muted) 0%,
+        var(--color-muted) 20%,
+        var(--color-border) 50%,
+        var(--color-muted) 80%,
+        var(--color-muted) 100%);
     background-size: 1000px 100%;
     animation: shimmerLoading 2s infinite;
   }
@@ -971,6 +958,7 @@ body.app-fullscreen .main-content {
 
 /* Advanced animations for status and interactive elements */
 @keyframes throb {
+
   0%,
   100% {
     transform: scale(1);
@@ -1018,6 +1006,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes buttonHoverGlow {
+
   0%,
   100% {
     box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
@@ -1043,6 +1032,7 @@ body.app-fullscreen .main-content {
 }
 
 @keyframes profilePictureGlow {
+
   0%,
   100% {
     box-shadow:

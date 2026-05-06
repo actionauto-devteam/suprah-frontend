@@ -145,8 +145,8 @@ function LiveClock() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group relative inline-flex items-center gap-2.5 rounded-full px-4 py-2 cursor-default select-none overflow-hidden border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 to-emerald-900/20 dark:from-emerald-950/40 dark:to-emerald-900/20 light:from-emerald-50 light:to-emerald-100/50 backdrop-blur-sm hover:border-emerald-400/30 transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="group relative inline-flex items-center gap-2.5 rounded-full px-4 py-2 cursor-default select-none overflow-hidden border border-emerald-500/20 bg-linear-to-r from-emerald-950/40 to-emerald-900/20 dark:from-emerald-950/40 dark:to-emerald-900/20 light:from-emerald-50 light:to-emerald-100/50 backdrop-blur-sm hover:border-emerald-400/30 transition-all duration-300">
+          <div className="absolute inset-0 bg-linear-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
@@ -249,7 +249,7 @@ function ShiftTimer({
               }}
             />
           </svg>
-          <div className="w-[140px] h-[140px] flex flex-col items-center justify-center">
+          <div className="w-35 h-35 flex flex-col items-center justify-center">
             <div className="flex items-end gap-0.5">
               {units.map((item, i) => (
                 <React.Fragment key={item.l}>
@@ -335,7 +335,7 @@ function QuickAction({
     <button
       onClick={onClick}
       className={cn(
-        "group relative flex flex-col items-center justify-center gap-3 rounded-2xl p-5 w-full min-h-[110px]",
+        "group relative flex flex-col items-center justify-center gap-3 rounded-2xl p-5 w-full min-h-27.5",
         "border border-zinc-200/80 dark:border-zinc-800/80 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-sm",
         "hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-all duration-300 cursor-pointer overflow-hidden",
         "hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]",
@@ -344,7 +344,7 @@ function QuickAction({
           : "hover:border-emerald-500/30 hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)]",
       )}
     >
-      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-gradient-to-r from-transparent via-white/[0.06] dark:via-white/[0.03] to-transparent pointer-events-none" />
+      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-linear-to-r from-transparent via-white/6 dark:via-white/3 to-transparent pointer-events-none" />
       <div
         className={cn(
           "h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-300",
@@ -433,7 +433,7 @@ export default function CrmDashboardPage() {
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    } catch {}
+    } catch { }
     localStorage.removeItem("crm_token");
     localStorage.removeItem("crm_user");
     router.push("/");
@@ -477,7 +477,7 @@ export default function CrmDashboardPage() {
           { type: "break-start" },
           { headers: { Authorization: `Bearer ${token}` } },
         );
-      } catch {}
+      } catch { }
       setClockMsg(`Break started at ${fmt(new Date())}`);
     } else {
       const now = Date.now();
@@ -491,7 +491,7 @@ export default function CrmDashboardPage() {
           { type: "break-end" },
           { headers: { Authorization: `Bearer ${token}` } },
         );
-      } catch {}
+      } catch { }
       setClockMsg(`Break ended at ${fmt(new Date())}`);
     }
   };
@@ -516,7 +516,7 @@ export default function CrmDashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-zinc-950">
+      <div className="flex items-center justify-center min-h-full bg-white dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-4">
           <div className="relative h-14 w-14">
             <div className="absolute inset-0 rounded-2xl bg-emerald-500/10 animate-ping" />
@@ -587,23 +587,23 @@ export default function CrmDashboardPage() {
   return (
     <TooltipProvider>
       {/* ── Root ── */}
-      <div className="min-h-screen w-full bg-zinc-50 dark:bg-zinc-950 relative overflow-x-hidden transition-colors duration-300">
+      <div className="min-h-full w-full bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden transition-colors duration-300 flex flex-col">
         {/* Ambient glow blobs */}
         <div
           className="fixed inset-0 pointer-events-none overflow-hidden"
           aria-hidden
         >
-          <div className="absolute -top-64 -left-64 w-[600px] h-[600px] rounded-full bg-emerald-500/[0.04] dark:bg-emerald-500/[0.03] blur-3xl" />
-          <div className="absolute top-1/3 -right-48 w-[500px] h-[500px] rounded-full bg-emerald-600/[0.05] dark:bg-emerald-600/[0.04] blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 w-[400px] h-[400px] rounded-full bg-emerald-400/[0.03] dark:bg-emerald-400/[0.02] blur-3xl" />
+          <div className="absolute -top-64 -left-64 w-150 h-150 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
+          <div className="absolute top-1/3 -right-48 w-125 h-125 rounded-full bg-emerald-600/5 dark:bg-emerald-600/4 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 w-100 h-100 rounded-full bg-emerald-400/3 dark:bg-emerald-400/2 blur-3xl" />
         </div>
 
         {/* ── Topbar ── */}
         <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
-          <div className="flex items-center justify-between h-16 px-6 max-w-screen-xl mx-auto">
+          <div className="flex items-center justify-between h-16 px-6 max-w-7xl mx-auto">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="relative h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
+              <div className="relative h-9 w-9 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
                 <Car className="h-4 w-4 text-white" />
                 <div className="absolute inset-0 rounded-xl ring-1 ring-emerald-400/30" />
               </div>
@@ -629,11 +629,11 @@ export default function CrmDashboardPage() {
                   >
                     <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
                       <AvatarImage src={user.avatar} />
-                      <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
+                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
                         {ini(user.fullName)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden sm:inline text-xs font-semibold text-zinc-700 dark:text-zinc-200 max-w-[100px] truncate">
+                    <span className="hidden sm:inline text-xs font-semibold text-zinc-700 dark:text-zinc-200 max-w-25 truncate">
                       {user.fullName}
                     </span>
                     <ChevronDown className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
@@ -643,11 +643,11 @@ export default function CrmDashboardPage() {
                   align="end"
                   className="w-60 rounded-2xl p-0 overflow-hidden shadow-2xl shadow-black/10 dark:shadow-black/50 border-zinc-200/80 dark:border-zinc-700/60 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl"
                 >
-                  <div className="p-4 bg-gradient-to-br from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50">
+                  <div className="p-4 bg-linear-to-br from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 ring-2 ring-emerald-500/20">
                         <AvatarImage src={user.avatar} />
-                        <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white text-xs font-black">
+                        <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-xs font-black">
                           {ini(user.fullName)}
                         </AvatarFallback>
                       </Avatar>
@@ -694,7 +694,7 @@ export default function CrmDashboardPage() {
         </header>
 
         {/* ── Page content ── */}
-        <main className="relative max-w-screen-xl mx-auto px-6 py-8 space-y-7">
+        <main className="relative max-w-7xl mx-auto px-6 py-8 space-y-7 flex-1 min-h-0 overflow-y-auto">
           {/* ── Greeting strip ── */}
           <div
             className={cn(
@@ -777,7 +777,7 @@ export default function CrmDashboardPage() {
               </div>
 
               {/* Timer display */}
-              <div className="flex-1 flex items-center justify-center px-8 py-8 min-h-[220px]">
+              <div className="flex-1 flex items-center justify-center px-8 py-8 min-h-55">
                 {isActive && timeIn && (
                   <ShiftTimer
                     startTime={timeIn.timestamp}
@@ -853,7 +853,7 @@ export default function CrmDashboardPage() {
                   <Button
                     onClick={() => handleClock("time-in")}
                     disabled={isClocking}
-                    className="w-full h-12 rounded-xl font-black text-sm gap-2 transition-all duration-200 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shadow-lg shadow-emerald-500/20 dark:shadow-emerald-900/40 hover:shadow-emerald-500/30 dark:hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
+                    className="w-full h-12 rounded-xl font-black text-sm gap-2 transition-all duration-200 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shadow-lg shadow-emerald-500/20 dark:shadow-emerald-900/40 hover:shadow-emerald-500/30 dark:hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
                   >
                     {isClocking ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -921,18 +921,18 @@ export default function CrmDashboardPage() {
                     : "opacity-0 translate-y-6",
                 )}
               >
-                <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-emerald-500/[0.04] to-transparent rounded-bl-[100px]" />
+                <div className="absolute top-0 right-0 w-48 h-48 bg-linear-to-bl from-emerald-500/4 to-transparent rounded-bl-[100px]" />
 
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-5">
                   My Profile
                 </p>
 
                 <div className="flex items-center gap-5 pb-5 border-b border-zinc-100 dark:border-zinc-800/60">
-                  <div className="relative flex-shrink-0">
-                    <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-700/10 animate-[spin_6s_linear_infinite]" />
+                  <div className="relative shrink-0">
+                    <div className="absolute -inset-1 rounded-full bg-linear-to-br from-emerald-500/30 to-emerald-700/10 animate-[spin_6s_linear_infinite]" />
                     <Avatar className="relative h-16 w-16 ring-2 ring-zinc-200 dark:ring-zinc-800">
                       <AvatarImage src={user.avatar} />
-                      <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white text-lg font-black">
+                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-lg font-black">
                         {ini(user.fullName)}
                       </AvatarFallback>
                     </Avatar>

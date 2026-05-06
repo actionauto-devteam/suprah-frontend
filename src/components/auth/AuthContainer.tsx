@@ -30,14 +30,14 @@ export function AuthContainer({
   };
 
   return (
-    <div className="h-screen w-full bg-[#050505] flex items-center justify-center p-0 md:p-6 lg:p-12 overflow-hidden font-sans">
+    <div className="h-dvh w-full bg-[#050505] flex items-center justify-center px-0 md:px-6 lg:px-12 overflow-hidden font-sans">
       {/* Main Unified Wrapper */}
-      <div className="relative w-full max-w-[1400px] h-full md:h-[min(900px,94vh)] bg-[#0a0a0a] md:rounded-[3rem] overflow-hidden border border-white/[0.03] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)] flex flex-col md:flex-row">
+      <div className="relative w-full max-w-350ll md:h-[min(900px,94vh)] bg-[#0a0a0a] md:rounded-[3rem] overflow-hidden border border-white/3 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)] flex flex-col md:flex-row">
         {/* Left Pane: Cinematic Visual (STATIC) */}
         <div className="w-full md:w-[55%] h-[35vh] md:h-full z-10 relative">
           <CinematicPane />
           {/* Subtle inner shadow to blend with form */}
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#0a0a0a] to-transparent z-20 pointer-events-none hidden md:block" />
+          <div className="absolute inset-y-0 right-0 w-32 bg-linear-to-l from-[#0a0a0a] to-transparent z-20 pointer-events-none hidden md:block" />
         </div>
 
         {/* Right Pane: Form (DYNAMIC) */}

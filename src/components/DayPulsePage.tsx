@@ -58,6 +58,7 @@ export const DEPARTMENTS = [
 ] as const
 
 export type DepartmentKey = typeof DEPARTMENTS[number]["key"]
+type DayPulseAttachmentSection = "accomplishment" | "blockers" | "inProgress"
 
 // Color token maps (Tailwind-safe — avoids dynamic class generation)
 const DEPT_STYLES: Record<string, {
@@ -107,6 +108,7 @@ interface DayPulseAttachment {
   mimeType: string
   size: number
   thumbnailUrl?: string | null
+  section?: DayPulseAttachmentSection
 }
 
 interface Comment {
@@ -143,9 +145,49 @@ const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Re
 
 const PAGE_PANEL = "rounded-2xl border border-border/40 bg-card"
 const PAGE_SECTION = "rounded-2xl border border-border/40 bg-card"
-const MAX_DAYPULSE_ATTACHMENTS = 5
+const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 const MAX_DAYPULSE_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 const DAYPULSE_ATTACHMENT_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+const DAYPULSE_ATTACHMENT_FIELDS: Record<DayPulseAttachmentSection, string> = {
+  accomplishment: "attachmentsAccomplishment",
+  blockers: "attachmentsBlockers",
+  inProgress: "attachmentsInProgress",
+}
+
+const DAYPULSE_SECTION_CONFIG: Array<{
+  key: DayPulseAttachmentSection
+  label: string
+  icon: React.ReactNode
+  placeholder: string
+  borderClass: string
+  accentClass: string
+}> = [
+    {
+      key: "accomplishment",
+      label: "Accomplishment",
+      icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
+      placeholder: "What did you accomplish today? Include completed tasks, closed deals, resolved issues…",
+      borderClass: "bg-emerald-500/5 border-emerald-500/15",
+      accentClass: "text-emerald-500",
+    },
+    {
+      key: "blockers",
+      label: "Blockers",
+      icon: <AlertCircle className="h-3.5 w-3.5 text-red-500" />,
+      placeholder: "What obstacles or dependencies are slowing you down? Who do you need help from?",
+      borderClass: "bg-red-500/5 border-red-500/15",
+      accentClass: "text-red-500",
+    },
+    {
+      key: "inProgress",
+      label: "In Progress",
+      icon: <Clock3 className="h-3.5 w-3.5 text-amber-500" />,
+      placeholder: "What are you actively working on right now? What will you tackle next?",
+      borderClass: "bg-amber-500/5 border-amber-500/15",
+      accentClass: "text-amber-500",
+    },
+  ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -216,6 +258,94 @@ function topReactionEmojis(summary: ReactionSummary): string[] {
     .sort(([, a], [, b]) => b.count - a.count)
     .slice(0, 3)
     .map(([type]) => REACTION_MAP[type as ReactionType]?.emoji ?? "")
+}
+
+function groupDayPulseAttachments(attachments?: DayPulseAttachment[]) {
+  const grouped: Record<DayPulseAttachmentSection, DayPulseAttachment[]> = {
+    accomplishment: [],
+    blockers: [],
+    inProgress: [],
+  }
+  const unassigned: DayPulseAttachment[] = []
+
+  for (const attachment of attachments ?? []) {
+    if (attachment.section && attachment.section in grouped) {
+      grouped[attachment.section].push(attachment)
+    } else {
+      unassigned.push(attachment)
+    }
+  }
+
+  return { grouped, unassigned }
+}
+
+function isImageAttachment(attachment: Pick<DayPulseAttachment, "mimeType" | "originalName">) {
+  return attachment.mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(attachment.originalName)
+}
+
+function AttachmentPreviewModal({
+  attachment,
+  heading,
+  onClose,
+}: {
+  attachment: DayPulseAttachment
+  heading: string
+  onClose: () => void
+}) {
+  const imageLike = isImageAttachment(attachment)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-border/50 bg-card shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-border/40 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/45">{heading}</p>
+            <h3 className="truncate text-base font-bold text-foreground">{attachment.originalName}</h3>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="grid gap-4 p-5 md:grid-cols-[1.6fr_1fr]">
+          <div className="rounded-2xl border border-border/40 bg-muted/15 p-3 flex items-center justify-center min-h-65 overflow-hidden">
+            {imageLike ? (
+              <img
+                src={attachment.thumbnailUrl || attachment.url}
+                alt={attachment.originalName}
+                className="max-h-90 w-full rounded-xl object-contain"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-center px-6 py-10">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+                  {attachment.mimeType.includes("pdf") || attachment.mimeType.includes("word") ? (
+                    <FileText className="h-7 w-7" />
+                  ) : (
+                    <ImageIcon className="h-7 w-7" />
+                  )}
+                </div>
+                <p className="max-w-xs text-sm leading-6 text-muted-foreground/70">This file type opens in a new tab for a full preview.</p>
+              </div>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border/40 bg-muted/15 p-4 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/45">Details</p>
+              <p className="text-sm font-medium text-foreground">{attachment.originalName}</p>
+              <p className="text-xs text-muted-foreground/60">{formatBytes(attachment.size)}</p>
+              <p className="text-xs text-muted-foreground/60">{attachment.mimeType}</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button asChild className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">
+                <a href={attachment.url} target="_blank" rel="noreferrer">Open attachment</a>
+              </Button>
+              <Button variant="outline" className="rounded-xl" onClick={onClose}>Close</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Reaction Bar ─────────────────────────────────────────────────────────────
@@ -540,8 +670,10 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
 }) {
   const dept = DEPARTMENTS.find((d) => d.key === report.department)
   const style = getDeptStyle(dept?.color ?? "emerald")
+  const { grouped, unassigned } = React.useMemo(() => groupDayPulseAttachments(report.attachments), [report.attachments])
 
   const [isEditing, setIsEditing] = React.useState(false)
+  const [previewAttachment, setPreviewAttachment] = React.useState<{ attachment: DayPulseAttachment; heading: string } | null>(null)
   const [editAcc, setEditAcc] = React.useState(report.accomplishment)
   const [editBlk, setEditBlk] = React.useState(report.blockers)
   const [editInp, setEditInp] = React.useState(report.inProgress)
@@ -584,6 +716,13 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
   return (
     <>
       {showDeleteModal && <DeleteModal onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
+      {previewAttachment && (
+        <AttachmentPreviewModal
+          attachment={previewAttachment.attachment}
+          heading={previewAttachment.heading}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
 
       <article className={`group rounded-2xl border border-border/40 bg-card overflow-hidden transition-all duration-200 hover:border-border/50 ${style.glow}`}>
 
@@ -666,33 +805,69 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           </div>
         ) : (
           <div className="px-5 pb-5 space-y-3.5">
-            {[
-              { label: "Accomplishment", icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />, content: report.accomplishment, bg: "bg-emerald-500/5 border-emerald-500/15" },
-              { label: "Blockers", icon: <AlertCircle className="h-3.5 w-3.5 text-red-500" />, content: report.blockers, bg: "bg-red-500/5 border-red-500/15" },
-              { label: "In Progress", icon: <Clock3 className="h-3.5 w-3.5 text-amber-500" />, content: report.inProgress, bg: "bg-amber-500/5 border-amber-500/15" },
-            ].map(({ label, icon, content, bg }) => (
-              <div key={label} className={`rounded-xl border p-3.5 ${bg}`}>
-                <div className="flex items-center gap-1.5 mb-2">
-                  {icon}
-                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">{label}</span>
-                </div>
-                <p className="text-sm leading-7 whitespace-pre-wrap wrap-break-word text-foreground/85">{content}</p>
-              </div>
-            ))}
+            {DAYPULSE_SECTION_CONFIG.map(({ key, label, icon, borderClass, accentClass }) => {
+              const content = key === "accomplishment" ? report.accomplishment : key === "blockers" ? report.blockers : report.inProgress
+              const sectionAttachments = grouped[key]
 
-            {report.attachments?.length ? (
+              return (
+                <div key={label} className={`rounded-xl border p-3.5 ${borderClass}`}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    {icon}
+                    <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${accentClass}/80`}>{label}</span>
+                  </div>
+                  <p className="text-sm leading-7 whitespace-pre-wrap wrap-break-word text-foreground/85">{content}</p>
+
+                  {sectionAttachments.length > 0 ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {sectionAttachments.map((attachment) => {
+                        const imageLike = isImageAttachment(attachment)
+
+                        return (
+                          <button
+                            key={attachment.fileKey}
+                            type="button"
+                            onClick={() => setPreviewAttachment({ attachment, heading: `${label} attachment` })}
+                            className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
+                          >
+                            {imageLike && attachment.thumbnailUrl ? (
+                              <img
+                                src={attachment.thumbnailUrl}
+                                alt={attachment.originalName}
+                                className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-border/30"
+                              />
+                            ) : (
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
+                                {attachment.mimeType.includes("pdf") || attachment.mimeType.includes("word") ? (
+                                  <FileText className="h-4 w-4" />
+                                ) : (
+                                  <ImageIcon className="h-4 w-4" />
+                                )}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-foreground">{attachment.originalName}</p>
+                              <p className="text-[10px] text-muted-foreground/55">{formatBytes(attachment.size)}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+
+            {unassigned.length > 0 ? (
               <div className="rounded-xl border border-border/40 bg-muted/20 p-3.5">
                 <div className="mb-3 flex items-center gap-1.5">
                   <Paperclip className="h-3.5 w-3.5 text-muted-foreground/60" />
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Attachments</span>
                   <Badge variant="outline" className="h-5 rounded-full border-border/40 px-2 text-[9px] font-semibold">
-                    {report.attachments.length}
+                    {unassigned.length}
                   </Badge>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {report.attachments.map((attachment) => {
-                    const isImage = attachment.mimeType.startsWith("image/")
-
+                  {unassigned.map((attachment) => {
                     return (
                       <a
                         key={attachment.fileKey}
@@ -701,7 +876,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
                         rel="noreferrer"
                         className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 transition-colors hover:border-border/60 hover:bg-muted/30"
                       >
-                        {isImage && attachment.thumbnailUrl ? (
+                        {isImageAttachment(attachment) && attachment.thumbnailUrl ? (
                           <img
                             src={attachment.thumbnailUrl}
                             alt={attachment.originalName}
@@ -761,20 +936,40 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   currentUser: CrmUser; token: string; selectedDept: DepartmentKey | null; onPosted: (r: DayPulseReport) => void
 }) {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  const [previewAttachment, setPreviewAttachment] = React.useState<{ attachment: DayPulseAttachment; heading: string } | null>(null)
   const [open, setOpen] = React.useState(false)
   const [dept, setDept] = React.useState<DepartmentKey | null>(selectedDept)
   const [date, setDate] = React.useState(todayStr())
   const [accomplishment, setAcc] = React.useState("")
   const [blockers, setBlk] = React.useState("")
   const [inProgress, setInp] = React.useState("")
-  const [pendingAttachments, setPendingAttachments] = React.useState<File[]>([])
+  const [activeAttachmentSection, setActiveAttachmentSection] = React.useState<DayPulseAttachmentSection | null>(null)
+  const [pendingAttachments, setPendingAttachments] = React.useState<Record<DayPulseAttachmentSection, File[]>>({
+    accomplishment: [],
+    blockers: [],
+    inProgress: [],
+  })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState("")
 
   // Sync dept with selected tab
   React.useEffect(() => { setDept(selectedDept) }, [selectedDept])
 
+  React.useEffect(() => {
+    return () => {
+      const previewUrl = previewAttachment?.attachment.url
+      if (previewUrl && previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewAttachment])
+
   const canSubmit = !!dept && !!date && accomplishment.trim() && blockers.trim() && inProgress.trim()
+
+  const openAttachmentPicker = (section: DayPulseAttachmentSection) => {
+    setActiveAttachmentSection(section)
+    fileInputRef.current?.click()
+  }
 
   const handleAttachmentPick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || [])
@@ -782,8 +977,14 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
 
     if (!selectedFiles.length) return
 
-    if (pendingAttachments.length + selectedFiles.length > MAX_DAYPULSE_ATTACHMENTS) {
-      setError(`You can attach up to ${MAX_DAYPULSE_ATTACHMENTS} files.`)
+    if (!activeAttachmentSection) {
+      setError("Select a section before attaching files.")
+      return
+    }
+
+    const currentFiles = pendingAttachments[activeAttachmentSection]
+    if (currentFiles.length + selectedFiles.length > MAX_DAYPULSE_ATTACHMENTS_PER_SECTION) {
+      setError(`You can attach up to ${MAX_DAYPULSE_ATTACHMENTS_PER_SECTION} files per section.`)
       return
     }
 
@@ -815,12 +1016,18 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
       }
     }
 
-    setPendingAttachments((prev) => [...prev, ...selectedFiles])
+    setPendingAttachments((prev) => ({
+      ...prev,
+      [activeAttachmentSection]: [...prev[activeAttachmentSection], ...selectedFiles],
+    }))
     setError("")
   }
 
-  const removeAttachment = (index: number) => {
-    setPendingAttachments((prev) => prev.filter((_, i) => i !== index))
+  const removeAttachment = (section: DayPulseAttachmentSection, index: number) => {
+    setPendingAttachments((prev) => ({
+      ...prev,
+      [section]: prev[section].filter((_, i) => i !== index),
+    }))
   }
 
   const handleSubmit = async () => {
@@ -833,7 +1040,9 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
       payload.append("accomplishment", accomplishment.trim())
       payload.append("blockers", blockers.trim())
       payload.append("inProgress", inProgress.trim())
-      pendingAttachments.forEach((file) => payload.append("attachments", file))
+      Object.entries(DAYPULSE_ATTACHMENT_FIELDS).forEach(([section, fieldName]) => {
+        pendingAttachments[section as DayPulseAttachmentSection].forEach((file) => payload.append(fieldName, file))
+      })
 
       const res = await apiClient.post(
         "/api/crm/daypulse",
@@ -841,7 +1050,9 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
         { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
       )
       onPosted(res.data?.data?.report)
-      setAcc(""); setBlk(""); setInp(""); setPendingAttachments([])
+      setAcc(""); setBlk(""); setInp("")
+      setPendingAttachments({ accomplishment: [], blockers: [], inProgress: [] })
+      setActiveAttachmentSection(null)
       if (fileInputRef.current) fileInputRef.current.value = ""
       setOpen(false)
     } catch (err: any) {
@@ -854,6 +1065,14 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
 
   return (
     <div className={`rounded-[28px] border bg-card transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}>
+      {previewAttachment && (
+        <AttachmentPreviewModal
+          attachment={previewAttachment.attachment}
+          heading={previewAttachment.heading}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
+
       {/* Collapsed trigger */}
       {!open ? (
         <button
@@ -941,85 +1160,103 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           </div>
 
           {/* Structured sections */}
-          {[
-            { label: "Accomplishment", icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />, value: accomplishment, onChange: setAcc, placeholder: "What did you accomplish today? Include completed tasks, closed deals, resolved issues…" },
-            { label: "Blockers", icon: <AlertCircle className="h-3.5 w-3.5 text-red-500" />, value: blockers, onChange: setBlk, placeholder: "What obstacles or dependencies are slowing you down? Who do you need help from?" },
-            { label: "In Progress", icon: <Clock3 className="h-3.5 w-3.5 text-amber-500" />, value: inProgress, onChange: setInp, placeholder: "What are you actively working on right now? What will you tackle next?" },
-          ].map(({ label, icon, value, onChange, placeholder }) => (
-            <div key={label}>
-              <label className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
-                {icon}{label} <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={value}
-                onChange={(e) => { onChange(e.target.value); setError("") }}
-                rows={3} maxLength={5000}
-                placeholder={placeholder}
-                className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 leading-relaxed placeholder:text-muted-foreground/25 transition-all"
-              />
-              <div className="mt-1.5 text-right">
-                <span className={`text-[9px] tabular-nums ${value.length > 4500 ? "text-red-500" : "text-muted-foreground/25"}`}>{value.length}/5000</span>
-              </div>
-            </div>
-          ))}
+          {DAYPULSE_SECTION_CONFIG.map(({ key, label, icon, placeholder, borderClass }) => {
+            const value = key === "accomplishment" ? accomplishment : key === "blockers" ? blockers : inProgress
+            const onChange = key === "accomplishment" ? setAcc : key === "blockers" ? setBlk : setInp
+            const attachments = pendingAttachments[key]
 
-          <div className="rounded-2xl border border-border/40 bg-muted/10 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
-                  <Paperclip className="h-3 w-3" /> Attach Files
-                </label>
-                <p className="mt-1 text-[10px] text-muted-foreground/40">PNG, JPG, PDF, DOCX · 25 MB max each · up to {MAX_DAYPULSE_ATTACHMENTS} files</p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 rounded-xl border-border/40 bg-card text-xs gap-2"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip className="h-3.5 w-3.5" />
-                Attach File
-              </Button>
-            </div>
+            return (
+              <div key={label} className="space-y-3">
+                <div>
+                  <label className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
+                    {icon}{label} <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={value}
+                    onChange={(e) => { onChange(e.target.value); setError("") }}
+                    rows={3} maxLength={5000}
+                    placeholder={placeholder}
+                    className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 leading-relaxed placeholder:text-muted-foreground/25 transition-all"
+                  />
+                  <div className="mt-1.5 text-right">
+                    <span className={`text-[9px] tabular-nums ${value.length > 4500 ? "text-red-500" : "text-muted-foreground/25"}`}>{value.length}/5000</span>
+                  </div>
+                </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={DAYPULSE_ATTACHMENT_ACCEPT}
-              multiple
-              className="hidden"
-              onChange={handleAttachmentPick}
-            />
-
-            {pendingAttachments.length > 0 ? (
-              <div className="space-y-2">
-                {pendingAttachments.map((file, index) => {
-                  const isImage = file.type.startsWith("image/")
-
-                  return (
-                    <div key={`${file.name}-${file.size}-${file.lastModified}-${index}`} className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
-                        {isImage ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
-                        <p className="text-[10px] text-muted-foreground/55">{formatBytes(file.size)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeAttachment(index)}
-                        className="rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground/75"
-                        aria-label={`Remove ${file.name}`}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                <div className={`rounded-2xl border px-4 py-3 ${borderClass}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">Attachments</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground/40">Up to {MAX_DAYPULSE_ATTACHMENTS_PER_SECTION} files for this section</p>
                     </div>
-                  )
-                })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl border-border/40 bg-card text-xs gap-2"
+                      onClick={() => openAttachmentPicker(key)}
+                    >
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Attach file
+                    </Button>
+                  </div>
+
+                  {attachments.length > 0 ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {attachments.map((file, index) => {
+                        const imageLike = file.type.startsWith("image/")
+
+                        return (
+                          <div
+                            key={`${key}-${file.name}-${file.size}-${file.lastModified}-${index}`}
+                            onClick={() => setPreviewAttachment({
+                              attachment: {
+                                url: URL.createObjectURL(file),
+                                fileKey: `${file.name}-${file.lastModified}-${index}`,
+                                originalName: file.name,
+                                mimeType: file.type,
+                                size: file.size,
+                                section: key,
+                              },
+                              heading: `${label} attachment`,
+                            })}
+                            role="button"
+                            tabIndex={0}
+                            className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
+                              {imageLike ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                              <p className="text-[10px] text-muted-foreground/55">{formatBytes(file.size)}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(event) => { event.stopPropagation(); removeAttachment(key, index) }}
+                              className="rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground/75"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            ) : null}
-          </div>
+            )
+          })}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={DAYPULSE_ATTACHMENT_ACCEPT}
+            multiple
+            className="hidden"
+            onChange={handleAttachmentPick}
+          />
 
           {error && (
             <div className="flex items-center gap-2 rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3">

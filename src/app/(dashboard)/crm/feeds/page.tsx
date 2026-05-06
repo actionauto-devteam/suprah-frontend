@@ -229,7 +229,8 @@ function ReactionBar({
           onClick={() => setShowPicker((p) => !p)}
           onMouseEnter={() => { hoverTimer.current = setTimeout(() => setShowPicker(true), 400) }}
           onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
-          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150 select-none
+          className={`flex items-center gap-1.5 rounded-full border font-semibold transition-all duration-150 select-none
+            ${compact ? "px-2 py-0.5 text-[10px]" : "px-3 py-1.5 text-[12px]"}
             ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/30 text-muted-foreground/40 hover:border-border/60 hover:text-muted-foreground/70 hover:bg-muted/30"}
             ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         >
@@ -368,8 +369,8 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
 
 // ─── Comment Section ──────────────────────────────────────────────────────────
 
-function CommentSection({ post, currentUser, token, comments, setComments, commentReactions, setCommentReactions }: {
-  post: Post; currentUser: CrmUser; token: string
+function CommentSection({ post, currentUser, token, comments, setComments, commentReactions, setCommentReactions, inputId }: {
+  post: Post; currentUser: CrmUser; token: string; inputId: string
   comments: Comment[]; setComments: React.Dispatch<React.SetStateAction<Comment[]>>
   commentReactions: Record<string, ReactionState>; setCommentReactions: React.Dispatch<React.SetStateAction<Record<string, ReactionState>>>
 }) {
@@ -432,7 +433,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   const hiddenCount = comments.length - VISIBLE_WHEN_COLLAPSED
 
   return (
-    <div className="border-t border-border/20 mt-1 pt-3 space-y-3">
+    <div className="rounded-2xl border border-border/30 bg-muted/20 mt-3 p-4 space-y-3">
       {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground/30" /></div>}
       {!loading && shouldCollapse && (
         <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors">
@@ -465,6 +466,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
         <div className="flex-1 relative">
           <div className="rounded-2xl rounded-tl-sm border border-border/40 bg-muted/20 focus-within:border-emerald-500/30 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
             <textarea
+              id={inputId}
               ref={inputRef} value={newComment}
               onChange={(e) => { setNewComment(e.target.value); setSubmitError("") }}
               onKeyDown={handleKey}
@@ -542,6 +544,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   const [comments, setComments] = React.useState<Comment[]>([])
   const [commentReactions, setCommentReactions] = React.useState<Record<string, ReactionState>>({})
   const editRef = React.useRef<HTMLTextAreaElement>(null)
+  const commentInputId = `comment-input-${post._id}`
 
   const isOwner = post.userId === currentUser._id
   const isAdmin = currentUser.role === "admin"
@@ -576,10 +579,18 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
     } catch { setDeleteLoading(false); setShowDeleteModal(false) }
   }
 
+  const handleFocusComment = () => {
+    if (typeof document === "undefined") return
+    const el = document.getElementById(commentInputId) as HTMLTextAreaElement | null
+    if (!el) return
+    el.focus()
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+  }
+
   return (
     <>
       {showDeleteModal && <DeleteModal label="post" onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
-      <article className="group rounded-2xl border border-border/40 bg-card p-5 space-y-3 transition-colors hover:border-border/60">
+      <article className="group rounded-2xl border border-border/50 bg-card/95 p-6 space-y-4 shadow-sm transition-all hover:border-border/70 hover:shadow-md">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar className="h-9 w-9 shrink-0 ring-2 ring-border/30">
@@ -686,12 +697,27 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
           <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/85">{post.content}</p>
         )}
 
-        <ReactionBar targetType="post" targetId={post._id} token={token} reactionState={reactionState} onReactionChange={onReactionChange} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ReactionBar targetType="post" targetId={post._id} token={token} reactionState={reactionState} onReactionChange={onReactionChange} />
+          <button
+            type="button"
+            onClick={handleFocusComment}
+            className="flex items-center gap-2 rounded-full border border-border/40 bg-muted/30 px-3.5 py-1.5 text-[12px] font-semibold text-muted-foreground/70 hover:text-foreground/80 hover:border-border/60 hover:bg-muted/50 transition-colors"
+          >
+            <MessageCircle className="h-3.5 w-3.5" /> Comment
+            {comments.length > 0 && (
+              <span className="ml-0.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
+                {comments.length}
+              </span>
+            )}
+          </button>
+        </div>
 
         <CommentSection
           post={post} currentUser={currentUser} token={token}
           comments={comments} setComments={setComments}
           commentReactions={commentReactions} setCommentReactions={setCommentReactions}
+          inputId={commentInputId}
         />
       </article>
     </>
@@ -728,7 +754,10 @@ function Composer({ currentUser, token, onPosted }: {
   }
 
   return (
-    <div className={`rounded-2xl border bg-card p-5 space-y-3 transition-all duration-200 ${isFocused ? "border-emerald-500/30 shadow-sm shadow-emerald-500/5" : "border-border/40"}`}>
+    <div className={`rounded-2xl border bg-linear-to-br from-card via-card to-emerald-500/5 p-6 space-y-4 transition-all duration-200 shadow-sm ${isFocused ? "border-emerald-500/30 shadow-emerald-500/10" : "border-border/40"}`}>
+      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/60">
+        <span className="h-2 w-2 rounded-full bg-emerald-500" /> Share update
+      </div>
       <div className="flex items-start gap-3">
         <Avatar className="h-9 w-9 shrink-0 mt-1 ring-2 ring-border/30">
           <AvatarImage src={currentUser.avatar} />
@@ -985,7 +1014,7 @@ export default function FeedsPage() {
 
       {/* ── Sticky header ── */}
       <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/90 backdrop-blur-xl">
-        <div className="flex items-center gap-4 h-14 px-6 max-w-4xl mx-auto">
+        <div className="flex items-center gap-4 h-14 px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl shrink-0" onClick={() => router.push("/crm/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -1009,13 +1038,14 @@ export default function FeedsPage() {
         </div>
 
         {/* Tab bar sits below the header row, inside the sticky wrapper */}
-        <div className="px-6 max-w-4xl mx-auto">
+        <div className="px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
           <TabBar active={activeTab} onChange={setActiveTab} />
         </div>
       </header>
 
       {/* ── Main content ── */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6 pb-20">
+      <main className="relative max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 lg:space-y-10 pb-20">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_15%_0%,rgba(16,185,129,0.08),transparent_60%),radial-gradient(900px_circle_at_85%_0%,rgba(59,130,246,0.08),transparent_60%)]" />
 
         {/* ── Team Feeds tab ── */}
         {activeTab === "feeds" && (
@@ -1034,7 +1064,7 @@ export default function FeedsPage() {
 
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-border/30" />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/25">Latest</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/60 bg-muted/40 px-3 py-1 rounded-full">Latest</p>
               <div className="flex-1 h-px bg-border/30" />
             </div>
 
@@ -1049,7 +1079,7 @@ export default function FeedsPage() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {posts.map((post) => (
                   <PostCard
                     key={post._id} post={post} currentUser={currentUser} token={token}

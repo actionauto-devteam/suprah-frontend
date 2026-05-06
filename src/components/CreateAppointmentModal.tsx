@@ -238,248 +238,250 @@ export function CreateAppointmentModal({
         the parent's stacking context visually. We override with z-[200] here to
         ensure the modal always appears on top.
       */}
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto z-[200]">
-        <DialogHeader>
-          <DialogTitle>Schedule New {formData.entryType.charAt(0).toUpperCase() + formData.entryType.slice(1)}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 z-200">
+        <div className="max-h-[90vh] overflow-y-auto modal-scrollbar p-6">
+          <DialogHeader>
+            <DialogTitle>Schedule New {formData.entryType.charAt(0).toUpperCase() + formData.entryType.slice(1)}</DialogTitle>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          <div className="space-y-2">
-            <Label>Entry Type *</Label>
-            <Tabs
-              value={formData.entryType}
-              onValueChange={(value) => setFormData({ ...formData, entryType: value })}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="appointment">Appointment</TabsTrigger>
-                <TabsTrigger value="event">Event</TabsTrigger>
-                <TabsTrigger value="task">Task</TabsTrigger>
-                <TabsTrigger value="reminder">Reminder</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+            <div className="space-y-2">
+              <Label>Entry Type *</Label>
+              <Tabs
+                value={formData.entryType}
+                onValueChange={(value) => setFormData({ ...formData, entryType: value })}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="appointment">Appointment</TabsTrigger>
+                  <TabsTrigger value="event">Event</TabsTrigger>
+                  <TabsTrigger value="task">Task</TabsTrigger>
+                  <TabsTrigger value="reminder">Reminder</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
 
-          {formData.entryType === 'appointment' && (
-            <CustomerBookingForm
-              isCustomerBooking={formData.isCustomerBooking}
-              onToggle={(checked) => setFormData({ ...formData, isCustomerBooking: checked })}
-              customerData={formData.customerBooking}
-              onChange={(field, value) => 
-                setFormData({
-                  ...formData,
-                  customerBooking: { ...formData.customerBooking, [field]: value }
-                })
-              }
-              errors={customerErrors}
-            />
-          )}
+            {formData.entryType === 'appointment' && (
+              <CustomerBookingForm
+                isCustomerBooking={formData.isCustomerBooking}
+                onToggle={(checked) => setFormData({ ...formData, isCustomerBooking: checked })}
+                customerData={formData.customerBooking}
+                onChange={(field, value) =>
+                  setFormData({
+                    ...formData,
+                    customerBooking: { ...formData.customerBooking, [field]: value }
+                  })
+                }
+                errors={customerErrors}
+              />
+            )}
 
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
-            <Input
-              id="title"
-              placeholder={`e.g., ${formData.entryType === 'appointment' ? 'Vehicle Inspection' :
+            <div className="space-y-2">
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                placeholder={`e.g., ${formData.entryType === 'appointment' ? 'Vehicle Inspection' :
                   formData.entryType === 'event' ? 'Team Meeting' :
                     formData.entryType === 'task' ? 'Complete Report' :
                       'Call Client'
-                }`}
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Add details..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start Date *</Label>
-              <DatePicker
-                value={formData.startDate}
-                onChange={(date) => date && setFormData({ ...formData, startDate: date })}
-                disablePastDates={true}
+                  }`}
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Start Time *</Label>
-              <TimePicker
-                value={formData.startTime}
-                onChange={(time) => setFormData({ ...formData, startTime: time })}
-                placeholder="Select start time"
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Add details..."
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>End Date *</Label>
-              <DatePicker
-                value={formData.endDate}
-                onChange={(date) => date && setFormData({ ...formData, endDate: date })}
-                disablePastDates={true}
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date *</Label>
+                <DatePicker
+                  value={formData.startDate}
+                  onChange={(date) => date && setFormData({ ...formData, startDate: date })}
+                  disablePastDates={true}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label>End Time *</Label>
-              <TimePicker
-                value={formData.endTime}
-                onChange={(time) => setFormData({ ...formData, endTime: time })}
-                placeholder="Select end time"
-              />
-            </div>
-          </div>
+              <div className="space-y-2">
+                <Label>Start Time *</Label>
+                <TimePicker
+                  value={formData.startTime}
+                  onChange={(time) => setFormData({ ...formData, startTime: time })}
+                  placeholder="Select start time"
+                />
+              </div>
 
-          {!formData.isCustomerBooking && (
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="font-medium">Participants & Guests</h3>
+              <div className="space-y-2">
+                <Label>End Date *</Label>
+                <DatePicker
+                  value={formData.endDate}
+                  onChange={(date) => date && setFormData({ ...formData, endDate: date })}
+                  disablePastDates={true}
+                />
+              </div>
 
-              <UserSearch
-                selectedUsers={formData.participants}
-                onSelectUsers={(userIds) => setFormData({ ...formData, participants: userIds })}
-                label="Internal Participants (Registered Users)"
-                placeholder="Search and select participants..."
-                multiple={true}
-              />
-
-              <GuestEmailInput
-                emails={formData.guestEmails}
-                onChange={(emails) => setFormData({ ...formData, guestEmails: emails })}
-              />
-            </div>
-          )}
-
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="font-medium">Meeting Details</h3>
-
-            <div className="space-y-2">
-              <Label htmlFor="type">Meeting Type</Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value) => setFormData({ ...formData, type: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="in-person">In-Person</SelectItem>
-                  <SelectItem value="video">Video Call</SelectItem>
-                  <SelectItem value="phone">Phone Call</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  id="location"
-                  placeholder="Meeting location or address"
-                  className="pl-10"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              <div className="space-y-2">
+                <Label>End Time *</Label>
+                <TimePicker
+                  value={formData.endTime}
+                  onChange={(time) => setFormData({ ...formData, endTime: time })}
+                  placeholder="Select end time"
                 />
               </div>
             </div>
 
-            {formData.type === 'video' && (
-              <div className="space-y-2">
-                <Label htmlFor="meetingLink">Meeting Link</Label>
-                <div className="relative">
-                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
-                    id="meetingLink"
-                    type="url"
-                    placeholder="https://zoom.us/j/... or Google Meet link"
-                    className="pl-10"
-                    value={formData.meetingLink}
-                    onChange={(e) => setFormData({ ...formData, meetingLink: e.target.value })}
-                  />
-                </div>
+            {!formData.isCustomerBooking && (
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="font-medium">Participants & Guests</h3>
+
+                <UserSearch
+                  selectedUsers={formData.participants}
+                  onSelectUsers={(userIds) => setFormData({ ...formData, participants: userIds })}
+                  label="Internal Participants (Registered Users)"
+                  placeholder="Search and select participants..."
+                  multiple={true}
+                />
+
+                <GuestEmailInput
+                  emails={formData.guestEmails}
+                  onChange={(emails) => setFormData({ ...formData, guestEmails: emails })}
+                />
               </div>
             )}
-          </div>
 
-          <div className="space-y-4 border-t pt-4">
-            {!formData.isCustomerBooking && (
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="font-medium">Meeting Details</h3>
+
               <div className="space-y-2">
-                <Label htmlFor="conversation">Link to Conversation (Optional)</Label>
+                <Label htmlFor="type">Meeting Type</Label>
                 <Select
-                  value={formData.conversationId || 'none'}
-                  onValueChange={(value) => {
-                    setFormData({ ...formData, conversationId: value === 'none' ? '' : value })
-                  }}
+                  value={formData.type}
+                  onValueChange={(value) => setFormData({ ...formData, type: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a conversation" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {conversations.map((conv) => (
-                      <SelectItem key={conv._id} value={conv._id}>
-                        {conv.type === 'group' ? conv.name : `Chat with ${conv.participants[0]?.fullName || conv.participants[0]?.name}`}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="in-person">In-Person</SelectItem>
+                    <SelectItem value="video">Video Call</SelectItem>
+                    <SelectItem value="phone">Phone Call</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                placeholder="Additional notes or agenda items..."
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="location">Location</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="location"
+                    placeholder="Meeting location or address"
+                    className="pl-10"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  />
+                </div>
+              </div>
 
-          <div className="flex gap-2 justify-end border-t pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-green-500 hover:bg-green-600 text-white"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="size-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                `Create ${formData.entryType.charAt(0).toUpperCase() + formData.entryType.slice(1)}`
+              {formData.type === 'video' && (
+                <div className="space-y-2">
+                  <Label htmlFor="meetingLink">Meeting Link</Label>
+                  <div className="relative">
+                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      id="meetingLink"
+                      type="url"
+                      placeholder="https://zoom.us/j/... or Google Meet link"
+                      className="pl-10"
+                      value={formData.meetingLink}
+                      onChange={(e) => setFormData({ ...formData, meetingLink: e.target.value })}
+                    />
+                  </div>
+                </div>
               )}
-            </Button>
-          </div>
-        </form>
+            </div>
+
+            <div className="space-y-4 border-t pt-4">
+              {!formData.isCustomerBooking && (
+                <div className="space-y-2">
+                  <Label htmlFor="conversation">Link to Conversation (Optional)</Label>
+                  <Select
+                    value={formData.conversationId || 'none'}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, conversationId: value === 'none' ? '' : value })
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a conversation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {conversations.map((conv) => (
+                        <SelectItem key={conv._id} value={conv._id}>
+                          {conv.type === 'group' ? conv.name : `Chat with ${conv.participants[0]?.fullName || conv.participants[0]?.name}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Additional notes or agenda items..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-green-500 hover:bg-green-600 text-white"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  `Create ${formData.entryType.charAt(0).toUpperCase() + formData.entryType.slice(1)}`
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   )

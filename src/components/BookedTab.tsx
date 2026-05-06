@@ -32,25 +32,25 @@ export function BookedTab() {
   // Fetch bookings on mount and when filters change
   React.useEffect(() => {
     const filters: any = {}
-    
+
     if (statusFilter !== 'all') {
       filters.status = statusFilter
     }
-    
+
     if (selectedDate) {
       filters.startDate = selectedDate.toISOString()
       const endDate = new Date(selectedDate)
       endDate.setHours(23, 59, 59, 999)
       filters.endDate = endDate.toISOString()
     }
-    
+
     fetchCustomerBookings(filters)
   }, [statusFilter, selectedDate])
 
   // Filter bookings based on search query
   const filteredBookings = React.useMemo(() => {
     if (!bookings) return []
-    
+
     let filtered = bookings
 
     if (searchQuery) {
@@ -58,7 +58,7 @@ export function BookedTab() {
       filtered = filtered.filter((booking: any) => {
         const customerBooking = booking.customerBooking
         if (!customerBooking) return false
-        
+
         return (
           customerBooking.firstName?.toLowerCase().includes(query) ||
           customerBooking.lastName?.toLowerCase().includes(query) ||
@@ -94,7 +94,7 @@ export function BookedTab() {
   const handleViewHistory = async (booking: any) => {
     setSelectedCustomer(booking.customerBooking)
     setHistoryModalOpen(true)
-    
+
     await fetchCustomerHistory(
       booking.customerBooking.email,
       booking.customerBooking.phone,
@@ -129,7 +129,7 @@ export function BookedTab() {
             <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Bookings</CardTitle>
@@ -139,7 +139,7 @@ export function BookedTab() {
             <div className="text-2xl font-bold">{stats.todays}</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Confirmed</CardTitle>
@@ -151,7 +151,7 @@ export function BookedTab() {
             <div className="text-2xl font-bold">{stats.confirmed}</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
@@ -181,9 +181,9 @@ export function BookedTab() {
                 className="pl-10"
               />
             </div>
-            
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[200px]">
+              <SelectTrigger className="w-full md:w-50">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -199,9 +199,9 @@ export function BookedTab() {
               type="date"
               value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
               onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : null)}
-              className="w-full md:w-[200px]"
+              className="w-full md:w-50"
             />
-            
+
             {(searchQuery || statusFilter !== 'all' || selectedDate) && (
               <Button
                 variant="outline"
@@ -243,7 +243,7 @@ export function BookedTab() {
               {filteredBookings.map((booking: any) => {
                 const customer = booking.customerBooking
                 const totalBookings = customer?.bookingHistory?.totalBookings || 1
-                
+
                 return (
                   <Card key={booking._id} className="hover:shadow-md transition-shadow">
                     <CardContent className="pt-6">
@@ -296,8 +296,8 @@ export function BookedTab() {
                           <Badge
                             variant={
                               booking.status === 'confirmed' ? 'default' :
-                              booking.status === 'cancelled' ? 'destructive' :
-                              'secondary'
+                                booking.status === 'cancelled' ? 'destructive' :
+                                  'secondary'
                             }
                             className={
                               booking.status === 'confirmed' ? 'bg-green-500' : ''

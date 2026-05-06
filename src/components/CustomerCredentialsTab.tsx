@@ -36,27 +36,27 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const SOURCE_COLORS: Record<string, string> = {
-  lead:    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  manual:  "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+  lead: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  manual: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
   booking: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
-  import:  "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  import: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
 }
 
 const TX_STATUS_COLORS: Record<string, string> = {
-  pending:   "bg-amber-100 text-amber-700",
-  active:    "bg-blue-100 text-blue-700",
+  pending: "bg-amber-100 text-amber-700",
+  active: "bg-blue-100 text-blue-700",
   completed: "bg-emerald-100 text-emerald-700",
   cancelled: "bg-red-100 text-red-700",
-  failed:    "bg-gray-100 text-gray-600",
+  failed: "bg-gray-100 text-gray-600",
 }
 
 const TX_TYPE_ICONS: Record<string, React.ReactNode> = {
-  lead:        <User className="h-3.5 w-3.5" />,
+  lead: <User className="h-3.5 w-3.5" />,
   appointment: <Calendar className="h-3.5 w-3.5" />,
-  purchase:    <Receipt className="h-3.5 w-3.5" />,
-  quote:       <FileText className="h-3.5 w-3.5" />,
-  inquiry:     <MessageSquare className="h-3.5 w-3.5" />,
-  other:       <Tag className="h-3.5 w-3.5" />,
+  purchase: <Receipt className="h-3.5 w-3.5" />,
+  quote: <FileText className="h-3.5 w-3.5" />,
+  inquiry: <MessageSquare className="h-3.5 w-3.5" />,
+  other: <Tag className="h-3.5 w-3.5" />,
 }
 
 function avatarInitials(c: Customer) {
@@ -142,148 +142,150 @@ function CustomerFormModal({ open, onOpenChange, initial, onSave, isSaving }: Cu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
-            {initial?._id ? "Edit Customer" : "Add New Customer"}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+        <div className="max-h-[90vh] overflow-y-auto modal-scrollbar p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">
+              {initial?._id ? "Edit Customer" : "Add New Customer"}
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-6 py-2">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <div className="space-y-6 py-2">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {/* Personal */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Personal Information
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>First Name <span className="text-red-500">*</span></Label>
-                <Input value={form.firstName} onChange={e => set("firstName", e.target.value)} placeholder="Jane" />
+            {/* Personal */}
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                Personal Information
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>First Name <span className="text-red-500">*</span></Label>
+                  <Input value={form.firstName} onChange={e => set("firstName", e.target.value)} placeholder="Jane" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Last Name</Label>
+                  <Input value={form.lastName} onChange={e => set("lastName", e.target.value)} placeholder="Doe" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Email <span className="text-red-500">*</span></Label>
+                  <Input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="jane@example.com" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Phone <span className="text-red-500">*</span></Label>
+                  <Input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+1 555 000 0000" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Alternate Phone</Label>
+                  <Input value={form.alternatePhone} onChange={e => set("alternatePhone", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Preferred Contact</Label>
+                  <Select value={form.preferredContactMethod} onValueChange={v => set("preferredContactMethod", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="phone">Phone</SelectItem>
+                      <SelectItem value="sms">SMS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>Last Name</Label>
-                <Input value={form.lastName} onChange={e => set("lastName", e.target.value)} placeholder="Doe" />
-              </div>
-              <div className="space-y-1">
-                <Label>Email <span className="text-red-500">*</span></Label>
-                <Input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="jane@example.com" />
-              </div>
-              <div className="space-y-1">
-                <Label>Phone <span className="text-red-500">*</span></Label>
-                <Input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="+1 555 000 0000" />
-              </div>
-              <div className="space-y-1">
-                <Label>Alternate Phone</Label>
-                <Input value={form.alternatePhone} onChange={e => set("alternatePhone", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Preferred Contact</Label>
-                <Select value={form.preferredContactMethod} onValueChange={v => set("preferredContactMethod", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="phone">Phone</SelectItem>
-                    <SelectItem value="sms">SMS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <Separator />
+            <Separator />
 
-          {/* Address */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Address</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 space-y-1">
-                <Label>Street</Label>
-                <Input value={form.address?.street} onChange={e => setAddr("street", e.target.value)} placeholder="123 Main St" />
+            {/* Address */}
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Address</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 space-y-1">
+                  <Label>Street</Label>
+                  <Input value={form.address?.street} onChange={e => setAddr("street", e.target.value)} placeholder="123 Main St" />
+                </div>
+                <div className="space-y-1">
+                  <Label>City</Label>
+                  <Input value={form.address?.city} onChange={e => setAddr("city", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>State</Label>
+                  <Input value={form.address?.state} onChange={e => setAddr("state", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Postal Code</Label>
+                  <Input value={form.address?.postalCode} onChange={e => setAddr("postalCode", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Country</Label>
+                  <Input value={form.address?.country} onChange={e => setAddr("country", e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>City</Label>
-                <Input value={form.address?.city} onChange={e => setAddr("city", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>State</Label>
-                <Input value={form.address?.state} onChange={e => setAddr("state", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Postal Code</Label>
-                <Input value={form.address?.postalCode} onChange={e => setAddr("postalCode", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Country</Label>
-                <Input value={form.address?.country} onChange={e => setAddr("country", e.target.value)} />
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <Separator />
+            <Separator />
 
-          {/* Vehicle Interest */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Vehicle Interest</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label>Year</Label>
-                <Input value={form.vehicleInterest?.year} onChange={e => setVehicle("year", e.target.value)} placeholder="2024" />
+            {/* Vehicle Interest */}
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Vehicle Interest</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>Year</Label>
+                  <Input value={form.vehicleInterest?.year} onChange={e => setVehicle("year", e.target.value)} placeholder="2024" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Make</Label>
+                  <Input value={form.vehicleInterest?.make} onChange={e => setVehicle("make", e.target.value)} placeholder="Toyota" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Model</Label>
+                  <Input value={form.vehicleInterest?.model} onChange={e => setVehicle("model", e.target.value)} placeholder="Camry" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Condition</Label>
+                  <Select value={form.vehicleInterest?.condition} onValueChange={v => setVehicle("condition", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="used">Used</SelectItem>
+                      <SelectItem value="certified">Certified Pre-Owned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Budget</Label>
+                  <Input value={form.vehicleInterest?.budget} onChange={e => setVehicle("budget", e.target.value)} placeholder="$30,000" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>Make</Label>
-                <Input value={form.vehicleInterest?.make} onChange={e => setVehicle("make", e.target.value)} placeholder="Toyota" />
-              </div>
-              <div className="space-y-1">
-                <Label>Model</Label>
-                <Input value={form.vehicleInterest?.model} onChange={e => setVehicle("model", e.target.value)} placeholder="Camry" />
-              </div>
-              <div className="space-y-1">
-                <Label>Condition</Label>
-                <Select value={form.vehicleInterest?.condition} onValueChange={v => setVehicle("condition", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="used">Used</SelectItem>
-                    <SelectItem value="certified">Certified Pre-Owned</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Budget</Label>
-                <Input value={form.vehicleInterest?.budget} onChange={e => setVehicle("budget", e.target.value)} placeholder="$30,000" />
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <Separator />
+            <Separator />
 
-          {/* Notes */}
-          <section>
-            <Label>Notes</Label>
-            <Textarea
-              value={form.notes}
-              onChange={e => set("notes", e.target.value)}
-              placeholder="Any relevant notes about this customer…"
-              rows={3}
-              className="mt-1"
-            />
-          </section>
+            {/* Notes */}
+            <section>
+              <Label>Notes</Label>
+              <Textarea
+                value={form.notes}
+                onChange={e => set("notes", e.target.value)}
+                placeholder="Any relevant notes about this customer…"
+                rows={3}
+                className="mt-1"
+              />
+            </section>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+              {initial?._id ? "Save Changes" : "Create Customer"}
+            </Button>
+          </DialogFooter>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={isSaving}>
-            {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-            {initial?._id ? "Save Changes" : "Create Customer"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -324,7 +326,7 @@ function LogConversationModal({
               <Select value={form.channel} onValueChange={v => setForm(p => ({ ...p, channel: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["email","sms","phone","in-person","chat","other"].map(c => (
+                  {["email", "sms", "phone", "in-person", "chat", "other"].map(c => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -403,7 +405,7 @@ function CustomerDetail({
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div
-            className={`h-10 w-10 rounded-xl bg-gradient-to-br ${avatarColor(customer._id)} flex items-center justify-center text-white font-bold text-sm shrink-0`}
+            className={`h-10 w-10 rounded-xl bg-linear-to-br ${avatarColor(customer._id)} flex items-center justify-center text-white font-bold text-sm shrink-0`}
           >
             {avatarInitials(customer)}
           </div>
@@ -599,11 +601,10 @@ function CustomerDetail({
                 {sortedConvs.map(conv => (
                   <div
                     key={conv._id}
-                    className={`rounded-xl p-3 border ${
-                      conv.direction === "inbound"
-                        ? "border-blue-200/60 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800/40"
-                        : "border-emerald-200/60 bg-emerald-50/50 dark:bg-emerald-900/10 dark:border-emerald-800/40"
-                    }`}
+                    className={`rounded-xl p-3 border ${conv.direction === "inbound"
+                      ? "border-blue-200/60 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800/40"
+                      : "border-emerald-200/60 bg-emerald-50/50 dark:bg-emerald-900/10 dark:border-emerald-800/40"
+                      }`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex items-center gap-1.5">
@@ -613,9 +614,8 @@ function CustomerDetail({
                         >
                           {conv.channel}
                         </Badge>
-                        <span className={`text-[10px] font-medium ${
-                          conv.direction === "inbound" ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
-                        }`}>
+                        <span className={`text-[10px] font-medium ${conv.direction === "inbound" ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
+                          }`}>
                           {conv.direction === "inbound" ? "← Inbound" : "→ Outbound"}
                         </span>
                       </div>
@@ -740,7 +740,7 @@ export function CustomerCredentialsTab() {
       {/* ── Main layout ───────────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 gap-4">
         {/* Left panel — list */}
-        <div className={`flex flex-col ${selectedId ? "hidden lg:flex" : "flex"} w-full lg:w-[380px] xl:w-[420px] shrink-0`}>
+        <div className={`flex flex-col ${selectedId ? "hidden lg:flex" : "flex"} w-full lg:w-95 xl:w-105 shrink-0`}>
           {/* Controls */}
           <div className="flex items-center gap-2 mb-3">
             <div className="relative flex-1">
@@ -810,15 +810,14 @@ export function CustomerCredentialsTab() {
                   <button
                     key={c._id}
                     onClick={() => setSelectedId(c._id)}
-                    className={`w-full text-left rounded-xl border transition-all p-3 group ${
-                      selectedId === c._id
-                        ? "border-emerald-500/60 bg-emerald-50/60 dark:bg-emerald-900/20 shadow-sm"
-                        : "border-border/40 hover:border-border hover:bg-muted/40"
-                    }`}
+                    className={`w-full text-left rounded-xl border transition-all p-3 group ${selectedId === c._id
+                      ? "border-emerald-500/60 bg-emerald-50/60 dark:bg-emerald-900/20 shadow-sm"
+                      : "border-border/40 hover:border-border hover:bg-muted/40"
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`h-9 w-9 rounded-xl bg-gradient-to-br ${avatarColor(c._id)} flex items-center justify-center text-white font-bold text-xs shrink-0`}
+                        className={`h-9 w-9 rounded-xl bg-linear-to-br ${avatarColor(c._id)} flex items-center justify-center text-white font-bold text-xs shrink-0`}
                       >
                         {avatarInitials(c)}
                       </div>
