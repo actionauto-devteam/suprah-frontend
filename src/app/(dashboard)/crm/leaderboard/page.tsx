@@ -934,42 +934,44 @@ export default function LeaderboardPage() {
             if (v === "activity") fetchActivityFeed();
           }}
         >
-          <TabsList className="rounded-2xl border border-border/40 bg-muted/20 p-1 h-auto gap-1">
-            {[
-              {
-                value: "leaderboard",
-                label: "Leaderboard",
-                icon: <Trophy className="h-3.5 w-3.5" />,
-              },
-              {
-                value: "overview",
-                label: "Analytics",
-                icon: <BarChart3 className="h-3.5 w-3.5" />,
-                adminOnly: true,
-              },
-              {
-                value: "activity",
-                label: "Activity Feed",
-                icon: <Activity className="h-3.5 w-3.5" />,
-              },
-              {
-                value: "badges",
-                label: "Badges",
-                icon: <Award className="h-3.5 w-3.5" />,
-              },
-            ]
-              .filter((t) => !t.adminOnly || user?.role !== "employee")
-              .map((t) => (
-                <TabsTrigger
-                  key={t.value}
-                  value={t.value}
-                  className="rounded-xl text-xs font-semibold gap-1.5 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                >
-                  {t.icon}
-                  {t.label}
-                </TabsTrigger>
-              ))}
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-hide">
+            <TabsList className="w-full min-w-max rounded-2xl border border-border/40 bg-muted/20 p-1.5 h-auto gap-1.5">
+              {[
+                {
+                  value: "leaderboard",
+                  label: "Leaderboard",
+                  icon: <Trophy className="h-3.5 w-3.5" />,
+                },
+                {
+                  value: "overview",
+                  label: "Analytics",
+                  icon: <BarChart3 className="h-3.5 w-3.5" />,
+                  adminOnly: true,
+                },
+                {
+                  value: "activity",
+                  label: "Activity Feed",
+                  icon: <Activity className="h-3.5 w-3.5" />,
+                },
+                {
+                  value: "badges",
+                  label: "Badges",
+                  icon: <Award className="h-3.5 w-3.5" />,
+                },
+              ]
+                .filter((t) => !t.adminOnly || user?.role !== "employee")
+                .map((t) => (
+                  <TabsTrigger
+                    key={t.value}
+                    value={t.value}
+                    className="flex-1 rounded-xl text-xs font-semibold gap-2 px-5 py-2.5 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60 transition-all"
+                  >
+                    {t.icon}
+                    {t.label}
+                  </TabsTrigger>
+                ))}
+            </TabsList>
+          </div>
 
           {/* ─ LEADERBOARD TAB ─────────────────────────────────────────── */}
           <TabsContent value="leaderboard" className="mt-4">

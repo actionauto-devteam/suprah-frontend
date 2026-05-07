@@ -17,9 +17,18 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
  * disp font : 'Rajdhani', sans-serif
  */
 
-const ORANGE = "#E55A00";
+const ORANGE  = "#E55A00";
 const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
-const MONO = "'Share Tech Mono', 'Roboto Mono', monospace";
+const MONO    = "'Share Tech Mono', 'Roboto Mono', monospace";
+
+// ─── Theme tokens (CSS vars — auto-adapt to light/dark) ───────────────────────
+const MODAL_BG     = "var(--card)";
+const MODAL_BORDER = "var(--border)";
+const TEXT_HI      = "var(--card-foreground)";
+const TEXT_MID     = "var(--muted-foreground)";
+const TEXT_LO      = "color-mix(in srgb, var(--muted-foreground) 55%, transparent)";
+const TEXT_FAINT   = "color-mix(in srgb, var(--muted-foreground) 40%, transparent)";
+const SURFACE      = "color-mix(in srgb, var(--foreground) 5%, transparent)";
 
 // ─── Pure-JS QR matrix builder (no external dep) ─────────────────────────────
 function buildQRMatrix(text: string): number[][] {
@@ -129,11 +138,11 @@ function SupraInput({
         width: "100%",
         fontFamily: DISPLAY,
         fontSize: 13,
-        background: "rgba(255,255,255,0.05)",
-        border: `1px solid ${focused ? ORANGE : "rgba(255,255,255,0.11)"}`,
+        background: SURFACE,
+        border: `1px solid ${focused ? ORANGE : MODAL_BORDER}`,
         borderRadius: 8,
         padding: "8px 12px",
-        color: "rgba(255,255,255,0.88)",
+        color: TEXT_HI,
         outline: "none",
         boxShadow: focused ? "0 0 0 3px rgba(229,90,0,0.13)" : "none",
         transition: "border-color 0.14s, box-shadow 0.14s",
@@ -158,7 +167,7 @@ function SupraLabel({
         fontWeight: 700,
         letterSpacing: "0.11em",
         textTransform: "uppercase" as const,
-        color: "rgba(255,255,255,0.28)",
+        color: TEXT_LO,
         marginBottom: 6,
         fontFamily: DISPLAY,
       }}
@@ -277,7 +286,7 @@ export function ReceiveModal({
         <div
           style={{
             position: "relative",
-            background: "#0d0d10",
+            background: MODAL_BG,
             borderRadius: 16,
             overflow: "hidden",
             fontFamily: DISPLAY,
@@ -291,8 +300,8 @@ export function ReceiveModal({
               inset: 0,
               pointerEvents: "none",
               backgroundImage: `
-              repeating-linear-gradient(45deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 8px),
-              repeating-linear-gradient(-45deg, rgba(255,255,255,0.013) 0px, rgba(255,255,255,0.013) 1px, transparent 1px, transparent 8px)
+              repeating-linear-gradient(45deg, color-mix(in srgb, var(--foreground) 2%, transparent) 0px, color-mix(in srgb, var(--foreground) 2%, transparent) 1px, transparent 1px, transparent 8px),
+              repeating-linear-gradient(-45deg, color-mix(in srgb, var(--foreground) 1%, transparent) 0px, color-mix(in srgb, var(--foreground) 1%, transparent) 1px, transparent 1px, transparent 8px)
             `,
             }}
           />
@@ -332,8 +341,8 @@ export function ReceiveModal({
               width: 28,
               height: 28,
               borderRadius: 6,
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: SURFACE,
+              border: `1px solid ${MODAL_BORDER}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -346,7 +355,8 @@ export function ReceiveModal({
               height="11"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="rgba(255,255,255,0.48)"
+              stroke="currentColor"
+              style={{ color: TEXT_MID } as React.CSSProperties}
               strokeWidth="2.5"
             >
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -362,7 +372,7 @@ export function ReceiveModal({
                 style={{
                   fontSize: 17,
                   fontWeight: 700,
-                  color: "#fff",
+                  color: TEXT_HI,
                   letterSpacing: "-0.01em",
                   lineHeight: 1.1,
                 }}
@@ -372,7 +382,7 @@ export function ReceiveModal({
               <p
                 style={{
                   fontSize: 11,
-                  color: "rgba(255,255,255,0.30)",
+                  color: TEXT_LO,
                   marginTop: 4,
                   letterSpacing: "0.02em",
                 }}
@@ -420,8 +430,8 @@ export function ReceiveModal({
             {/* Account pill */}
             <div
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: SURFACE,
+                border: `1px solid ${MODAL_BORDER}`,
                 borderRadius: 10,
                 padding: "10px 14px",
                 textAlign: "center",
@@ -442,7 +452,7 @@ export function ReceiveModal({
                 style={{
                   fontSize: 14,
                   fontWeight: 600,
-                  color: "rgba(255,255,255,0.82)",
+                  color: TEXT_HI,
                   marginTop: 3,
                 }}
               >
@@ -557,7 +567,7 @@ export function ReceiveModal({
               style={{
                 fontFamily: MONO,
                 fontSize: 10,
-                color: "rgba(255,255,255,0.20)",
+                color: TEXT_FAINT,
                 textAlign: "center",
                 marginTop: 10,
                 overflow: "hidden",
