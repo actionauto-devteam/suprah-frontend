@@ -157,7 +157,7 @@ export default function ServiceNetworkPage() {
 
             const popup = new mapboxgl.Popup({ offset: 25, closeButton: false }).setHTML(
                 `<div style="color: #18181b; padding: 4px;">
-                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${loc.name}</div>
+                    <div style="font-weight: 600; font-size: 184px; margin-bottom: 2px;">${loc.name}</div>
                     <div style="font-size: 12px; color: #52525b;">${loc.address}, ${loc.city}</div>
                     ${loc.distance ? `<div style="font-size: 12px; font-weight: 600; color: #16a34a; margin-top: 4px;">${loc.distance} away</div>` : ''}
                 </div>`

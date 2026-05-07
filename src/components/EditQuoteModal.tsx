@@ -1,6 +1,9 @@
+"use client"
+
 import { useState } from "react"
-import { X } from "lucide-react"
+import { X, User, Car, MapPin, DollarSign, SlidersHorizontal, Loader2, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Quote } from "@/types/transportation"
 
 interface EditQuoteModalProps {
@@ -31,18 +34,18 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
         stockNumber: quote.stockNumber || '',
         vehicleLocation: quote.vehicleLocation || '',
         etaMin: quote.eta.min,
-        etaMax: quote.eta.max
+        etaMax: quote.eta.max,
     })
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = e.target
         setFormData(prev => ({
             ...prev,
-            [name]: type === 'checkbox' ? checked : type === 'number' ? Number(value) : value
+            [name]: type === 'checkbox' ? checked : type === 'number' ? Number(value) : value,
         }))
     }
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: { preventDefault: () => void }) => {
         e.preventDefault()
         setIsSaving(true)
         try {
@@ -64,7 +67,7 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                 vin: formData.vin,
                 stockNumber: formData.stockNumber,
                 vehicleLocation: formData.vehicleLocation,
-                eta: { min: formData.etaMin, max: formData.etaMax }
+                eta: { min: formData.etaMin, max: formData.etaMax },
             })
             onClose()
         } catch (error) {
@@ -76,82 +79,80 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
 
     if (!isOpen) return null
 
+    const fieldClass = "w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    const labelClass = "block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
+    const sectionClass = "rounded-xl border border-border/60 bg-muted/20 p-5 space-y-4"
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-100 dark:border-gray-700">
+            <div className="bg-card text-card-foreground rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden border border-border">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-emerald-600 to-green-700 dark:from-emerald-700 dark:to-green-800 text-white px-8 py-6 flex items-center justify-between">
+                <div className="p-6 pb-4 flex items-start justify-between border-b border-border bg-muted/10">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Edit Quote</h2>
-                        <p className="text-emerald-50 dark:text-emerald-100 text-sm mt-1">Update quote information</p>
+                        <h2 className="text-xl font-black flex items-center gap-2">
+                            <FileText className="size-5 text-primary" />
+                            EDIT QUOTE
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">
+                            Update customer, vehicle, and route information
+                        </p>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-white/90 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-all duration-200"
-                    >
-                        <X className="w-5 h-5" />
+                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
+                        <X className="w-5 h-5 text-muted-foreground" />
                     </button>
                 </div>
 
                 {/* Content */}
-                <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-180px)]">
-                    <div className="p-8 space-y-8">
+                <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
+                    <div className="p-6 space-y-6">
+
                         {/* Customer Information */}
-                        <div className="border-l-4 border-emerald-500 dark:border-emerald-600 pl-6">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-5 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-600 rounded-full"></span>
-                                Customer Information
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <User className="size-4 text-primary" /> Customer Information
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        First Name
-                                    </label>
+                                    <label className={labelClass}>First Name</label>
                                     <input
                                         type="text"
                                         name="firstName"
                                         value={formData.firstName}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Last Name
-                                    </label>
+                                    <label className={labelClass}>Last Name</label>
                                     <input
                                         type="text"
                                         name="lastName"
                                         value={formData.lastName}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Email
-                                    </label>
+                                    <label className={labelClass}>Email</label>
                                     <input
                                         type="email"
                                         name="email"
                                         value={formData.email}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Phone
-                                    </label>
+                                    <label className={labelClass}>Phone</label>
                                     <input
                                         type="tel"
                                         name="phone"
                                         value={formData.phone}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                     />
                                 </div>
@@ -159,199 +160,176 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                         </div>
 
                         {/* Vehicle Information */}
-                        <div className="border-l-4 border-emerald-500 dark:border-emerald-600 pl-6">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-5 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-600 rounded-full"></span>
-                                Vehicle Information
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <Car className="size-4 text-primary" /> Vehicle Information
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Vehicle Name
-                                    </label>
+                                    <label className={labelClass}>Vehicle Name</label>
                                     <input
                                         type="text"
                                         name="vehicleName"
                                         value={formData.vehicleName}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        VIN
-                                    </label>
+                                    <label className={labelClass}>VIN</label>
                                     <input
                                         type="text"
                                         name="vin"
                                         value={formData.vin}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Stock Number
-                                    </label>
+                                    <label className={labelClass}>Stock Number</label>
                                     <input
                                         type="text"
                                         name="stockNumber"
                                         value={formData.stockNumber}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Vehicle Location
-                                    </label>
+                                    <label className={labelClass}>Vehicle Location</label>
                                     <input
                                         type="text"
                                         name="vehicleLocation"
                                         value={formData.vehicleLocation}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Route Information */}
-                        <div className="border-l-4 border-emerald-500 dark:border-emerald-600 pl-6">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-5 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-600 rounded-full"></span>
-                                Route Information
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <MapPin className="size-4 text-primary" /> Route Information
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        From Address
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="fromAddress"
-                                        value={formData.fromAddress}
-                                        onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
-                                        required
-                                    />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold text-primary uppercase">Origin</p>
+                                    <div>
+                                        <label className={labelClass}>From Address</label>
+                                        <input
+                                            type="text"
+                                            name="fromAddress"
+                                            value={formData.fromAddress}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>From Zip Code</label>
+                                        <input
+                                            type="text"
+                                            name="fromZip"
+                                            value={formData.fromZip}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        From Zip Code
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="fromZip"
-                                        value={formData.fromZip}
-                                        onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        To Address
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="toAddress"
-                                        value={formData.toAddress}
-                                        onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        To Zip Code
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="toZip"
-                                        value={formData.toZip}
-                                        onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
-                                        required
-                                    />
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold text-rose-500 uppercase">Destination</p>
+                                    <div>
+                                        <label className={labelClass}>To Address</label>
+                                        <input
+                                            type="text"
+                                            name="toAddress"
+                                            value={formData.toAddress}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>To Zip Code</label>
+                                        <input
+                                            type="text"
+                                            name="toZip"
+                                            value={formData.toZip}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Quote Details */}
-                        <div className="border-l-4 border-emerald-500 dark:border-emerald-600 pl-6">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-5 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-600 rounded-full"></span>
-                                Quote Details
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <DollarSign className="size-4 text-primary" /> Quote Details
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Rate ($)
-                                    </label>
+                                    <label className={labelClass}>Rate ($)</label>
                                     <input
                                         type="number"
                                         name="rate"
                                         value={formData.rate}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                         min="0"
                                         step="0.01"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Miles
-                                    </label>
+                                    <label className={labelClass}>Miles</label>
                                     <input
                                         type="number"
                                         name="miles"
                                         value={formData.miles}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                         min="0"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Units
-                                    </label>
+                                    <label className={labelClass}>Units</label>
                                     <input
                                         type="number"
                                         name="units"
                                         value={formData.units}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                         min="1"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        ETA Min (days)
-                                    </label>
+                                    <label className={labelClass}>ETA Min (days)</label>
                                     <input
                                         type="number"
                                         name="etaMin"
                                         value={formData.etaMin}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                         min="0"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        ETA Max (days)
-                                    </label>
+                                    <label className={labelClass}>ETA Max (days)</label>
                                     <input
                                         type="number"
                                         name="etaMax"
                                         value={formData.etaMax}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-700 transition-all duration-200 text-gray-900 dark:text-gray-100"
+                                        className={fieldClass}
                                         required
                                         min="0"
                                     />
@@ -360,57 +338,66 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                         </div>
 
                         {/* Transport Options */}
-                        <div className="border-l-4 border-emerald-500 dark:border-emerald-600 pl-6">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-5 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-600 rounded-full"></span>
-                                Transport Options
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <SlidersHorizontal className="size-4 text-primary" /> Transport Options
                             </h3>
-                            <div className="flex gap-8">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <input
-                                        type="checkbox"
-                                        name="enclosedTrailer"
-                                        checked={formData.enclosedTrailer}
-                                        onChange={handleChange}
-                                        className="w-5 h-5 text-emerald-600 border-gray-300 dark:border-gray-600 rounded focus:ring-emerald-500 dark:bg-gray-800"
-                                    />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                                        Enclosed Trailer
-                                    </span>
-                                </label>
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <input
-                                        type="checkbox"
-                                        name="vehicleInoperable"
-                                        checked={formData.vehicleInoperable}
-                                        onChange={handleChange}
-                                        className="w-5 h-5 text-emerald-600 border-gray-300 dark:border-gray-600 rounded focus:ring-emerald-500 dark:bg-gray-800"
-                                    />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                                        Vehicle Inoperable
-                                    </span>
-                                </label>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
+                                    <div>
+                                        <p className="text-sm font-bold">Enclosed Trailer</p>
+                                        <p className="text-[10px] text-muted-foreground font-medium">Ship vehicle in an enclosed trailer</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, enclosedTrailer: !prev.enclosedTrailer }))}
+                                        className={cn(
+                                            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                                            formData.enclosedTrailer ? "bg-primary" : "bg-muted-foreground/30"
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                            formData.enclosedTrailer ? "translate-x-6" : "translate-x-1"
+                                        )} />
+                                    </button>
+                                </div>
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
+                                    <div>
+                                        <p className="text-sm font-bold">Vehicle Inoperable</p>
+                                        <p className="text-[10px] text-muted-foreground font-medium">Vehicle cannot be driven onto the carrier</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, vehicleInoperable: !prev.vehicleInoperable }))}
+                                        className={cn(
+                                            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                                            formData.vehicleInoperable ? "bg-primary" : "bg-muted-foreground/30"
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                            formData.vehicleInoperable ? "translate-x-6" : "translate-x-1"
+                                        )} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
+
                     </div>
 
                     {/* Footer */}
-                    <div className="bg-gradient-to-r from-gray-50 to-emerald-50/30 dark:from-gray-800 dark:to-emerald-950/30 px-8 py-5 flex items-center justify-end gap-3 border-t border-gray-200 dark:border-gray-700">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={onClose}
-                            disabled={isSaving}
-                            className="border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 px-6"
-                        >
+                    <div className="px-6 py-4 flex items-center justify-end gap-3 border-t border-border bg-muted/10">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
                             Cancel
                         </Button>
                         <Button
                             type="submit"
                             disabled={isSaving}
-                            className="bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white shadow-lg shadow-emerald-500/30 dark:shadow-emerald-500/20 px-6"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold min-w-[120px]"
                         >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
+                            {isSaving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                            {isSaving ? "Saving..." : "Save Changes"}
                         </Button>
                     </div>
                 </form>

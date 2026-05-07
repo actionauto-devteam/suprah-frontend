@@ -27,14 +27,16 @@ import {
  * Same palette as BalanceCard and ReceiveModal.
  */
 
-const ORANGE = "#E55A00";
-const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
-const BG = "#0d0d10";
-const SURFACE = "rgba(255,255,255,0.05)";
-const BORDER = "rgba(255,255,255,0.10)";
-const TEXT_HI = "rgba(255,255,255,0.88)";
-const TEXT_MID = "rgba(255,255,255,0.55)";
-const TEXT_LO = "rgba(255,255,255,0.28)";
+const ORANGE   = "#E55A00";
+const DISPLAY  = "'Rajdhani', var(--font-sans), sans-serif";
+
+// ─── Theme tokens (CSS vars — auto-adapt to light/dark) ───────────────────────
+const BG       = "var(--card)";
+const SURFACE  = "color-mix(in srgb, var(--foreground) 5%, transparent)";
+const BORDER   = "var(--border)";
+const TEXT_HI  = "var(--card-foreground)";
+const TEXT_MID = "var(--muted-foreground)";
+const TEXT_LO  = "color-mix(in srgb, var(--muted-foreground) 55%, transparent)";
 
 // ─── BarcodeDetector ambient type ────────────────────────────────────────────
 declare class BarcodeDetector {
@@ -278,8 +280,8 @@ function BackBtn({ onClick }: { onClick: () => void }) {
         height: 30,
         borderRadius: 6,
         flexShrink: 0,
-        background: "rgba(255,255,255,0.07)",
-        border: "1px solid rgba(255,255,255,0.12)",
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -287,7 +289,7 @@ function BackBtn({ onClick }: { onClick: () => void }) {
       }}
     >
       <ArrowLeft
-        style={{ width: 14, height: 14, color: "rgba(255,255,255,0.55)" }}
+        style={{ width: 14, height: 14, color: TEXT_MID }}
       />
     </button>
   );
@@ -319,7 +321,7 @@ function ScreenHeader({
           style={{
             fontSize: 16,
             fontWeight: 700,
-            color: "#fff",
+            color: TEXT_HI,
             letterSpacing: "-0.01em",
             lineHeight: 1.1,
           }}
@@ -726,8 +728,8 @@ export function SendModal({
               inset: 0,
               pointerEvents: "none",
               backgroundImage: `
-              repeating-linear-gradient(45deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 8px),
-              repeating-linear-gradient(-45deg, rgba(255,255,255,0.013) 0px, rgba(255,255,255,0.013) 1px, transparent 1px, transparent 8px)
+              repeating-linear-gradient(45deg, color-mix(in srgb, var(--foreground) 2%, transparent) 0px, color-mix(in srgb, var(--foreground) 2%, transparent) 1px, transparent 1px, transparent 8px),
+              repeating-linear-gradient(-45deg, color-mix(in srgb, var(--foreground) 1%, transparent) 0px, color-mix(in srgb, var(--foreground) 1%, transparent) 1px, transparent 1px, transparent 8px)
             `,
             }}
           />
@@ -770,8 +772,8 @@ export function SendModal({
               width: 28,
               height: 28,
               borderRadius: 6,
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: SURFACE,
+              border: `1px solid ${BORDER}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -780,7 +782,7 @@ export function SendModal({
             }}
           >
             <X
-              style={{ width: 11, height: 11, color: "rgba(255,255,255,0.46)" }}
+              style={{ width: 11, height: 11, color: TEXT_MID }}
             />
           </button>
 
@@ -815,9 +817,9 @@ export function SendModal({
                         textAlign: "left",
                         background:
                           hoveredOpt === opt.key
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(255,255,255,0.04)",
-                        border: `1px solid ${hoveredOpt === opt.key ? "rgba(229,90,0,0.28)" : "rgba(255,255,255,0.08)"}`,
+                            ? "color-mix(in srgb, var(--foreground) 8%, transparent)"
+                            : "color-mix(in srgb, var(--foreground) 4%, transparent)",
+                        border: `1px solid ${hoveredOpt === opt.key ? "rgba(229,90,0,0.28)" : BORDER}`,
                         transition: "all 0.14s",
                       }}
                     >
@@ -846,7 +848,7 @@ export function SendModal({
                           style={{
                             fontSize: 13,
                             fontWeight: 600,
-                            color: "rgba(255,255,255,0.85)",
+                            color: TEXT_HI,
                             lineHeight: 1.2,
                           }}
                         >
@@ -855,7 +857,7 @@ export function SendModal({
                         <p
                           style={{
                             fontSize: 11,
-                            color: "rgba(255,255,255,0.30)",
+                            color: TEXT_LO,
                             marginTop: 2,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -869,7 +871,7 @@ export function SendModal({
                         style={{
                           width: 14,
                           height: 14,
-                          color: "rgba(255,255,255,0.22)",
+                          color: TEXT_LO,
                           flexShrink: 0,
                         }}
                       />

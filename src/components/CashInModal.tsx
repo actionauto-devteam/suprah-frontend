@@ -1,12 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { X, Copy, CheckCircle2, ExternalLink, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { X, Copy, CheckCircle2, ExternalLink, ChevronRight, AlertCircle } from "lucide-react";
 
 const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
 const MONO = "'Share Tech Mono', 'Roboto Mono', monospace";
 const ORANGE = "#E55A00";
-const PAGE_BG = "#0a0a0c";
+
+// ─── Theme tokens (CSS vars — auto-adapt to light/dark) ────────────────────────
+const MODAL_BG      = "var(--card)";
+const MODAL_BORDER  = "var(--border)";
+const TEXT_HI       = "var(--card-foreground)";
+const TEXT_MID      = "var(--muted-foreground)";
+const TEXT_LO       = "color-mix(in srgb, var(--muted-foreground) 55%, transparent)";
+const TEXT_FAINT    = "color-mix(in srgb, var(--muted-foreground) 40%, transparent)";
+const SURFACE       = "color-mix(in srgb, var(--foreground) 5%, transparent)";
+const SURFACE_SUBTLE = "color-mix(in srgb, var(--foreground) 3%, transparent)";
+const BORDER_HOVER  = "color-mix(in srgb, var(--foreground) 14%, transparent)";
 
 // ─── Provider Config ───────────────────────────────────────────────────────────
 
@@ -142,28 +152,28 @@ function ProviderCard({
         padding: "14px 16px", borderRadius: 12, border: "none",
         background: selected
           ? "rgba(229,90,0,0.10)"
-          : hover ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.03)",
+          : hover ? SURFACE : SURFACE_SUBTLE,
         outline: selected
           ? `1.5px solid ${ORANGE}`
-          : `1px solid ${hover ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)"}`,
+          : `1px solid ${hover ? BORDER_HOVER : MODAL_BORDER}`,
         cursor: "pointer", textAlign: "left", transition: "all 0.14s", width: "100%",
       }}
     >
       <div style={{ flexShrink: 0 }}>{provider.logo}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, color: "#fff", margin: 0 }}>
+        <p style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, color: TEXT_HI, margin: 0 }}>
           {provider.name}
         </p>
-        <p style={{ fontFamily: DISPLAY, fontSize: 12, color: "rgba(255,255,255,0.40)", margin: "2px 0 0" }}>
+        <p style={{ fontFamily: DISPLAY, fontSize: 12, color: TEXT_LO, margin: "2px 0 0" }}>
           {provider.tagline}
         </p>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
         <p style={{ fontFamily: MONO, fontSize: 11, color: provider.color, margin: 0 }}>{provider.fees}</p>
-        <p style={{ fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.30)", margin: "2px 0 0" }}>{provider.speed}</p>
+        <p style={{ fontFamily: MONO, fontSize: 11, color: TEXT_FAINT, margin: "2px 0 0" }}>{provider.speed}</p>
       </div>
       <ChevronRight
-        style={{ width: 14, height: 14, color: selected ? ORANGE : "rgba(255,255,255,0.20)", flexShrink: 0 }}
+        style={{ width: 14, height: 14, color: selected ? ORANGE : TEXT_FAINT, flexShrink: 0 }}
       />
     </button>
   );
@@ -185,17 +195,17 @@ function CopyField({ field }: { field: FieldConfig }) {
       style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "10px 14px",
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.07)",
+        background: SURFACE,
+        border: `1px solid ${MODAL_BORDER}`,
         borderRadius: 8,
         gap: 12,
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <p style={{ fontFamily: DISPLAY, fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        <p style={{ fontFamily: DISPLAY, fontSize: 11, color: TEXT_LO, margin: 0, letterSpacing: "0.06em", textTransform: "uppercase" }}>
           {field.label}
         </p>
-        <p style={{ fontFamily: MONO, fontSize: 13, color: "#fff", margin: "3px 0 0", wordBreak: "break-all" }}>
+        <p style={{ fontFamily: MONO, fontSize: 13, color: TEXT_HI, margin: "3px 0 0", wordBreak: "break-all" }}>
           {field.value}
         </p>
       </div>
@@ -204,11 +214,11 @@ function CopyField({ field }: { field: FieldConfig }) {
           onClick={handleCopy}
           style={{
             flexShrink: 0, padding: "6px 10px", borderRadius: 6,
-            background: copied ? "rgba(110,231,183,0.15)" : "rgba(255,255,255,0.07)",
-            border: `1px solid ${copied ? "rgba(110,231,183,0.30)" : "rgba(255,255,255,0.10)"}`,
+            background: copied ? "rgba(110,231,183,0.15)" : SURFACE,
+            border: `1px solid ${copied ? "rgba(110,231,183,0.30)" : MODAL_BORDER}`,
             cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
             fontFamily: DISPLAY, fontSize: 11, fontWeight: 600,
-            color: copied ? "#6EE7B7" : "rgba(255,255,255,0.55)",
+            color: copied ? "#6EE7B7" : TEXT_MID,
             transition: "all 0.14s",
           }}
         >
@@ -233,13 +243,14 @@ function AmountStep({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
-        <p style={{ fontFamily: DISPLAY, fontSize: 12, color: "rgba(255,255,255,0.40)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
+        <p style={{ fontFamily: DISPLAY, fontSize: 12, color: TEXT_LO, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
           Amount (USD)
         </p>
         <div style={{ position: "relative" }}>
           <span style={{
             position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
-            fontFamily: DISPLAY, fontSize: 24, fontWeight: 700, color: valid ? "#fff" : "rgba(255,255,255,0.25)",
+            fontFamily: DISPLAY, fontSize: 24, fontWeight: 700,
+            color: valid ? TEXT_HI : "color-mix(in srgb, var(--muted-foreground) 50%, transparent)",
           }}>$</span>
           <input
             type="number" min="1" step="0.01"
@@ -248,9 +259,9 @@ function AmountStep({
             placeholder="0.00"
             style={{
               width: "100%", padding: "14px 16px 14px 36px",
-              background: "rgba(255,255,255,0.05)", border: `1px solid ${valid ? "rgba(229,90,0,0.40)" : "rgba(255,255,255,0.10)"}`,
+              background: SURFACE, border: `1px solid ${valid ? "rgba(229,90,0,0.40)" : MODAL_BORDER}`,
               borderRadius: 12, outline: "none",
-              fontFamily: MONO, fontSize: 28, fontWeight: 700, color: "#fff",
+              fontFamily: MONO, fontSize: 28, fontWeight: 700, color: TEXT_HI,
               boxSizing: "border-box",
             }}
           />
@@ -268,10 +279,10 @@ function AmountStep({
           <button
             key={v} onClick={() => onChange(v)}
             style={{
-              padding: "6px 14px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.10)",
-              background: amount === v ? "rgba(229,90,0,0.15)" : "rgba(255,255,255,0.04)",
+              padding: "6px 14px", borderRadius: 20, border: `1px solid ${MODAL_BORDER}`,
+              background: amount === v ? "rgba(229,90,0,0.15)" : SURFACE_SUBTLE,
               outline: amount === v ? `1px solid ${ORANGE}` : "none",
-              color: amount === v ? ORANGE : "rgba(255,255,255,0.50)",
+              color: amount === v ? ORANGE : TEXT_MID,
               fontFamily: MONO, fontSize: 12, cursor: "pointer", transition: "all 0.13s",
             }}
           >${v}</button>
@@ -282,8 +293,8 @@ function AmountStep({
         onClick={onNext} disabled={!valid}
         style={{
           padding: "14px", borderRadius: 10, border: "none",
-          background: valid ? ORANGE : "rgba(255,255,255,0.06)",
-          color: valid ? "#fff" : "rgba(255,255,255,0.25)",
+          background: valid ? ORANGE : SURFACE,
+          color: valid ? "#fff" : TEXT_FAINT,
           fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: "0.03em",
           cursor: valid ? "pointer" : "not-allowed", transition: "background 0.14s",
         }}
@@ -309,8 +320,8 @@ function DetailsStep({
         padding: "12px 16px",
         background: "rgba(229,90,0,0.08)", border: "1px solid rgba(229,90,0,0.20)", borderRadius: 10,
       }}>
-        <span style={{ fontFamily: DISPLAY, fontSize: 13, color: "rgba(255,255,255,0.55)" }}>Depositing</span>
-        <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: "#fff" }}>
+        <span style={{ fontFamily: DISPLAY, fontSize: 13, color: TEXT_MID }}>Depositing</span>
+        <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: TEXT_HI }}>
           ${parseFloat(amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
@@ -319,8 +330,8 @@ function DetailsStep({
       <div style={{ display: "flex", alignItems: "center", gap: 10, paddingLeft: 2 }}>
         {provider.logo}
         <div>
-          <p style={{ fontFamily: DISPLAY, fontSize: 14, fontWeight: 700, color: "#fff", margin: 0 }}>{provider.name}</p>
-          <p style={{ fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "2px 0 0" }}>
+          <p style={{ fontFamily: DISPLAY, fontSize: 14, fontWeight: 700, color: TEXT_HI, margin: 0 }}>{provider.name}</p>
+          <p style={{ fontFamily: MONO, fontSize: 11, color: TEXT_LO, margin: "2px 0 0" }}>
             {provider.fees} · {provider.speed}
           </p>
         </div>
@@ -333,7 +344,7 @@ function DetailsStep({
 
       {/* Instructions */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <p style={{ fontFamily: DISPLAY, fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
+        <p style={{ fontFamily: DISPLAY, fontSize: 11, color: TEXT_LO, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
           Steps
         </p>
         {provider.instructions.map((step, i) => (
@@ -344,7 +355,7 @@ function DetailsStep({
               display: "flex", alignItems: "center", justifyContent: "center",
               fontFamily: MONO, fontSize: 10, color: ORANGE, marginTop: 1,
             }}>{i + 1}</span>
-            <p style={{ fontFamily: DISPLAY, fontSize: 13, color: "rgba(255,255,255,0.60)", margin: 0, lineHeight: 1.5 }}>{step}</p>
+            <p style={{ fontFamily: DISPLAY, fontSize: 13, color: TEXT_MID, margin: 0, lineHeight: 1.5 }}>{step}</p>
           </div>
         ))}
       </div>
@@ -354,8 +365,8 @@ function DetailsStep({
         <button
           onClick={onBack}
           style={{
-            flex: 1, padding: "12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.10)",
-            background: "transparent", color: "rgba(255,255,255,0.50)",
+            flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${MODAL_BORDER}`,
+            background: "transparent", color: TEXT_MID,
             fontFamily: DISPLAY, fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >← Back</button>
@@ -430,10 +441,10 @@ export function CashInModal({ open, onClose }: CashInModalProps) {
         top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",
         width: "min(480px, 95vw)",
-        background: "#0f0f12",
-        border: "1px solid rgba(255,255,255,0.10)",
+        background: MODAL_BG,
+        border: `1px solid ${MODAL_BORDER}`,
         borderRadius: 18,
-        boxShadow: "0 32px 80px rgba(0,0,0,0.70)",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.40)",
         animation: "ciSlideUp 0.22s cubic-bezier(0.22,1,0.36,1)",
         overflow: "hidden",
         fontFamily: DISPLAY,
@@ -445,10 +456,10 @@ export function CashInModal({ open, onClose }: CashInModalProps) {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px 14px" }}>
           <div>
-            <h2 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700, color: "#fff", margin: 0 }}>
+            <h2 style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700, color: TEXT_HI, margin: 0 }}>
               Cash In
             </h2>
-            <p style={{ fontFamily: DISPLAY, fontSize: 12, color: "rgba(255,255,255,0.30)", margin: "3px 0 0" }}>
+            <p style={{ fontFamily: DISPLAY, fontSize: 12, color: TEXT_LO, margin: "3px 0 0" }}>
               {step === "provider" && "Choose a deposit method"}
               {step === "amount" && `via ${provider?.name}`}
               {step === "details" && `${provider?.name} details`}
@@ -461,7 +472,7 @@ export function CashInModal({ open, onClose }: CashInModalProps) {
               {(["provider", "amount", "details"] as const).map(s => (
                 <div key={s} style={{
                   width: s === step ? 18 : 6, height: 6, borderRadius: 3,
-                  background: s === step ? ORANGE : "rgba(255,255,255,0.15)",
+                  background: s === step ? ORANGE : MODAL_BORDER,
                   transition: "all 0.2s",
                 }} />
               ))}
@@ -469,9 +480,9 @@ export function CashInModal({ open, onClose }: CashInModalProps) {
             <button
               onClick={onClose}
               style={{
-                width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.05)", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.50)",
+                width: 30, height: 30, borderRadius: 8, border: `1px solid ${MODAL_BORDER}`,
+                background: SURFACE, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", color: TEXT_MID,
               }}
             >
               <X style={{ width: 14, height: 14 }} />
@@ -480,7 +491,7 @@ export function CashInModal({ open, onClose }: CashInModalProps) {
         </div>
 
         {/* Divider */}
-        <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "0 22px" }} />
+        <div style={{ height: 1, background: MODAL_BORDER, margin: "0 22px" }} />
 
         {/* Body */}
         <div style={{ padding: "20px 22px 24px" }}>
@@ -495,7 +506,7 @@ export function CashInModal({ open, onClose }: CashInModalProps) {
                   onClick={() => handleSelectProvider(p.id)}
                 />
               ))}
-              <p style={{ fontFamily: DISPLAY, fontSize: 11, color: "rgba(255,255,255,0.22)", textAlign: "center", marginTop: 8 }}>
+              <p style={{ fontFamily: DISPLAY, fontSize: 11, color: TEXT_FAINT, textAlign: "center", marginTop: 8 }}>
                 Funds are credited after confirmation by the payment provider.
               </p>
             </div>
