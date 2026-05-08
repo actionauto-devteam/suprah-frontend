@@ -170,7 +170,10 @@ export function DriverTrackerAvailableLoadsCard({
       </div>
 
       <Dialog open={assignLoad !== null} onOpenChange={(open) => { if (!open) setAssignLoad(null); }}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent
+          className="sm:max-w-xl"
+          overlayClassName="bg-black/72 backdrop-blur-[4px]"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <UserPlus className="size-4 text-primary" />

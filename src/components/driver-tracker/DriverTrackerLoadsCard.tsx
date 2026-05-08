@@ -201,7 +201,10 @@ export function DriverTrackerLoadsCard({
       </div>
 
       <Dialog open={viewDriver !== null && !reassignShipmentId} onOpenChange={(open) => { if (!open) setViewDriver(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent
+          className="sm:max-w-lg"
+          overlayClassName="bg-black/72 backdrop-blur-[4px]"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <Truck className="size-4 text-primary" />
@@ -316,7 +319,10 @@ export function DriverTrackerLoadsCard({
       </Dialog>
 
       <Dialog open={reassignShipmentId !== null} onOpenChange={(open) => { if (!open) setReassignShipmentId(null); }}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent
+          className="sm:max-w-xl"
+          overlayClassName="bg-black/72 backdrop-blur-[4px]"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <RefreshCw className="size-4 text-primary" />
