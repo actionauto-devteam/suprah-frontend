@@ -10,7 +10,7 @@ import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft, Send, Square, Trash2,
-  Loader2, Calendar, Clock, MessageSquare,
+  Calendar, Clock, MessageSquare,
   Fingerprint, Rss, User, Zap,
   ChevronRight, RefreshCw,
 } from 'lucide-react'
@@ -154,8 +154,12 @@ const PAGE_CSS = `
 @keyframes axpg-wave    { 0%,100%{transform:scaleY(.12)} 50%{transform:scaleY(1)} }
 @keyframes axpg-pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
 @keyframes axpg-slide-r { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+@keyframes axpg-enter   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
 [data-axp-page] *, [data-axp-page] *::before, [data-axp-page] *::after { box-sizing: border-box; }
+
+/* ── Page entrance — smooth fade-slide in from bottom ── */
+[data-axp-page] { animation: axpg-enter .32s cubic-bezier(.16,1,.3,1) both; }
 
 /* ── Layout shell ── */
 .apg-shell {
@@ -1184,13 +1188,19 @@ export default function SupraLeoPage() {
             </div>
           )}
 
-          {/* History loading */}
+          {/* History loading — skeleton bars to avoid jarring full-screen spinner */}
           {isLoadingHistory && (
-            <div className="apg-center-loader">
-              <Loader2
-                size={20}
-                style={{ animation: 'axpg-spin .9s linear infinite', color: 'var(--p-acc)', opacity: .5 }}
-              />
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[72, 52, 88, 44].map((w, i) => (
+                <div key={i} style={{
+                  height: 12, borderRadius: 6, opacity: .18 - i * .03,
+                  background: 'var(--p-acc)',
+                  width: `${w}%`,
+                  alignSelf: i % 2 === 0 ? 'flex-start' : 'flex-end',
+                  animation: 'axpg-pulse 1.6s ease-in-out infinite',
+                  animationDelay: `${i * 0.12}s`,
+                }} />
+              ))}
             </div>
           )}
 

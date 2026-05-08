@@ -80,7 +80,7 @@ export default function RootLayout({
                 {children}
               </QueryProvider>
             </main>
-            <Toaster />
+            <Toaster position="top-right" />
             <ImpersonationBanner />
             {process.env.NODE_ENV === "development" && <DevRoleSwitcher />}
             <ServiceWorkerRegistration />

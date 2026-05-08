@@ -18,6 +18,7 @@ import {
   ArrowRight,
   X,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,58 @@ const SETTINGS_NAV_ITEMS: Array<{
   { id: "integrations", label: "Integrations", icon: Zap },
 ];
 
+const SYSTEM_SETTINGS_STORAGE_KEY = "action-auto-system-settings";
+
+type SystemSettings = {
+  account: {
+    dealershipName: string;
+    primaryLocation: string;
+    autoSyncDms: boolean;
+    publicConditionReports: boolean;
+  };
+  locations: {
+    defaultIntakeLocation: string;
+    inventoryHoldWindowDays: string;
+    autoAssignNearestLot: boolean;
+  };
+  security: {
+    requireMfaForStaff: boolean;
+    strictRoleEnforcement: boolean;
+    sessionTimeoutMinutes: string;
+  };
+  notifications: {
+    emailAlerts: boolean;
+    pushNotifications: boolean;
+    dailyDigestTime: string;
+  };
+  integrations: Record<string, never>;
+};
+
+const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
+  account: {
+    dealershipName: "Action Auto Utah",
+    primaryLocation: "Lehi, UT",
+    autoSyncDms: true,
+    publicConditionReports: true,
+  },
+  locations: {
+    defaultIntakeLocation: "Lehi, UT",
+    inventoryHoldWindowDays: "14",
+    autoAssignNearestLot: true,
+  },
+  security: {
+    requireMfaForStaff: true,
+    strictRoleEnforcement: true,
+    sessionTimeoutMinutes: "30",
+  },
+  notifications: {
+    emailAlerts: true,
+    pushNotifications: true,
+    dailyDigestTime: "08:00 AM",
+  },
+  integrations: {},
+};
+
 const CATEGORY_LABELS: Record<ReportCategory, string> = {
   transportation: "Transportation",
   driver: "Driver Reports",
@@ -150,6 +203,15 @@ function SettingsContent() {
   const [isPrinting, setIsPrinting] = React.useState(false);
   const [activeSettingsSection, setActiveSettingsSection] =
     React.useState<SettingsSection>("account");
+  const [savingSettingsSection, setSavingSettingsSection] =
+    React.useState<SettingsSection | null>(null);
+  const [systemSettings, setSystemSettings] = React.useState<SystemSettings>(
+    DEFAULT_SYSTEM_SETTINGS,
+  );
+  const [draftSystemSettings, setDraftSystemSettings] =
+    React.useState<SystemSettings>(DEFAULT_SYSTEM_SETTINGS);
+  const [editingSettingsSection, setEditingSettingsSection] =
+    React.useState<SettingsSection | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<FileEntry | null>(
     null,
   );
@@ -159,6 +221,40 @@ function SettingsContent() {
   const [shareTarget, setShareTarget] = React.useState<ShareTarget>({
     type: "reports-area",
   });
+
+  React.useEffect(() => {
+    try {
+      const rawSettings = window.localStorage.getItem(
+        SYSTEM_SETTINGS_STORAGE_KEY,
+      );
+      if (!rawSettings) return;
+
+      const parsedSettings = JSON.parse(rawSettings) as Partial<SystemSettings>;
+      const nextSettings: SystemSettings = {
+        account: {
+          ...DEFAULT_SYSTEM_SETTINGS.account,
+          ...parsedSettings.account,
+        },
+        locations: {
+          ...DEFAULT_SYSTEM_SETTINGS.locations,
+          ...parsedSettings.locations,
+        },
+        security: {
+          ...DEFAULT_SYSTEM_SETTINGS.security,
+          ...parsedSettings.security,
+        },
+        notifications: {
+          ...DEFAULT_SYSTEM_SETTINGS.notifications,
+          ...parsedSettings.notifications,
+        },
+        integrations: {},
+      };
+
+      setSystemSettings(nextSettings);
+    } catch {
+      toast.error("Failed to load saved system settings.");
+    }
+  }, []);
 
   const loadGeneratedFiles = React.useCallback(async () => {
     try {
@@ -447,6 +543,51 @@ function SettingsContent() {
     }
   };
 
+  const openSystemSettingsEditor = (section: SettingsSection) => {
+    setDraftSystemSettings(systemSettings);
+    setEditingSettingsSection(section);
+  };
+
+  const updateDraftSettings = (
+    section: SettingsSection,
+    updates: Record<string, string | boolean>,
+  ) => {
+    setDraftSystemSettings(
+      (prev) =>
+        ({
+          ...prev,
+          [section]: {
+            ...prev[section],
+            ...updates,
+          },
+        }) as SystemSettings,
+    );
+  };
+
+  const handleSaveEditedSystemSettings = async () => {
+    if (!editingSettingsSection) return;
+    const section = editingSettingsSection;
+    setSavingSettingsSection(section);
+    try {
+      window.localStorage.setItem(
+        SYSTEM_SETTINGS_STORAGE_KEY,
+        JSON.stringify(draftSystemSettings),
+      );
+      setSystemSettings(draftSystemSettings);
+      setEditingSettingsSection(null);
+      toast.success("Changes saved successfully");
+    } catch {
+      toast.error("Failed to save changes. Please try again.");
+    } finally {
+      setSavingSettingsSection(null);
+    }
+  };
+
+  const editingSettingsLabel = editingSettingsSection
+    ? SETTINGS_NAV_ITEMS.find((item) => item.id === editingSettingsSection)
+        ?.label
+    : null;
+
   return (
     <div className="p-4 md:p-6 space-y-6 bg-background min-h-screen">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -679,31 +820,315 @@ function SettingsContent() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={!!editingSettingsSection}
+        onOpenChange={(open) => {
+          if (!open) setEditingSettingsSection(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="size-5 text-primary" />
+              Edit {editingSettingsLabel}
+            </DialogTitle>
+            <DialogDescription>
+              Update this system settings section, then save your changes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {editingSettingsSection === "account" && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Dealership Name
+                    </label>
+                    <Input
+                      value={draftSystemSettings.account.dealershipName}
+                      onChange={(event) =>
+                        updateDraftSettings("account", {
+                          dealershipName: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Primary Location
+                    </label>
+                    <Input
+                      value={draftSystemSettings.account.primaryLocation}
+                      onChange={(event) =>
+                        updateDraftSettings("account", {
+                          primaryLocation: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">Auto-Sync DMS</p>
+                    <p className="text-xs text-muted-foreground">
+                      Automatically pull VIN-level data.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draftSystemSettings.account.autoSyncDms}
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("account", { autoSyncDms: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Public Condition Reports
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Make reports accessible via public URL.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={
+                      draftSystemSettings.account.publicConditionReports
+                    }
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("account", {
+                        publicConditionReports: checked,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            {editingSettingsSection === "locations" && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Default Intake Location
+                    </label>
+                    <Input
+                      value={
+                        draftSystemSettings.locations.defaultIntakeLocation
+                      }
+                      onChange={(event) =>
+                        updateDraftSettings("locations", {
+                          defaultIntakeLocation: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Inventory Hold Window (Days)
+                    </label>
+                    <Input
+                      value={
+                        draftSystemSettings.locations.inventoryHoldWindowDays
+                      }
+                      onChange={(event) =>
+                        updateDraftSettings("locations", {
+                          inventoryHoldWindowDays: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Auto-assign to Nearest Lot
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Assign incoming units by distance and capacity.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draftSystemSettings.locations.autoAssignNearestLot}
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("locations", {
+                        autoAssignNearestLot: checked,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            {editingSettingsSection === "security" && (
+              <>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Require MFA for Staff
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Require two-factor authentication for employees.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draftSystemSettings.security.requireMfaForStaff}
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("security", {
+                        requireMfaForStaff: checked,
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Strict Role Enforcement
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Prevent cross-role access by default.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draftSystemSettings.security.strictRoleEnforcement}
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("security", {
+                        strictRoleEnforcement: checked,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Session Timeout (Minutes)
+                  </label>
+                  <Input
+                    value={draftSystemSettings.security.sessionTimeoutMinutes}
+                    onChange={(event) =>
+                      updateDraftSettings("security", {
+                        sessionTimeoutMinutes: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            {editingSettingsSection === "notifications" && (
+              <>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">Email Alerts</p>
+                    <p className="text-xs text-muted-foreground">
+                      Receive dispatch and inventory updates by email.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draftSystemSettings.notifications.emailAlerts}
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("notifications", {
+                        emailAlerts: checked,
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-semibold">Push Notifications</p>
+                    <p className="text-xs text-muted-foreground">
+                      Receive real-time in-app alerts.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={
+                      draftSystemSettings.notifications.pushNotifications
+                    }
+                    onCheckedChange={(checked) =>
+                      updateDraftSettings("notifications", {
+                        pushNotifications: checked,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Daily Digest Time
+                  </label>
+                  <Input
+                    value={draftSystemSettings.notifications.dailyDigestTime}
+                    onChange={(event) =>
+                      updateDraftSettings("notifications", {
+                        dailyDigestTime: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            {editingSettingsSection === "integrations" && (
+              <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                Integration connection editing is not configured yet. Current
+                connection statuses are shown in the settings card.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditingSettingsSection(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-primary"
+              onClick={handleSaveEditedSystemSettings}
+              disabled={
+                !!editingSettingsSection &&
+                savingSettingsSection === editingSettingsSection
+              }
+            >
+              {!!editingSettingsSection &&
+              savingSettingsSection === editingSettingsSection
+                ? "Saving..."
+                : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="bg-card border p-1 rounded-lg h-11 w-fit mb-6">
+        <TabsList className="grid w-full grid-cols-4 bg-card border p-1 rounded-lg h-auto min-h-11 mb-6">
           <TabsTrigger
             value="reports"
-            className="gap-2 text-[11px] font-bold uppercase tracking-wider px-2 md:px-6 data-[state=active]:bg-secondary shadow-none"
+            className="w-full min-w-0 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2 sm:px-4 py-2.5 data-[state=active]:bg-secondary shadow-none"
           >
-            <FileText className="size-4 hidden md:block" /> Reports
+            <FileText className="size-4 shrink-0 hidden sm:block" />
+            <span className="truncate">Reports</span>
           </TabsTrigger>
           <TabsTrigger
             value="settings"
-            className="gap-2 text-[11px] font-bold uppercase tracking-wider px-2 md:px-6 data-[state=active]:bg-secondary shadow-none"
+            className="w-full min-w-0 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2 sm:px-4 py-2.5 data-[state=active]:bg-secondary shadow-none"
           >
-            <SettingsIcon className="size-4 hidden md:block" /> Settings
+            <SettingsIcon className="size-4 shrink-0 hidden sm:block" />
+            <span className="truncate">Settings</span>
           </TabsTrigger>
           <TabsTrigger
             value="dealership"
-            className="gap-2 text-[11px] font-bold uppercase tracking-wider px-2 md:px-6 data-[state=active]:bg-secondary shadow-none"
+            className="w-full min-w-0 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2 sm:px-4 py-2.5 data-[state=active]:bg-secondary shadow-none"
           >
-            <MapPin className="size-4 hidden md:block" /> Organization
+            <MapPin className="size-4 shrink-0 hidden sm:block" />
+            <span className="truncate">Organization</span>
           </TabsTrigger>
           <TabsTrigger
             value="drivers"
-            className="gap-2 text-[11px] font-bold uppercase tracking-wider px-2 md:px-6 data-[state=active]:bg-secondary shadow-none"
+            className="w-full min-w-0 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2 sm:px-4 py-2.5 data-[state=active]:bg-secondary shadow-none"
           >
-            <Truck className="size-4 hidden md:block" /> Drivers
+            <Truck className="size-4 shrink-0 hidden sm:block" />
+            <span className="truncate">Drivers</span>
           </TabsTrigger>
         </TabsList>
 
@@ -863,13 +1288,37 @@ function SettingsContent() {
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">
                             Dealership Name
                           </label>
-                          <Input defaultValue="Action Auto Utah" />
+                          <Input
+                            value={systemSettings.account.dealershipName}
+                            readOnly
+                            onChange={(event) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                account: {
+                                  ...prev.account,
+                                  dealershipName: event.target.value,
+                                },
+                              }))
+                            }
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">
                             Primary Location
                           </label>
-                          <Input defaultValue="Lehi, UT" />
+                          <Input
+                            value={systemSettings.account.primaryLocation}
+                            readOnly
+                            onChange={(event) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                account: {
+                                  ...prev.account,
+                                  primaryLocation: event.target.value,
+                                },
+                              }))
+                            }
+                          />
                         </div>
                       </div>
                       <Separator />
@@ -883,7 +1332,19 @@ function SettingsContent() {
                             management system.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={systemSettings.account.autoSyncDms}
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              account: {
+                                ...prev.account,
+                                autoSyncDms: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
@@ -895,15 +1356,31 @@ function SettingsContent() {
                             VDP pages.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={
+                            systemSettings.account.publicConditionReports
+                          }
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              account: {
+                                ...prev.account,
+                                publicConditionReports: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
                       <Separator />
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          Cancel
-                        </Button>
-                        <Button size="sm" className="bg-primary px-8">
-                          Save Changes
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-primary px-8"
+                          onClick={() => openSystemSettingsEditor("account")}
+                        >
+                          <Pencil className="size-4" />
+                          Edit
                         </Button>
                       </div>
                     </CardContent>
@@ -927,13 +1404,41 @@ function SettingsContent() {
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">
                             Default Intake Location
                           </label>
-                          <Input defaultValue="Lehi, UT" />
+                          <Input
+                            value={
+                              systemSettings.locations.defaultIntakeLocation
+                            }
+                            readOnly
+                            onChange={(event) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                locations: {
+                                  ...prev.locations,
+                                  defaultIntakeLocation: event.target.value,
+                                },
+                              }))
+                            }
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">
                             Inventory Hold Window (Days)
                           </label>
-                          <Input defaultValue="14" />
+                          <Input
+                            value={
+                              systemSettings.locations.inventoryHoldWindowDays
+                            }
+                            readOnly
+                            onChange={(event) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                locations: {
+                                  ...prev.locations,
+                                  inventoryHoldWindowDays: event.target.value,
+                                },
+                              }))
+                            }
+                          />
                         </div>
                       </div>
                       <Separator />
@@ -947,14 +1452,30 @@ function SettingsContent() {
                             distance and lot capacity.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={
+                            systemSettings.locations.autoAssignNearestLot
+                          }
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              locations: {
+                                ...prev.locations,
+                                autoAssignNearestLot: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          Cancel
-                        </Button>
-                        <Button size="sm" className="bg-primary px-8">
-                          Save Changes
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-primary px-8"
+                          onClick={() => openSystemSettingsEditor("locations")}
+                        >
+                          <Pencil className="size-4" />
+                          Edit
                         </Button>
                       </div>
                     </CardContent>
@@ -983,7 +1504,19 @@ function SettingsContent() {
                             accounts.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={systemSettings.security.requireMfaForStaff}
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              security: {
+                                ...prev.security,
+                                requireMfaForStaff: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
@@ -995,20 +1528,48 @@ function SettingsContent() {
                             default.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={
+                            systemSettings.security.strictRoleEnforcement
+                          }
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              security: {
+                                ...prev.security,
+                                strictRoleEnforcement: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">
                           Session Timeout (Minutes)
                         </label>
-                        <Input defaultValue="30" />
+                        <Input
+                          value={systemSettings.security.sessionTimeoutMinutes}
+                          readOnly
+                          onChange={(event) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              security: {
+                                ...prev.security,
+                                sessionTimeoutMinutes: event.target.value,
+                              },
+                            }))
+                          }
+                        />
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          Cancel
-                        </Button>
-                        <Button size="sm" className="bg-primary px-8">
-                          Save Changes
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-primary px-8"
+                          onClick={() => openSystemSettingsEditor("security")}
+                        >
+                          <Pencil className="size-4" />
+                          Edit
                         </Button>
                       </div>
                     </CardContent>
@@ -1036,7 +1597,19 @@ function SettingsContent() {
                             Receive dispatch and inventory updates by email.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={systemSettings.notifications.emailAlerts}
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              notifications: {
+                                ...prev.notifications,
+                                emailAlerts: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
@@ -1047,20 +1620,50 @@ function SettingsContent() {
                             Receive real-time alerts in-app for urgent actions.
                           </p>
                         </div>
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={
+                            systemSettings.notifications.pushNotifications
+                          }
+                          disabled
+                          onCheckedChange={(checked) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              notifications: {
+                                ...prev.notifications,
+                                pushNotifications: checked,
+                              },
+                            }))
+                          }
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">
                           Daily Digest Time
                         </label>
-                        <Input defaultValue="08:00 AM" />
+                        <Input
+                          value={systemSettings.notifications.dailyDigestTime}
+                          readOnly
+                          onChange={(event) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              notifications: {
+                                ...prev.notifications,
+                                dailyDigestTime: event.target.value,
+                              },
+                            }))
+                          }
+                        />
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          Cancel
-                        </Button>
-                        <Button size="sm" className="bg-primary px-8">
-                          Save Changes
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-primary px-8"
+                          onClick={() =>
+                            openSystemSettingsEditor("notifications")
+                          }
+                        >
+                          <Pencil className="size-4" />
+                          Edit
                         </Button>
                       </div>
                     </CardContent>
@@ -1103,12 +1706,16 @@ function SettingsContent() {
                           <Badge variant="outline">Needs Setup</Badge>
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          Cancel
-                        </Button>
-                        <Button size="sm" className="bg-primary px-8">
-                          Save Changes
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-primary px-8"
+                          onClick={() =>
+                            openSystemSettingsEditor("integrations")
+                          }
+                        >
+                          <Pencil className="size-4" />
+                          Edit
                         </Button>
                       </div>
                     </CardContent>

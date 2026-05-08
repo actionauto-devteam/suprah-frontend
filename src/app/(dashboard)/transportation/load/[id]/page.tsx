@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { format } from "date-fns"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 // Skeleton loader
@@ -46,7 +46,84 @@ function StatusBadge({ status }: { status?: string }) {
   return <Badge variant="outline" className={`${color} px-3 py-1 font-medium text-xs rounded-full shadow-none`}>{status}</Badge>
 }
 
-function LoadTrackingTimeline({ load }: { load: any }) {
+const PLACEHOLDER_VALUES = new Set([
+  "test",
+  "teest",
+  "n/a",
+  "na",
+  "none",
+  "null",
+  "undefined",
+  "-",
+  "--",
+  "—",
+]);
+
+type LoadLocation = {
+  city?: string;
+  state?: string;
+  zip?: string;
+  street?: string;
+  companyName?: string;
+  phone?: string;
+  phoneExt?: string;
+  contactName?: string;
+};
+
+function isPlaceholderValue(value?: string | number | null) {
+  if (value === null || value === undefined) return true;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return true;
+  if (PLACEHOLDER_VALUES.has(normalized)) return true;
+  if (/^test[\s\d_-]*$/i.test(normalized)) return true;
+  if (/^123+123+123+\d*$/.test(normalized.replace(/\D/g, ""))) return true;
+  return false;
+}
+
+function toTitleCase(value?: string | number | null) {
+  if (isPlaceholderValue(value)) return null;
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
+function cleanText(value?: string | number | null) {
+  if (isPlaceholderValue(value)) return null;
+  return String(value).trim();
+}
+
+function formatPhone(value?: string | number | null, ext?: string | number | null) {
+  if (isPlaceholderValue(value)) return null;
+  const digits = String(value).replace(/\D/g, "");
+  if (digits.length < 10) return null;
+
+  const local = digits.length === 11 && digits.startsWith("1")
+    ? digits.slice(1)
+    : digits.slice(-10);
+  const formatted = `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
+  const cleanExt = cleanText(ext);
+  return cleanExt ? `${formatted} ext ${cleanExt}` : formatted;
+}
+
+function formatLocationLine(location?: LoadLocation) {
+  const city = toTitleCase(location?.city);
+  const state = cleanText(location?.state)?.toUpperCase();
+  const zip = cleanText(location?.zip);
+  const parts = [city, state].filter(Boolean).join(", ");
+  return [parts, zip].filter(Boolean).join(" ") || "Location not provided";
+}
+
+type LoadTimeline = {
+  assignedAt?: string;
+  acceptedAt?: string;
+  driverAcceptedAt?: string;
+  pickedUpAt?: string;
+  inTransitAt?: string;
+  deliveredAt?: string;
+};
+
+function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
   const steps = [
     { label: "Assigned", date: load.assignedAt, icon: <User2 className="size-3.5" />, color: "slate" },
     { label: "Accepted", date: load.acceptedAt || load.driverAcceptedAt, icon: <CheckCircle2 className="size-3.5" />, color: "blue" },
@@ -162,7 +239,7 @@ export default function LoadDetailsPage() {
       <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
         <AlertCircle className="size-12 text-destructive opacity-80" />
         <h2 className="text-xl font-semibold">Load Not Found</h2>
-        <p className="text-muted-foreground text-sm">We couldn't find the details for this load. It may have been deleted.</p>
+        <p className="text-muted-foreground text-sm">We could not find the details for this load. It may have been deleted.</p>
         <Button variant="outline" onClick={() => router.push("/transportation")}>Back to Transportation</Button>
       </div>
     )
@@ -215,30 +292,34 @@ export default function LoadDetailsPage() {
       <Card className="border-border shadow-sm overflow-hidden bg-card relative p-0">
         <CardContent className="p-0">
           <div className="flex flex-col lg:flex-row relative">
-            {/* Pick-Up */}
-            <div className="flex-1 p-6 md:p-8">
+            {/* Pickup */}
+            <div className="flex-1 p-6 md:p-8 lg:bg-blue-500/[0.03]">
               <div className="flex items-start gap-4">
                 <div className="bg-blue-500/10 p-3 rounded-2xl shrink-0 mt-1 border border-blue-500/20">
                   <MapPin className="size-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="space-y-4 flex-1">
                   <div>
-                    <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5">Pick-Up</p>
-                    <h3 className="text-xl font-bold text-foreground leading-tight">{load.pickupLocation?.city}, {load.pickupLocation?.state} {load.pickupLocation?.zip}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{load.pickupLocation?.street}</p>
+                    <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5">Pickup</p>
+                    <h3 className="text-xl font-bold text-foreground leading-tight">{formatLocationLine(load.pickupLocation)}</h3>
+                    {cleanText(load.pickupLocation?.street) ? (
+                      <p className="text-sm text-muted-foreground mt-1">{cleanText(load.pickupLocation?.street)}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground/60 mt-1 italic">Address not provided</p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-y-3 text-sm pt-2">
-                    {load.pickupLocation?.companyName && (
+                    {toTitleCase(load.pickupLocation?.companyName) && (
                       <div className="col-span-2 flex items-center gap-2.5 text-muted-foreground bg-muted/50 p-2 rounded-lg border border-border/50">
-                        <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className="font-medium text-foreground">{load.pickupLocation.companyName}</span>
+                        <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className="font-medium text-foreground">{toTitleCase(load.pickupLocation.companyName)}</span>
                       </div>
                     )}
                     <div className="col-span-2 flex flex-col gap-1 text-muted-foreground pl-1">
                       <div className="flex items-center gap-2">
-                        <Phone className="size-3.5 shrink-0" /> <span className="font-medium">{load.pickupLocation?.phone}</span> {load.pickupLocation?.phoneExt ? `ext ${load.pickupLocation.phoneExt}` : ""}
+                        <Phone className="size-3.5 shrink-0" /> <span className="font-medium">{formatPhone(load.pickupLocation?.phone, load.pickupLocation?.phoneExt) || "Phone not provided"}</span>
                       </div>
-                      {load.pickupLocation?.contactName && (
-                        <div className="text-sm pl-5 text-muted-foreground/80">— {load.pickupLocation.contactName}</div>
+                      {toTitleCase(load.pickupLocation?.contactName) && (
+                        <div className="text-sm pl-5 text-muted-foreground/80">{toTitleCase(load.pickupLocation.contactName)}</div>
                       )}
                     </div>
                   </div>
@@ -261,7 +342,7 @@ export default function LoadDetailsPage() {
             </div>
 
             {/* Delivery */}
-            <div className="flex-1 p-6 md:p-8 lg:bg-muted/10 relative">
+            <div className="flex-1 p-6 md:p-8 lg:bg-green-500/[0.03] relative">
               <div className="flex items-start gap-4">
                 <div className="bg-green-500/10 p-3 rounded-2xl shrink-0 mt-1 border border-green-500/20">
                   <MapPin className="size-5 text-green-600 dark:text-green-400" />
@@ -269,21 +350,25 @@ export default function LoadDetailsPage() {
                 <div className="space-y-4 flex-1">
                   <div>
                     <p className="text-[11px] font-bold text-green-600 dark:text-green-400 uppercase tracking-widest mb-1.5">Delivery</p>
-                    <h3 className="text-xl font-bold text-foreground leading-tight">{load.deliveryLocation?.city}, {load.deliveryLocation?.state} {load.deliveryLocation?.zip}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{load.deliveryLocation?.street}</p>
+                    <h3 className="text-xl font-bold text-foreground leading-tight">{formatLocationLine(load.deliveryLocation)}</h3>
+                    {cleanText(load.deliveryLocation?.street) ? (
+                      <p className="text-sm text-muted-foreground mt-1">{cleanText(load.deliveryLocation?.street)}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground/60 mt-1 italic">Address not provided</p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-y-3 text-sm pt-2">
-                    {load.deliveryLocation?.companyName && (
+                    {toTitleCase(load.deliveryLocation?.companyName) && (
                       <div className="col-span-2 flex items-center gap-2.5 text-muted-foreground bg-muted/50 p-2 rounded-lg border border-border/50">
-                        <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className="font-medium text-foreground">{load.deliveryLocation.companyName}</span>
+                        <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className="font-medium text-foreground">{toTitleCase(load.deliveryLocation.companyName)}</span>
                       </div>
                     )}
                     <div className="col-span-2 flex flex-col gap-1 text-muted-foreground pl-1">
                       <div className="flex items-center gap-2">
-                        <Phone className="size-3.5 shrink-0" /> <span className="font-medium">{load.deliveryLocation?.phone}</span> {load.deliveryLocation?.phoneExt ? `ext ${load.deliveryLocation.phoneExt}` : ""}
+                        <Phone className="size-3.5 shrink-0" /> <span className="font-medium">{formatPhone(load.deliveryLocation?.phone, load.deliveryLocation?.phoneExt) || "Phone not provided"}</span>
                       </div>
-                      {load.deliveryLocation?.contactName && (
-                        <div className="text-sm pl-5 text-muted-foreground/80">— {load.deliveryLocation.contactName}</div>
+                      {toTitleCase(load.deliveryLocation?.contactName) && (
+                        <div className="text-sm pl-5 text-muted-foreground/80">{toTitleCase(load.deliveryLocation.contactName)}</div>
                       )}
                     </div>
                   </div>

@@ -20,6 +20,13 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatCurrency } from "@/utils/format";
 import { Payment } from "@/types/billing";
@@ -332,35 +339,57 @@ export default function ReportsPage() {
 
             <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-xl border border-border">
               <Calendar className="size-4 text-muted-foreground ml-2" />
-              <select
-                className="bg-transparent text-sm font-semibold focus:outline-none cursor-pointer px-2"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              <Select
+                value={String(selectedMonth)}
+                onValueChange={(value) => setSelectedMonth(Number(value))}
               >
-                {MONTHS.map((m, i) => (
-                  <option key={m} value={i}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-28 border-0 bg-transparent px-2 font-semibold shadow-none focus:ring-0 focus-visible:ring-0"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  align="start"
+                  className="border-border bg-popover text-popover-foreground shadow-xl"
+                >
+                  {MONTHS.map((month, index) => (
+                    <SelectItem key={month} value={String(index)}>
+                      {month}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="w-px h-4 bg-border mx-1" />
-              <select
-                className="bg-transparent text-sm font-semibold focus:outline-none cursor-pointer px-2"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
+              <Select
+                value={String(selectedYear)}
+                onValueChange={(value) => setSelectedYear(Number(value))}
               >
-                {[2024, 2025, 2026].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-22 border-0 bg-transparent px-2 font-semibold shadow-none focus:ring-0 focus-visible:ring-0"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  align="end"
+                  className="min-w-22 border-border bg-popover text-popover-foreground shadow-xl"
+                >
+                  {[2024, 2025, 2026].map((year) => (
+                    <SelectItem key={year} value={String(year)}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
         {/* ── Stats Strip ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatBox
@@ -401,9 +430,9 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Main Workspace ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Left: Navigation & Filters */}
-          <aside className="lg:col-span-3 space-y-6">
+          <aside className="lg:col-span-3 space-y-4">
             <div className="bg-card rounded-2xl border border-border p-2 shadow-sm">
               <nav className="space-y-1">
                 {CATEGORIES.map((cat) => (
@@ -452,7 +481,7 @@ export default function ReportsPage() {
           </aside>
 
           {/* Right: Content Area */}
-          <main className="lg:col-span-9 space-y-6">
+          <main className="lg:col-span-9 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-foreground">
@@ -579,7 +608,7 @@ export default function ReportsPage() {
 
             {/* Sub-Analytics for Transportation */}
             {(activeTab === "ALL" || activeTab === "Transportation") && (
-              <div className="pt-4 border-t border-border">
+              <div>
                 <TransportationAnalytics
                   loads={filteredLoads}
                   quotes={filteredQuotes}
@@ -591,7 +620,7 @@ export default function ReportsPage() {
             )}
 
             {/* Common Analytics Overview */}
-            <div className="pt-4 border-t border-border">
+            <div>
               <ReportsAnalytics
                 loads={rawLoads}
                 rawPayments={rawPayments}
