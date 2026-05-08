@@ -4,12 +4,19 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Check, AlertCircle } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { cn } from "@/lib/utils"
 
 interface CrmCalendarSyncButtonProps {
   onSyncComplete?: () => void
+  compactOnMobile?: boolean
+  className?: string
 }
 
-export function CrmCalendarSyncButton({ onSyncComplete }: CrmCalendarSyncButtonProps) {
+export function CrmCalendarSyncButton({
+  onSyncComplete,
+  compactOnMobile = false,
+  className,
+}: CrmCalendarSyncButtonProps) {
   const [syncing, setSyncing] = React.useState(false)
   const [syncResult, setSyncResult] = React.useState<"success" | "error" | null>(null)
   const [message, setMessage] = React.useState<string | null>(null)
@@ -45,25 +52,30 @@ export function CrmCalendarSyncButton({ onSyncComplete }: CrmCalendarSyncButtonP
       if (onSyncComplete) {
         await onSyncComplete()
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[CrmCalendarSyncButton] Sync error:", error)
       setSyncResult("error")
+      const err = error as {
+        code?: string
+        message?: string
+        response?: { status?: number; data?: { message?: string } }
+      }
 
-      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+      if (err.code === "ECONNABORTED" || err.message?.includes("timeout")) {
         setMessage("Sync timed out. Please try again.")
-      } else if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      } else if (err.code === "ERR_NETWORK" || err.message === "Network Error") {
         setMessage("Cannot reach server. Check that the backend is running.")
-      } else if (error.response?.status === 403) {
+      } else if (err.response?.status === 403) {
         setMessage("Google account is missing required permissions. Please disconnect and reconnect your Google account.")
-      } else if (error.response?.status === 401) {
-        const errMsg = error.response?.data?.message || ""
+      } else if (err.response?.status === 401) {
+        const errMsg = err.response?.data?.message || ""
         if (errMsg.toLowerCase().includes("reconnect")) {
           setMessage("Google Calendar needs to be reconnected. Please disconnect and reconnect your calendar.")
         } else {
           setMessage("Not authorized. Please connect Google Calendar first.")
         }
-      } else if (error.response?.status === 500) {
-        const errMsg = error.response?.data?.message || "Server error during sync"
+      } else if (err.response?.status === 500) {
+        const errMsg = err.response?.data?.message || "Server error during sync"
         if (
           errMsg.toLowerCase().includes("refresh token") ||
           errMsg.toLowerCase().includes("no refresh token") ||
@@ -74,10 +86,10 @@ export function CrmCalendarSyncButton({ onSyncComplete }: CrmCalendarSyncButtonP
           setMessage(errMsg)
         }
       } else {
-        setMessage(error.response?.data?.message || "Failed to sync.")
+        setMessage(err.response?.data?.message || "Failed to sync.")
       }
 
-      const isPartialSync = !!error.response
+      const isPartialSync = !!err.response
       if (isPartialSync && onSyncComplete) {
         await onSyncComplete()
       }
@@ -97,22 +109,43 @@ export function CrmCalendarSyncButton({ onSyncComplete }: CrmCalendarSyncButtonP
         size="sm"
         onClick={handleSync}
         disabled={syncing}
+        className={cn(compactOnMobile && "px-2.5 sm:px-3", className)}
+        aria-label={syncing ? "Syncing calendar" : "Sync calendar"}
       >
         {syncing ? (
-          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+          <RefreshCw
+            className={cn(
+              "h-4 w-4 animate-spin",
+              compactOnMobile ? "sm:mr-2" : "mr-2",
+            )}
+          />
         ) : syncResult === "success" ? (
-          <Check className="mr-2 h-4 w-4 text-green-500" />
+          <Check
+            className={cn(
+              "h-4 w-4 text-green-500",
+              compactOnMobile ? "sm:mr-2" : "mr-2",
+            )}
+          />
         ) : syncResult === "error" ? (
-          <AlertCircle className="mr-2 h-4 w-4 text-red-500" />
+          <AlertCircle
+            className={cn(
+              "h-4 w-4 text-red-500",
+              compactOnMobile ? "sm:mr-2" : "mr-2",
+            )}
+          />
         ) : (
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw
+            className={cn("h-4 w-4", compactOnMobile ? "sm:mr-2" : "mr-2")}
+          />
         )}
-        {syncing ? "Syncing..." : "Sync Calendar"}
+        <span className={cn(compactOnMobile && "hidden sm:inline")}>
+          {syncing ? "Syncing..." : "Sync Calendar"}
+        </span>
       </Button>
 
       {message && (
         <div
-          className={`absolute top-full right-0 mt-2 px-3 py-2 rounded-md text-sm whitespace-nowrap z-50 shadow-md max-w-xs ${
+          className={`absolute top-full right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] px-3 py-2 rounded-md text-sm whitespace-normal z-50 shadow-md ${
             syncResult === "success"
               ? "bg-green-50 text-green-800 border border-green-200"
               : "bg-red-50 text-red-800 border border-red-200"

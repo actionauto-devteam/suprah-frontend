@@ -25,6 +25,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -425,20 +432,27 @@ export function NotificationPage() {
                     />
                   </div>
 
-                  <DropdownMenu>
+                  <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="h-10 gap-1.5 rounded-2xl border-border/50 bg-background/70 px-3 text-xs transition-all hover:-translate-y-0.5 hover:border-emerald-500/30">
                         <Filter className="size-3.5" />
                         {category}
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52 rounded-2xl border-border/50 bg-card/95 shadow-xl">
+                    <DropdownMenuContent
+                      side="bottom"
+                      align="end"
+                      sideOffset={6}
+                      collisionPadding={12}
+                      hideWhenDetached
+                      className="z-40 max-h-72 w-52 overflow-y-auto rounded-2xl border-border/50 bg-card/95 p-1.5 shadow-xl"
+                    >
                       {CATEGORY_OPTIONS.map((opt) => (
                         <DropdownMenuItem
                           key={opt}
                           onClick={() => setCategory(opt)}
                           className={cn(
-                            'flex justify-between rounded-lg text-sm',
+                            'my-0.5 min-h-10 justify-between rounded-lg px-3 py-2.5 text-sm leading-5 transition-colors hover:bg-accent/70 focus:bg-accent',
                             category === opt && 'bg-accent font-medium'
                           )}
                         >
@@ -514,18 +528,32 @@ export function NotificationPage() {
 
                       <div className="grid gap-2">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Type</p>
-                        <select
+                        <Select
                           value={typeFilter}
-                          onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-                          className="h-9 w-full rounded-2xl border border-input bg-background px-3 text-xs"
+                          onValueChange={(value) => setTypeFilter(value as TypeFilter)}
                         >
-                          <option value="all">All types</option>
-                          {typeOptions.map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="h-9 w-full rounded-2xl text-xs">
+                            <SelectValue placeholder="All types" />
+                          </SelectTrigger>
+                          <SelectContent
+                            position="popper"
+                            side="bottom"
+                            align="end"
+                            sideOffset={6}
+                            collisionPadding={12}
+                            hideWhenDetached
+                            className="z-40 max-h-72 rounded-xl p-1.5"
+                          >
+                            <SelectItem value="all" className="my-0.5 min-h-9 py-2 leading-5">
+                              All types
+                            </SelectItem>
+                            {typeOptions.map((type) => (
+                              <SelectItem key={type} value={type} className="my-0.5 min-h-9 py-2 leading-5">
+                                {type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">

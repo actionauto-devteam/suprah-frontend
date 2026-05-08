@@ -432,44 +432,72 @@ function AppointmentsPageInner() {
             : "container mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6"
             }`}
         >
-          <div
-            className={`flex items-center justify-between ${
-              isFullscreen
-                ? "px-5 py-3 border-b border-border/50 bg-card shrink-0"
-                : ""
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/crm/dashboard")}
-                className="h-8 w-8 rounded-lg border border-border/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 p-0 transition-all"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <h1
-                  className={`font-bold ${isFullscreen ? "text-xl" : "text-3xl"}`}
+          {isFullscreen ? (
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 bg-card shrink-0">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push("/crm/dashboard")}
+                  className="h-8 w-8 rounded-lg border border-border/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 p-0 transition-all"
                 >
-                  Appointments
-                </h1>
-                {!isFullscreen && (
-                  <p className="text-muted-foreground">
-                    Manage your leads, appointments, events, and customer
-                    records
-                  </p>
-                )}
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <h1 className="text-xl font-bold">Appointments</h1>
+              </div>
+              <div className="flex items-center gap-2">
+                <PaneToolbar tabOptions={TAB_OPTIONS} />
+                <CrmCalendarSyncButton onSyncComplete={handleSyncComplete} />
+                <Button
+                  type="button"
+                  onClick={handleCreateAppointment}
+                  size="sm"
+                >
+                  <Plus className="mr-2 h-4 w-4" /> New Appointment
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <PaneToolbar tabOptions={TAB_OPTIONS} />
-              <CrmCalendarSyncButton onSyncComplete={handleSyncComplete} />
-              <Button type="button" onClick={handleCreateAppointment} size={isFullscreen ? "sm" : "default"}>
-                <Plus className="mr-2 h-4 w-4" /> New Appointment
-              </Button>
+          ) : (
+            <div className="overflow-x-hidden md:flex md:items-start md:justify-between md:gap-6">
+              <div className="min-w-0 space-y-3">
+                <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push("/crm/dashboard")}
+                    className="h-8 w-8 shrink-0 rounded-lg border border-border/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 p-0 transition-all"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <h1 className="min-w-0 text-2xl font-bold leading-tight sm:text-3xl">
+                    Appointments
+                  </h1>
+                </div>
+
+                <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                  Manage your leads, appointments, events, and customer records
+                </p>
+              </div>
+
+              <div className="mt-3 flex w-full flex-wrap items-center gap-2 md:mt-0 md:w-auto md:justify-end md:self-start">
+                <PaneToolbar tabOptions={TAB_OPTIONS} />
+                <CrmCalendarSyncButton
+                  onSyncComplete={handleSyncComplete}
+                  compactOnMobile
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateAppointment}
+                  aria-label="Create appointment"
+                  className="px-2.5 sm:px-3"
+                >
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">New Appointment</span>
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {isFullscreen ? (
             <div className="flex-1 overflow-hidden">
@@ -482,60 +510,60 @@ function AppointmentsPageInner() {
             <div className="space-y-6">
               <CrmCalendarConnect />
 
-              <div className="grid gap-4 md:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+                    <CardTitle className="text-xs font-medium leading-tight sm:text-sm">
                       Total Appointments
                     </CardTitle>
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stats.total}</div>
+                  <CardContent className="p-3 pt-1">
+                    <div className="text-xl font-bold sm:text-2xl">{stats.total}</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Today</CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+                    <CardTitle className="text-xs font-medium leading-tight sm:text-sm">Today</CardTitle>
                     <Clock className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stats.today}</div>
+                  <CardContent className="p-3 pt-1">
+                    <div className="text-xl font-bold sm:text-2xl">{stats.today}</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+                    <CardTitle className="text-xs font-medium leading-tight sm:text-sm">
                       Upcoming
                     </CardTitle>
                     <RefreshCw className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stats.upcoming}</div>
+                  <CardContent className="p-3 pt-1">
+                    <div className="text-xl font-bold sm:text-2xl">{stats.upcoming}</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+                    <CardTitle className="text-xs font-medium leading-tight sm:text-sm">
                       Customer Bookings
                     </CardTitle>
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
+                  <CardContent className="p-3 pt-1">
+                    <div className="text-xl font-bold sm:text-2xl">
                       {customerBookingsCount}
                     </div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+                    <CardTitle className="text-xs font-medium leading-tight sm:text-sm">
                       Customers
                     </CardTitle>
                     <Contact className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{customerCount}</div>
+                  <CardContent className="p-3 pt-1">
+                    <div className="text-xl font-bold sm:text-2xl">{customerCount}</div>
                   </CardContent>
                 </Card>
               </div>
@@ -548,38 +576,40 @@ function AppointmentsPageInner() {
               )}
 
               <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                <TabsList>
-                  <TabsTrigger value="leads">
+                <div className="overflow-x-auto touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <TabsList className="min-w-max">
+                    <TabsTrigger value="leads" className="!flex-none shrink-0">
                     <Mail className="mr-2 h-4 w-4" /> Leads
-                  </TabsTrigger>
-                  <TabsTrigger value="calendar" className="flex-1">
+                    </TabsTrigger>
+                    <TabsTrigger value="calendar" className="!flex-none shrink-0">
                     <Calendar className="mr-2 h-4 w-4" /> Calendar View
-                  </TabsTrigger>
-                  <TabsTrigger value="upcoming" className="flex-1">
+                    </TabsTrigger>
+                    <TabsTrigger value="upcoming" className="!flex-none shrink-0">
                     <Clock className="mr-2 h-4 w-4" /> Upcoming
                     {stats.upcoming > 0 && (
                       <Badge className="ml-2" variant="secondary">
                         {stats.upcoming}
                       </Badge>
                     )}
-                  </TabsTrigger>
-                  <TabsTrigger value="booked" className="flex-1">
+                    </TabsTrigger>
+                    <TabsTrigger value="booked" className="!flex-none shrink-0">
                     <Users className="mr-2 h-4 w-4" /> Booked
                     {customerBookingsCount > 0 && (
                       <Badge className="ml-2" variant="secondary">
                         {customerBookingsCount}
                       </Badge>
                     )}
-                  </TabsTrigger>
-                  <TabsTrigger value="customers">
+                    </TabsTrigger>
+                    <TabsTrigger value="customers" className="!flex-none shrink-0">
                     <Contact className="mr-2 h-4 w-4" /> Customer Credentials
                     {customerCount > 0 && (
                       <Badge className="ml-2" variant="secondary">
                         {customerCount}
                       </Badge>
                     )}
-                  </TabsTrigger>
-                </TabsList>
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
                 <TabsContent value="leads" className="space-y-4">
                   <LeadsTab />
