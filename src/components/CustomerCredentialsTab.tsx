@@ -32,16 +32,20 @@ import {
   Customer,
   CreateCustomerInput,
   DuplicateCheckResult,
+  SyncResult,
 } from "@/hooks/useCustomers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SyncStatus = "idle" | "syncing" | "synced" | "error";
-type ThemeMode = "light" | "dark";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SOURCE_CONFIG: Record<string, { label: string; lightBg: string; darkBg: string; lightText: string; darkText: string; lightBorder: string; darkBorder: string; stripe: string }> = {
+const SOURCE_CONFIG: Record<string, {
+  label: string; lightBg: string; darkBg: string;
+  lightText: string; darkText: string;
+  lightBorder: string; darkBorder: string; stripe: string
+}> = {
   lead:    { label: "Lead",    lightBg: "bg-blue-50", darkBg: "dark:bg-blue-950/30", lightText: "text-blue-700", darkText: "dark:text-blue-300", lightBorder: "border-blue-200", darkBorder: "dark:border-blue-800", stripe: "bg-blue-500 dark:bg-blue-400" },
   manual:  { label: "Manual",  lightBg: "bg-purple-50", darkBg: "dark:bg-purple-950/30", lightText: "text-purple-700", darkText: "dark:text-purple-300", lightBorder: "border-purple-200", darkBorder: "dark:border-purple-800", stripe: "bg-purple-500 dark:bg-purple-400" },
   booking: { label: "Booking", lightBg: "bg-emerald-50", darkBg: "dark:bg-emerald-950/30", lightText: "text-emerald-700", darkText: "dark:text-emerald-300", lightBorder: "border-emerald-200", darkBorder: "dark:border-emerald-800", stripe: "bg-emerald-500 dark:bg-emerald-400" },
@@ -65,17 +69,7 @@ const TX_ICONS: Record<string, React.ReactNode> = {
   other:       <Tag className="h-3.5 w-3.5" />,
 };
 
-const SYNC_INTERVAL_MS = 30_000;
-
-// ─── Theme Context ────────────────────────────────────────────────────────────
-
-const ThemeContext = React.createContext<{
-  theme: ThemeMode;
-  toggleTheme: () => void;
-}>({
-  theme: "light",
-  toggleTheme: () => {},
-});
+const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes (not 30s — sync is heavier)
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -123,40 +117,52 @@ function Avatar({ customer, size = 40 }: { customer: Customer; size?: number }) 
 function SyncBar({
   status,
   lastSynced,
+  lastSyncResult,
   onSync,
 }: {
   status: SyncStatus;
   lastSynced: Date | null;
+  lastSyncResult: SyncResult | null;
   onSync: () => void;
 }) {
   const configs = {
     idle: {
       icon: <Database className="h-4 w-4 text-slate-500 dark:text-slate-400" />,
-      text: "Synchronization ready",
-      sub: lastSynced ? `Last synced ${formatDistanceToNow(lastSynced, { addSuffix: true })}` : "Not yet synchronized",
+      text: "Lead sync ready",
+      sub: lastSynced
+        ? `Last synced ${formatDistanceToNow(lastSynced, { addSuffix: true })}`
+        : "Click Sync to import leads as customer records",
       barBg: "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800",
       btnHover: "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300",
-      btnLabel: "Sync Now",
+      btnLabel: "Sync Leads",
     },
     syncing: {
-      icon: <Loader2 className="h-4 w-4 text-green-600 dark:text-green-400" />,
-      text: "Synchronizing records…",
-      sub: "Fetching latest lead data",
+      icon: <Loader2 className="h-4 w-4 text-green-600 dark:text-green-400 animate-spin" />,
+      text: "Syncing leads to customer records…",
+      sub: "Importing lead data — this may take a moment for large datasets",
       barBg: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",
       btnHover: "opacity-50 cursor-not-allowed text-green-700 dark:text-green-300",
       btnLabel: "Syncing…",
     },
     synced: {
       icon: <CheckCheck className="h-4 w-4 text-green-600 dark:text-green-400" />,
-      text: "All records up to date",
-      sub: lastSynced ? `Completed ${formatDistanceToNow(lastSynced, { addSuffix: true })}` : "Sync complete",
+      text: lastSyncResult && lastSyncResult.synced > 0
+        ? `${lastSyncResult.synced} new customer${lastSyncResult.synced !== 1 ? "s" : ""} imported from leads`
+        : "All leads already synced — no new records",
+      sub: lastSynced
+        ? `Completed ${formatDistanceToNow(lastSynced, { addSuffix: true })}${
+            lastSyncResult
+              ? ` · ${lastSyncResult.alreadySynced} already existed · ${lastSyncResult.failed} failed`
+              : ""
+          }`
+        : "Sync complete",
       barBg: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",
       btnHover: "hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-300",
       btnLabel: "Sync Again",
     },
     error: {
       icon: <WifiOff className="h-4 w-4 text-red-500 dark:text-red-400" />,
-      text: "Synchronization failed",
+      text: "Lead sync failed",
       sub: "Check your connection and retry",
       barBg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
       btnHover: "hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300",
@@ -186,7 +192,7 @@ function SyncBar({
           disabled={status === "syncing"}
           className={`flex items-center gap-1.5 px-3 h-8 rounded-md border border-current/20 text-xs font-semibold transition-colors ${c.btnHover}`}
         >
-          <RefreshCw className={`h-3 w-3 ${status === "syncing" ? "" : ""}`} />
+          <RefreshCw className={`h-3 w-3 ${status === "syncing" ? "animate-spin" : ""}`} />
           {c.btnLabel}
         </button>
       </div>
@@ -348,14 +354,10 @@ function CustomerFormModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-        {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-[#1DB854] dark:bg-[#1DB854] flex items-center justify-center">
-              {isEditing
-                ? <Edit2 className="h-4 w-4 text-white" />
-                : <Plus className="h-4 w-4 text-white" />
-              }
+            <div className="h-8 w-8 rounded-md bg-[#1DB854] flex items-center justify-center">
+              {isEditing ? <Edit2 className="h-4 w-4 text-white" /> : <Plus className="h-4 w-4 text-white" />}
             </div>
             <div>
               <DialogTitle className="text-base font-bold text-slate-900 dark:text-white">
@@ -370,7 +372,6 @@ function CustomerFormModal({
           </div>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto max-h-[68vh] px-6 py-5 space-y-6">
           {error && (
             <Alert variant="destructive" className="py-3 rounded-lg">
@@ -389,13 +390,10 @@ function CustomerFormModal({
             />
           )}
 
-          {/* Personal Information */}
           <section className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 px-2">
-                Personal Information
-              </span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 px-2">Personal Information</span>
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -410,7 +408,7 @@ function CustomerFormModal({
               <div className="space-y-1.5">
                 <FieldLabel required>
                   Email Address
-                  {isCheckingDup && <Loader2 className="inline h-3 w-3 ml-1.5" />}
+                  {isCheckingDup && <Loader2 className="inline h-3 w-3 ml-1.5 animate-spin" />}
                 </FieldLabel>
                 <div className="relative">
                   <Input
@@ -454,7 +452,6 @@ function CustomerFormModal({
             </div>
           </section>
 
-          {/* Address */}
           <section className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
@@ -485,7 +482,6 @@ function CustomerFormModal({
             </div>
           </section>
 
-          {/* Vehicle Interest */}
           <section className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
@@ -521,7 +517,6 @@ function CustomerFormModal({
             </div>
           </section>
 
-          {/* Notes */}
           <section className="space-y-1.5">
             <FieldLabel>Internal Notes</FieldLabel>
             <Textarea
@@ -534,7 +529,6 @@ function CustomerFormModal({
           </section>
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/30">
           {dupResult?.isDuplicate && !isEditing ? (
             <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
@@ -546,8 +540,8 @@ function CustomerFormModal({
             <Button variant="outline" size="sm" className="h-9 text-xs rounded-md dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="sm" className="h-9 text-xs rounded-md bg-[#1DB854] hover:bg-[#17964a] text-white dark:bg-[#1DB854] dark:hover:bg-[#17964a]" onClick={handleSubmit} disabled={isSaving}>
-              {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5" />}
+            <Button size="sm" className="h-9 text-xs rounded-md bg-[#1DB854] hover:bg-[#17964a] text-white" onClick={handleSubmit} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
               {isEditing ? "Save Changes" : "Create Record"}
             </Button>
           </div>
@@ -625,8 +619,8 @@ function LogConversationModal({ open, onOpenChange, onLog, isSaving }: {
         </div>
         <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/50 dark:bg-slate-900/30">
           <Button variant="outline" size="sm" className="h-9 text-xs rounded-md dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button size="sm" className="h-9 text-xs rounded-md bg-[#1DB854] hover:bg-[#17964a] text-white dark:bg-[#1DB854] dark:hover:bg-[#17964a]" onClick={handleSubmit} disabled={isSaving || !form.content.trim()}>
-            {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5" />}
+          <Button size="sm" className="h-9 text-xs rounded-md bg-[#1DB854] hover:bg-[#17964a] text-white" onClick={handleSubmit} disabled={isSaving || !form.content.trim()}>
+            {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
             Save Record
           </Button>
         </div>
@@ -659,7 +653,6 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
   return (
     <>
       <div className="flex flex-col h-full bg-white dark:bg-slate-950">
-        {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 bg-slate-50/50 dark:bg-slate-900/30">
           <button onClick={onBack} className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400 shrink-0">
             <ArrowLeft className="h-4 w-4" />
@@ -687,7 +680,6 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
           </div>
         </div>
 
-        {/* Stats bar */}
         <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/20">
           {[
             { icon: <Receipt className="h-3.5 w-3.5" />, label: "Transactions", value: customer.stats?.totalTransactions ?? 0 },
@@ -704,7 +696,6 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
           ))}
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
           <TabsList className="mx-5 mt-3 mb-0 justify-start h-8 bg-slate-100 dark:bg-slate-900 w-auto shrink-0 gap-0.5 rounded-md p-0.5">
             {[
@@ -718,7 +709,6 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
             ))}
           </TabsList>
 
-          {/* Overview */}
           <TabsContent value="overview" className="flex-1 overflow-auto px-5 py-4 space-y-5">
             <section>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2.5">Contact Information</p>
@@ -807,7 +797,6 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
             </section>
           </TabsContent>
 
-          {/* Transactions */}
           <TabsContent value="transactions" className="flex-1 overflow-auto px-5 py-4">
             {sortedTxs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -820,14 +809,14 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
             ) : (
               <div className="space-y-2">
                 {sortedTxs.map(tx => (
-                  <div key={tx._id} className={`flex items-start gap-3 p-3.5 rounded-lg border transition-colors ${TX_STATUS_STYLES[tx.status].light} ${TX_STATUS_STYLES[tx.status].dark} border-current/20`}>
+                  <div key={tx._id} className={`flex items-start gap-3 p-3.5 rounded-lg border transition-colors ${TX_STATUS_STYLES[tx.status]?.light ?? ""} ${TX_STATUS_STYLES[tx.status]?.dark ?? ""} border-current/20`}>
                     <div className="h-8 w-8 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
                       {TX_ICONS[tx.type] ?? <Tag className="h-3.5 w-3.5" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">{tx.title}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold capitalize ${TX_STATUS_STYLES[tx.status].light} ${TX_STATUS_STYLES[tx.status].dark}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold capitalize ${TX_STATUS_STYLES[tx.status]?.light ?? ""} ${TX_STATUS_STYLES[tx.status]?.dark ?? ""}`}>
                           {tx.status}
                         </span>
                       </div>
@@ -843,7 +832,6 @@ function CustomerDetail({ customer, onBack, onEdit, onDelete, onConversationLog,
             )}
           </TabsContent>
 
-          {/* Conversations */}
           <TabsContent value="conversations" className="flex-1 overflow-auto px-5 py-4">
             <div className="flex items-center justify-between mb-4">
               <p className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">{sortedConvs.length} communication records</p>
@@ -931,7 +919,8 @@ export function CustomerCredentialsTab() {
   // Sync state
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>("idle");
   const [lastSynced, setLastSynced] = React.useState<Date | null>(null);
-  const syncTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lastSyncResult, setLastSyncResult] = React.useState<SyncResult | null>(null);
+  const isSyncingRef = React.useRef(false);
 
   React.useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
@@ -940,12 +929,13 @@ export function CustomerCredentialsTab() {
 
   const {
     customers, total, pages, stats,
-    isLoading, error, refetch,
+    isLoading, error, refetch, refetchAll,
     fetchCustomer, checkDuplicate,
     createCustomer, isCreating,
     updateCustomer, isUpdating,
     deleteCustomer, isDeleting,
     addConversation,
+    syncFromLeads,
   } = useCustomers({
     page, limit: 20,
     search: debouncedSearch,
@@ -954,31 +944,47 @@ export function CustomerCredentialsTab() {
     sortOrder: "desc",
   });
 
+  // ── Sync leads → customers ────────────────────────────────────────────────
+  // This is the core fix: "Sync" now actually calls POST /api/customers/sync-from-leads
+  // rather than just re-querying the existing customers list.
   const handleSync = React.useCallback(async () => {
-    if (syncStatus === "syncing") return;
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
     setSyncStatus("syncing");
     try {
-      await refetch();
-      await new Promise(r => setTimeout(r, 800));
-      setSyncStatus("synced");
+      const result = await syncFromLeads();
+      setLastSyncResult(result);
       setLastSynced(new Date());
-    } catch {
+      setSyncStatus("synced");
+      // Refresh the customer list and stats to reflect newly imported records
+      await refetchAll();
+    } catch (err) {
+      console.error("[CustomerCredentials] Sync failed:", err);
       setSyncStatus("error");
+    } finally {
+      isSyncingRef.current = false;
     }
-  }, [syncStatus, refetch]);
+  }, [syncFromLeads, refetchAll]);
 
+  // Run sync once on mount to import any leads that haven't been synced yet
   React.useEffect(() => {
     handleSync();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-sync every 5 minutes in the background
+  React.useEffect(() => {
     const id = setInterval(handleSync, SYNC_INTERVAL_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [handleSync]);
 
+  // Auto-reset "synced" status back to "idle" after 8 seconds
   React.useEffect(() => {
     if (syncStatus !== "synced") return;
-    const id = setTimeout(() => setSyncStatus("idle"), 5000);
+    const id = setTimeout(() => setSyncStatus("idle"), 8000);
     return () => clearTimeout(id);
   }, [syncStatus]);
 
+  // Load detail when a customer is selected
   React.useEffect(() => {
     if (!selectedId) { setDetailCustomer(null); return; }
     fetchCustomer(selectedId).then(setDetailCustomer).catch(() => setDetailCustomer(null));
@@ -986,7 +992,7 @@ export function CustomerCredentialsTab() {
 
   const handleCreate = async (data: CreateCustomerInput) => {
     await createCustomer(data);
-    refetch();
+    refetchAll();
   };
 
   const handleUpdate = async (data: CreateCustomerInput) => {
@@ -997,14 +1003,14 @@ export function CustomerCredentialsTab() {
       setDetailCustomer(fresh);
     }
     setEditTarget(null);
-    refetch();
+    refetchAll();
   };
 
   const handleDelete = async (id: string) => {
     await deleteCustomer(id);
     if (selectedId === id) { setSelectedId(null); setDetailCustomer(null); }
     setDeleteConfirmId(null);
-    refetch();
+    refetchAll();
   };
 
   const handleLogConv = async (data: any) => {
@@ -1034,12 +1040,12 @@ export function CustomerCredentialsTab() {
             Customer Records
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage your customer database with automatic lead synchronization
+            Manage your customer database — leads are automatically imported as customer records
           </p>
         </div>
         <Button
           size="sm"
-          className="h-9 px-4 gap-2 bg-[#1DB854] hover:bg-[#17964a] text-white rounded-md text-xs font-semibold shrink-0 dark:bg-[#1DB854] dark:hover:bg-[#17964a]"
+          className="h-9 px-4 gap-2 bg-[#1DB854] hover:bg-[#17964a] text-white rounded-md text-xs font-semibold shrink-0"
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -1048,19 +1054,24 @@ export function CustomerCredentialsTab() {
       </div>
 
       {/* ── Sync Bar ─────────────────────────────────────────────────────────── */}
-      <SyncBar status={syncStatus} lastSynced={lastSynced} onSync={handleSync} />
+      <SyncBar
+        status={syncStatus}
+        lastSynced={lastSynced}
+        lastSyncResult={lastSyncResult}
+        onSync={handleSync}
+      />
 
       {/* ── Stats ────────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard
-          icon={<Users className="h-4.5 w-4.5 text-slate-600 dark:text-slate-400" />}
+          icon={<Users className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
           label="Total Records"
           value={stats?.total ?? 0}
           accentLight="bg-slate-100"
           accentDark="dark:bg-slate-800"
         />
         <StatCard
-          icon={<CheckCircle2 className="h-4.5 w-4.5 text-[#1DB854] dark:text-[#1DB854]" />}
+          icon={<CheckCircle2 className="h-4 w-4 text-[#1DB854]" />}
           label="Active"
           value={stats?.active ?? 0}
           accentLight="bg-green-50"
@@ -1068,7 +1079,7 @@ export function CustomerCredentialsTab() {
           trend={{ value: (((stats?.active ?? 0) / Math.max(stats?.total ?? 1, 1)) * 100), isPositive: true }}
         />
         <StatCard
-          icon={<Inbox className="h-4.5 w-4.5 text-[#1DB854] dark:text-[#1DB854]" />}
+          icon={<Inbox className="h-4 w-4 text-[#1DB854]" />}
           label="From Leads"
           value={stats?.fromLeads ?? 0}
           accentLight="bg-green-50"
@@ -1076,7 +1087,7 @@ export function CustomerCredentialsTab() {
           description="Auto-synchronized"
         />
         <StatCard
-          icon={<User className="h-4.5 w-4.5 text-purple-600 dark:text-purple-400" />}
+          icon={<User className="h-4 w-4 text-purple-600 dark:text-purple-400" />}
           label="Manual Entry"
           value={stats?.manual ?? 0}
           accentLight="bg-purple-50"
@@ -1084,7 +1095,7 @@ export function CustomerCredentialsTab() {
           description="Manually created"
         />
         <StatCard
-          icon={<TrendingUp className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />}
+          icon={<TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
           label="This Month"
           value={stats?.recentlyAdded ?? 0}
           accentLight="bg-amber-50"
@@ -1098,7 +1109,6 @@ export function CustomerCredentialsTab() {
 
         {/* Left: List */}
         <div className={`flex flex-col ${selectedId ? "hidden lg:flex" : "flex"} w-full lg:w-[360px] xl:w-[400px] shrink-0`}>
-          {/* Search */}
           <div className="space-y-2.5 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
@@ -1115,35 +1125,31 @@ export function CustomerCredentialsTab() {
               )}
             </div>
 
-            {/* Source Filter */}
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                {sourceOptions.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => { setSourceFilter(opt.value); setPage(1); }}
-                    className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-[10px] font-bold transition-all duration-200 ${
-                      sourceFilter === opt.value
-                        ? "bg-[#1DB854] dark:bg-[#1DB854] text-white shadow-md transform scale-105"
-                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:text-slate-700 dark:hover:text-slate-300 hover:shadow-sm"
-                    }`}
-                  >
-                    {opt.value !== "all" && (
-                      <span className={`h-2 w-2 rounded-full ${SOURCE_CONFIG[opt.value]?.stripe ?? "bg-slate-400"}`} />
-                    )}
-                    <span className="flex-1 text-center">{opt.label}</span>
-                    {opt.count !== undefined && (
-                      <span className={`font-semibold ml-auto tabular-nums ${sourceFilter === opt.value ? "text-white/80" : "text-slate-400 dark:text-slate-500"}`}>
-                        {opt.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+              {sourceOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setSourceFilter(opt.value); setPage(1); }}
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-[10px] font-bold transition-all duration-200 ${
+                    sourceFilter === opt.value
+                      ? "bg-[#1DB854] text-white shadow-md transform scale-105"
+                      : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:text-slate-700 dark:hover:text-slate-300 hover:shadow-sm"
+                  }`}
+                >
+                  {opt.value !== "all" && (
+                    <span className={`h-2 w-2 rounded-full ${SOURCE_CONFIG[opt.value]?.stripe ?? "bg-slate-400"}`} />
+                  )}
+                  <span className="flex-1 text-center">{opt.label}</span>
+                  {opt.count !== undefined && (
+                    <span className={`font-semibold ml-auto tabular-nums ${sourceFilter === opt.value ? "text-white/80" : "text-slate-400 dark:text-slate-500"}`}>
+                      {opt.count}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Count */}
           <div className="flex items-center justify-between mb-2.5 px-0.5">
             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">{total.toLocaleString()}</span>
@@ -1159,11 +1165,10 @@ export function CustomerCredentialsTab() {
             </Alert>
           )}
 
-          {/* List */}
           <ScrollArea className="flex-1 -mx-1 px-1">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-2.5">
-                <Loader2 className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                <Loader2 className="h-5 w-5 text-slate-400 dark:text-slate-500 animate-spin" />
                 <p className="text-xs text-slate-400 dark:text-slate-500">Loading records…</p>
               </div>
             ) : customers.length === 0 ? (
@@ -1175,7 +1180,11 @@ export function CustomerCredentialsTab() {
                   {debouncedSearch ? "No matching records" : "No records yet"}
                 </p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                  {debouncedSearch ? "Try adjusting your search" : "Records auto-sync from leads or can be added manually"}
+                  {debouncedSearch
+                    ? "Try adjusting your search"
+                    : syncStatus === "syncing"
+                    ? "Importing leads now…"
+                    : "Click Sync Leads above to import your leads as customer records"}
                 </p>
               </div>
             ) : (
@@ -1189,7 +1198,7 @@ export function CustomerCredentialsTab() {
                       onClick={() => setSelectedId(c._id)}
                       className={`w-full text-left rounded-lg border px-3.5 py-3 transition-all group ${
                         isSelected
-                          ? "border-[#1DB854] dark:border-[#1DB854] bg-[#1DB854] dark:bg-[#1DB854] shadow-md text-white"
+                          ? "border-[#1DB854] bg-[#1DB854] shadow-md text-white"
                           : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/50"
                       }`}
                     >
@@ -1201,7 +1210,9 @@ export function CustomerCredentialsTab() {
                               {c.firstName} {c.lastName}
                             </p>
                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                              isSelected ? "bg-white/20 text-white" : `${src.lightBg} ${src.darkBg} ${src.lightText} ${src.darkText} border ${src.lightBorder} ${src.darkBorder}`
+                              isSelected
+                                ? "bg-white/20 text-white"
+                                : `${src.lightBg} ${src.darkBg} ${src.lightText} ${src.darkText} border ${src.lightBorder} ${src.darkBorder}`
                             }`}>
                               {src.label}
                             </span>
@@ -1209,7 +1220,9 @@ export function CustomerCredentialsTab() {
                           <p className={`text-[11px] truncate ${isSelected ? "text-white/60" : "text-slate-500 dark:text-slate-400"}`}>{c.email}</p>
                         </div>
                         <ChevronRight className={`h-4 w-4 shrink-0 transition-all ${
-                          isSelected ? "text-white/50" : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400"
+                          isSelected
+                            ? "text-white/50"
+                            : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400"
                         }`} />
                       </div>
                     </button>
@@ -1219,7 +1232,6 @@ export function CustomerCredentialsTab() {
             )}
           </ScrollArea>
 
-          {/* Pagination */}
           {pages > 1 && (
             <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-200 dark:border-slate-800">
               <Button variant="outline" size="sm" className="h-8 text-xs rounded-md dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
@@ -1250,7 +1262,7 @@ export function CustomerCredentialsTab() {
             />
           ) : selectedId ? (
             <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <Loader2 className="h-5 w-5 text-slate-400 dark:text-slate-500 animate-spin" />
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-12">
@@ -1258,7 +1270,7 @@ export function CustomerCredentialsTab() {
                 <div className="h-16 w-16 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center">
                   <User className="h-7 w-7 text-slate-300 dark:text-slate-600" />
                 </div>
-                <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-lg bg-[#1DB854] dark:bg-[#1DB854] flex items-center justify-center shadow-sm">
+                <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-lg bg-[#1DB854] flex items-center justify-center shadow-sm">
                   <Shield className="h-3.5 w-3.5 text-white" />
                 </div>
               </div>
@@ -1268,7 +1280,7 @@ export function CustomerCredentialsTab() {
                   Choose a customer from the list to view their complete profile, transaction history, and communication log
                 </p>
               </div>
-              <Button size="sm" className="gap-2 bg-[#1DB854] hover:bg-[#17964a] text-white text-xs h-9 px-4 rounded-md mt-1 dark:bg-[#1DB854] dark:hover:bg-[#17964a]" onClick={() => setCreateOpen(true)}>
+              <Button size="sm" className="gap-2 bg-[#1DB854] hover:bg-[#17964a] text-white text-xs h-9 px-4 rounded-md mt-1" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-3.5 w-3.5" />
                 Create New Record
               </Button>
@@ -1321,7 +1333,7 @@ export function CustomerCredentialsTab() {
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               disabled={isDeleting}
             >
-              {isDeleting && <Loader2 className="h-3.5 w-3.5 mr-1.5" />}
+              {isDeleting && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
               Delete Record
             </Button>
           </div>

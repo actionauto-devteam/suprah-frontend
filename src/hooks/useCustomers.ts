@@ -121,11 +121,12 @@ export interface CustomerStats {
   recentlyAdded: number;
 }
 
-export interface BackfillResult {
+export interface SyncResult {
   total: number;
   synced: number;
   skipped: number;
   failed: number;
+  alreadySynced: number;
 }
 
 interface UseCustomersOptions {
@@ -262,28 +263,56 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
     },
   });
 
-  // ── Backfill all existing leads → customers ────────────────────────────────
-  // POST /api/customers/backfill-from-leads
-  // Safe to call multiple times — duplicate detection prevents double-entries.
+  // ── Sync all leads → customers ─────────────────────────────────────────────
+  // POST /api/customers/sync-from-leads
+  // Incrementally syncs every lead in the org that doesn't already have a
+  // customer record. Safe to call multiple times — idempotent via upsert.
   const {
-    mutateAsync: backfillFromLeads,
-    isPending: isBackfilling,
+    mutateAsync: syncFromLeads,
+    isPending: isSyncing,
   } = useMutation({
-    mutationFn: async (): Promise<BackfillResult> => {
+    mutationFn: async (): Promise<SyncResult> => {
       const headers = await getHeaders();
-      const res = await apiClient.post("/api/customers/backfill-from-leads", {}, {
-        ...headers,
-        // Backfill can take a while on large datasets — give it 5 minutes
-        timeout: 300_000,
-      });
-      return res.data?.data as BackfillResult;
+      const res = await apiClient.post(
+        "/api/customers/sync-from-leads",
+        {},
+        {
+          ...headers,
+          // Sync can take a while on large datasets — give it 5 minutes
+          timeout: 300_000,
+        },
+      );
+      return res.data?.data as SyncResult;
     },
     onSuccess: () => {
-      // Refresh list and stats after backfill completes
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customers-stats"] });
     },
   });
+
+  // ── Backfill (alias for syncFromLeads — kept for backwards compat) ─────────
+  const {
+    mutateAsync: backfillFromLeads,
+    isPending: isBackfilling,
+  } = useMutation({
+    mutationFn: async (): Promise<SyncResult> => {
+      const headers = await getHeaders();
+      const res = await apiClient.post("/api/customers/backfill-from-leads", {}, {
+        ...headers,
+        timeout: 300_000,
+      });
+      return res.data?.data as SyncResult;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-stats"] });
+    },
+  });
+
+  // ── Combined refetch helper ────────────────────────────────────────────────
+  const refetchAll = React.useCallback(async () => {
+    await Promise.all([refetch(), refetchStats()]);
+  }, [refetch, refetchStats]);
 
   return {
     customers: listData?.customers ?? [],
@@ -293,6 +322,7 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
     isLoading,
     error,
     refetch,
+    refetchAll,
     fetchCustomer,
     checkDuplicate,
     createCustomer,
@@ -303,6 +333,8 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
     isDeleting,
     addConversation,
     isAddingConversation,
+    syncFromLeads,
+    isSyncing,
     backfillFromLeads,
     isBackfilling,
   };
