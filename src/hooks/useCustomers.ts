@@ -121,6 +121,13 @@ export interface CustomerStats {
   recentlyAdded: number;
 }
 
+export interface BackfillResult {
+  total: number;
+  synced: number;
+  skipped: number;
+  failed: number;
+}
+
 interface UseCustomersOptions {
   page?: number;
   limit?: number;
@@ -163,7 +170,7 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
   });
 
   // ── Stats ──────────────────────────────────────────────────────────────────
-  const { data: stats } = useQuery<CustomerStats>({
+  const { data: stats, refetch: refetchStats } = useQuery<CustomerStats>({
     queryKey: ["customers-stats"],
     queryFn: async () => {
       const headers = await getHeaders();
@@ -255,6 +262,29 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
     },
   });
 
+  // ── Backfill all existing leads → customers ────────────────────────────────
+  // POST /api/customers/backfill-from-leads
+  // Safe to call multiple times — duplicate detection prevents double-entries.
+  const {
+    mutateAsync: backfillFromLeads,
+    isPending: isBackfilling,
+  } = useMutation({
+    mutationFn: async (): Promise<BackfillResult> => {
+      const headers = await getHeaders();
+      const res = await apiClient.post("/api/customers/backfill-from-leads", {}, {
+        ...headers,
+        // Backfill can take a while on large datasets — give it 5 minutes
+        timeout: 300_000,
+      });
+      return res.data?.data as BackfillResult;
+    },
+    onSuccess: () => {
+      // Refresh list and stats after backfill completes
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-stats"] });
+    },
+  });
+
   return {
     customers: listData?.customers ?? [],
     total: listData?.total ?? 0,
@@ -273,5 +303,7 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
     isDeleting,
     addConversation,
     isAddingConversation,
+    backfillFromLeads,
+    isBackfilling,
   };
 }
