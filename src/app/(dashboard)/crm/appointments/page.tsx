@@ -16,7 +16,7 @@ import { CreateAppointmentModal } from "@/components/CreateAppointmentModal"
 import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal"
 import { CrmCalendarConnect } from "@/components/CrmCalendarConnect"
 import { CrmCalendarSyncButton } from "@/components/CrmCalendarSyncButton"
-// ↓↓↓ NEW IMPORT ↓↓↓
+
 import { CustomerCredentialsTab } from "@/components/CustomerCredentialsTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
