@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  CalendarDays,
+  Users,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
@@ -67,610 +69,441 @@ interface DashboardAppointment {
   updatedAt: Date | string;
 }
 
-// ─── Style Sheet ─────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── Design tokens ── */
 :root {
-  --ad-font:        'DM Sans', sans-serif;
-  --ad-mono:        'DM Mono', monospace;
+  --c-bg:          #f0f2f5;
+  --c-surface:     #ffffff;
+  --c-surface-2:   #f7f9fb;
+  --c-surface-3:   #eef1f6;
+  --c-border:      #e2e6ef;
+  --c-border-2:    #d3d9e8;
 
-  --ad-page:        #f2f4f7;
-  --ad-surface:     #ffffff;
-  --ad-surface-2:   #f7f8fa;
-  --ad-border:      #e3e6ed;
-  --ad-border-med:  #d0d4de;
-  --ad-focus:       rgba(22,163,74,0.18);
+  --c-text-1:      #0c1220;
+  --c-text-2:      #3b4560;
+  --c-text-3:      #6e7a99;
+  --c-text-4:      #aab2cc;
 
-  --ad-text-1:      #0d1117;
-  --ad-text-2:      #3d4455;
-  --ad-text-3:      #7a8297;
-  --ad-text-4:      #b0b7c9;
+  --c-green:       #16a34a;
+  --c-green-h:     #15803d;
+  --c-green-light: rgba(22,163,74,0.08);
+  --c-green-ring:  rgba(22,163,74,0.20);
 
-  --ad-accent:      #16a34a;
-  --ad-accent-h:    #15803d;
-  --ad-accent-bg:   rgba(22,163,74,0.07);
+  --c-blue:        #2563eb;
+  --c-teal:        #0d9488;
+  --c-violet:      #7c3aed;
+  --c-amber:       #d97706;
+  --c-red:         #dc2626;
 
-  --ad-shadow-sm:   0 1px 2px rgba(0,0,0,0.05);
-  --ad-shadow:      0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-  --ad-shadow-md:   0 4px 12px rgba(0,0,0,0.08);
+  --radius:        8px;
+  --radius-sm:     5px;
+  --shadow-xs:     0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.10);
 
-  --ad-radius:      10px;
-  --ad-radius-sm:   6px;
+  --font:          'Sora', sans-serif;
+  --mono:          'JetBrains Mono', monospace;
 }
 
 .dark {
-  --ad-page:        #0b0d14;
-  --ad-surface:     #111520;
-  --ad-surface-2:   #161a28;
-  --ad-border:      #232840;
-  --ad-border-med:  #2e3450;
-  --ad-focus:       rgba(34,197,94,0.18);
+  --c-bg:          #080c14;
+  --c-surface:     #0e1422;
+  --c-surface-2:   #131927;
+  --c-surface-3:   #1a2135;
+  --c-border:      #1e2840;
+  --c-border-2:    #28344e;
 
-  --ad-text-1:      #eceef5;
-  --ad-text-2:      #9299b0;
-  --ad-text-3:      #555e7a;
-  --ad-text-4:      #353c54;
+  --c-text-1:      #e8ecf8;
+  --c-text-2:      #8b96b8;
+  --c-text-3:      #4e5a7a;
+  --c-text-4:      #2e3855;
 
-  --ad-accent:      #22c55e;
-  --ad-accent-h:    #16a34a;
-  --ad-accent-bg:   rgba(34,197,94,0.1);
-
-  --ad-shadow-sm:   0 1px 3px rgba(0,0,0,0.3);
-  --ad-shadow:      0 1px 4px rgba(0,0,0,0.35);
-  --ad-shadow-md:   0 4px 16px rgba(0,0,0,0.4);
+  --c-green:       #22c55e;
+  --c-green-h:     #16a34a;
+  --c-green-light: rgba(34,197,94,0.08);
+  --c-green-ring:  rgba(34,197,94,0.20);
 }
 
-/* ── Root ── */
-.ad {
-  font-family: var(--ad-font);
-  background: var(--ad-page);
-  color: var(--ad-text-1);
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.apd {
+  font-family: var(--font);
+  background: var(--c-bg);
+  color: var(--c-text-1);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.ad-wrap {
-  max-width: 1480px;
+/* ── Layout ── */
+.apd-layout {
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 28px 24px 48px;
+  padding: 24px 28px 60px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
-/* ── Page header ── */
-.ad-page-header {
+/* ── Header ── */
+.apd-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--ad-border);
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--c-border);
 }
 
-.ad-page-header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
+.apd-header-left { display: flex; align-items: center; gap: 12px; }
 
-.ad-back-btn {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--ad-surface);
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-radius-sm);
-  color: var(--ad-text-2);
+.apd-back {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-3);
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
 }
-.ad-back-btn:hover {
-  border-color: var(--ad-accent);
-  color: var(--ad-accent);
-  box-shadow: 0 0 0 3px var(--ad-focus);
+.apd-back:hover { border-color: var(--c-green); color: var(--c-green); box-shadow: 0 0 0 3px var(--c-green-ring); }
+
+.apd-header-info {}
+.apd-eyebrow {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--c-green); margin-bottom: 2px;
+}
+.apd-title {
+  font-size: 19px; font-weight: 700; color: var(--c-text-1);
+  letter-spacing: -0.02em; line-height: 1.2;
 }
 
-.ad-eyebrow {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ad-accent);
-  margin-bottom: 3px;
-}
+.apd-header-right { display: flex; align-items: center; gap: 8px; }
 
-.ad-page-title {
-  font-size: clamp(17px, 2.2vw, 22px);
-  font-weight: 700;
-  color: var(--ad-text-1);
-  line-height: 1.15;
-  letter-spacing: -0.015em;
+.apd-btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-2);
+  font-family: var(--font); font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
+.apd-btn-ghost:hover { border-color: var(--c-green); color: var(--c-green); background: var(--c-green-light); }
+.apd-btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.ad-primary-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 18px;
-  height: 36px;
-  background: var(--ad-accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--ad-radius-sm);
-  font-family: var(--ad-font);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
-  white-space: nowrap;
+.apd-btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 16px;
+  background: var(--c-green); border: none;
+  border-radius: var(--radius-sm);
+  color: #fff; font-family: var(--font); font-size: 12.5px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s, box-shadow 0.15s; white-space: nowrap;
 }
-.ad-primary-btn:hover {
-  background: var(--ad-accent-h);
-  box-shadow: var(--ad-shadow-md);
-}
+.apd-btn-primary:hover { background: var(--c-green-h); box-shadow: var(--shadow-md); }
 
-/* ── Card ── */
-.ad-card {
-  background: var(--ad-surface);
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-radius);
-  box-shadow: var(--ad-shadow);
-  overflow: hidden;
-}
-
-.ad-card-head {
+/* ── Toolbar row ── */
+.apd-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 13px 20px;
-  border-bottom: 1px solid var(--ad-border);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  box-shadow: var(--shadow-xs);
 }
 
-.ad-card-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ad-text-3);
+.apd-toolbar-group { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.apd-toolbar-divider { width: 1px; height: 32px; background: var(--c-border); margin: 0 4px; align-self: center; }
+
+.apd-field { display: flex; flex-direction: column; gap: 5px; }
+.apd-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--c-text-3);
 }
 
-.ad-card-body { padding: 20px; }
+.apd-ctrl {
+  height: 34px; padding: 0 10px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-1);
+  font-family: var(--font); font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  color-scheme: light dark;
+}
+.apd-ctrl:focus { border-color: var(--c-green); box-shadow: 0 0 0 3px var(--c-green-ring); }
+.apd-ctrl::placeholder { color: var(--c-text-4); }
+.apd-ctrl-date { width: 160px; cursor: pointer; }
+.apd-ctrl-select {
+  width: 148px; cursor: pointer;
+  padding-right: 28px; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236e7a99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+.apd-ctrl-select option { background: var(--c-surface); }
+.apd-search-wrap { position: relative; }
+.apd-search-ico { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--c-text-3); pointer-events: none; }
+.apd-search-wrap .apd-ctrl { padding-left: 30px; width: 220px; }
 
-/* ── Stats ── */
-.ad-stats-grid {
+.apd-quick-chips { display: flex; align-items: center; gap: 6px; }
+.apd-chip {
+  height: 26px; padding: 0 10px;
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  color: var(--c-text-3);
+  font-family: var(--font); font-size: 11.5px; font-weight: 500;
+  cursor: pointer; transition: all 0.14s; white-space: nowrap;
+}
+.apd-chip:hover { border-color: var(--c-green); color: var(--c-green); background: var(--c-green-light); }
+.apd-chip.is-on { background: var(--c-green-light); border-color: var(--c-green); color: var(--c-green); font-weight: 600; }
+
+/* ── Stats row ── */
+.apd-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
 }
+@media (max-width: 900px) { .apd-stats { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 520px)  { .apd-stats { grid-template-columns: repeat(2, 1fr); } }
 
-.ad-stat-card {
-  background: var(--ad-surface);
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-radius);
-  padding: 16px 18px 14px;
-  box-shadow: var(--ad-shadow-sm);
+.apd-stat {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+  box-shadow: var(--shadow-xs);
   position: relative;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.ad-stat-card:hover {
-  border-color: var(--ad-border-med);
-  box-shadow: var(--ad-shadow);
-}
+.apd-stat:hover { border-color: var(--c-border-2); box-shadow: var(--shadow-sm); }
 
-.ad-stat-bar {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--s-color);
-  border-radius: var(--ad-radius) var(--ad-radius) 0 0;
+.apd-stat-stripe {
+  position: absolute; top: 0; left: 0; right: 0; height: 2.5px;
+  background: var(--stripe);
+  border-radius: var(--radius) var(--radius) 0 0;
 }
-
-.ad-stat-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ad-text-3);
-  margin-bottom: 8px;
+.apd-stat-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--c-text-3); margin-bottom: 6px;
 }
-
-.ad-stat-num {
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--ad-text-1);
-  letter-spacing: -0.025em;
+.apd-stat-value {
+  font-size: 30px; font-weight: 700; line-height: 1;
+  color: var(--c-text-1); letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
-
-.ad-stat-icon {
-  position: absolute;
-  bottom: 10px; right: 14px;
-  color: var(--s-color);
-  opacity: 0.12;
+.apd-stat-icon {
+  position: absolute; bottom: 8px; right: 12px;
+  color: var(--stripe); opacity: 0.10;
 }
 
-/* ── Field ── */
-.ad-field-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ad-text-3);
-  margin-bottom: 6px;
+/* ── Table card ── */
+.apd-table-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
 }
 
-.ad-ctrl {
-  width: 100%;
-  height: 36px;
-  padding: 0 12px;
-  background: var(--ad-surface-2);
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-radius-sm);
-  color: var(--ad-text-1);
-  font-family: var(--ad-font);
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  -webkit-appearance: none;
-  color-scheme: light dark;
+.apd-table-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 12px 20px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface-2);
 }
-.ad-ctrl:focus {
-  border-color: var(--ad-accent);
-  box-shadow: 0 0 0 3px var(--ad-focus);
+.apd-table-header-left {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--c-text-2);
 }
-.ad-ctrl::placeholder { color: var(--ad-text-3); }
-
-.ad-ctrl-select {
-  cursor: pointer;
-  padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%237a8297' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
+.apd-count-pill {
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border);
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 11px; font-weight: 600; color: var(--c-text-3);
 }
-.ad-ctrl-select option { background: var(--ad-surface); }
-
-.ad-search-wrap { position: relative; }
-.ad-search-icon {
-  position: absolute;
-  left: 10px; top: 50%;
-  transform: translateY(-50%);
-  color: var(--ad-text-3);
-  pointer-events: none;
-}
-.ad-search-wrap .ad-ctrl { padding-left: 32px; }
-
-/* ── Date row ── */
-.ad-date-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.ad-date-input-group { flex: 1; min-width: 180px; }
-
-.ad-quick-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-.ad-quick-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ad-text-4);
-}
-
-.ad-quick-btn {
-  height: 28px;
-  padding: 0 12px;
-  background: var(--ad-surface-2);
-  border: 1px solid var(--ad-border);
-  border-radius: 5px;
-  color: var(--ad-text-2);
-  font-family: var(--ad-font);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.ad-quick-btn:hover {
-  border-color: var(--ad-accent);
-  color: var(--ad-accent);
-  background: var(--ad-accent-bg);
-}
-.ad-quick-btn.is-active {
-  background: var(--ad-accent-bg);
-  border-color: var(--ad-accent);
-  color: var(--ad-accent);
-  font-weight: 600;
-}
-
-/* ── Filter grid ── */
-.ad-filter-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-@media (min-width: 640px)  { .ad-filter-grid { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1024px) { .ad-filter-grid { grid-template-columns: 2fr 1fr 1fr; } }
+.apd-table-actions { display: flex; gap: 7px; align-items: center; }
 
 /* ── Table ── */
-.ad-tbl-cols { grid-template-columns: 2.2fr 1.1fr 0.9fr 0.9fr 1.1fr 0.8fr 0.9fr 72px; }
+.apd-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
-.ad-tbl-head {
-  display: none;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--ad-border);
-}
-@media (min-width: 1080px) { .ad-tbl-head { display: block; } }
+/* Column widths */
+.apd-tbl .col-customer { width: 22%; }
+.apd-tbl .col-phone    { width: 12%; }
+.apd-tbl .col-time     { width: 10%; }
+.apd-tbl .col-type     { width: 13%; }
+.apd-tbl .col-booked   { width: 16%; }
+.apd-tbl .col-source   { width: 10%; }
+.apd-tbl .col-status   { width: 10%; }
+.apd-tbl .col-action   { width: 7%; }
 
-.ad-tbl-head-row {
-  display: grid;
-  gap: 8px;
-  padding: 9px 0;
+.apd-tbl thead tr {
+  border-bottom: 1px solid var(--c-border);
+}
+.apd-tbl thead th {
+  padding: 9px 14px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--c-text-3);
+  text-align: left; white-space: nowrap;
+}
+.apd-tbl thead th:last-child { text-align: center; }
+
+.apd-tbl tbody tr {
+  border-bottom: 1px solid var(--c-border);
+  transition: background 0.1s;
+}
+.apd-tbl tbody tr:last-child { border-bottom: none; }
+.apd-tbl tbody tr:hover { background: var(--c-surface-2); }
+
+.apd-tbl td {
+  padding: 11px 14px;
+  vertical-align: middle;
+  font-size: 13px; color: var(--c-text-2);
+}
+.apd-tbl td:last-child { text-align: center; }
+
+/* Customer cell */
+.apd-cust-name {
+  font-size: 13px; font-weight: 600; color: var(--c-text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.apd-cust-email {
+  font-size: 11.5px; color: var(--c-text-3); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.ad-th {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ad-text-3);
-}
-
-.ad-tbl-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--ad-border);
-  transition: background 0.12s;
-}
-@media (min-width: 1080px) {
-  .ad-tbl-row {
-    gap: 8px;
-    padding: 12px 20px;
-    align-items: center;
-  }
-}
-.ad-tbl-row:last-child { border-bottom: none; }
-.ad-tbl-row:hover { background: var(--ad-surface-2); }
-
-.ad-mob-label {
-  display: block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ad-text-3);
-  margin-bottom: 3px;
-}
-@media (min-width: 1080px) { .ad-mob-label { display: none; } }
-
-.ad-customer-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ad-text-1);
-  line-height: 1.3;
-}
-.ad-customer-email {
-  font-size: 12px;
-  color: var(--ad-text-3);
-  margin-top: 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Phone */
+.apd-phone {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--c-text-2); letter-spacing: -0.01em;
   white-space: nowrap;
 }
-.ad-phone {
-  font-family: var(--ad-mono);
-  font-size: 12px;
-  color: var(--ad-text-2);
-}
-.ad-time {
-  font-family: var(--ad-mono);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ad-text-1);
-}
-.ad-dur {
-  font-size: 11px;
-  color: var(--ad-text-3);
-  margin-top: 1px;
-}
-.ad-staff {
-  font-size: 13px;
-  color: var(--ad-text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+/* Time */
+.apd-time-val { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--c-text-1); }
+.apd-time-dur { font-size: 11px; color: var(--c-text-4); margin-top: 1px; }
+
+/* Staff */
+.apd-staff {
+  font-size: 12.5px; color: var(--c-text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* ── Badges ── */
-.ad-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 7px;
+.badge {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 7px;
   border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  border: 1px solid transparent;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  border: 1px solid transparent; white-space: nowrap;
 }
 
 /* Status */
-.bs-scheduled  { background:rgba(59,130,246,.1);  color:#3b82f6; border-color:rgba(59,130,246,.2); }
-.bs-confirmed  { background:rgba(16,185,129,.1); color:#10b981; border-color:rgba(16,185,129,.2); }
-.bs-completed  { background:rgba(5,150,105,.1);  color:#059669; border-color:rgba(5,150,105,.2); }
-.bs-cancelled  { background:rgba(239,68,68,.1);  color:#ef4444; border-color:rgba(239,68,68,.2); }
+.bs-scheduled { background: rgba(37,99,235,.08); color: #2563eb; border-color: rgba(37,99,235,.2); }
+.bs-confirmed { background: rgba(5,150,105,.08); color: #059669; border-color: rgba(5,150,105,.2); }
+.bs-completed { background: rgba(22,163,74,.08);  color: #16a34a; border-color: rgba(22,163,74,.2); }
+.bs-cancelled { background: rgba(220,38,38,.08);  color: #dc2626; border-color: rgba(220,38,38,.2); }
 
 /* Type */
-.bt-appointment  { background:rgba(99,102,241,.1); color:#6366f1; border-color:rgba(99,102,241,.2); }
-.bt-test-drive   { background:rgba(245,158,11,.1); color:#f59e0b; border-color:rgba(245,158,11,.2); }
-.bt-phone-call   { background:rgba(59,130,246,.1); color:#3b82f6; border-color:rgba(59,130,246,.2); }
-.bt-meeting      { background:rgba(139,92,246,.1); color:#8b5cf6; border-color:rgba(139,92,246,.2); }
-.bt-event        { background:rgba(236,72,153,.1); color:#ec4899; border-color:rgba(236,72,153,.2); }
-.bt-task         { background:rgba(245,158,11,.1); color:#f59e0b; border-color:rgba(245,158,11,.2); }
-.bt-reminder     { background:rgba(20,184,166,.1); color:#14b8a6; border-color:rgba(20,184,166,.2); }
+.bt-appointment { background: rgba(124,58,237,.08); color: #7c3aed; border-color: rgba(124,58,237,.2); }
+.bt-test-drive  { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.2); }
+.bt-phone-call  { background: rgba(37,99,235,.08);  color: #2563eb; border-color: rgba(37,99,235,.2); }
+.bt-meeting     { background: rgba(13,148,136,.08); color: #0d9488; border-color: rgba(13,148,136,.2); }
+.bt-event       { background: rgba(219,39,119,.08); color: #db2777; border-color: rgba(219,39,119,.2); }
+.bt-task        { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.2); }
+.bt-reminder    { background: rgba(13,148,136,.08); color: #0d9488; border-color: rgba(13,148,136,.2); }
 
 /* Source */
-.bsc-sms     { background:rgba(16,185,129,.08); color:#10b981; border-color:rgba(16,185,129,.2); }
-.bsc-phone   { background:rgba(59,130,246,.08); color:#3b82f6; border-color:rgba(59,130,246,.2); }
-.bsc-email   { background:rgba(99,102,241,.08); color:#6366f1; border-color:rgba(99,102,241,.2); }
-.bsc-lead    { background:rgba(245,158,11,.08); color:#f59e0b; border-color:rgba(245,158,11,.2); }
-.bsc-booking { background:rgba(5,150,105,.08);  color:#059669; border-color:rgba(5,150,105,.2); }
-.bsc-manual  { background:rgba(107,114,128,.08);color:#6b7280; border-color:rgba(107,114,128,.2); }
+.bsrc-sms     { background: rgba(22,163,74,.08);  color: #16a34a; border-color: rgba(22,163,74,.2); }
+.bsrc-phone   { background: rgba(37,99,235,.08);  color: #2563eb; border-color: rgba(37,99,235,.2); }
+.bsrc-email   { background: rgba(124,58,237,.08); color: #7c3aed; border-color: rgba(124,58,237,.2); }
+.bsrc-lead    { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.2); }
+.bsrc-booking { background: rgba(13,148,136,.08); color: #0d9488; border-color: rgba(13,148,136,.2); }
+.bsrc-manual  { background: rgba(107,114,128,.08);color: #6b7280; border-color: rgba(107,114,128,.2); }
 
-/* ── Action buttons ── */
-.ad-action-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-
-.ad-btn-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
+/* ── View button ── */
+.apd-view-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 26px; padding: 0 10px;
   background: transparent;
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-radius-sm);
-  color: var(--ad-text-2);
-  font-family: var(--ad-font);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-3);
+  font-family: var(--font); font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all 0.14s;
 }
-.ad-btn-outline:hover:not(:disabled) {
-  border-color: var(--ad-accent);
-  color: var(--ad-accent);
-  background: var(--ad-accent-bg);
-}
-.ad-btn-outline:disabled { opacity: 0.4; cursor: not-allowed; }
+.apd-view-btn:hover { border-color: var(--c-green); color: var(--c-green); background: var(--c-green-light); }
 
-.ad-view-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  background: transparent;
-  border: 1px solid var(--ad-border);
-  border-radius: 5px;
-  color: var(--ad-text-3);
-  font-family: var(--ad-font);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
+/* ── Empty / Loading / Error ── */
+.apd-center {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 60px 24px; gap: 10px; text-align: center;
 }
-.ad-view-btn:hover {
-  border-color: var(--ad-accent);
-  color: var(--ad-accent);
-  background: var(--ad-accent-bg);
+.apd-center-icon {
+  width: 46px; height: 46px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--c-text-3); margin-bottom: 2px;
+}
+.apd-center-title { font-size: 14.5px; font-weight: 600; color: var(--c-text-2); }
+.apd-center-sub   { font-size: 13px; color: var(--c-text-3); max-width: 320px; }
+
+.apd-error {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px;
+  background: rgba(220,38,38,.06);
+  border: 1px solid rgba(220,38,38,.18);
+  border-radius: var(--radius-sm);
+  font-size: 13px; color: #dc2626;
 }
 
-/* ── Empty ── */
-.ad-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 56px 24px;
-  gap: 10px;
-  text-align: center;
+/* ── Table scroll ── */
+.apd-tbl-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 520px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border) transparent;
 }
-.ad-empty-ico {
-  width: 48px; height: 48px;
-  background: var(--ad-surface-2);
-  border: 1px solid var(--ad-border);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ad-text-3);
-  margin-bottom: 4px;
-}
-.ad-empty-title { font-size: 15px; font-weight: 600; color: var(--ad-text-2); }
-.ad-empty-sub   { font-size: 13px; color: var(--ad-text-3); max-width: 340px; }
-
-/* ── Loading ── */
-.ad-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 56px 24px;
-  gap: 10px;
-}
-.ad-loading-txt { font-size: 13px; color: var(--ad-text-3); }
+.apd-tbl-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+.apd-tbl-scroll::-webkit-scrollbar-thumb { background: var(--c-border-2); border-radius: 2px; }
 
 /* ── Footer ── */
-.ad-tbl-footer {
-  padding: 10px 20px;
-  border-top: 1px solid var(--ad-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ad-text-3);
+.apd-tbl-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 9px 20px;
+  border-top: 1px solid var(--c-border);
+  font-size: 11.5px; color: var(--c-text-3);
+  background: var(--c-surface-2);
 }
-.ad-tbl-footer strong { color: var(--ad-text-2); font-weight: 600; }
+.apd-tbl-foot strong { color: var(--c-text-2); font-weight: 600; }
 
-/* ── Error ── */
-.ad-error-box {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: rgba(239,68,68,.07);
-  border: 1px solid rgba(239,68,68,.2);
-  border-radius: var(--ad-radius-sm);
-  font-size: 13px;
-  color: #ef4444;
-}
-
-/* ── Scroll ── */
-.ad-scroll {
-  overflow-y: auto;
-  max-height: 540px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ad-border) transparent;
-}
-.ad-scroll::-webkit-scrollbar { width: 4px; }
-.ad-scroll::-webkit-scrollbar-thumb { background: var(--ad-border-med); border-radius: 2px; }
-
-@keyframes ad-spin { to { transform: rotate(360deg); } }
-.ad-spin { animation: ad-spin 1s linear infinite; }
+/* ── Spin ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
 `;
 
 // ─── Style injection ──────────────────────────────────────────────────────────
 
 function useStyles() {
   React.useEffect(() => {
-    const id = "ad-dashboard-styles-v2";
+    const id = "apd-styles-v3";
     if (document.getElementById(id)) return;
     const el = document.createElement("style");
     el.id = id;
@@ -680,28 +513,23 @@ function useStyles() {
   }, []);
 }
 
-// ─── Badge components ─────────────────────────────────────────────────────────
+// ─── Badges ───────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={`ad-badge bs-${status}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return <span className={`badge bs-${status}`}>{label}</span>;
 }
 
 function TypeBadge({ type }: { type: string }) {
   const key = type.toLowerCase().replace(/[\s_]+/g, "-");
-  const label = type
-    .split(/[-\s_]+/)
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-  return <span className={`ad-badge bt-${key}`}>{label}</span>;
+  const label = type.split(/[-\s_]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return <span className={`badge bt-${key}`}>{label}</span>;
 }
 
 function SourceBadge({ source }: { source: string }) {
+  const key = source.toLowerCase();
   return (
-    <span className={`ad-badge bsc-${source.toLowerCase()}`}>
+    <span className={`badge bsrc-${key}`}>
       {source.charAt(0).toUpperCase() + source.slice(1)}
     </span>
   );
@@ -709,84 +537,65 @@ function SourceBadge({ source }: { source: string }) {
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
-function StatCard({
-  label,
-  value,
-  color,
-  icon,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  icon: React.ReactNode;
+function StatCard({ label, value, stripe, icon }: {
+  label: string; value: number; stripe: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="ad-stat-card" style={{ "--s-color": color } as React.CSSProperties}>
-      <div className="ad-stat-bar" />
-      <div className="ad-stat-label">{label}</div>
-      <div className="ad-stat-num">{value}</div>
-      <div className="ad-stat-icon">{icon}</div>
+    <div className="apd-stat" style={{ "--stripe": stripe } as React.CSSProperties}>
+      <div className="apd-stat-stripe" />
+      <div className="apd-stat-label">{label}</div>
+      <div className="apd-stat-value">{value}</div>
+      <div className="apd-stat-icon">{icon}</div>
     </div>
   );
 }
 
-// ─── Appointment row ──────────────────────────────────────────────────────────
+// ─── Table row ────────────────────────────────────────────────────────────────
 
-function AppointmentRow({
-  appointment,
-  onView,
-}: {
-  appointment: DashboardAppointment;
-  onView: (id: string) => void;
+function AppointmentRow({ apt, onView }: {
+  apt: DashboardAppointment; onView: (id: string) => void;
 }) {
-  const startTime = new Date(appointment.startTime);
-  const endTime   = new Date(appointment.endTime);
-  const duration  = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
-  const name      = `${appointment.customerBooking.firstName} ${appointment.customerBooking.lastName}`.trim();
+  const start = new Date(apt.startTime);
+  const end   = new Date(apt.endTime);
+  const dur   = Math.round((end.getTime() - start.getTime()) / 60000);
+  const name  = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
 
   return (
-    <div className={cn("ad-tbl-row", "ad-tbl-cols")}>
-      <div>
-        <span className="ad-mob-label">Customer</span>
-        <div className="ad-customer-name">{name}</div>
-        <div className="ad-customer-email">{appointment.customerBooking.email}</div>
-      </div>
-      <div>
-        <span className="ad-mob-label">Phone</span>
-        <div className="ad-phone">{appointment.customerBooking.phone}</div>
-      </div>
-      <div>
-        <span className="ad-mob-label">Time</span>
-        <div className="ad-time">{format(startTime, "HH:mm")}</div>
-        <div className="ad-dur">{duration} min</div>
-      </div>
-      <div>
-        <span className="ad-mob-label">Type</span>
-        <TypeBadge type={appointment.entryType || appointment.type} />
-      </div>
-      <div>
-        <span className="ad-mob-label">Booked By</span>
-        <div className="ad-staff">{appointment.crmUser?.fullName || "—"}</div>
-      </div>
-      <div>
-        <span className="ad-mob-label">Source</span>
-        <SourceBadge source={appointment.source} />
-      </div>
-      <div>
-        <span className="ad-mob-label">Status</span>
-        <StatusBadge status={appointment.status} />
-      </div>
-      <div>
+    <tr>
+      <td className="col-customer">
+        <div className="apd-cust-name">{name}</div>
+        <div className="apd-cust-email">{apt.customerBooking.email}</div>
+      </td>
+      <td className="col-phone">
+        <span className="apd-phone">{apt.customerBooking.phone}</span>
+      </td>
+      <td className="col-time">
+        <div className="apd-time-val">{format(start, "HH:mm")}</div>
+        <div className="apd-time-dur">{dur} min</div>
+      </td>
+      <td className="col-type">
+        <TypeBadge type={apt.entryType || apt.type} />
+      </td>
+      <td className="col-booked">
+        <span className="apd-staff">{apt.crmUser?.fullName || "—"}</span>
+      </td>
+      <td className="col-source">
+        <SourceBadge source={apt.source} />
+      </td>
+      <td className="col-status">
+        <StatusBadge status={apt.status} />
+      </td>
+      <td className="col-action">
         <button
-          className="ad-view-btn"
-          onClick={() => onView(appointment._id)}
+          className="apd-view-btn"
+          onClick={() => onView(apt._id)}
           aria-label={`View appointment for ${name}`}
         >
           <Eye size={11} strokeWidth={2} />
           View
         </button>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
@@ -794,7 +603,7 @@ function AppointmentRow({
 
 export function AppointmentDashboard() {
   useStyles();
-  const router    = useRouter();
+  const router       = useRouter();
   const { getToken } = useAuth();
 
   const today    = format(new Date(), "yyyy-MM-dd");
@@ -810,12 +619,7 @@ export function AppointmentDashboard() {
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
-  const {
-    data: appointmentsData,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: appointmentsData, isLoading, error, refetch } = useQuery({
     queryKey: ["appts-dash", selectedDate, statusFilter, typeFilter],
     queryFn: async () => {
       const h = await getHeaders();
@@ -823,7 +627,7 @@ export function AppointmentDashboard() {
       if (statusFilter !== "all") params.status = statusFilter;
       if (typeFilter   !== "all") params.type   = typeFilter;
       const r = await apiClient.get("/api/appointments/dashboard", { ...h, params });
-      return r.data?.data || r.data;
+      return r.data?.data ?? r.data;
     },
     staleTime: 30_000,
   });
@@ -833,10 +637,9 @@ export function AppointmentDashboard() {
     queryFn: async () => {
       const h = await getHeaders();
       const r = await apiClient.get("/api/appointments/dashboard/stats", {
-        ...h,
-        params: { date: selectedDate },
+        ...h, params: { date: selectedDate },
       });
-      return r.data?.data || r.data;
+      return r.data?.data ?? r.data;
     },
     staleTime: 30_000,
   });
@@ -872,278 +675,233 @@ export function AppointmentDashboard() {
     try {
       const h = await getHeaders();
       const r = await apiClient.get("/api/appointments/dashboard/export", {
-        ...h,
-        params: { date: selectedDate, format: "csv" },
-        responseType: "text",
+        ...h, params: { date: selectedDate, format: "csv" }, responseType: "text",
       });
       const blob = new Blob([r.data], { type: "text/csv" });
       const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `appointments-${selectedDate}.csv`;
+      const a    = Object.assign(document.createElement("a"), { href: url, download: `appointments-${selectedDate}.csv` });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("Export failed:", e);
-    }
+    } catch (e) { console.error("Export failed:", e); }
   };
 
   return (
-    <div className="ad">
-      <div className="ad-wrap">
+    <div className="apd">
+      <div className="apd-layout">
 
-        {/* ── Page Header ── */}
-        <div className="ad-page-header">
-          <div className="ad-page-header-left">
-            <button
-              className="ad-back-btn"
-              onClick={() => router.back()}
-              aria-label="Go back"
-            >
-              <ArrowLeft size={15} strokeWidth={2} />
+        {/* ── Page header ── */}
+        <div className="apd-header">
+          <div className="apd-header-left">
+            <button className="apd-back" onClick={() => router.back()} aria-label="Go back">
+              <ArrowLeft size={14} strokeWidth={2} />
             </button>
-            <div>
-              <div className="ad-eyebrow">Operations Center</div>
-              <div className="ad-page-title">Appointment Dashboard</div>
+            <div className="apd-header-info">
+              <div className="apd-eyebrow">Operations Center</div>
+              <div className="apd-title">Appointment Dashboard</div>
             </div>
           </div>
-          <button
-            className="ad-primary-btn"
-            onClick={() => router.push("/crm/appointments")}
-          >
-            <FileText size={14} strokeWidth={2} />
-            Full Appointments
-            <ChevronRight size={14} strokeWidth={2} />
-          </button>
-        </div>
-
-        {/* ── Date Selection ── */}
-        <div className="ad-card">
-          <div className="ad-card-head">
-            <div className="ad-card-label">
-              <Calendar size={13} strokeWidth={2} />
-              Date Selection
-            </div>
-          </div>
-          <div className="ad-card-body">
-            <div className="ad-date-input-group">
-              <label className="ad-field-label" htmlFor="date-input">
-                Selected Date
-              </label>
-              <input
-                id="date-input"
-                type="date"
-                className="ad-ctrl"
-                value={selectedDate}
-                onChange={e => handleDateChange(e.target.value)}
-                style={{ maxWidth: 220 }}
-              />
-            </div>
-            <div className="ad-quick-row">
-              <span className="ad-quick-label">Quick:</span>
-              <button
-                className={cn("ad-quick-btn", selectedDate === today && "is-active")}
-                onClick={() => handleDateChange(today)}
-              >
-                Today
-              </button>
-              <button
-                className={cn("ad-quick-btn", selectedDate === tomorrow && "is-active")}
-                onClick={() => handleDateChange(tomorrow)}
-              >
-                Tomorrow
-              </button>
-              {selectedDate !== today && (
-                <button
-                  className="ad-quick-btn"
-                  onClick={() => handleDateChange(today)}
-                >
-                  Reset to Today
-                </button>
-              )}
-            </div>
+          <div className="apd-header-right">
+            <button className="apd-btn-primary" onClick={() => router.push("/crm/appointments")}>
+              <FileText size={13} strokeWidth={2} />
+              Full Appointments
+              <ChevronRight size={13} strokeWidth={2} />
+            </button>
           </div>
         </div>
 
         {/* ── Stats ── */}
         {statsData && (
-          <div className="ad-stats-grid">
-            <StatCard label="Total"     value={statsData.total     ?? 0} color="#1a56db" icon={<TrendingUp size={40} strokeWidth={1.5} />} />
-            <StatCard label="Scheduled" value={statsData.scheduled ?? 0} color="#3b82f6" icon={<Clock      size={40} strokeWidth={1.5} />} />
-            <StatCard label="Confirmed" value={statsData.confirmed ?? 0} color="#10b981" icon={<CheckCircle2 size={40} strokeWidth={1.5} />} />
-            <StatCard label="Completed" value={statsData.completed ?? 0} color="#059669" icon={<CheckCircle2 size={40} strokeWidth={1.5} />} />
-            <StatCard label="Cancelled" value={statsData.cancelled ?? 0} color="#ef4444" icon={<XCircle    size={40} strokeWidth={1.5} />} />
+          <div className="apd-stats">
+            <StatCard label="Total"     value={statsData.total     ?? 0} stripe="#2563eb" icon={<TrendingUp  size={38} strokeWidth={1.5} />} />
+            <StatCard label="Scheduled" value={statsData.scheduled ?? 0} stripe="#3b82f6" icon={<Clock       size={38} strokeWidth={1.5} />} />
+            <StatCard label="Confirmed" value={statsData.confirmed ?? 0} stripe="#0d9488" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
+            <StatCard label="Completed" value={statsData.completed ?? 0} stripe="#16a34a" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
+            <StatCard label="Cancelled" value={statsData.cancelled ?? 0} stripe="#dc2626" icon={<XCircle     size={38} strokeWidth={1.5} />} />
           </div>
         )}
 
-        {/* ── Filters ── */}
-        <div className="ad-card">
-          <div className="ad-card-head">
-            <div className="ad-card-label">
-              <Filter size={13} strokeWidth={2} />
-              Filters
+        {/* ── Toolbar ── */}
+        <div className="apd-toolbar">
+          {/* Date */}
+          <div className="apd-field">
+            <span className="apd-label">Date</span>
+            <input
+              type="date"
+              className="apd-ctrl apd-ctrl-date"
+              value={selectedDate}
+              onChange={e => handleDateChange(e.target.value)}
+            />
+          </div>
+
+          {/* Quick chips */}
+          <div className="apd-field">
+            <span className="apd-label">Quick select</span>
+            <div className="apd-quick-chips">
+              <button
+                className={cn("apd-chip", selectedDate === today && "is-on")}
+                onClick={() => handleDateChange(today)}
+              >Today</button>
+              <button
+                className={cn("apd-chip", selectedDate === tomorrow && "is-on")}
+                onClick={() => handleDateChange(tomorrow)}
+              >Tomorrow</button>
+              {selectedDate !== today && (
+                <button className="apd-chip" onClick={() => handleDateChange(today)}>
+                  Reset
+                </button>
+              )}
             </div>
           </div>
-          <div className="ad-card-body">
-            <div className="ad-filter-grid">
-              <div>
-                <label className="ad-field-label" htmlFor="search-ctrl">
-                  Search
-                </label>
-                <div className="ad-search-wrap">
-                  <Search size={13} className="ad-search-icon" strokeWidth={2} />
-                  <input
-                    id="search-ctrl"
-                    className="ad-ctrl"
-                    placeholder="Customer name, email, or phone..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="ad-field-label" htmlFor="status-ctrl">
-                  Status
-                </label>
-                <select
-                  id="status-ctrl"
-                  className="ad-ctrl ad-ctrl-select"
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div>
-                <label className="ad-field-label" htmlFor="type-ctrl">
-                  Type
-                </label>
-                <select
-                  id="type-ctrl"
-                  className="ad-ctrl ad-ctrl-select"
-                  value={typeFilter}
-                  onChange={e => setTypeFilter(e.target.value)}
-                >
-                  <option value="all">All Types</option>
-                  <option value="appointment">Appointment</option>
-                  <option value="test-drive">Test Drive</option>
-                  <option value="phone-call">Phone Call</option>
-                  <option value="meeting">Meeting</option>
-                  <option value="event">Event</option>
-                  <option value="task">Task</option>
-                </select>
-              </div>
+
+          <div className="apd-toolbar-divider" />
+
+          {/* Status */}
+          <div className="apd-field">
+            <span className="apd-label">Status</span>
+            <select
+              className="apd-ctrl apd-ctrl-select"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Type */}
+          <div className="apd-field">
+            <span className="apd-label">Type</span>
+            <select
+              className="apd-ctrl apd-ctrl-select"
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="appointment">Appointment</option>
+              <option value="test-drive">Test Drive</option>
+              <option value="phone-call">Phone Call</option>
+              <option value="meeting">Meeting</option>
+              <option value="event">Event</option>
+              <option value="task">Task</option>
+            </select>
+          </div>
+
+          <div className="apd-toolbar-divider" />
+
+          {/* Search */}
+          <div className="apd-field">
+            <span className="apd-label">Search</span>
+            <div className="apd-search-wrap">
+              <Search size={12} className="apd-search-ico" strokeWidth={2} />
+              <input
+                className="apd-ctrl"
+                placeholder="Name, email, phone…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
         </div>
 
         {/* ── Error ── */}
         {error && (
-          <div className="ad-error-box">
-            <AlertCircle size={15} strokeWidth={2} />
-            {error instanceof Error
-              ? error.message
-              : "Failed to load appointments. Please try again."}
+          <div className="apd-error">
+            <AlertCircle size={14} strokeWidth={2} />
+            {error instanceof Error ? error.message : "Failed to load appointments. Please try again."}
           </div>
         )}
 
-        {/* ── Appointments Table ── */}
-        <div className="ad-card" style={{ display: "flex", flexDirection: "column" }}>
-          <div className="ad-card-head">
-            <div className="ad-card-label">
-              <Car size={13} strokeWidth={2} />
-              {displayDate}
+        {/* ── Table card ── */}
+        <div className="apd-table-card">
+          <div className="apd-table-header">
+            <div className="apd-table-header-left">
+              <CalendarDays size={13} strokeWidth={2} style={{ color: "var(--c-green)" }} />
+              <span>{displayDate}</span>
               {!isLoading && appointmentsData?.count != null && (
-                <span style={{ color: "var(--ad-text-3)", fontWeight: 400, letterSpacing: 0, textTransform: "none", fontSize: 12, marginLeft: 4 }}>
-                  &mdash; {appointmentsData.count} total
-                </span>
+                <span className="apd-count-pill">{appointmentsData.count} total</span>
               )}
             </div>
-            <div className="ad-action-row">
+            <div className="apd-table-actions">
               <button
-                className="ad-btn-outline"
+                className="apd-btn-ghost"
                 onClick={handleExport}
                 disabled={isLoading || !filtered.length}
               >
                 <Download size={12} strokeWidth={2} />
                 Export CSV
               </button>
-              <button
-                className="ad-btn-outline"
-                onClick={() => refetch()}
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  size={12}
-                  strokeWidth={2}
-                  className={isLoading ? "ad-spin" : ""}
-                />
+              <button className="apd-btn-ghost" onClick={() => refetch()} disabled={isLoading}>
+                <RefreshCw size={12} strokeWidth={2} className={isLoading ? "spin" : ""} />
                 Refresh
               </button>
             </div>
           </div>
 
-          {/* Column headers */}
-          <div className="ad-tbl-head">
-            <div className={cn("ad-tbl-head-row", "ad-tbl-cols")}>
-              <span className="ad-th">Customer</span>
-              <span className="ad-th">Phone</span>
-              <span className="ad-th">Time</span>
-              <span className="ad-th">Type</span>
-              <span className="ad-th">Booked By</span>
-              <span className="ad-th">Source</span>
-              <span className="ad-th">Status</span>
-              <span className="ad-th" />
-            </div>
-          </div>
-
           {isLoading ? (
-            <div className="ad-loading">
-              <Loader2
-                size={22}
-                strokeWidth={2}
-                className="ad-spin"
-                style={{ color: "var(--ad-accent)" }}
-              />
-              <p className="ad-loading-txt">Loading appointments&hellip;</p>
+            <div className="apd-center">
+              <Loader2 size={22} strokeWidth={2} className="spin" style={{ color: "var(--c-green)" }} />
+              <p className="apd-center-sub">Loading appointments…</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="ad-empty">
-              <div className="ad-empty-ico">
-                <Calendar size={22} strokeWidth={1.5} />
+            <div className="apd-center">
+              <div className="apd-center-icon">
+                <Calendar size={20} strokeWidth={1.5} />
               </div>
-              <div className="ad-empty-title">No Appointments Found</div>
-              <div className="ad-empty-sub">
+              <div className="apd-center-title">No Appointments Found</div>
+              <div className="apd-center-sub">
                 {searchQuery
-                  ? "Try adjusting your search or filter criteria."
-                  : `No appointments are scheduled for ${displayDate}.`}
+                  ? "Try adjusting your search or filters."
+                  : `No appointments scheduled for ${displayDate}.`}
               </div>
             </div>
           ) : (
-            <div className="ad-scroll">
-              {filtered.map(apt => (
-                <AppointmentRow
-                  key={apt._id}
-                  appointment={apt}
-                  onView={id => router.push(`/crm/appointments?id=${id}`)}
-                />
-              ))}
+            <div className="apd-tbl-scroll">
+              <table className="apd-tbl">
+                <colgroup>
+                  <col className="col-customer" />
+                  <col className="col-phone" />
+                  <col className="col-time" />
+                  <col className="col-type" />
+                  <col className="col-booked" />
+                  <col className="col-source" />
+                  <col className="col-status" />
+                  <col className="col-action" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="col-customer">Customer</th>
+                    <th className="col-phone">Phone</th>
+                    <th className="col-time">Time</th>
+                    <th className="col-type">Type</th>
+                    <th className="col-booked">Booked By</th>
+                    <th className="col-source">Source</th>
+                    <th className="col-status">Status</th>
+                    <th className="col-action" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(apt => (
+                    <AppointmentRow
+                      key={apt._id}
+                      apt={apt}
+                      onView={id => router.push(`/crm/appointments?id=${id}`)}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
 
           {!isLoading && filtered.length > 0 && (
-            <div className="ad-tbl-footer">
+            <div className="apd-tbl-foot">
               <span>
-                Showing{" "}
-                <strong>{filtered.length}</strong> of{" "}
-                <strong>{appointmentsData?.count ?? 0}</strong>{" "}
-                appointments
+                Showing <strong>{filtered.length}</strong> of{" "}
+                <strong>{appointmentsData?.count ?? 0}</strong> appointments
               </span>
               <span>{displayDate}</span>
             </div>
