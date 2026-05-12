@@ -137,7 +137,7 @@ export default function AdminPayoutsPage() {
 
                 <Table>
                     <TableHeader>
-                        <TableRow>
+                        <TableRow>,
                             <TableHead>Partner</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>Method</TableHead>

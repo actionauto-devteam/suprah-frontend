@@ -618,6 +618,16 @@ function fmtDate(d: string) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+
+// Renders message text with **bold** markdown support and preserved newlines
+function renderMessageContent(content: string): React.ReactNode[] {
+  return content.split(/(\*\*[^*\n]+\*\*)/g).map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
+}
 function getErrorMessage(error: unknown, fallback: string) {
   if (
     typeof error === 'object' &&
@@ -667,9 +677,10 @@ function DateSep({ date }: { date: string }) {
 }
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
-function Bubble({ message, isOwn, showAvatar, onReply, onDelete }: {
+function Bubble({ message, isOwn, showAvatar, onReply, onDelete, disableActions }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
+  disableActions?: boolean;
 }) {
   const [hov, setHov] = React.useState(false);
 
@@ -728,49 +739,76 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete }: {
           </div>
         )}
 
-        {/* Bubble */}
-        <div className={cn(
-          'ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed wrap-break-word',
-          isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other'
-        )}>
-          {message.attachments.filter(a => a.mimeType.startsWith('image/')).map((att, i) => (
-            <a key={`img-${i}`} href={att.url} target="_blank" rel="noreferrer" className="ss4-attachment-item mb-2 last:mb-0">
-              <img src={att.url} alt={att.originalName} className="ss4-attachment-media rounded-xl" style={{ maxHeight: 220 }} />
-            </a>
-          ))}
-          {message.attachments.filter(isVideoAttachment).map((att, i) => (
-            <div key={`video-${i}`} className="ss4-attachment-item mb-2 last:mb-0">
-              <video
-                controls
-                preload="metadata"
-                className="ss4-attachment-video rounded-xl"
-                style={{ maxHeight: 260 }}
-              >
-                <source src={att.url} type={att.mimeType || 'video/mp4'} />
-                Your browser does not support the video tag.
-              </video>
-              <a href={att.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-1 text-[10px] opacity-60 hover:opacity-90">
-                <Download className="h-3 w-3" />
-                Open video
+        {/* Text bubble — only rendered when there is text content */}
+        {message.content ? (
+          <div className={cn(
+            'ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed wrap-break-word',
+            isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other'
+          )}>
+            <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {renderMessageContent(message.content)}
+            </p>
+          </div>
+        ) : null}
+
+        {/* Attachments — rendered below the bubble, not inside it */}
+        {message.attachments.length > 0 && (
+          <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
+            {/* Images */}
+            {message.attachments.filter(a => a.mimeType.startsWith('image/')).map((att, i) => (
+              <a key={`img-${i}`} href={att.url} target="_blank" rel="noreferrer" className="block">
+                <img
+                  src={att.url}
+                  alt={att.originalName}
+                  className="rounded-xl object-cover"
+                  style={{ maxHeight: 200, maxWidth: 260, display: 'block' }}
+                />
               </a>
-            </div>
-          ))}
-          {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !isVideoAttachment(a)).map((att, i) => (
-            <a key={`file-${i}`} href={att.url} target="_blank" rel="noreferrer"
-              className={cn('ss4-attachment-item flex items-center gap-3 rounded-xl p-2.5 mb-2 last:mb-0 transition-opacity hover:opacity-80', isOwn ? 'ss4-file-own' : 'ss4-file-other')}
-            >
-              <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: isOwn ? 'rgba(255,255,255,0.12)' : 'var(--accent-muted)' }}>
-                <FileText className="h-4 w-4" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }} />
+            ))}
+            {/* Videos */}
+            {message.attachments.filter(isVideoAttachment).map((att, i) => (
+              <div key={`video-${i}`} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
+                <video
+                  controls
+                  preload="metadata"
+                  className="block w-full rounded-xl"
+                  style={{ maxHeight: 220 }}
+                >
+                  <source src={att.url} type={att.mimeType || 'video/mp4'} />
+                  Your browser does not support the video tag.
+                </video>
+                <a href={att.url} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1 mt-1 text-[10px] opacity-60 hover:opacity-90">
+                  <Download className="h-3 w-3" />
+                  Open video
+                </a>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold truncate">{att.originalName}</p>
-                <p className="mt-0.5 opacity-50 ss4-mono" style={{ fontSize: 10 }}>{fmtSize(att.size)}</p>
-              </div>
-              <Download className="h-3.5 w-3.5 shrink-0 opacity-40" />
-            </a>
-          ))}
-          {message.content && <p>{message.content}</p>}
-        </div>
+            ))}
+            {/* Files */}
+            {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !isVideoAttachment(a)).map((att, i) => (
+              <a key={`file-${i}`} href={att.url} target="_blank" rel="noreferrer" download={att.originalName}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80',
+                  isOwn ? 'ss4-file-own' : 'ss4-file-other'
+                )}
+                style={{ maxWidth: 280 }}
+              >
+                <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: isOwn ? 'rgba(255,255,255,0.12)' : 'var(--accent-muted)' }}>
+                  <FileText className="h-4 w-4" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold truncate"
+                    style={{ color: isOwn ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)' }}>
+                    {att.originalName}
+                  </p>
+                  <p className="mt-0.5 opacity-50 ss4-mono" style={{ fontSize: 10 }}>{fmtSize(att.size)}</p>
+                </div>
+                <Download className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </a>
+            ))}
+          </div>
+        )}
 
         {/* Meta row */}
         <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
@@ -786,7 +824,7 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete }: {
       </div>
 
       {/* Hover actions */}
-      {hov && (
+      {hov && !disableActions && (
         <div className={cn(
           'ss4-msg-actions absolute top-0 flex items-center gap-0.5 px-1 py-1 z-10',
           isOwn ? 'right-16' : 'left-16'
@@ -1093,8 +1131,14 @@ export default function SupraSpacePage() {
           apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } }),
         ]);
         setUid((me.data?.data || me.data)._id);
-        setConvos(cv.data?.data || []);
-        setAllUsers(us.data?.data || []);
+        const fetchedConvos: SSConversation[] = cv.data?.data || [];
+        const fetchedUsers: CrmUser[] = us.data?.data || [];
+        setConvos(fetchedConvos);
+        setAllUsers(fetchedUsers);
+
+        // Cache the "Online Team Report" group ID so DayPulse can post there
+        const reportGroup = fetchedConvos.find(c => c.type === 'group' && c.name === 'Online Team Report');
+        if (reportGroup) localStorage.setItem('dp_groupchat_id', reportGroup._id);
       } catch { router.replace('/crm'); }
       finally { setLoading(false); }
     };
@@ -1174,9 +1218,9 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeMsgs.length]);
 
+  // Fetch messages and mark read when conversation changes
   React.useEffect(() => {
     if (!activeId || !token) return;
-    joinConversation(activeId);
     if (!msgs[activeId]) {
       setLoadingMsgs(true);
       apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 40 } })
@@ -1187,8 +1231,15 @@ export default function SupraSpacePage() {
         }).finally(() => setLoadingMsgs(false));
     }
     markRead(activeId);
-    return () => leaveConversation(activeId);
   }, [activeId, token]); // eslint-disable-line
+
+  // Join/leave conversation socket room — re-runs on activeId change AND on reconnect
+  // so we always re-join after a socket disconnect/reconnect cycle.
+  React.useEffect(() => {
+    if (!activeId || !isConnected) return;
+    joinConversation(activeId);
+    return () => leaveConversation(activeId);
+  }, [activeId, isConnected, joinConversation, leaveConversation]);
 
   React.useEffect(() => {
     setPendingFiles([]);
@@ -1396,7 +1447,23 @@ export default function SupraSpacePage() {
   };
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
-  const filtered = convos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
+
+  // Deduplicate "Online Team Report" groups (keep earliest _id), then pin it first
+  const dedupedConvos = React.useMemo(() => {
+    const seen = new Set<string>();
+    const deduped: SSConversation[] = [];
+    let reportGroup: SSConversation | null = null;
+    for (const c of convos) {
+      if (c.type === 'group' && c.name === 'Online Team Report') {
+        if (!reportGroup) reportGroup = c; // keep first encountered
+        continue;
+      }
+      if (!seen.has(c._id)) { seen.add(c._id); deduped.push(c); }
+    }
+    return reportGroup ? [reportGroup, ...deduped] : deduped;
+  }, [convos]);
+
+  const filtered = dedupedConvos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
@@ -1543,9 +1610,16 @@ export default function SupraSpacePage() {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="ss4-conv-name font-semibold truncate" style={{ fontSize: 13 }}>
-                      {cName}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="ss4-conv-name font-semibold truncate" style={{ fontSize: 13 }}>
+                        {cName}
+                      </p>
+                      {conv.type === 'group' && conv.name === 'Online Team Report' && (
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', color: 'var(--accent)', background: 'rgba(91,124,246,0.12)', border: '1px solid rgba(91,124,246,0.25)', borderRadius: 4, padding: '1px 5px', flexShrink: 0, textTransform: 'uppercase' }}>
+                          Pinned
+                        </span>
+                      )}
+                    </div>
                     <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11 }}>
                       {conv.lastMessage?.isDeleted
                         ? 'Message deleted'
@@ -1693,7 +1767,7 @@ export default function SupraSpacePage() {
                   return (
                     <React.Fragment key={msg._id}>
                       {showDate && <DateSep date={msg.createdAt} />}
-                      <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} onReply={setReplyTo} onDelete={handleDelete} />
+                      <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} onReply={setReplyTo} onDelete={handleDelete} disableActions={activeConv?.type === 'group'} />
                     </React.Fragment>
                   );
                 })}
@@ -1785,6 +1859,14 @@ export default function SupraSpacePage() {
                 )}
 
                 {/* Input wrapper */}
+                {activeConv?.name === 'Online Team Report' ? (
+                  <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>
+                      Read-only · DayPulse reports are posted here automatically
+                    </span>
+                  </div>
+                ) : (
                 <div className="ss4-input-wrap flex flex-col">
                   <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
                     <textarea
@@ -1921,6 +2003,7 @@ export default function SupraSpacePage() {
                     </div>
                   </div>
                 </div>
+                )}
               </div>
             </>
           )}

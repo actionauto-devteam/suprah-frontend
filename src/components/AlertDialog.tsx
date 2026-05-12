@@ -1,7 +1,7 @@
 // components/AlertDialog.tsx
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle, Info, XCircle, X } from "lucide-react";
+import { AlertTriangle, CheckCircle, Info, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,9 @@ interface AlertDialogProps {
   type: AlertType;
   title: string;
   message: string;
+  detail?: string;
+  warning?: string;
+  showCloseButton?: boolean;
   confirmText?: string;
   cancelText?: string;
   onConfirm?: () => void | Promise<void>;
@@ -60,7 +63,7 @@ const alertConfig = {
     iconColor: "text-orange-600",
     bgColor: "bg-orange-50",
     borderColor: "border-orange-200",
-    buttonColor: "bg-blue-600 hover:bg-blue-700",
+    buttonColor: "bg-primary hover:bg-primary/90",
   },
 };
 
@@ -70,6 +73,9 @@ export function AlertDialog({
   type,
   title,
   message,
+  detail,
+  warning,
+  showCloseButton = true,
   confirmText = "Confirm",
   cancelText = "Cancel",
   onConfirm,
@@ -105,34 +111,49 @@ export function AlertDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <button
-          onClick={handleCancel}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
-
-        <DialogHeader className="space-y-4">
+      <DialogContent
+        showCloseButton={showCloseButton}
+        className="border-border bg-card text-card-foreground shadow-2xl sm:max-w-md"
+      >
+        <DialogHeader className="space-y-5 text-left">
           <div className="flex items-start gap-4">
             <div
-              className={`flex-shrink-0 rounded-full p-3 ${config.bgColor} border-2 ${config.borderColor}`}
+              className={`flex-shrink-0 rounded-2xl p-3 ${config.bgColor} border ${config.borderColor}`}
             >
               <Icon className={`w-6 h-6 ${config.iconColor}`} />
             </div>
-            <div className="flex-1 pt-1">
-              <DialogTitle className="text-lg font-semibold text-foreground">
+            <div className="flex-1 pt-0.5">
+              <DialogTitle className="text-lg font-bold leading-tight text-card-foreground">
                 {title}
               </DialogTitle>
+              <DialogDescription className="mt-2 text-sm leading-6 text-muted-foreground">
+                {message}
+              </DialogDescription>
             </div>
           </div>
-          <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed pl-16">
-            {message}
-          </DialogDescription>
+
+          {(detail || warning) && (
+            <div className="space-y-3 pl-0 sm:pl-16">
+              {detail && (
+                <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                    File name
+                  </p>
+                  <p className="mt-1 break-words text-sm font-semibold leading-5 text-foreground">
+                    {detail}
+                  </p>
+                </div>
+              )}
+              {warning && (
+                <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs font-medium leading-5 text-destructive">
+                  {warning}
+                </p>
+              )}
+            </div>
+          )}
         </DialogHeader>
 
-        <DialogFooter className="mt-6 gap-2 sm:gap-2">
+        <DialogFooter className="mt-2 gap-2 sm:gap-2">
           {isConfirmDialog ? (
             <>
               <Button
@@ -140,7 +161,7 @@ export function AlertDialog({
                 variant="outline"
                 onClick={handleCancel}
                 disabled={isLoading}
-                className="border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="border-border bg-background text-foreground hover:bg-muted hover:text-foreground"
               >
                 {cancelText}
               </Button>
@@ -148,7 +169,7 @@ export function AlertDialog({
                 type="button"
                 onClick={handleConfirm}
                 disabled={isLoading}
-                className={config.buttonColor}
+                className={`${config.buttonColor} text-primary-foreground shadow-sm`}
               >
                 {isLoading ? "Processing..." : confirmText}
               </Button>

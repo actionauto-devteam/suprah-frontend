@@ -79,6 +79,32 @@ interface ActivityItem {
   timestamp: string;
 }
 
+type ApiError = {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+  code?: string;
+};
+
+type ActivityPayload = {
+  _id?: string;
+  type?: string;
+  title?: string;
+  description?: string;
+  timestamp?: string;
+  createdAt?: string;
+};
+
+type TimeLogPayload = {
+  _id?: string;
+  type?: TimeLog["type"];
+  timestamp?: string;
+  note?: string;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
@@ -233,7 +259,7 @@ export default function CrmProfilePage() {
     setIsEditOpen(true);
   };
 
-  const AVATAR_ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
+  const AVATAR_ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -244,7 +270,7 @@ export default function CrmProfilePage() {
     setAvatarError("");
 
     if (!AVATAR_ACCEPTED_TYPES.includes(file.type)) {
-      setAvatarError("Only JPG, JPEG, or PNG files are accepted.");
+      setAvatarError("Only JPG, JPEG, PNG, or WEBP files are accepted.");
       return;
     }
 
@@ -296,11 +322,12 @@ export default function CrmProfilePage() {
           newAvatarUrl = `${av}?v=${Date.now()}`;
           setMainAvatar(newAvatarUrl);
         }
-      } catch (avatarErr: any) {
-        const status = avatarErr?.response?.status;
-        const serverMsg = (avatarErr?.response?.data?.message ?? "").toLowerCase();
-        const isTimeout = avatarErr?.code === "ECONNABORTED";
-        const isNetworkErr = avatarErr?.code === "ERR_NETWORK";
+      } catch (avatarErr: unknown) {
+        const apiError = avatarErr as ApiError;
+        const status = apiError.response?.status;
+        const serverMsg = (apiError.response?.data?.message ?? "").toLowerCase();
+        const isTimeout = apiError.code === "ECONNABORTED";
+        const isNetworkErr = apiError.code === "ERR_NETWORK";
 
         if (status === 401) {
           setAvatarError("Session expired. Please sign in and try again.");
@@ -310,7 +337,7 @@ export default function CrmProfilePage() {
           );
         } else if (serverMsg.includes("too large") || serverMsg.includes("file too large")) {
           setAvatarError(
-            "Photo is too large for the server. Please use a smaller image.",
+            "Photo is too large for the server. Please use a photo under 5 MB.",
           );
         } else if (isTimeout) {
           setAvatarError("Upload timed out. Check your connection and try again.");
@@ -473,7 +500,7 @@ export default function CrmProfilePage() {
                   <span className="font-semibold text-foreground">
                     {viewedUser.fullName}
                   </span>
-                  's profile
+                  &apos;s profile
                 </span>
               </div>
               <button
@@ -976,30 +1003,31 @@ function ActivityLogSection({
     const sock = getSocket();
     if (!sock) return;
 
-    const onActivityCreated = (activity: any) => {
+    const onActivityCreated = (activity: ActivityPayload) => {
+      if (!activity.type) return;
       if (!IMPORTANT_ACTIVITY_TYPES.has(activity.type)) return;
       setItems((prev) => [
         {
-          id: activity._id,
+          id: activity._id ?? crypto.randomUUID(),
           type: activity.type ?? "other",
           title: activity.title ?? activity.type ?? "Activity",
           description: activity.description ?? "",
-          timestamp: activity.timestamp ?? activity.createdAt,
+          timestamp: activity.timestamp ?? activity.createdAt ?? new Date().toISOString(),
         },
         ...prev,
       ]);
     };
 
-    const onTimeLogCreated = (log: any) => {
+    const onTimeLogCreated = (log: TimeLogPayload) => {
       setItems((prev) => [
         {
-          id: log._id,
-          type: log.type,
+          id: log._id ?? crypto.randomUUID(),
+          type: log.type ?? "time-in",
           title: log.type === "time-in" ? "Clocked In" : "Clocked Out",
           description:
             log.note ??
             (log.type === "time-in" ? "Started work session" : "Ended work session"),
-          timestamp: log.timestamp,
+          timestamp: log.timestamp ?? new Date().toISOString(),
         },
         ...prev,
       ]);

@@ -1,7 +1,6 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import {
   Car,
   LogOut,
@@ -46,7 +45,7 @@ import { apiClient } from "@/lib/api-client";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { DashboardNotifications } from "@/components/crm/DashboardNotifications";
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface CrmUserData {
@@ -55,6 +54,7 @@ interface CrmUserData {
   username: string;
   email: string;
   avatar?: string;
+  avatarUrl?: string;
   role: string;
   todayTimeLogs?: Array<{
     _id: string;
@@ -94,6 +94,19 @@ function ini(n: string) {
 }
 function fmt(d: Date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+};
+
+function withAvatarCacheBust(avatar?: string | null) {
+  if (!avatar) return undefined;
+  return `${avatar}${avatar.includes("?") ? "&" : "?"}v=${Date.now()}`;
 }
 
 // ─── Animated Counter ────────────────────────────────────────────────────────
@@ -185,13 +198,12 @@ function ShiftTimer({
   breakAccumulatedMs,
   breakStartedAt,
 }: ShiftTimerProps) {
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+  const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
-    const id = setInterval(forceUpdate, 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const now = Date.now();
   const totalElapsedMs = now - new Date(startTime).getTime();
   const currentBreakMs =
     breakAccumulatedMs + (breakStartedAt ? now - breakStartedAt : 0);
@@ -412,7 +424,13 @@ export default function CrmDashboardPage() {
           headers: { Authorization: `Bearer ${t}` },
         });
         const data = res.data?.data || res.data;
-        setUser(data);
+        const profileRes = await apiClient.get("/api/profile").catch(() => null);
+        const profile = profileRes?.data?.data || profileRes?.data;
+        const profileAvatar = profile?.avatarUrl || profile?.avatar;
+        setUser({
+          ...data,
+          avatar: withAvatarCacheBust(profileAvatar || data.avatarUrl || data.avatar),
+        });
         setToken(t);
         setTodayLogs(data.todayTimeLogs || []);
       } catch {
@@ -458,8 +476,9 @@ export default function CrmDashboardPage() {
       setClockMsg(
         `${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`,
       );
-    } catch (err: any) {
-      setClockMsg(err?.response?.data?.message || "Failed");
+    } catch (err: unknown) {
+      const apiError = err as ApiError;
+      setClockMsg(apiError.response?.data?.message || "Failed");
     } finally {
       setIsClocking(false);
     }
@@ -534,6 +553,7 @@ export default function CrmDashboardPage() {
 
   if (!user) return null;
 
+  const userAvatarSrc = resolveImageUrl(user.avatar || user.avatarUrl);
   const greeting = getGreeting(user.fullName.split(" ")[0]);
   const todayStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -626,9 +646,9 @@ export default function CrmDashboardPage() {
                     variant="ghost"
                     size="sm"
                     className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-white/80 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:border-zinc-300/60 dark:hover:border-zinc-600/60 backdrop-blur-sm transition-all duration-200"
-                  >
+                    >
                     <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
-                      <AvatarImage src={user.avatar} />
+                      <AvatarImage src={userAvatarSrc} />
                       <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
                         {ini(user.fullName)}
                       </AvatarFallback>
@@ -646,7 +666,7 @@ export default function CrmDashboardPage() {
                   <div className="p-4 bg-linear-to-br from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 ring-2 ring-emerald-500/20">
-                        <AvatarImage src={user.avatar} />
+                        <AvatarImage src={userAvatarSrc} />
                         <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-xs font-black">
                           {ini(user.fullName)}
                         </AvatarFallback>
@@ -931,7 +951,7 @@ export default function CrmDashboardPage() {
                   <div className="relative shrink-0">
                     <div className="absolute -inset-1 rounded-full bg-linear-to-br from-emerald-500/30 to-emerald-700/10 animate-[spin_6s_linear_infinite]" />
                     <Avatar className="relative h-16 w-16 ring-2 ring-zinc-200 dark:ring-zinc-800">
-                      <AvatarImage src={user.avatar} />
+                      <AvatarImage src={userAvatarSrc} />
                       <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-lg font-black">
                         {ini(user.fullName)}
                       </AvatarFallback>
