@@ -1,4 +1,5 @@
 import {
+    Activity,
     LayoutDashboard,
     Car,
     Users,
@@ -20,7 +21,7 @@ export const dealershipNav: BottomNavItem[] = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
     { label: "Inventory", href: "/inventory", icon: Car },
     { label: "CRM", href: "/crm", icon: Users, isCenter: true },
-    { label: "Transport", href: "/transportation", icon: Truck },
+    { label: "Pulse", href: "/team-pulse", icon: Activity },
     { label: "Billing", href: "/billing", icon: CreditCard },
 ];
 

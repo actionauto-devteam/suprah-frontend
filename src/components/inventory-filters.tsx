@@ -147,7 +147,7 @@ export function InventoryFilters({
                             )}
                         </Button>
                     </SheetTrigger>
-                    <SheetContent className="w-[300px] sm:w-[400px] flex flex-col h-full">
+                    <SheetContent className="w-75 sm:w-100 flex flex-col h-full">
                         <SheetHeader>
                             <SheetTitle>Filter Inventory</SheetTitle>
                             <SheetDescription>

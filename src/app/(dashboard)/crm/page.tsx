@@ -118,8 +118,8 @@ export default function CrmLoginPage() {
     } catch (err: any) {
       setError(
         err?.response?.data?.message ||
-          err?.response?.data?.data?.message ||
-          "Invalid Employee ID or password.",
+        err?.response?.data?.data?.message ||
+        "Invalid Employee ID or password.",
       );
     } finally {
       setIsLoading(false);
@@ -192,7 +192,7 @@ export default function CrmLoginPage() {
     } catch (err: any) {
       setError(
         err?.response?.data?.message ||
-          "Failed to get SSH challenge. Do you have an SSH key registered?",
+        "Failed to get SSH challenge. Do you have an SSH key registered?",
       );
     } finally {
       setSshLoading(false);
@@ -360,7 +360,7 @@ export default function CrmLoginPage() {
   /* ── Login Page ──────────────────────────────────────────────────────────── */
   return (
     <div className="h-full flex flex-col items-center justify-center px-4 py-6 bg-background overflow-hidden">
-      <div className="w-full max-w-[400px] space-y-5">
+      <div className="w-full max-w-100 space-y-5">
         {/* ── Brand ── */}
         <div className="flex flex-col items-center gap-3">
           <div className="relative">
@@ -392,11 +392,10 @@ export default function CrmLoginPage() {
           <div className="flex rounded-xl border border-border/40 bg-muted/20 p-0.5 gap-0.5">
             <button
               onClick={() => switchMode("password")}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-medium transition-all ${
-                loginMode === "password"
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-medium transition-all ${loginMode === "password"
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground/70 hover:text-foreground"
-              }`}
+                }`}
             >
               <KeyRound className="h-3.5 w-3.5" />
               Password
@@ -404,11 +403,10 @@ export default function CrmLoginPage() {
             {biometricAvailable && (
               <button
                 onClick={() => switchMode("biometric")}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-medium transition-all ${
-                  loginMode === "biometric"
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-medium transition-all ${loginMode === "biometric"
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground/70 hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Fingerprint className="h-3.5 w-3.5" />
                 Biometric
@@ -416,11 +414,10 @@ export default function CrmLoginPage() {
             )}
             <button
               onClick={() => switchMode("ssh")}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-medium transition-all ${
-                loginMode === "ssh"
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-medium transition-all ${loginMode === "ssh"
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground/70 hover:text-foreground"
-              }`}
+                }`}
             >
               <Terminal className="h-3.5 w-3.5" />
               SSH Key

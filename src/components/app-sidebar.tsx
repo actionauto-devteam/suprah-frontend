@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
   Car,
   ChevronRight,
   ClipboardList,
@@ -66,11 +67,15 @@ const data = {
       url: "/crm",
       icon: Users,
     },
-
     {
       title: "Dashboard",
       url: "/",
       icon: LayoutDashboard,
+    },
+    {
+      title: "Team Pulse",
+      url: "/team-pulse",
+      icon: Activity,
     },
     {
       title: "All Inventory",

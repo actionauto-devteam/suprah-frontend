@@ -15,7 +15,7 @@ import { ToastStack, Toast } from "./leads/atomic/ToastStack"
 import { LeadsList } from "./leads/LeadsList"
 import { ConversationView } from "./leads/ConversationView"
 import { ReplySection } from "./leads/ReplySection"
-import { AppointmentDialog } from "./leads/AppointmentDialog"
+import { CreateAppointmentModal } from "@/components/CreateAppointmentModal"
 
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab"
@@ -25,6 +25,7 @@ import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI"
 const LEADS_SOURCE_EMAIL = 'leads@dealerscloud.com'
 const LEADS_PER_PAGE = 20
 const THREAD_POLL_INTERVAL_MS = 15_000
+const DRAFT_STORAGE_KEY = 'crm-appointment-draft'
 
 const TABS = [
   { key: null, label: 'All' },
@@ -65,22 +66,29 @@ export function LeadsTab() {
 
   const [replyMessage, setReplyMessage] = React.useState('')
   const [isSending, setIsSending] = React.useState(false)
-  const [isScheduling, setIsScheduling] = React.useState(false)
   const [apptOpen, setApptOpen] = React.useState(false)
-  const [apptForm, setApptForm] = React.useState({
-    date: '',
-    time: '',
-    notes: '',
-    locationOrVehicle: '',
-    title: '',
-    type: 'in-person',
-    duration: '30'
-  })
   const [toasts, setToasts] = React.useState<Toast[]>([])
   const [isClosed, setIsClosed] = React.useState(false)
   const [threads, setThreads] = React.useState<Record<string, any[]>>({})
   const [highlightedLeadIds, setHighlightedLeadIds] = React.useState<Set<string>>(new Set())
   const [shippingOpen, setShippingOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = sessionStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!stored) return
+
+    try {
+      const draft = JSON.parse(stored) as any
+      const leadId = draft?.meta?.extraPayload?.leadId
+      if (draft?.resume && leadId) {
+        setApptOpen(true)
+        sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draft, resume: false }))
+      }
+    } catch {
+      // ignore invalid draft
+    }
+  }, [])
 
   // 1. Reliability Sync: Keep selectedLead in sync with master leads list
   React.useEffect(() => {
@@ -245,42 +253,36 @@ export function LeadsTab() {
     finally { setIsSending(false) }
   }
 
-  const handleAppt = async () => {
-    if (!selectedLead || !apptForm.date || !apptForm.time || !apptForm.title) {
-      addToast('error', 'Title, date & time required'); return
+  const handleAppt = async (appointmentData: Record<string, unknown>) => {
+    const hasLeadId = Boolean((appointmentData as any)?.leadId)
+    if (!selectedLead && !hasLeadId) {
+      throw new Error('Please select a lead first.')
     }
-    setIsScheduling(true)
     try {
-      const token = await getToken(); if (!token) { addToast('error', 'Auth required'); return }
+      const token = await getToken()
+      if (!token) throw new Error('Authentication required.')
 
-      const start = new Date(`${apptForm.date}T${apptForm.time}`)
-      const duration = parseInt(apptForm.duration || '30')
-      const end = new Date(start.getTime() + duration * 60 * 1000)
+      await apiClient.post(
+        '/api/crm/calendar/appointments',
+        appointmentData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
 
-      await apiClient.post(`/api/leads/${selectedLead._id}/appointment`, {
-        ...apptForm,
-        startTime: start.toISOString(),
-        endTime: end.toISOString()
-      }, { headers: { Authorization: `Bearer ${token}` } })
-
-      // Backend now handles status transition to 'Appointment Set'
       addToast('success', 'Appointment scheduled')
-      setApptOpen(false)
-      setApptForm({ date: '', time: '', notes: '', locationOrVehicle: '', title: '', type: 'in-person', duration: '30' })
       await refetch()
     } catch (err: any) {
       const status = err?.response?.status
-      const backendMessage = err?.response?.data?.message
-      
+      const backendMessage = err?.response?.data?.message || err?.response?.data?.data?.message
+      let message = backendMessage || 'Failed to save appointment'
+
       if (status === 401) {
-        addToast('error', 'Google Calendar not connected. Please go to Settings.')
+        message = 'Google Calendar not connected. Please go to Settings.'
       } else if (status === 409 || status === 400) {
-        addToast('error', backendMessage || 'Time Slot Unavailable: You have a conflicting appointment.')
-      } else {
-        addToast('error', 'Failed to save appointment')
+        message = backendMessage || 'Time Slot Unavailable: You have a conflicting appointment.'
       }
-    } finally {
-      setIsScheduling(false)
+
+      addToast('error', message)
+      throw new Error(message)
     }
   }
 
@@ -396,7 +398,7 @@ export function LeadsTab() {
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
-                <div className="h-24 w-24 rounded-[32px] border-2 border-dashed border-border bg-white dark:bg-muted/10 shadow-sm flex items-center justify-center">
+                <div className="h-24 w-24 rounded-4xl border-2 border-dashed border-border bg-white dark:bg-muted/10 shadow-sm flex items-center justify-center">
                   <RefreshCw className="h-10 w-10 text-muted-foreground/40" />
                 </div>
                 <div className="space-y-1 mt-2">
@@ -409,14 +411,20 @@ export function LeadsTab() {
         </div>
       )}
 
-      <AppointmentDialog
+      <CreateAppointmentModal
         open={apptOpen}
         onOpenChange={setApptOpen}
-        lead={selectedLead}
-        apptForm={apptForm}
-        setApptForm={setApptForm}
-        onSave={handleAppt}
-        isSubmitting={isScheduling}
+        onCreateAppointment={handleAppt}
+        conversations={[]}
+        initialCustomerBooking={selectedLead ? {
+          firstName: selectedLead.firstName || '',
+          lastName: selectedLead.lastName || '',
+          email: selectedLead.email || '',
+          phone: selectedLead.phone || ''
+        } : undefined}
+        forceCustomerBooking={true}
+        extraPayload={selectedLead ? { leadId: selectedLead._id } : undefined}
+        entryTypeLock="appointment"
       />
 
       <ShippingQuoteModal

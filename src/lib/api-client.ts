@@ -359,6 +359,55 @@ class ApiClient {
     return this.get("/api/dashboard/leaderboard", { ...config, params });
   }
 
+  // ── Team Pulse Methods ───────────────────────────────────────────────────
+  async getTeamMembers(config?: AxiosRequestConfig) {
+    return this.get("/api/team-pulse/members", config);
+  }
+
+  async getTeamAbsences(
+    params: { year?: number; month?: number },
+    config?: AxiosRequestConfig,
+  ) {
+    return this.get("/api/team-pulse/absences", { ...config, params });
+  }
+
+  async createAbsence(
+    data: { date: string; type: string; note?: string },
+    config?: AxiosRequestConfig,
+  ) {
+    return this.post("/api/team-pulse/absences", data, config);
+  }
+
+  async deleteAbsence(id: string, config?: AxiosRequestConfig) {
+    return this.delete(`/api/team-pulse/absences/${id}`, config);
+  }
+
+  async getBoardNotes(config?: AxiosRequestConfig) {
+    return this.get("/api/team-pulse/board", config);
+  }
+
+  async createBoardNote(
+    data: { content: string; color?: string; title?: string; durationDays?: number | null },
+    config?: AxiosRequestConfig,
+  ) {
+    return this.post("/api/team-pulse/board", data, config);
+  }
+
+  async deleteBoardNote(id: string, config?: AxiosRequestConfig) {
+    return this.delete(`/api/team-pulse/board/${id}`, config);
+  }
+
+  async togglePinBoardNote(id: string, config?: AxiosRequestConfig) {
+    return this.patch(`/api/team-pulse/board/${id}/pin`, {}, config);
+  }
+
+  async updateOnlineStatus(
+    data: { status: string; customStatus?: string },
+    config?: AxiosRequestConfig,
+  ) {
+    return this.patch("/api/profile/online-status", data, config);
+  }
+
   async completeOnboarding(role: string, config?: AxiosRequestConfig) {
     return this.post("/api/auth/complete-onboarding", { role }, config);
   }

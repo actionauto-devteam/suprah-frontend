@@ -443,7 +443,7 @@ export function AppointmentDetailsModal({
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-300">
                     <SelectItem value="in-person">In-Person</SelectItem>
                     <SelectItem value="video">Video Call</SelectItem>
                     <SelectItem value="phone">Phone Call</SelectItem>
@@ -487,7 +487,7 @@ export function AppointmentDetailsModal({
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-300">
                   <SelectItem value="scheduled">Scheduled</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>

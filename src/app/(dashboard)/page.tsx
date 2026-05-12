@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Clock } from "lucide-react";
+import { Clock, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useRouter } from "next/navigation";
 
 // Modular Insight Components
 import { StatHero } from "./components/StatHero";
@@ -14,10 +16,55 @@ import { LogisticsMonitor } from "./components/LogisticsMonitor";
 import { RevenueIntelligence } from "./components/RevenueIntelligence";
 import { OperationalHealth } from "./components/OperationalHealth";
 
+const STATUS_DOT: Record<string, string> = {
+  online: "bg-green-500",
+  busy: "bg-red-500",
+  away: "bg-yellow-500",
+  idle: "bg-yellow-400",
+  do_not_disturb: "bg-red-600",
+  offline: "bg-muted-foreground/40",
+};
+
 export default function Dashboard() {
+  const router = useRouter();
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [revenuePeriod, setRevenuePeriod] = React.useState<string>("1Y");
   const [leaderboardMonth, setLeaderboardMonth] = React.useState<string>("Mar");
+
+  // Drag-to-scroll for the active reps strip
+  const repsScrollRef = React.useRef<HTMLDivElement>(null);
+  const dragState = React.useRef({ active: false, startX: 0, scrollLeft: 0, hasDragged: false });
+
+  // Non-passive wheel listener — always prevents page scroll when hovering the strip
+  React.useEffect(() => {
+    const el = repsScrollRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY + e.deltaX;
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  function onRepsDragStart(e: React.MouseEvent) {
+    dragState.current = { active: true, startX: e.pageX, scrollLeft: repsScrollRef.current?.scrollLeft ?? 0, hasDragged: false };
+    if (repsScrollRef.current) repsScrollRef.current.style.cursor = "grabbing";
+  }
+  function onRepsDragMove(e: React.MouseEvent) {
+    if (!dragState.current.active || !repsScrollRef.current) return;
+    const dx = e.pageX - dragState.current.startX;
+    if (Math.abs(dx) > 4) {
+      dragState.current.hasDragged = true;
+      repsScrollRef.current.scrollLeft = dragState.current.scrollLeft - dx;
+    }
+  }
+  function onRepsDragEnd() {
+    dragState.current.active = false;
+    if (repsScrollRef.current) repsScrollRef.current.style.cursor = "grab";
+    // Reset hasDragged after the click event fires so next click always works
+    setTimeout(() => { dragState.current.hasDragged = false; }, 0);
+  }
 
   const {
     data: metrics,
@@ -86,24 +133,59 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        {/* Live Active Reps List */}
-        <div className="flex items-center gap-2 bg-card/40 py-1.5 px-3 rounded-2xl border border-border/20 backdrop-blur-md">
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 mr-2">
-            Active Reps
-          </p>
-          <div className="flex -space-x-1.5 mr-1">
-            {metrics?.activeReps?.map((rep: any) => (
-              <Avatar
-                key={rep.name}
-                className="border-2 border-background lg:size-8 md:size-7 size-6 shadow-lg transition-all hover:scale-105 hover:-translate-y-0.5 cursor-pointer ring-1 ring-primary/10"
-              >
-                <AvatarImage src={rep.avatar} />
-                <AvatarFallback className="text-xs bg-muted font-bold">
-                  {rep.name[0]}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-          </div>
+        {/* Team Pulse — messenger-style active reps strip */}
+        <div className="flex items-center gap-3 bg-card/40 py-2 px-3 rounded-2xl border border-border/20 backdrop-blur-md min-w-0 max-w-xs lg:max-w-sm">
+          <button
+            onClick={() => router.push("/team-pulse")}
+            className="flex items-center gap-1.5 shrink-0 group"
+          >
+            <Activity className="size-3.5 text-primary group-hover:text-primary/80 transition-colors" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 group-hover:text-primary/60 transition-colors whitespace-nowrap">
+              Team Pulse
+            </span>
+          </button>
+          <div className="w-px h-5 bg-border/40 shrink-0" />
+          <TooltipProvider delayDuration={200}>
+            <div
+              ref={repsScrollRef}
+              className="flex gap-2.5 overflow-x-auto no-scrollbar select-none"
+              style={{ cursor: "grab" }}
+              onMouseDown={onRepsDragStart}
+              onMouseMove={onRepsDragMove}
+              onMouseUp={onRepsDragEnd}
+              onMouseLeave={onRepsDragEnd}
+            >
+              {metrics?.activeReps?.map((rep: any) => (
+                <Tooltip key={rep.name}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => { if (!dragState.current.hasDragged) router.push("/team-pulse"); }}
+                      className="flex flex-col items-center gap-0.5 shrink-0 group"
+                    >
+                      <div className="relative">
+                        <Avatar className="size-8 border-2 border-background shadow-sm transition-transform group-hover:scale-110 group-hover:-translate-y-0.5">
+                          <AvatarImage src={rep.avatar} />
+                          <AvatarFallback className="text-[10px] bg-muted font-bold">
+                            {rep.name[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span
+                          className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-background ${STATUS_DOT[rep.onlineStatus] ?? STATUS_DOT.offline}`}
+                        />
+                      </div>
+                      <span className="text-[9px] font-semibold text-muted-foreground/70 max-w-10 truncate leading-tight">
+                        {rep.name.split(" ")[0]}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    <p className="font-semibold">{rep.name}</p>
+                    <p className="capitalize text-muted-foreground">{(rep.onlineStatus ?? "offline").replace(/_/g, " ")}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </TooltipProvider>
         </div>
       </div>
 

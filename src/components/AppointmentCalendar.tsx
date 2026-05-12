@@ -40,8 +40,8 @@ function appointmentIsOnDay(apt: Appointment, day: Date): boolean {
   if (!start) return false
   return (
     start.getFullYear() === day.getFullYear() &&
-    start.getMonth()    === day.getMonth()    &&
-    start.getDate()     === day.getDate()
+    start.getMonth() === day.getMonth() &&
+    start.getDate() === day.getDate()
   )
 }
 
@@ -114,16 +114,16 @@ export function AppointmentCalendar({
   }, [appointments, todayDate, onViewDateChange])
 
   // ── Calendar grid ───────────────────────────────────────────────────────────
-  const monthStart    = startOfMonth(viewDate)
-  const monthEnd      = endOfMonth(viewDate)
+  const monthStart = startOfMonth(viewDate)
+  const monthEnd = endOfMonth(viewDate)
   const calendarStart = startOfWeek(monthStart)
-  const calendarEnd   = endOfWeek(monthEnd)
-  const days          = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
-  const currentMonth  = viewDate // for backward compatibility in the rest of the render logic
+  const calendarEnd = endOfWeek(monthEnd)
+  const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+  const currentMonth = viewDate // for backward compatibility in the rest of the render logic
 
   const monthlyCount = React.useMemo(() => countInMonth(appointments, currentMonth), [appointments, currentMonth])
-  const prevCount    = React.useMemo(() => countInMonth(appointments, subMonths(currentMonth, 1)), [appointments, currentMonth])
-  const nextCount    = React.useMemo(() => countInMonth(appointments, addMonths(currentMonth, 1)), [appointments, currentMonth])
+  const prevCount = React.useMemo(() => countInMonth(appointments, subMonths(currentMonth, 1)), [appointments, currentMonth])
+  const nextCount = React.useMemo(() => countInMonth(appointments, addMonths(currentMonth, 1)), [appointments, currentMonth])
 
   const getAppointmentsForDay = (day: Date): Appointment[] =>
     appointments.filter((apt) => appointmentIsOnDay(apt, day))
@@ -131,10 +131,10 @@ export function AppointmentCalendar({
   const getEntryTypeColor = (entryType: string) => {
     switch (entryType) {
       case "appointment": return "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
-      case "event":       return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
-      case "task":        return "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300"
-      case "reminder":    return "bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300"
-      default:            return "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"
+      case "event": return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+      case "task": return "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300"
+      case "reminder": return "bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300"
+      default: return "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"
     }
   }
 
@@ -207,7 +207,7 @@ export function AppointmentCalendar({
 
       <CardContent>
         <div className="overflow-x-auto">
-          <div className="grid min-w-[700px] grid-cols-7 gap-1.5 sm:min-w-0 sm:gap-2">
+          <div className="grid min-w-175 grid-cols-7 gap-1.5 sm:min-w-0 sm:gap-2">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
               <div key={d} className="p-1.5 text-center text-xs font-medium text-muted-foreground sm:p-2 sm:text-sm">
                 {d}
@@ -222,11 +222,10 @@ export function AppointmentCalendar({
               return (
                 <div
                   key={day.toISOString()}
-                  className={`min-h-24 rounded-lg border p-1.5 text-left transition-colors sm:min-h-28 sm:p-2 ${
-                    !currentMonthDay
+                  className={`min-h-24 rounded-lg border p-1.5 text-left transition-colors sm:min-h-28 sm:p-2 ${!currentMonthDay
                       ? "bg-muted/50 opacity-50"
                       : "bg-card hover:bg-accent/50"
-                  } ${todayFlag ? "ring-2 ring-green-500" : ""}`}
+                    } ${todayFlag ? "ring-2 ring-green-500" : ""}`}
                 >
                   <div className="mb-1 flex items-center justify-between">
                     <div
@@ -289,7 +288,7 @@ export function AppointmentCalendar({
                               </Badge>
                             </div>
                           </div>
-                          <div className="p-2 space-y-1.5 max-h-[350px] overflow-y-auto scrollbar-thin">
+                          <div className="p-2 space-y-1.5 max-h-87.5 overflow-y-auto scrollbar-thin">
                             {dayAppointments.map((apt) => {
                               const start = safeDate(apt.startTime)
                               const end = safeDate(apt.endTime)
@@ -379,7 +378,7 @@ function JumpToNearestButton({
     if (past) return { date: past.d, label: "Jump to most recent event" }
 
     return null
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointments])
 
   if (!nearest) return null

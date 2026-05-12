@@ -64,6 +64,8 @@ function AppointmentsPageInner() {
   const queryClient = useQueryClient();
   const { isFullscreen } = useFullscreen();
 
+  const DRAFT_STORAGE_KEY = "crm-appointment-draft";
+
   const [activeTab, setActiveTab] = React.useState("leads")
   const [createModalOpen, setCreateModalOpen] = React.useState(false)
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false)
@@ -86,6 +88,26 @@ function AppointmentsPageInner() {
       window.history.replaceState({}, "", "/crm/appointments")
     }
   }, [queryClient]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!stored) return;
+
+    try {
+      const draft = JSON.parse(stored) as any;
+      const leadId = draft?.meta?.extraPayload?.leadId;
+      if (draft?.resume && !leadId) {
+        setCreateModalOpen(true);
+        sessionStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({ ...draft, resume: false })
+        );
+      }
+    } catch {
+      // ignore invalid draft
+    }
+  }, []);
 
   const getAuthHeaders = async () => {
     const token = await getToken()
@@ -130,10 +152,10 @@ function AppointmentsPageInner() {
         const headers = await getAuthHeaders()
         const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
         const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
-        
+
         const response = await apiClient.get("/api/crm/calendar/appointments", {
           ...headers,
-          params: { 
+          params: {
             startDate: start.toISOString(),
             endDate: end.toISOString(),
             limit: 200 // Plenty for a single month
@@ -578,35 +600,35 @@ function AppointmentsPageInner() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <div className="overflow-x-auto touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <TabsList className="min-w-max">
-                    <TabsTrigger value="leads" className="!flex-none shrink-0">
-                    <Mail className="mr-2 h-4 w-4" /> Leads
+                    <TabsTrigger value="leads" className="flex-none! shrink-0">
+                      <Mail className="mr-2 h-4 w-4" /> Leads
                     </TabsTrigger>
-                    <TabsTrigger value="calendar" className="!flex-none shrink-0">
-                    <Calendar className="mr-2 h-4 w-4" /> Calendar View
+                    <TabsTrigger value="calendar" className="flex-none! shrink-0">
+                      <Calendar className="mr-2 h-4 w-4" /> Calendar View
                     </TabsTrigger>
-                    <TabsTrigger value="upcoming" className="!flex-none shrink-0">
-                    <Clock className="mr-2 h-4 w-4" /> Upcoming
-                    {stats.upcoming > 0 && (
-                      <Badge className="ml-2" variant="secondary">
-                        {stats.upcoming}
-                      </Badge>
-                    )}
+                    <TabsTrigger value="upcoming" className="flex-none! shrink-0">
+                      <Clock className="mr-2 h-4 w-4" /> Upcoming
+                      {stats.upcoming > 0 && (
+                        <Badge className="ml-2" variant="secondary">
+                          {stats.upcoming}
+                        </Badge>
+                      )}
                     </TabsTrigger>
-                    <TabsTrigger value="booked" className="!flex-none shrink-0">
-                    <Users className="mr-2 h-4 w-4" /> Booked
-                    {customerBookingsCount > 0 && (
-                      <Badge className="ml-2" variant="secondary">
-                        {customerBookingsCount}
-                      </Badge>
-                    )}
+                    <TabsTrigger value="booked" className="flex-none! shrink-0">
+                      <Users className="mr-2 h-4 w-4" /> Booked
+                      {customerBookingsCount > 0 && (
+                        <Badge className="ml-2" variant="secondary">
+                          {customerBookingsCount}
+                        </Badge>
+                      )}
                     </TabsTrigger>
-                    <TabsTrigger value="customers" className="!flex-none shrink-0">
-                    <Contact className="mr-2 h-4 w-4" /> Customer Credentials
-                    {customerCount > 0 && (
-                      <Badge className="ml-2" variant="secondary">
-                        {customerCount}
-                      </Badge>
-                    )}
+                    <TabsTrigger value="customers" className="flex-none! shrink-0">
+                      <Contact className="mr-2 h-4 w-4" /> Customer Credentials
+                      {customerCount > 0 && (
+                        <Badge className="ml-2" variant="secondary">
+                          {customerCount}
+                        </Badge>
+                      )}
                     </TabsTrigger>
                   </TabsList>
                 </div>

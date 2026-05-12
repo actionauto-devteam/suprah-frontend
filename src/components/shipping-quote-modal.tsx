@@ -224,7 +224,7 @@ export function ShippingQuoteModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName="bg-black/70 backdrop-blur-[4px]"
-        className="max-w-[500px] max-h-[90vh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
+        className="max-w-125 max-h-[90vh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
       >
         <button
           onClick={() => onOpenChange(false)}

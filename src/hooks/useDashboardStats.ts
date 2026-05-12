@@ -14,6 +14,7 @@ export interface DashboardMetrics {
     activeReps: Array<{
         name: string;
         avatar: string;
+        onlineStatus: string;
     }>;
     logistics: {
         drivers: { active: number; ready: number };

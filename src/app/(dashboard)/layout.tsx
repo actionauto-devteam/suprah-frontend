@@ -18,7 +18,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +46,9 @@ function DashboardLayoutContent({
   // Use custom hook for organization context
   const { organization, isLoaded, isSuperAdmin, isDriver, userRole } = useOrg();
   const router = useRouter();
+  const pathname = usePathname();
   const { isImpersonating } = adminStore.useStore();
+  const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
   const [hasResolvedOrgAccess, setHasResolvedOrgAccess] = React.useState(false);
@@ -139,100 +141,107 @@ function DashboardLayoutContent({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-          <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
-              <SidebarTrigger className="-ml-1" />
-              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
-                <span className="font-medium whitespace-nowrap">Location:</span>
+        {!isCrmRoute && (
+          <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
+                <SidebarTrigger className="-ml-1" />
+                <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
+                  <span className="font-medium whitespace-nowrap">Location:</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1 font-normal"
+                      >
+                        All Locations <ChevronDown className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem>All Locations</DropdownMenuItem>
+                      <DropdownMenuItem>Lehi, UT</DropdownMenuItem>
+                      <DropdownMenuItem>Orem, UT</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <React.Suspense
+                  fallback={
+                    <div className="w-10 h-9 bg-muted animate-pulse rounded-md" />
+                  }
+                >
+                  <DashboardSearch />
+                </React.Suspense>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 rounded-full"
+                >
+                  <Plus className="size-5" />
+                </Button>
+
+                <ThemeModeToggle compact />
+
+                {/* Notification Bell */}
+                <NotificationBell />
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="h-8 gap-1 font-normal"
+                      className="relative h-8 w-8 rounded-full"
                     >
-                      All Locations <ChevronDown className="size-4" />
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={resolveImageUrl(
+                            avatarUrl !== null ? avatarUrl : user?.imageUrl,
+                          )}
+                          alt={user?.fullName || ""}
+                        />
+                        <AvatarFallback>
+                          {user?.firstName?.substring(0, 1).toUpperCase() || "AA"}
+                        </AvatarFallback>
+                      </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem>All Locations</DropdownMenuItem>
-                    <DropdownMenuItem>Lehi, UT</DropdownMenuItem>
-                    <DropdownMenuItem>Orem, UT</DropdownMenuItem>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {user?.fullName}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user?.primaryEmailAddress?.emailAddress}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => router.push("/profile")}>
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/settings")}>
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => signOut()}>
+                      Log out
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-
-              <React.Suspense
-                fallback={
-                  <div className="w-10 h-9 bg-muted animate-pulse rounded-md" />
-                }
-              >
-                <DashboardSearch />
-              </React.Suspense>
             </div>
-
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-full"
-              >
-                <Plus className="size-5" />
-              </Button>
-
-              <ThemeModeToggle compact />
-
-              {/* Notification Bell */}
-              <NotificationBell />
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="relative h-8 w-8 rounded-full"
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={resolveImageUrl(
-                          avatarUrl !== null ? avatarUrl : user?.imageUrl,
-                        )}
-                        alt={user?.fullName || ""}
-                      />
-                      <AvatarFallback>
-                        {user?.firstName?.substring(0, 1).toUpperCase() || "AA"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {user?.fullName}
-                      </p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user?.primaryEmailAddress?.emailAddress}
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push("/profile")}>
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/settings")}>
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => signOut()}>
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          </header>
+        )}
+        <main className="relative flex-1 overflow-hidden bg-background pb-24 md:pb-0">
+          {isCrmRoute && (
+            <div className="absolute left-3 top-3 z-40">
+              <SidebarTrigger className="h-8 w-8 rounded-lg border border-border/50 bg-card/95 p-0 shadow-sm backdrop-blur hover:bg-card" />
             </div>
-          </div>
-        </header>
-        <main className="flex-1 overflow-hidden bg-background pb-24 md:pb-0">
+          )}
           {children}
         </main>
         <MobileBottomNav items={dealershipNav} />
