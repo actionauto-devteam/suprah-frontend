@@ -4,8 +4,11 @@ import { apiClient } from '@/lib/api-client';
 import { useCallback } from 'react';
 
 export type OnlineStatus = 'online' | 'idle' | 'away' | 'busy' | 'offline' | 'do_not_disturb';
-export type AbsenceType = 'absence' | 'day_off' | 'vacation' | 'sick' | 'wfh' | 'other';
-export type NoteColor = 'yellow' | 'blue' | 'green' | 'pink' | 'purple' | 'orange';
+export type AbsenceType = 'absence' | 'day_off' | 'vacation' | 'sick' | 'other';
+export type NoteColor =
+  | 'yellow' | 'blue' | 'green' | 'pink' | 'purple' | 'orange'
+  | 'red' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky';
+export type AnnouncementType = 'general' | 'important' | 'urgent' | 'reminder' | 'event';
 
 export interface TeamMember {
     _id: string;
@@ -18,6 +21,9 @@ export interface TeamMember {
     personalInfo?: {
         jobTitle?: string;
         department?: string;
+        bio?: string;
+        phone?: string;
+        location?: string;
     };
 }
 
@@ -28,7 +34,9 @@ export interface Absence {
     userAvatar?: string;
     date: string;
     type: AbsenceType;
+    title?: string;
     note?: string;
+    otherText?: string;
 }
 
 export interface BoardNote {
@@ -40,8 +48,11 @@ export interface BoardNote {
     content: string;
     color: NoteColor;
     pinned: boolean;
+    announcementType: AnnouncementType;
+    emoji?: string;
     durationDays?: number | null;
     expiresAt?: string | null;
+    sortOrder?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -68,8 +79,8 @@ export function useTeamMembers() {
             return response.data?.data || response.data || [];
         },
         enabled: !!isLoaded && !!isSignedIn,
-        refetchInterval: 30000,
-        staleTime: 15000,
+        refetchInterval: 30_000,   // live: every 30s
+        staleTime: 10_000,
     });
 }
 
@@ -87,7 +98,8 @@ export function useTeamAbsences(year: number, month: number) {
             return response.data?.data || response.data || [];
         },
         enabled: !!isLoaded && !!isSignedIn,
-        staleTime: 60000,
+        refetchInterval: 30_000,  // live: every 30s
+        staleTime: 15_000,
     });
 }
 
@@ -96,14 +108,26 @@ export function useCreateAbsence() {
     const getHeaders = useAuthHeaders();
 
     return useMutation({
-        mutationFn: async (data: { date: string; type: AbsenceType; note?: string }) => {
+        mutationFn: async (data: { date: string; type: AbsenceType; title?: string; note?: string; otherText?: string }) => {
             const headers = await getHeaders();
             const response = await apiClient.createAbsence(data, headers);
             return response.data?.data || response.data;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['team-pulse-absences'] });
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-absences'] }),
+    });
+}
+
+export function useUpdateAbsence() {
+    const queryClient = useQueryClient();
+    const getHeaders = useAuthHeaders();
+
+    return useMutation({
+        mutationFn: async ({ id, ...data }: { id: string; title?: string; note?: string; otherText?: string }) => {
+            const headers = await getHeaders();
+            const response = await apiClient.updateAbsence(id, data, headers);
+            return response.data?.data || response.data;
         },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-absences'] }),
     });
 }
 
@@ -116,9 +140,7 @@ export function useDeleteAbsence() {
             const headers = await getHeaders();
             await apiClient.deleteAbsence(id, headers);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['team-pulse-absences'] });
-        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-absences'] }),
     });
 }
 
@@ -136,7 +158,8 @@ export function useBoardNotes() {
             return response.data?.data || response.data || [];
         },
         enabled: !!isLoaded && !!isSignedIn,
-        staleTime: 30000,
+        refetchInterval: 20_000,  // live: every 20s
+        staleTime: 10_000,
     });
 }
 
@@ -145,14 +168,29 @@ export function useCreateBoardNote() {
     const getHeaders = useAuthHeaders();
 
     return useMutation({
-        mutationFn: async (data: { content: string; color?: NoteColor; title?: string; durationDays?: number | null }) => {
+        mutationFn: async (data: {
+            content: string; color?: NoteColor; title?: string;
+            durationDays?: number | null; announcementType?: AnnouncementType; emoji?: string;
+        }) => {
             const headers = await getHeaders();
             const response = await apiClient.createBoardNote(data, headers);
             return response.data?.data || response.data;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] });
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] }),
+    });
+}
+
+export function useUpdateBoardNote() {
+    const queryClient = useQueryClient();
+    const getHeaders = useAuthHeaders();
+
+    return useMutation({
+        mutationFn: async ({ id, ...data }: { id: string; title?: string; content?: string; color?: NoteColor; emoji?: string }) => {
+            const headers = await getHeaders();
+            const response = await apiClient.updateBoardNote(id, data, headers);
+            return response.data?.data || response.data;
         },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] }),
     });
 }
 
@@ -165,9 +203,7 @@ export function useDeleteBoardNote() {
             const headers = await getHeaders();
             await apiClient.deleteBoardNote(id, headers);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] });
-        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] }),
     });
 }
 
@@ -181,9 +217,20 @@ export function useTogglePinNote() {
             const response = await apiClient.togglePinBoardNote(id, headers);
             return response.data?.data || response.data;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] });
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] }),
+    });
+}
+
+export function useReorderBoardNotes() {
+    const queryClient = useQueryClient();
+    const getHeaders = useAuthHeaders();
+
+    return useMutation({
+        mutationFn: async (orderedIds: string[]) => {
+            const headers = await getHeaders();
+            await apiClient.reorderBoardNotes(orderedIds, headers);
         },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-board'] }),
     });
 }
 
@@ -199,8 +246,24 @@ export function useUpdateMyStatus() {
             const response = await apiClient.updateOnlineStatus(data, headers);
             return response.data?.data || response.data;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['team-pulse-members'] });
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['team-pulse-members'] }),
+    });
+}
+
+// ── Member profile (click-through) ────────────────────────────────────────────
+
+export function useTeamMemberProfile(userId: string | null) {
+    const { isLoaded, isSignedIn, getToken } = useAuth();
+    const getHeaders = useAuthHeaders();
+
+    return useQuery({
+        queryKey: ['team-member-profile', userId],
+        queryFn: async () => {
+            const headers = await getHeaders();
+            const response = await apiClient.getTeamMemberProfile(userId!, headers);
+            return response.data?.data || response.data;
         },
+        enabled: !!isLoaded && !!isSignedIn && !!userId,
+        staleTime: 60_000,
     });
 }

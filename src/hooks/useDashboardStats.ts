@@ -12,6 +12,7 @@ export interface DashboardMetrics {
     };
     revenueTrajectory: Array<{ name: string; revenue: number }>;
     activeReps: Array<{
+        _id: string;
         name: string;
         avatar: string;
         onlineStatus: string;

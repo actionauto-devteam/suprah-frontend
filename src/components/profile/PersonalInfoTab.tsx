@@ -25,6 +25,7 @@ import {
 import { PersonalInfo, SocialLink } from '@/types/user';
 import { cn } from '@/lib/utils';
 import { languageOptions } from './profile-constants';
+import { DEPARTMENTS } from '@/lib/departments';
 
 interface PersonalInfoTabProps {
     personalInfo: PersonalInfo;
@@ -206,9 +207,21 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
                         <Label htmlFor="department" className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
                             <Building2 className="size-4 text-emerald-600 dark:text-emerald-400" />Department
                         </Label>
-                        <Input id="department" value={personalInfo.department || ''} onChange={(e) => setPersonalInfo({ ...personalInfo, department: e.target.value })} disabled={!editingPersonalInfo} placeholder="Sales"
-                            className="rounded-lg border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors focus:ring-4 focus:ring-emerald-100 dark:focus:ring-emerald-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-900 font-medium p-3"
-                        />
+                        <Select
+                            value={personalInfo.department || ''}
+                            onValueChange={(value) => setPersonalInfo({ ...personalInfo, department: value || undefined })}
+                            disabled={!editingPersonalInfo}
+                        >
+                            <SelectTrigger className="rounded-lg border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors disabled:bg-gray-50 dark:disabled:bg-gray-900 font-medium h-12">
+                                <SelectValue placeholder="Select your department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">— Not set —</SelectItem>
+                                {DEPARTMENTS.map((d) => (
+                                    <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="space-y-3">

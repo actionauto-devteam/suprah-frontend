@@ -155,8 +155,8 @@ export default function Dashboard() {
               onMouseUp={onRepsDragEnd}
               onMouseLeave={onRepsDragEnd}
             >
-              {metrics?.activeReps?.map((rep: any) => (
-                <Tooltip key={rep.name}>
+              {metrics?.activeReps?.map((rep: any, idx: number) => (
+                <Tooltip key={rep._id ?? `${rep.name}-${idx}`}>
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => { if (!dragState.current.hasDragged) router.push("/team-pulse"); }}

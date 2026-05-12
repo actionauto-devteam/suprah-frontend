@@ -30,6 +30,7 @@ import {
 
 import { useOrg } from "@/hooks/useOrg";
 import { adminStore } from "@/store/admin-store";
+import { usePresence } from "@/hooks/usePresence";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { dealershipNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
@@ -43,6 +44,7 @@ function DashboardLayoutContent({
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { avatarUrl } = useProfileContext();
+  usePresence(); // Heartbeat — keeps onlineStatus accurate across the whole app
   // Use custom hook for organization context
   const { organization, isLoaded, isSuperAdmin, isDriver, userRole } = useOrg();
   const router = useRouter();

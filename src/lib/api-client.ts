@@ -378,6 +378,14 @@ class ApiClient {
     return this.post("/api/team-pulse/absences", data, config);
   }
 
+  async updateAbsence(
+    id: string,
+    data: { title?: string; note?: string; otherText?: string },
+    config?: AxiosRequestConfig,
+  ) {
+    return this.patch(`/api/team-pulse/absences/${id}`, data, config);
+  }
+
   async deleteAbsence(id: string, config?: AxiosRequestConfig) {
     return this.delete(`/api/team-pulse/absences/${id}`, config);
   }
@@ -387,7 +395,7 @@ class ApiClient {
   }
 
   async createBoardNote(
-    data: { content: string; color?: string; title?: string; durationDays?: number | null },
+    data: { content: string; color?: string; title?: string; durationDays?: number | null; announcementType?: string; emoji?: string },
     config?: AxiosRequestConfig,
   ) {
     return this.post("/api/team-pulse/board", data, config);
@@ -397,8 +405,24 @@ class ApiClient {
     return this.delete(`/api/team-pulse/board/${id}`, config);
   }
 
+  async updateBoardNote(
+    id: string,
+    data: { title?: string; content?: string; color?: string; emoji?: string },
+    config?: AxiosRequestConfig,
+  ) {
+    return this.patch(`/api/team-pulse/board/${id}`, data, config);
+  }
+
   async togglePinBoardNote(id: string, config?: AxiosRequestConfig) {
     return this.patch(`/api/team-pulse/board/${id}/pin`, {}, config);
+  }
+
+  async reorderBoardNotes(orderedIds: string[], config?: AxiosRequestConfig) {
+    return this.patch("/api/team-pulse/board/reorder", { orderedIds }, config);
+  }
+
+  async getTeamMemberProfile(userId: string, config?: AxiosRequestConfig) {
+    return this.get(`/api/users/profile/${userId}`, config);
   }
 
   async updateOnlineStatus(
