@@ -58,6 +58,7 @@ interface UseSupraSpaceReturn {
 
 export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   const socketRef = React.useRef<Socket | null>(null);
+  const [socketState, setSocketState] = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected] = React.useState(false);
   const [presence, setPresence] = React.useState<PresenceMap>({});
   const [typing, setTyping] = React.useState<TypingMap>({});
@@ -65,21 +66,17 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   React.useEffect(() => {
     if (!token) return;
 
-    // ── Transport strategy ──────────────────────────────────────────────────
-    // Dev tunnels (devtunnels.ms, ngrok, etc.) often block raw WebSocket
-    // upgrades. Starting with 'polling' first lets Socket.io establish the
-    // connection over HTTP, then it upgrades to WebSocket automatically.
-    // On a direct localhost connection this adds no overhead.
+    // Dev tunnels often block raw WebSocket upgrades — polling first lets
+    // Socket.IO connect over HTTP then upgrade to WebSocket automatically.
     const socket = io(process.env.NEXT_PUBLIC_API_URL || '', {
       path: '/socket/supraspace',
       auth: { token },
-      transports: ['polling', 'websocket'],  // polling first → upgrade to ws
+      transports: ['polling', 'websocket'],
       upgrade: true,
       reconnectionAttempts: 15,
       reconnectionDelay: 2000,
       reconnectionDelayMax: 10000,
       timeout: 20000,
-      // Force new connection (don't reuse a stale socket from HMR)
       forceNew: true,
     });
 
@@ -88,6 +85,10 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socket.on('connect', () => {
       console.log('[SupraSpace] ✅ Connected via', socket.io.engine.transport.name, '| id:', socket.id);
       setIsConnected(true);
+      // Expose socket as React state so dependent effects re-run reliably.
+      // Using state (not just a ref) ensures the page's message-listener
+      // effect fires the first time and re-runs if the socket instance changes.
+      setSocketState(socket);
     });
 
     socket.io.engine.on('upgrade', (transport: any) => {
@@ -97,11 +98,11 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socket.on('disconnect', (reason) => {
       console.log('[SupraSpace] ❌ Disconnected:', reason);
       setIsConnected(false);
+      // Keep socketState set — same instance reconnects, listeners persist.
     });
 
     socket.on('connect_error', (err) => {
       console.error('[SupraSpace] Connection error:', err.message);
-      // If websocket fails, engine will automatically retry with polling
     });
 
     socket.on('presence:update', ({ userId, status }: { userId: string; status: 'online' | 'offline' }) => {
@@ -127,6 +128,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
+      setSocketState(null);
       setIsConnected(false);
     };
   }, [token]);
@@ -153,7 +155,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   }, []);
 
   return {
-    socket: socketRef.current,
+    socket: socketState,
     isConnected,
     presence,
     typing,

@@ -890,12 +890,17 @@ export const UPDATED_PANEL_CSS = `
   border: 1px solid var(--p-bd3);
   border-radius: 10px;
   padding: 9px 11px; margin-bottom: 6px;
-  transition: border-color .18s, transform .18s;
+  transition: border-color .18s, transform .18s, opacity .15s;
   background: var(--p-surf2);
+  cursor: pointer;
 }
 .axp-reminder-item:hover {
   border-color: var(--p-bd2);
   transform: translateX(3px);
+}
+.axp-reminder-item.navigating {
+  opacity: .55;
+  pointer-events: none;
 }
 .axp-reminder-item.warn {
   border-color: rgba(251,191,36,.22);
@@ -922,7 +927,15 @@ export const UPDATED_PANEL_CSS = `
   padding: 9px 10px;
   background: var(--p-surf3);
   text-align: center;
+  cursor: pointer;
+  transition: border-color .18s, transform .14s, box-shadow .18s;
 }
+.axp-stat-card:hover {
+  border-color: var(--p-bd);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+}
+.axp-stat-card:active { transform: translateY(0) scale(.97); }
 
 .axp-stat-num {
   font-family: 'Exo 2', sans-serif;
@@ -1257,10 +1270,17 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
 
 // ─── Reminder Tab ──────────────────────────────────────────────────────────────
 function ReminderTab() {
+  const router = useRouter()
   const [selectedModule, setSelectedModule] = React.useState('appointments')
   const [loading, setLoading] = React.useState(false)
   const [data, setData] = React.useState<any>(null)
   const [error, setError] = React.useState('')
+  const [navigatingKey, setNavigatingKey] = React.useState<string | null>(null)
+
+  const navigate = React.useCallback((route: string, key: string) => {
+    setNavigatingKey(key)
+    router.push(route)
+  }, [router])
 
   const fetchReminders = React.useCallback(async (mod: string) => {
     const token = getToken()
@@ -1309,13 +1329,23 @@ function ReminderTab() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="axp-stats-row">
               {[
-                { num: counts?.todayAppointments || 0, label: 'Today',   c: 'var(--p-acc2)',   bg: 'rgba(34,197,94,.08)',  bd: 'rgba(34,197,94,.18)' },
-                { num: counts?.upcomingThisWeek || 0,  label: 'Week',    c: 'var(--p-teal)',   bg: 'rgba(52,211,153,.08)', bd: 'rgba(52,211,153,.18)' },
-                { num: counts?.newLeads || 0,          label: 'New',     c: 'var(--p-purple)', bg: 'rgba(167,139,250,.08)',bd: 'rgba(167,139,250,.18)' },
-                { num: counts?.pendingLeads || 0,      label: 'Pending', c: 'var(--p-amber)',  bg: 'rgba(251,191,36,.08)', bd: 'rgba(251,191,36,.18)' },
+                { num: counts?.todayAppointments || 0, label: 'Today',   c: 'var(--p-acc2)',   bg: 'rgba(34,197,94,.08)',  bd: 'rgba(34,197,94,.18)',  route: '/crm/appointments' },
+                { num: counts?.upcomingThisWeek || 0,  label: 'Week',    c: 'var(--p-teal)',   bg: 'rgba(52,211,153,.08)', bd: 'rgba(52,211,153,.18)', route: '/crm/appointments' },
+                { num: counts?.newLeads || 0,          label: 'New',     c: 'var(--p-purple)', bg: 'rgba(167,139,250,.08)',bd: 'rgba(167,139,250,.18)', route: '/crm/dashboard' },
+                { num: counts?.pendingLeads || 0,      label: 'Pending', c: 'var(--p-amber)',  bg: 'rgba(251,191,36,.08)', bd: 'rgba(251,191,36,.18)', route: '/crm/dashboard' },
               ].map(c => (
-                <div key={c.label} className="axp-stat-card" style={{ background: c.bg, borderColor: c.bd }}>
-                  <div className="axp-stat-num" style={{ color: c.c }}>{c.num}</div>
+                <div
+                  key={c.label}
+                  className={`axp-stat-card${navigatingKey === c.label ? ' navigating' : ''}`}
+                  style={{ background: c.bg, borderColor: c.bd }}
+                  onClick={() => navigate(c.route, c.label)}
+                  title={`View ${c.label.toLowerCase()} →`}
+                >
+                  <div className="axp-stat-num" style={{ color: c.c }}>
+                    {navigatingKey === c.label
+                      ? <Loader2 size={14} style={{ animation: 'axp-spin .9s linear infinite', margin: '3px auto' }} />
+                      : c.num}
+                  </div>
                   <div className="axp-stat-lbl">{c.label}</div>
                 </div>
               ))}
@@ -1324,26 +1354,40 @@ function ReminderTab() {
             {today.length > 0 && (
               <div>
                 <div className="axp-lbl">Today's Schedule</div>
-                {today.map((a: any, i: number) => (
-                  <div key={i} className="axp-reminder-item success">
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{a.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--p-tx3)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.06em' }}>
-                      {fmtTime(a.startTime)} · {a.type} · {a.status}
+                {today.map((a: any, i: number) => {
+                  const key = `today-${i}`
+                  return (
+                    <div
+                      key={i}
+                      className={`axp-reminder-item success${navigatingKey === key ? ' navigating' : ''}`}
+                      onClick={() => navigate('/crm/appointments', key)}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{a.title}</div>
+                      <div style={{ fontSize: 10, color: 'var(--p-tx3)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.06em' }}>
+                        {fmtTime(a.startTime)} · {a.type} · {a.status}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
             {newLeads.length > 0 && (
               <div>
                 <div className="axp-lbl">New Leads</div>
-                {newLeads.slice(0, 5).map((l: any, i: number) => (
-                  <div key={i} className="axp-reminder-item info">
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
-                    <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{l.source} · {fmtDate(l.createdAt)}</div>
-                  </div>
-                ))}
+                {newLeads.slice(0, 5).map((l: any, i: number) => {
+                  const key = `new-${i}`
+                  return (
+                    <div
+                      key={i}
+                      className={`axp-reminder-item info${navigatingKey === key ? ' navigating' : ''}`}
+                      onClick={() => navigate('/crm/dashboard', key)}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
+                      <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{l.source} · {fmtDate(l.createdAt)}</div>
+                    </div>
+                  )
+                })}
                 {newLeads.length > 5 && (
                   <div style={{ fontSize: 10, color: 'var(--p-tx3)', textAlign: 'center', padding: '4px 0' }}>
                     +{newLeads.length - 5} more
@@ -1355,12 +1399,19 @@ function ReminderTab() {
             {pendingLeads.length > 0 && (
               <div>
                 <div className="axp-lbl">Pending Leads</div>
-                {pendingLeads.slice(0, 3).map((l: any, i: number) => (
-                  <div key={i} className="axp-reminder-item warn">
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
-                    <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{l.status} · {fmtDate(l.createdAt)}</div>
-                  </div>
-                ))}
+                {pendingLeads.slice(0, 3).map((l: any, i: number) => {
+                  const key = `pending-${i}`
+                  return (
+                    <div
+                      key={i}
+                      className={`axp-reminder-item warn${navigatingKey === key ? ' navigating' : ''}`}
+                      onClick={() => navigate('/crm/dashboard', key)}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--p-tx)', marginBottom: 2 }}>{l.firstName} {l.lastName}</div>
+                      <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>{l.status} · {fmtDate(l.createdAt)}</div>
+                    </div>
+                  )
+                })}
               </div>
             )}
 

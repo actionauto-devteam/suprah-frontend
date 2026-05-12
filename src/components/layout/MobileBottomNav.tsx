@@ -21,7 +21,13 @@ type MobileBottomNavProps = {
 export function MobileBottomNav({ items }: MobileBottomNavProps) {
     const pathname = usePathname();
     const [hidden, setHidden] = React.useState(false);
+    const [pendingHref, setPendingHref] = React.useState<string | null>(null);
     const lastScrollY = React.useRef(0);
+
+    React.useEffect(() => {
+        setPendingHref(null);
+        setHidden(false);
+    }, [pathname]);
 
     React.useEffect(() => {
         const el = document.querySelector("main");
@@ -47,7 +53,7 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
             initial={{ y: 140, opacity: 0 }}
             animate={{ y: hidden ? 140 : 0, opacity: hidden ? 0.88 : 1 }}
             transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.85 }}
-            className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-200 md:hidden select-none"
+            className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-30 md:hidden select-none"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
             <div className="mx-auto w-[min(100%-1rem,33rem)] mb-2.5">
@@ -57,7 +63,7 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
                     <div className="grid items-end gap-0.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
 
                         {items.map((item, index) => {
-                            const active = isActive(item.href);
+                            const active = pendingHref === item.href || isActive(item.href);
                             const Icon = item.icon;
 
                             if (item.isCenter) {
@@ -71,6 +77,11 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
                                     >
                                         <Link
                                             href={item.href}
+                                            aria-current={active ? "page" : undefined}
+                                            onClick={() => {
+                                                setPendingHref(item.href);
+                                                setHidden(false);
+                                            }}
                                             className="relative -mt-7 flex flex-col items-center gap-0.5"
                                         >
                                             <motion.div
@@ -112,6 +123,11 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
                                 >
                                     <Link
                                         href={item.href}
+                                        aria-current={active ? "page" : undefined}
+                                        onClick={() => {
+                                            setPendingHref(item.href);
+                                            setHidden(false);
+                                        }}
                                         className="flex flex-col items-center gap-0.5 py-1"
                                     >
                                         <motion.div

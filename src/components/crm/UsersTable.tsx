@@ -400,6 +400,66 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
     ? "Try adjusting the search, filters, or sort order."
     : "Create a new CRM account by clicking the button above."
 
+  const renderUserActions = (u: CrmUserRow) => {
+    if (actioningId === u._id) {
+      return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+    }
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground/40 hover:text-muted-foreground/70">
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44 rounded-xl p-1 shadow-lg border-border/40">
+          <DropdownMenuItem
+            onClick={() => setEditTarget(u)}
+            className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+          >
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+            Edit User
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => setResetTarget(u)}
+            className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+          >
+            <KeyRound className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-amber-600">Reset Password</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => handleToggleStatus(u)}
+            className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+          >
+            {u.isActive ? (
+              <>
+                <PowerOff className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-amber-600">Deactivate</span>
+              </>
+            ) : (
+              <>
+                <Power className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="text-emerald-600">Reactivate</span>
+              </>
+            )}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator className="my-1" />
+
+          <DropdownMenuItem
+            onClick={() => setDeleteTarget(u)}
+            className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   return (
     <>
       <div className="rounded-b-2xl border-t border-border/30 bg-background/40">
@@ -512,7 +572,91 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="space-y-3 px-4 py-4 md:hidden">
+          {loading
+            ? Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-border/35 bg-card/70 p-4 shadow-xs"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 rounded-full bg-muted/40 animate-pulse" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="h-3 w-32 rounded bg-muted/40 animate-pulse" />
+                    <div className="h-2.5 w-44 max-w-full rounded bg-muted/30 animate-pulse" />
+                    <div className="h-6 w-28 rounded-lg bg-muted/30 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))
+            : isEmpty
+              ? (
+                <div className="rounded-2xl border border-dashed border-border/35 px-5 py-12 text-center">
+                  <UserX className="mx-auto h-7 w-7 text-muted-foreground/20" />
+                  <p className="mt-3 text-sm font-semibold text-muted-foreground/50">
+                    {emptyMessage}
+                  </p>
+                  <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground/35">
+                    {emptyDescription}
+                  </p>
+                </div>
+              )
+              : users.map((u) => (
+                <div
+                  key={u._id}
+                  className="rounded-2xl border border-border/35 bg-card/80 p-4 shadow-xs transition-colors active:bg-muted/20"
+                >
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-9 w-9 shrink-0">
+                      <AvatarImage src={u.avatar} />
+                      <AvatarFallback
+                        className={`text-[10px] font-bold text-white ${u.role === "admin"
+                            ? "bg-violet-500"
+                            : u.role === "manager"
+                              ? "bg-blue-500"
+                              : "bg-emerald-600"
+                          }`}
+                      >
+                        {ini(u.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-tight text-foreground">
+                            {u.fullName}
+                          </p>
+                          <p className="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground/60">
+                            {u.email}
+                          </p>
+                        </div>
+                        <div className="shrink-0">{renderUserActions(u)}</div>
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-border/35 bg-muted/20 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                          Employee ID
+                        </p>
+                        <p className="mt-1 break-all font-mono text-xs font-semibold text-foreground">
+                          {u.username}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <RoleBadge role={u.role} />
+                        <StatusBadge isActive={u.isActive} />
+                        <span className="rounded-full border border-border/35 bg-background px-2 py-1 text-[10px] font-semibold text-muted-foreground/60">
+                          Joined {formatDate(u.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/30 bg-muted/2">
@@ -637,61 +781,7 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
                       </td>
 
                       <td className="px-5 py-3.5">
-                        {actioningId === u._id ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground/40 hover:text-muted-foreground/70">
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44 rounded-xl p-1 shadow-lg border-border/40">
-                              <DropdownMenuItem
-                                onClick={() => setEditTarget(u)}
-                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
-                              >
-                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                                Edit User
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
-                                onClick={() => setResetTarget(u)}
-                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
-                              >
-                                <KeyRound className="h-3.5 w-3.5 text-amber-500" />
-                                <span className="text-amber-600">Reset Password</span>
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
-                                onClick={() => handleToggleStatus(u)}
-                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
-                              >
-                                {u.isActive ? (
-                                  <>
-                                    <PowerOff className="h-3.5 w-3.5 text-amber-500" />
-                                    <span className="text-amber-600">Deactivate</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Power className="h-3.5 w-3.5 text-emerald-500" />
-                                    <span className="text-emerald-600">Reactivate</span>
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-
-                              <DropdownMenuSeparator className="my-1" />
-
-                              <DropdownMenuItem
-                                onClick={() => setDeleteTarget(u)}
-                                className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                        {renderUserActions(u)}
                       </td>
                     </tr>
                   ))}

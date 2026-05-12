@@ -146,13 +146,98 @@ const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Re
 const PAGE_PANEL = "rounded-2xl border border-border/40 bg-card"
 const PAGE_SECTION = "rounded-2xl border border-border/40 bg-card"
 const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
+
+// ─── DayPulse → SupraSpace group chat ─────────────────────────────────────────
+const DAYPULSE_GROUP_NAME = 'Online Team Report'
+const DAYPULSE_GROUP_CACHE_KEY = 'dp_groupchat_id'
+
+async function resolveDayPulseGroupId(token: string): Promise<string | null> {
+  const headers = { Authorization: `Bearer ${token}` }
+  const cached = localStorage.getItem(DAYPULSE_GROUP_CACHE_KEY)
+  if (cached) return cached
+  try {
+    const { data: convData } = await apiClient.get('/api/supraspace/conversations', { headers })
+    const convos: Array<{ _id: string; type: string; name?: string }> = convData?.data || convData || []
+    const existing = convos.find(c => c.type === 'group' && c.name === DAYPULSE_GROUP_NAME)
+    if (existing) {
+      localStorage.setItem(DAYPULSE_GROUP_CACHE_KEY, existing._id)
+      return existing._id
+    }
+    // Group doesn't exist — create it with all CRM users as members
+    const { data: usersData } = await apiClient.get('/api/supraspace/users', { headers })
+    const users: Array<{ _id: string }> = usersData?.data || usersData || []
+    const memberIds = users.map(u => u._id)
+    const { data: newGroup } = await apiClient.post(
+      '/api/supraspace/conversations/group',
+      { name: DAYPULSE_GROUP_NAME, memberIds },
+      { headers }
+    )
+    const id: string | undefined = newGroup?.data?._id || newGroup?._id
+    if (id) {
+      localStorage.setItem(DAYPULSE_GROUP_CACHE_KEY, id)
+      return id
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function toBullets(text: string): string {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  return lines.map(l => `• ${l}`).join('\n')
+}
+
+async function postDayPulseToGroupChat(report: DayPulseReport, token: string): Promise<void> {
+  try {
+    const groupId = await resolveDayPulseGroupId(token)
+    if (!groupId) return
+
+    const dept = DEPARTMENTS.find(d => d.key === report.department)
+    const deptLabel = dept?.label ?? report.department
+    const dateStr = new Date(report.reportDate).toLocaleDateString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+    })
+    const timeStr = new Date(report.createdAt).toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit',
+    })
+
+    const content =
+      `Department - ${deptLabel}\n` +
+      `Name - ${report.authorName}\n\n` +
+      `**Accomplishments**\n${toBullets(report.accomplishment)}\n\n` +
+      `**Blockers**\n${toBullets(report.blockers)}\n\n` +
+      `**In Progress**\n${toBullets(report.inProgress)}` +
+      `\n\nDaily Report • Generated on ${dateStr} at ${timeStr}`
+
+    const body: Record<string, unknown> = { content }
+    if (report.attachments && report.attachments.length > 0) {
+      body.attachments = report.attachments.map(a => ({
+        url: a.url,
+        fileKey: a.fileKey,
+        originalName: a.originalName,
+        mimeType: a.mimeType,
+        size: a.size,
+        thumbnailUrl: a.thumbnailUrl ?? null,
+      }))
+    }
+
+    await apiClient.post(
+      `/api/supraspace/conversations/${groupId}/messages`,
+      body,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+  } catch {
+    // silent fail — DayPulse was already posted successfully
+  }
+}
 const MAX_DAYPULSE_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 const DAYPULSE_ATTACHMENT_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 const DAYPULSE_ATTACHMENT_FIELDS: Record<DayPulseAttachmentSection, string> = {
-  accomplishment: "attachmentsAccomplishment",
-  blockers: "attachmentsBlockers",
-  inProgress: "attachmentsInProgress",
+  accomplishment: "attachments",
+  blockers: "attachments",
+  inProgress: "attachments",
 }
 
 const DAYPULSE_SECTION_CONFIG: Array<{
@@ -1049,7 +1134,10 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
         payload,
         { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
       )
-      onPosted(res.data?.data?.report)
+      const report: DayPulseReport = res.data?.data?.report
+      onPosted(report)
+      // fire-and-forget — post to the DayPulse SupraSpace group chat
+      postDayPulseToGroupChat(report, token)
       setAcc(""); setBlk(""); setInp("")
       setPendingAttachments({ accomplishment: [], blockers: [], inProgress: [] })
       setActiveAttachmentSection(null)

@@ -37,6 +37,13 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -619,15 +626,17 @@ function SettingsContent() {
       </div>
 
       <Dialog open={isShareAccessOpen} onOpenChange={setIsShareAccessOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Share2 className="size-5 text-primary" />
+        <DialogContent className="overflow-visible border-border bg-card text-card-foreground shadow-2xl sm:max-w-xl">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-card-foreground">
+              <span className="flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
+                <Share2 className="size-5 text-primary" />
+              </span>
               {shareTarget.type === "file"
                 ? "Share Report"
                 : "Share Report Access"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
               {shareTarget.type === "file"
                 ? `Invite team members to access ${shareTarget.file.name} and choose their permission level.`
                 : "Invite team members to access the Reports area and choose their permission level."}
@@ -638,7 +647,7 @@ function SettingsContent() {
             <div className="space-y-2">
               <label
                 htmlFor="share-recipients"
-                className="text-xs font-semibold uppercase text-muted-foreground"
+                className="text-xs font-bold uppercase tracking-wide text-foreground"
               >
                 Recipient Emails
               </label>
@@ -647,9 +656,9 @@ function SettingsContent() {
                 value={shareRecipients}
                 onChange={(event) => setShareRecipients(event.target.value)}
                 placeholder="manager@actionauto.com, saleslead@actionauto.com"
-                className="min-h-20"
+                className="min-h-20 border-border/80 bg-background text-foreground shadow-xs placeholder:text-muted-foreground/70 focus-visible:border-primary/70 focus-visible:ring-primary/20"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Use commas, spaces, or new lines to add multiple recipients.
               </p>
             </div>
@@ -657,27 +666,48 @@ function SettingsContent() {
             <div className="space-y-2">
               <label
                 htmlFor="share-permission"
-                className="text-xs font-semibold uppercase text-muted-foreground"
+                className="text-xs font-bold uppercase tracking-wide text-foreground"
               >
                 Permission
               </label>
-              <select
-                id="share-permission"
+              <Select
                 value={sharePermission}
-                onChange={(event) =>
-                  setSharePermission(event.target.value as "view" | "manage")
+                onValueChange={(value: "view" | "manage") =>
+                  setSharePermission(value)
                 }
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-xs"
               >
-                <option value="view">View only</option>
-                <option value="manage">Can manage and generate reports</option>
-              </select>
+                <SelectTrigger
+                  id="share-permission"
+                  className="h-9 w-full border-border/80 bg-background text-foreground shadow-xs focus:ring-primary/20"
+                >
+                  <SelectValue placeholder="Choose permission" />
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  position="popper"
+                  sideOffset={4}
+                  className="z-[70] w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] border-border/70 bg-popover p-1 shadow-xl"
+                >
+                  <SelectItem
+                    value="view"
+                    className="rounded-md focus:bg-muted/70 focus:text-foreground data-[state=checked]:bg-primary/10 data-[state=checked]:text-foreground"
+                  >
+                    View only
+                  </SelectItem>
+                  <SelectItem
+                    value="manage"
+                    className="rounded-md focus:bg-muted/70 focus:text-foreground data-[state=checked]:bg-primary/10 data-[state=checked]:text-foreground"
+                  >
+                    Can manage and generate reports
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <label
                 htmlFor="share-note"
-                className="text-xs font-semibold uppercase text-muted-foreground"
+                className="text-xs font-bold uppercase tracking-wide text-foreground"
               >
                 Optional Message
               </label>
@@ -690,6 +720,7 @@ function SettingsContent() {
                     ? "Sharing this report for your review"
                     : "Monthly reporting access"
                 }
+                className="border-border/80 bg-background text-foreground shadow-xs placeholder:text-muted-foreground/70 focus-visible:border-primary/70 focus-visible:ring-primary/20"
               />
             </div>
           </div>
@@ -699,6 +730,7 @@ function SettingsContent() {
               type="button"
               variant="outline"
               onClick={handleCopyShareAccessLink}
+              className="border-border bg-background text-foreground shadow-xs hover:bg-muted hover:text-foreground"
             >
               Copy Link
             </Button>
@@ -706,7 +738,7 @@ function SettingsContent() {
               type="button"
               onClick={handleShareAccess}
               disabled={isSharingAccess}
-              className="bg-primary"
+              className="bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
             >
               {isSharingAccess ? "Sharing..." : "Share Access"}
             </Button>
@@ -1232,10 +1264,13 @@ function SettingsContent() {
             onOpenChange={(open) => {
               if (!open) setDeleteTarget(null);
             }}
-            type="warning"
+            type="confirm"
             title="Delete File"
-            message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-            confirmText={isDeleting ? "Deleting…" : "Delete"}
+            message="Are you sure you want to delete this generated report file?"
+            detail={deleteTarget?.name}
+            warning="This action cannot be undone."
+            showCloseButton={false}
+            confirmText={isDeleting ? "Deleting…" : "Yes, delete"}
             cancelText="Cancel"
             onConfirm={handleDeleteConfirm}
           />
