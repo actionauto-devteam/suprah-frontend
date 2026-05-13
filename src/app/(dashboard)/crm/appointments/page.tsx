@@ -18,6 +18,7 @@ import { CrmCalendarConnect } from "@/components/CrmCalendarConnect"
 import { CrmCalendarSyncButton } from "@/components/CrmCalendarSyncButton"
 
 import { CustomerCredentialsTab } from "@/components/CustomerCredentialsTab";
+import type { LeadNavParams } from "@/components/CustomerCredentialsTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
@@ -72,6 +73,12 @@ function AppointmentsPageInner() {
   const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null)
   const [preselectedDate, setPreselectedDate] = React.useState<Date | undefined>()
   const [currentMonth, setCurrentMonth] = React.useState(new Date())
+  const [pendingLeadNav, setPendingLeadNav] = React.useState<LeadNavParams | null>(null)
+
+  const handleLeadNavigate = React.useCallback((params: LeadNavParams) => {
+    setActiveTab("leads")
+    setPendingLeadNav(params)
+  }, [])
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -86,6 +93,10 @@ function AppointmentsPageInner() {
     }
     if (params.get("calendar_error")) {
       window.history.replaceState({}, "", "/crm/appointments")
+    }
+    const tabParam = params.get("tab")
+    if (tabParam && TAB_OPTIONS.some(t => t.id === tabParam)) {
+      setActiveTab(tabParam)
     }
   }, [queryClient]);
 
@@ -302,7 +313,7 @@ function AppointmentsPageInner() {
         case "leads":
           return (
             <div className="p-4">
-              <LeadsTab />
+              <LeadsTab pendingNav={pendingLeadNav} onNavConsumed={() => setPendingLeadNav(null)} />
             </div>
           );
         case "calendar":
@@ -431,7 +442,7 @@ function AppointmentsPageInner() {
         case "customers":
           return (
             <div className="p-4 h-full">
-              <CustomerCredentialsTab />
+              <CustomerCredentialsTab onLeadNavigate={handleLeadNavigate} />
             </div>
           );
         default:
@@ -442,7 +453,7 @@ function AppointmentsPageInner() {
           );
       }
     },
-    [calendarAppointments, isCalendarLoading, globalAppointments, isGlobalLoading, stats.upcoming, handleCreateAppointment, handleDateClick, handleAppointmentClick, currentMonth]
+    [calendarAppointments, isCalendarLoading, globalAppointments, isGlobalLoading, stats.upcoming, handleCreateAppointment, handleDateClick, handleAppointmentClick, currentMonth, pendingLeadNav, handleLeadNavigate]
   )
 
   return (
@@ -634,7 +645,7 @@ function AppointmentsPageInner() {
                 </div>
 
                 <TabsContent value="leads" className="space-y-4">
-                  <LeadsTab />
+                  <LeadsTab pendingNav={pendingLeadNav} onNavConsumed={() => setPendingLeadNav(null)} />
                 </TabsContent>
 
                 <TabsContent value="calendar" className="space-y-4">
@@ -745,7 +756,7 @@ function AppointmentsPageInner() {
 
                 {/* ↓↓↓ NEW TAB CONTENT ↓↓↓ */}
                 <TabsContent value="customers" className="space-y-4">
-                  <CustomerCredentialsTab />
+                  <CustomerCredentialsTab onLeadNavigate={handleLeadNavigate} />
                 </TabsContent>
               </Tabs>
             </div>

@@ -37,7 +37,18 @@ const TABS = [
   { key: 'Inbound Calls', label: 'Inbound Calls' },
 ] as const
 
-export function LeadsTab() {
+export interface LeadsTabPendingNav {
+  leadId?: string
+  leadSearch?: string
+}
+
+export function LeadsTab({
+  pendingNav,
+  onNavConsumed,
+}: {
+  pendingNav?: LeadsTabPendingNav | null
+  onNavConsumed?: () => void
+} = {}) {
   const { getToken } = useAuth()
 
   // -- Filters & Pagination --
@@ -55,6 +66,45 @@ export function LeadsTab() {
     search: searchQuery,
     status: statusFilter
   })
+
+  // -- Pending deep-link lead (from ?leadId= or ?leadSearch= URL param) --
+  const [pendingLeadId, setPendingLeadId] = React.useState<string | null>(null)
+  const [autoSelectOnSingleResult, setAutoSelectOnSingleResult] = React.useState(false)
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const leadId = params.get('leadId')
+    const leadSearch = params.get('leadSearch')
+
+    if (leadId || leadSearch) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('leadId')
+      url.searchParams.delete('leadSearch')
+      url.searchParams.delete('tab')
+      const newSearch = url.searchParams.toString()
+      window.history.replaceState({}, '', url.pathname + (newSearch ? `?${newSearch}` : ''))
+    }
+
+    if (leadId) {
+      setPendingLeadId(leadId)
+    } else if (leadSearch) {
+      setSearchQuery(decodeURIComponent(leadSearch))
+      setAutoSelectOnSingleResult(true)
+    }
+  }, [])
+
+  // -- React to pendingNav prop (same-page navigation from CustomerCredentials) --
+  React.useEffect(() => {
+    if (!pendingNav) return
+    onNavConsumed?.()
+    if (pendingNav.leadId) {
+      setPendingLeadId(pendingNav.leadId)
+    } else if (pendingNav.leadSearch) {
+      setSearchQuery(pendingNav.leadSearch)
+      setAutoSelectOnSingleResult(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNav])
 
   // -- Local UI State --
   const [selectedLead, _setSelectedLead] = React.useState<Lead | null>(null)
@@ -100,6 +150,38 @@ export function LeadsTab() {
       else if ((updated.status as string) !== 'Closed') setIsClosed(false)
     }
   }, [leads, selectedLead])
+
+  // 1b-ii. Auto-select if email search produces exactly one result
+  React.useEffect(() => {
+    if (!autoSelectOnSingleResult || isLoading || leads.length !== 1) return
+    setAutoSelectOnSingleResult(false)
+    setSelectedLead(leads[0]) // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, isLoading, autoSelectOnSingleResult])
+
+  // 1b. Deep-link: fetch lead by ID directly, bypassing pagination
+  React.useEffect(() => {
+    if (!pendingLeadId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = await getToken()
+        const res = await apiClient.get(`/api/leads/${pendingLeadId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const lead: Lead = res.data?.data
+        if (!cancelled && lead?._id) {
+          setPendingLeadId(null)
+          setSelectedLead(lead) // eslint-disable-line react-hooks/exhaustive-deps
+        }
+      } catch {
+        setPendingLeadId(null)
+      }
+    })()
+    return () => { cancelled = true }
+  // setSelectedLead intentionally omitted — render-scope fn, not a stable ref
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLeadId, getToken])
 
   // 2. Real-Time WebSocket Implementation
   React.useEffect(() => {

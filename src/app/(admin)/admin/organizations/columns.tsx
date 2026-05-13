@@ -41,7 +41,7 @@ export const columns: ColumnDef<AdminOrganization>[] = [
             const status = row.getValue("status") as string;
             return (
                 <Badge variant={status === 'active' ? 'default' : 'destructive'}>
-                    {status || 'active'}
+                    {status || 'active'}0
                 </Badge>
             )
         },

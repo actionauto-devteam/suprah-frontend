@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { QueryProvider } from '../providers/QueryProvider'
+import { QueryProvider } from "../providers/QueryProvider";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const geistSans = Geist({
@@ -34,22 +34,21 @@ export const viewport: Viewport = {
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  userScalable: true,
 };
 
-import { AuthProvider } from '@/providers/AuthProvider'
+import { AuthProvider } from "@/providers/AuthProvider";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { PushPrompt } from "@/components/pwa/PushPrompt";
 import { IOSInstallHint } from "@/components/pwa/IOSInstallHint";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 
-import { Toaster } from "@/components/ui/sonner"
-import { ImpersonationBanner } from '@/components/admin/ImpersonationBanner';
-import { ReferralCatcher } from '@/components/referral/ReferralCatcher';
-import { SplashScreen } from '@/components/layout/SplashScreen';
-import { DevRoleSwitcher } from '@/components/dev/DevRoleSwitcher';
-import { Suspense } from 'react';
+import { Toaster } from "@/components/ui/sonner";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { ReferralCatcher } from "@/components/referral/ReferralCatcher";
+import { SplashScreen } from "@/components/layout/SplashScreen";
+import { DevRoleSwitcher } from "@/components/dev/DevRoleSwitcher";
+import { Suspense } from "react";
 
 import { ThemeProvider } from "@/context/ThemeContext";
 
@@ -61,9 +60,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="scrollbar-thin" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{
-          __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.add('light')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,
-        }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.add('light')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,
+          }}
+        />
       </head>
       <body
         suppressHydrationWarning
