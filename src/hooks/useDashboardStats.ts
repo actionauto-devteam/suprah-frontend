@@ -16,6 +16,7 @@ export interface DashboardMetrics {
         name: string;
         avatar: string;
         onlineStatus: string;
+        lastActive?: string;
     }>;
     logistics: {
         drivers: { active: number; ready: number };
@@ -55,7 +56,7 @@ export function useDashboardStats(period: string = '1Y', month?: string) {
             return response.data?.data || response.data;
         },
         enabled: !!isLoaded && !!isSignedIn,
-        refetchInterval: 60000, // Refetch every minute
-        staleTime: 30000, // Consider data stale after 30 seconds
+        refetchInterval: 30000, // Live: every 30s
+        staleTime: 15000,
     });
 }
