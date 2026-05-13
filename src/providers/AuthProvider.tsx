@@ -508,12 +508,18 @@ export function useSignUp() {
           };
         }
 
+        const emailSent = response.data?.data?.emailSent !== false;
         setSignUpState({
           emailAddress: data.emailAddress,
           firstName: data.firstName,
           lastName: data.lastName,
           status: "needs_verification",
         });
+
+        if (!emailSent) {
+          toast.warning("Account created! We couldn't send the verification email — tap \"Resend Code\" on the next screen.");
+        }
+
         return { status: "needs_verification" };
       } catch (e: any) {
         throw {

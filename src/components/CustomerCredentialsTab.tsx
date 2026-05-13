@@ -7,7 +7,7 @@ import {
   Receipt, ChevronRight, X, Edit2, Trash2, Check,
   ArrowLeft, RefreshCw, Tag, Calendar, Clock,
   Building2, SlidersHorizontal, AlertCircle, Loader2,
-  Send, FileText,
+  Send, FileText, ExternalLink,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -30,8 +30,14 @@ import { Separator } from "@/components/ui/separator"
 import {
   useCustomers,
   Customer,
+  CustomerTransaction,
   CreateCustomerInput,
 } from "@/hooks/useCustomers"
+import { VehicleDetailsModal } from "@/components/vehicle-details-modal"
+import type { Vehicle } from "@/types/inventory"
+import { apiClient } from "@/lib/api-client"
+import { useAuth } from "@/providers/AuthProvider"
+import { toast } from "sonner"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -371,6 +377,11 @@ function LogConversationModal({
 
 // ─── Customer Detail Panel ────────────────────────────────────────────────────
 
+export interface LeadNavParams {
+  leadId?: string
+  leadSearch?: string
+}
+
 function CustomerDetail({
   customer,
   onBack,
@@ -378,6 +389,7 @@ function CustomerDetail({
   onDelete,
   onConversationLog,
   isSavingConv,
+  onLeadNavigate,
 }: {
   customer: Customer
   onBack: () => void
@@ -385,9 +397,69 @@ function CustomerDetail({
   onDelete: () => void
   onConversationLog: (data: any) => Promise<void>
   isSavingConv: boolean
+  onLeadNavigate?: (params: LeadNavParams) => void
 }) {
   const [convOpen, setConvOpen] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("overview")
+  const [vehicleModalOpen, setVehicleModalOpen] = React.useState(false)
+  const [vehicleForModal, setVehicleForModal] = React.useState<Vehicle | null>(null)
+  const [vehicleSearching, setVehicleSearching] = React.useState(false)
+  const { getToken } = useAuth()
+
+  const handleTransactionClick = (tx: CustomerTransaction) => {
+    if (!onLeadNavigate) return
+    if (tx.referenceId && (tx.referenceModel === 'Lead' || tx.type === 'lead')) {
+      onLeadNavigate({ leadId: tx.referenceId })
+    } else {
+      onLeadNavigate({ leadSearch: customer.email })
+    }
+  }
+
+  const handleVehicleInterestClick = async () => {
+    const vi = customer.vehicleInterest
+    if (!vi?.make) return
+    setVehicleSearching(true)
+    try {
+      const token = await getToken()
+      const headers = { Authorization: `Bearer ${token}` }
+
+      const search = async (params: Record<string, unknown>) => {
+        const res = await apiClient.get('/api/vehicles', { headers, params: { ...params, limit: 1, page: 1 } })
+        return (res.data?.data?.vehicles ?? []) as Vehicle[]
+      }
+
+      // Try 1: exact make + model + year
+      let found = await search({
+        make: vi.make,
+        model: vi.model || undefined,
+        year: vi.year ? Number(vi.year) : undefined,
+      })
+
+      // Try 2: make + model, drop year
+      if (found.length === 0 && vi.model) {
+        found = await search({ make: vi.make, model: vi.model })
+      }
+
+      // Try 3: make only — broadest
+      if (found.length === 0) {
+        found = await search({ make: vi.make })
+      }
+
+      if (found.length > 0) {
+        setVehicleForModal(found[0])
+        setVehicleModalOpen(true)
+      } else {
+        toast.info('Not in inventory', {
+          description: `No ${[vi.year, vi.make, vi.model].filter(Boolean).join(' ')} found in your current inventory.`,
+        })
+      }
+    } catch (err) {
+      console.error('[VehicleInterest] Search failed:', err)
+      toast.error('Could not search inventory', { description: 'Please try again.' })
+    } finally {
+      setVehicleSearching(false)
+    }
+  }
 
   const sortedConvs = [...(customer.conversations ?? [])].sort(
     (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()
@@ -498,10 +570,18 @@ function CustomerDetail({
                 <Separator />
                 <section>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Vehicle Interest</p>
-                  <div className="flex items-center gap-2 text-sm bg-muted/40 rounded-lg p-3">
-                    <Car className="h-5 w-5 text-muted-foreground shrink-0" />
-                    <div>
-                      <p className="font-medium">
+                  <button
+                    onClick={handleVehicleInterestClick}
+                    disabled={vehicleSearching}
+                    className="w-full flex items-center gap-2 text-sm bg-muted/40 hover:bg-muted/70 active:bg-muted rounded-lg p-3 transition-colors text-left group"
+                  >
+                    {vehicleSearching ? (
+                      <Loader2 className="h-5 w-5 text-muted-foreground shrink-0 animate-spin" />
+                    ) : (
+                      <Car className="h-5 w-5 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium group-hover:text-primary transition-colors">
                         {[customer.vehicleInterest.year, customer.vehicleInterest.make, customer.vehicleInterest.model]
                           .filter(Boolean).join(" ")}
                       </p>
@@ -512,7 +592,8 @@ function CustomerDetail({
                         </p>
                       )}
                     </div>
-                  </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
+                  </button>
                 </section>
               </>
             )}
@@ -554,7 +635,11 @@ function CustomerDetail({
             ) : (
               <div className="space-y-2">
                 {sortedTxs.map(tx => (
-                  <div key={tx._id} className="flex items-start gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                  <button
+                    key={tx._id}
+                    onClick={() => handleTransactionClick(tx)}
+                    className="group w-full text-left flex items-start gap-3 p-3 rounded-xl border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                  >
                     <div className="mt-0.5 h-7 w-7 rounded-lg bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
                       {TX_TYPE_ICONS[tx.type] ?? <Tag className="h-3.5 w-3.5" />}
                     </div>
@@ -573,7 +658,8 @@ function CustomerDetail({
                         {tx.amount ? ` · ${tx.currency ?? "$"}${tx.amount.toLocaleString()}` : ""}
                       </p>
                     </div>
-                  </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary shrink-0 transition-colors" />
+                  </button>
                 ))}
               </div>
             )}
@@ -644,13 +730,26 @@ function CustomerDetail({
         onLog={onConversationLog}
         isSaving={isSavingConv}
       />
+
+      <VehicleDetailsModal
+        vehicle={vehicleForModal}
+        isOpen={vehicleModalOpen}
+        onClose={() => { setVehicleModalOpen(false); setVehicleForModal(null) }}
+        onQuoteClick={() => {}}
+        onInquiryClick={() => {}}
+        onApplyNow={() => {}}
+      />
     </>
   )
 }
 
 // ─── Main Tab ─────────────────────────────────────────────────────────────────
 
-export function CustomerCredentialsTab() {
+export function CustomerCredentialsTab({
+  onLeadNavigate,
+}: {
+  onLeadNavigate?: (params: LeadNavParams) => void
+} = {}) {
   const [page, setPage] = React.useState(1)
   const [search, setSearch] = React.useState("")
   const [debouncedSearch, setDebouncedSearch] = React.useState("")
@@ -875,6 +974,7 @@ export function CustomerCredentialsTab() {
               onDelete={() => setDeleteConfirmId(detailCustomer._id)}
               onConversationLog={handleLogConv}
               isSavingConv={isSavingConv}
+              onLeadNavigate={onLeadNavigate}
             />
           ) : selectedId ? (
             <div className="flex-1 flex items-center justify-center">
