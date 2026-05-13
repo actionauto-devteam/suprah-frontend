@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Path } from "react-hook-form";
+import { useForm, Path, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFinancePersistence } from "@/hooks/useFinancePersistence";
 import {
@@ -28,9 +28,24 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
+  CalendarIcon,
 } from "lucide-react";
-import { sanitizeInput } from "@/lib/utils";
+import { sanitizeInput, cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { format, parse, isValid } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import type { Vehicle } from "@/types/inventory";
@@ -260,45 +275,48 @@ export function FinanceApplicationFlow({
   const progress = ((step + 1) / STEPS.length) * 100;
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-5 sm:space-y-8 pb-12">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-        <div>
-          <Button
-            variant="ghost"
-            onClick={onCancel || (() => router.back())}
-            className="-ml-3 text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="w-4 h-4 mr-1" /> Back
-          </Button>
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter mt-2">
-            Finance Application
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Secure credit application for your vehicle
-          </p>
-        </div>
+      <div className="flex flex-col gap-4 sm:gap-5">
+        <Button
+          variant="ghost"
+          onClick={onCancel || (() => router.back())}
+          className="-ml-3 w-fit text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" /> Back
+        </Button>
 
-        {vehicle && (
-          <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-900/50 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-            <img
-              src={vehicle.image}
-              alt={vehicle.make}
-              className="w-16 h-12 object-cover rounded-lg"
-            />
-            <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase">
-                {vehicle.year} {vehicle.make}
-              </p>
-              <p className="text-sm font-bold tracking-tight">
-                {vehicle.model}
-              </p>
-              <p className="text-lg font-black text-green-600 dark:text-green-400 leading-none mt-1">
-                ${vehicle.price.toLocaleString()}
-              </p>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">
+              Finance Application
+            </h1>
+            <p className="text-muted-foreground text-base sm:text-lg mt-1">
+              Secure credit application for your vehicle
+            </p>
           </div>
-        )}
+
+          {vehicle && (
+            <div className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-900/50 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 self-start sm:self-auto">
+              <img
+                src={vehicle.image}
+                alt={vehicle.make}
+                className="w-14 h-10 sm:w-16 sm:h-12 object-cover rounded-lg flex-shrink-0"
+              />
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase">
+                  {vehicle.year} {vehicle.make}
+                </p>
+                <p className="text-sm font-bold tracking-tight">
+                  {vehicle.model}
+                </p>
+                <p className="text-base sm:text-lg font-black text-green-600 dark:text-green-400 leading-none mt-1">
+                  ${vehicle.price.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Progress */}
@@ -320,9 +338,12 @@ export function FinanceApplicationFlow({
         />
       </div>
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-5 sm:space-y-8 [&_[data-slot=input]]:h-10 [&_select]:h-10"
+      >
         <Card className="border-zinc-200 p-0 dark:border-zinc-800 shadow-xl rounded-3xl overflow-hidden bg-white/50 dark:bg-zinc-950/50 backdrop-blur-xl">
-          <CardHeader className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 p-8">
+          <CardHeader className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 p-5 sm:p-8">
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-5 h-5 text-green-600 dark:text-green-500" />
               <span className="text-xs font-bold uppercase tracking-widest text-green-600 dark:text-green-500">
@@ -335,7 +356,7 @@ export function FinanceApplicationFlow({
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="p-8">
+          <CardContent className="p-5 sm:p-8">
             <AnimatePresence mode="wait">
               <motion.div
                 key={step}
@@ -455,12 +476,13 @@ function PersonalInfoSection({
   } = form;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-2 col-span-2">
-        <Label className="text-xs font-bold uppercase italic tracking-wider">
+    <div className="space-y-6">
+      {/* Application Type */}
+      <div className="space-y-2.5">
+        <Label className="text-xs font-bold uppercase tracking-wider">
           Application Type
         </Label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <Button
             type="button"
             variant={
@@ -473,7 +495,7 @@ function PersonalInfoSection({
             }
             className="h-12 w-full rounded-xl"
           >
-            Individual Application
+            Individual
           </Button>
           <Button
             type="button"
@@ -485,67 +507,127 @@ function PersonalInfoSection({
             onClick={() => form.setValue("personal.applicationType", "joint")}
             className="h-12 w-full rounded-xl"
           >
-            Joint Application
+            Joint
           </Button>
         </div>
       </div>
-      <div className="space-y-2">
-        <Label>First Name</Label>
-        <Input
-          {...register("personal.firstName")}
-          placeholder="Legal First Name"
-        />
-        <ErrorMsg message={errors.personal?.firstName?.message} />
+
+      {/* Name */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="space-y-2.5">
+          <Label>First Name</Label>
+          <Input
+            {...register("personal.firstName")}
+            placeholder="Legal First Name"
+          />
+          <ErrorMsg message={errors.personal?.firstName?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Last Name</Label>
+          <Input
+            {...register("personal.lastName")}
+            placeholder="Legal Last Name"
+          />
+          <ErrorMsg message={errors.personal?.lastName?.message} />
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label>Last Name</Label>
-        <Input
-          {...register("personal.lastName")}
-          placeholder="Legal Last Name"
-        />
-        <ErrorMsg message={errors.personal?.lastName?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Social Security Number</Label>
-        <Input
-          {...register("personal.ssn")}
-          placeholder="XXX-XX-XXXX"
-          onChange={handleSSNChange}
-          maxLength={11}
-        />
-        <ErrorMsg message={errors.personal?.ssn?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Date of Birth</Label>
-        <Input type="date" {...register("personal.dob")} />
-        <ErrorMsg message={errors.personal?.dob?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Driver's License Number</Label>
-        <Input
-          {...register("personal.dlNumber")}
-          placeholder="DL-XXXXXX"
-          maxLength={20}
-          className="uppercase"
-          onChange={(e) => {
-            e.target.value = e.target.value.toUpperCase();
-            register("personal.dlNumber").onChange(e);
-          }}
-        />
-        <ErrorMsg message={errors.personal?.dlNumber?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Marital Status</Label>
-        <select
-          {...register("personal.maritalStatus")}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="single">Single</option>
-          <option value="married">Married</option>
-          <option value="divorced">Divorced</option>
-          <option value="widowed">Widowed</option>
-        </select>
-        <ErrorMsg message={errors.personal?.maritalStatus?.message} />
+
+      {/* Identity */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="space-y-2.5">
+          <Label>Social Security Number</Label>
+          <Input
+            {...register("personal.ssn")}
+            placeholder="XXX-XX-XXXX"
+            onChange={handleSSNChange}
+            maxLength={11}
+          />
+          <ErrorMsg message={errors.personal?.ssn?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Date of Birth</Label>
+          <Controller
+            control={form.control}
+            name="personal.dob"
+            render={({ field }) => {
+              const dateValue = field.value
+                ? parse(field.value, "yyyy-MM-dd", new Date())
+                : undefined;
+              const validDate =
+                dateValue && isValid(dateValue) ? dateValue : undefined;
+              return (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-10 w-full justify-start text-left font-normal",
+                        !validDate && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+                      {validDate ? (
+                        format(validDate, "MMMM d, yyyy")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={validDate}
+                      onSelect={(date) =>
+                        field.onChange(date ? format(date, "yyyy-MM-dd") : "")
+                      }
+                      captionLayout="dropdown"
+                      fromYear={1940}
+                      toYear={new Date().getFullYear() - 16}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              );
+            }}
+          />
+          <ErrorMsg message={errors.personal?.dob?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Driver's License Number</Label>
+          <Input
+            {...register("personal.dlNumber")}
+            placeholder="DL-XXXXXX"
+            maxLength={20}
+            className="uppercase"
+            onChange={(e) => {
+              e.target.value = e.target.value.toUpperCase();
+              register("personal.dlNumber").onChange(e);
+            }}
+          />
+          <ErrorMsg message={errors.personal?.dlNumber?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Marital Status</Label>
+          <Controller
+            control={form.control}
+            name="personal.maritalStatus"
+            render={({ field }) => (
+              <Select onValueChange={field.onChange} value={field.value}>
+                <SelectTrigger className="h-10 w-full">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="married">Married</SelectItem>
+                  <SelectItem value="divorced">Divorced</SelectItem>
+                  <SelectItem value="widowed">Widowed</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <ErrorMsg message={errors.personal?.maritalStatus?.message} />
+        </div>
       </div>
     </div>
   );
@@ -563,8 +645,8 @@ function ContactSection({
     formState: { errors },
   } = form;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="space-y-2.5">
         <Label>Email Address</Label>
         <Input
           type="email"
@@ -573,7 +655,7 @@ function ContactSection({
         />
         <ErrorMsg message={errors.contact?.email?.message} />
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Label>Mobile Phone</Label>
         <Input
           {...register("contact.phone")}
@@ -593,68 +675,77 @@ function ResidenceSection({ form }: { form: any }) {
     formState: { errors },
   } = form;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="col-span-2 space-y-2">
-        <Label>Street Address</Label>
-        <Input {...register("residence.address")} placeholder="123 Main St" />
-        <ErrorMsg message={errors.residence?.address?.message} />
+    <div className="space-y-6">
+      {/* Address */}
+      <div className="space-y-5">
+        <div className="space-y-2.5">
+          <Label>Street Address</Label>
+          <Input {...register("residence.address")} placeholder="123 Main St" />
+          <ErrorMsg message={errors.residence?.address?.message} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="space-y-2.5">
+            <Label>City</Label>
+            <Input {...register("residence.city")} />
+            <ErrorMsg message={errors.residence?.city?.message} />
+          </div>
+          <div className="space-y-2.5">
+            <Label>State</Label>
+            <Input
+              {...register("residence.state")}
+              placeholder="UT"
+              maxLength={2}
+            />
+            <ErrorMsg message={errors.residence?.state?.message} />
+          </div>
+          <div className="space-y-2.5">
+            <Label>ZIP Code</Label>
+            <Input {...register("residence.zipCode")} maxLength={5} />
+            <ErrorMsg message={errors.residence?.zipCode?.message} />
+          </div>
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label>City</Label>
-        <Input {...register("residence.city")} />
-        <ErrorMsg message={errors.residence?.city?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>State</Label>
-        <Input
-          {...register("residence.state")}
-          placeholder="UT"
-          maxLength={2}
-        />
-        <ErrorMsg message={errors.residence?.state?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>ZIP Code</Label>
-        <Input {...register("residence.zipCode")} maxLength={5} />
-        <ErrorMsg message={errors.residence?.zipCode?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Housing Status</Label>
-        <select
-          {...register("residence.housingStatus")}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="own">Own</option>
-          <option value="rent">Rent</option>
-          <option value="other">Other</option>
-        </select>
-        <ErrorMsg message={errors.residence?.housingStatus?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Monthly Rent / Mortgage</Label>
-        <Input
-          type="number"
-          {...register("residence.monthlyPayment", { valueAsNumber: true })}
-          placeholder="e.g. 1200"
-        />
-        <ErrorMsg message={errors.residence?.monthlyPayment?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Years at Address</Label>
-        <Input
-          type="number"
-          {...register("residence.yearsAtAddress", { valueAsNumber: true })}
-        />
-        <ErrorMsg message={errors.residence?.yearsAtAddress?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Months at Address</Label>
-        <Input
-          type="number"
-          {...register("residence.monthsAtAddress", { valueAsNumber: true })}
-          max={11}
-        />
-        <ErrorMsg message={errors.residence?.monthsAtAddress?.message} />
+
+      {/* Housing details */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="space-y-2.5">
+          <Label>Housing Status</Label>
+          <select
+            {...register("residence.housingStatus")}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="own">Own</option>
+            <option value="rent">Rent</option>
+            <option value="other">Other</option>
+          </select>
+          <ErrorMsg message={errors.residence?.housingStatus?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Monthly Rent / Mortgage</Label>
+          <Input
+            type="number"
+            {...register("residence.monthlyPayment", { valueAsNumber: true })}
+            placeholder="e.g. 1200"
+          />
+          <ErrorMsg message={errors.residence?.monthlyPayment?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Years at Address</Label>
+          <Input
+            type="number"
+            {...register("residence.yearsAtAddress", { valueAsNumber: true })}
+          />
+          <ErrorMsg message={errors.residence?.yearsAtAddress?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Months at Address</Label>
+          <Input
+            type="number"
+            {...register("residence.monthsAtAddress", { valueAsNumber: true })}
+            max={11}
+          />
+          <ErrorMsg message={errors.residence?.monthsAtAddress?.message} />
+        </div>
       </div>
     </div>
   );
@@ -666,54 +757,63 @@ function EmploymentSection({ form }: { form: any }) {
     formState: { errors },
   } = form;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-2">
-        <Label>Current Employer</Label>
-        <Input {...register("employment.employerName")} />
-        <ErrorMsg message={errors.employment?.employerName?.message} />
+    <div className="space-y-6">
+      {/* Employer */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="space-y-2.5">
+          <Label>Current Employer</Label>
+          <Input {...register("employment.employerName")} />
+          <ErrorMsg message={errors.employment?.employerName?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Job Title</Label>
+          <Input {...register("employment.jobTitle")} />
+          <ErrorMsg message={errors.employment?.jobTitle?.message} />
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label>Job Title</Label>
-        <Input {...register("employment.jobTitle")} />
-        <ErrorMsg message={errors.employment?.jobTitle?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Annual Gross Income</Label>
-        <Input
-          type="number"
-          {...register("employment.annualIncome", { valueAsNumber: true })}
-        />
-        <ErrorMsg message={errors.employment?.annualIncome?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Income Frequency</Label>
-        <select
-          {...register("employment.incomeFrequency")}
-          className="w-full h-10 px-3 rounded-md border border-input bg-background"
-        >
-          <option value="annually">Annually</option>
-          <option value="monthly">Monthly</option>
-          <option value="bi-weekly">Bi-Weekly</option>
-          <option value="weekly">Weekly</option>
-        </select>
-        <ErrorMsg message={errors.employment?.incomeFrequency?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Years Employed</Label>
-        <Input
-          type="number"
-          {...register("employment.employmentYears", { valueAsNumber: true })}
-        />
-        <ErrorMsg message={errors.employment?.employmentYears?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label>Months Employed</Label>
-        <Input
-          type="number"
-          {...register("employment.employmentMonths", { valueAsNumber: true })}
-          max={11}
-        />
-        <ErrorMsg message={errors.employment?.employmentMonths?.message} />
+
+      {/* Income */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="space-y-2.5">
+          <Label>Annual Gross Income</Label>
+          <Input
+            type="number"
+            {...register("employment.annualIncome", { valueAsNumber: true })}
+          />
+          <ErrorMsg message={errors.employment?.annualIncome?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Income Frequency</Label>
+          <select
+            {...register("employment.incomeFrequency")}
+            className="w-full h-10 px-3 rounded-md border border-input bg-background"
+          >
+            <option value="annually">Annually</option>
+            <option value="monthly">Monthly</option>
+            <option value="bi-weekly">Bi-Weekly</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <ErrorMsg message={errors.employment?.incomeFrequency?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Years Employed</Label>
+          <Input
+            type="number"
+            {...register("employment.employmentYears", { valueAsNumber: true })}
+          />
+          <ErrorMsg message={errors.employment?.employmentYears?.message} />
+        </div>
+        <div className="space-y-2.5">
+          <Label>Months Employed</Label>
+          <Input
+            type="number"
+            {...register("employment.employmentMonths", {
+              valueAsNumber: true,
+            })}
+            max={11}
+          />
+          <ErrorMsg message={errors.employment?.employmentMonths?.message} />
+        </div>
       </div>
     </div>
   );
@@ -781,16 +881,16 @@ function TradeInSection({ form }: { form: any }) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="grid grid-cols-2 gap-6 p-6 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-6 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800"
         >
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <Label>Year/Make/Model</Label>
             <Input
               {...form.register("tradeIn.tradeMake")}
               placeholder="e.g. 2020 Honda Civic"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <Label>Mileage</Label>
             <Input {...form.register("tradeIn.tradeMileage")} />
           </div>

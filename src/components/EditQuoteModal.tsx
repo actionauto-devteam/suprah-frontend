@@ -1,474 +1,407 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import {
-  X,
-  User,
-  Car,
-  MapPin,
-  DollarSign,
-  SlidersHorizontal,
-  Loader2,
-  FileText,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Quote } from "@/types/transportation";
+import { useState } from "react"
+import { X, User, Car, MapPin, DollarSign, SlidersHorizontal, Loader2, FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { Quote } from "@/types/transportation"
 
 interface EditQuoteModalProps {
-  quote: Quote;
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (updatedQuote: Partial<Quote>) => Promise<void>;
+    quote: Quote
+    isOpen: boolean
+    onClose: () => void
+    onSave: (updatedQuote: Partial<Quote>) => Promise<void>
 }
 
-export function EditQuoteModal({
-  quote,
-  isOpen,
-  onClose,
-  onSave,
-}: EditQuoteModalProps) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: quote.firstName,
-    lastName: quote.lastName,
-    email: quote.email,
-    phone: quote.phone,
-    fromAddress: quote.fromAddress,
-    fromZip: quote.fromZip,
-    toAddress: quote.toAddress,
-    toZip: quote.toZip,
-    rate: quote.rate,
-    miles: quote.miles,
-    units: quote.units,
-    enclosedTrailer: quote.enclosedTrailer,
-    vehicleInoperable: quote.vehicleInoperable,
-    vehicleName: quote.vehicleName || "",
-    vin: quote.vin || "",
-    stockNumber: quote.stockNumber || "",
-    vehicleLocation: quote.vehicleLocation || "",
-    etaMin: quote.eta.min,
-    etaMax: quote.eta.max,
-  });
+export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModalProps) {
+    const [isSaving, setIsSaving] = useState(false)
+    const [formData, setFormData] = useState({
+        firstName: quote.firstName,
+        lastName: quote.lastName,
+        email: quote.email,
+        phone: quote.phone,
+        fromAddress: quote.fromAddress,
+        fromZip: quote.fromZip,
+        toAddress: quote.toAddress,
+        toZip: quote.toZip,
+        rate: quote.rate,
+        miles: quote.miles,
+        units: quote.units,
+        enclosedTrailer: quote.enclosedTrailer,
+        vehicleInoperable: quote.vehicleInoperable,
+        vehicleName: quote.vehicleName || '',
+        vin: quote.vin || '',
+        stockNumber: quote.stockNumber || '',
+        vehicleLocation: quote.vehicleLocation || '',
+        etaMin: quote.eta.min,
+        etaMax: quote.eta.max,
+    })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : type === "number"
-            ? Number(value)
-            : value,
-    }));
-  };
-
-  const handleSubmit = async (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-    setIsSaving(true);
-    try {
-      await onSave({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        fromAddress: formData.fromAddress,
-        fromZip: formData.fromZip,
-        toAddress: formData.toAddress,
-        toZip: formData.toZip,
-        rate: formData.rate,
-        miles: formData.miles,
-        units: formData.units,
-        enclosedTrailer: formData.enclosedTrailer,
-        vehicleInoperable: formData.vehicleInoperable,
-        vehicleName: formData.vehicleName,
-        vin: formData.vin,
-        stockNumber: formData.stockNumber,
-        vehicleLocation: formData.vehicleLocation,
-        eta: { min: formData.etaMin, max: formData.etaMax },
-      });
-      onClose();
-    } catch (error) {
-      console.error("Error saving quote:", error);
-    } finally {
-      setIsSaving(false);
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value, type, checked } = e.target
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : type === 'number' ? Number(value) : value,
+        }))
     }
-  };
 
-  if (!isOpen) return null;
+    const handleSubmit = async (e: { preventDefault: () => void }) => {
+        e.preventDefault()
+        setIsSaving(true)
+        try {
+            await onSave({
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                phone: formData.phone,
+                fromAddress: formData.fromAddress,
+                fromZip: formData.fromZip,
+                toAddress: formData.toAddress,
+                toZip: formData.toZip,
+                rate: formData.rate,
+                miles: formData.miles,
+                units: formData.units,
+                enclosedTrailer: formData.enclosedTrailer,
+                vehicleInoperable: formData.vehicleInoperable,
+                vehicleName: formData.vehicleName,
+                vin: formData.vin,
+                stockNumber: formData.stockNumber,
+                vehicleLocation: formData.vehicleLocation,
+                eta: { min: formData.etaMin, max: formData.etaMax },
+            })
+            onClose()
+        } catch (error) {
+            console.error('Error saving quote:', error)
+        } finally {
+            setIsSaving(false)
+        }
+    }
 
-  const fieldClass =
-    "w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
-  const labelClass =
-    "block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider";
-  const sectionClass =
-    "rounded-xl border border-border/60 bg-muted/20 p-4 sm:p-5 space-y-4";
+    if (!isOpen) return null
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-card text-card-foreground rounded-none sm:rounded-2xl shadow-2xl max-w-3xl w-full h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-hidden border border-border">
-        {/* Header */}
-        <div className="p-4 sm:p-6 sm:pb-4 flex items-start justify-between border-b border-border bg-muted/10">
-          <div>
-            <h2 className="text-lg sm:text-xl font-black flex items-center gap-2">
-              <FileText className="size-5 text-primary" />
-              EDIT QUOTE
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">
-              Update customer, vehicle, and route information
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="p-2 rounded-lg hover:bg-muted transition-colors"
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
+    const fieldClass = "w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    const labelClass = "block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
+    const sectionClass = "rounded-xl border border-border/60 bg-muted/20 p-5 space-y-4"
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card text-card-foreground rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden border border-border">
+                {/* Header */}
+                <div className="p-6 pb-4 flex items-start justify-between border-b border-border bg-muted/10">
+                    <div>
+                        <h2 className="text-xl font-black flex items-center gap-2">
+                            <FileText className="size-5 text-primary" />
+                            EDIT QUOTE
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">
+                            Update customer, vehicle, and route information
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
+                        <X className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
+                    <div className="p-6 space-y-6">
+
+                        {/* Customer Information */}
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <User className="size-4 text-primary" /> Customer Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className={labelClass}>First Name</label>
+                                    <input
+                                        type="text"
+                                        name="firstName"
+                                        value={formData.firstName}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Last Name</label>
+                                    <input
+                                        type="text"
+                                        name="lastName"
+                                        value={formData.lastName}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Email</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Phone</label>
+                                    <input
+                                        type="tel"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Vehicle Information */}
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <Car className="size-4 text-primary" /> Vehicle Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className={labelClass}>Vehicle Name</label>
+                                    <input
+                                        type="text"
+                                        name="vehicleName"
+                                        value={formData.vehicleName}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>VIN</label>
+                                    <input
+                                        type="text"
+                                        name="vin"
+                                        value={formData.vin}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Stock Number</label>
+                                    <input
+                                        type="text"
+                                        name="stockNumber"
+                                        value={formData.stockNumber}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Vehicle Location</label>
+                                    <input
+                                        type="text"
+                                        name="vehicleLocation"
+                                        value={formData.vehicleLocation}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Route Information */}
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <MapPin className="size-4 text-primary" /> Route Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold text-primary uppercase">Origin</p>
+                                    <div>
+                                        <label className={labelClass}>From Address</label>
+                                        <input
+                                            type="text"
+                                            name="fromAddress"
+                                            value={formData.fromAddress}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>From Zip Code</label>
+                                        <input
+                                            type="text"
+                                            name="fromZip"
+                                            value={formData.fromZip}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold text-rose-500 uppercase">Destination</p>
+                                    <div>
+                                        <label className={labelClass}>To Address</label>
+                                        <input
+                                            type="text"
+                                            name="toAddress"
+                                            value={formData.toAddress}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>To Zip Code</label>
+                                        <input
+                                            type="text"
+                                            name="toZip"
+                                            value={formData.toZip}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Quote Details */}
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <DollarSign className="size-4 text-primary" /> Quote Details
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className={labelClass}>Rate ($)</label>
+                                    <input
+                                        type="number"
+                                        name="rate"
+                                        value={formData.rate}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                        min="0"
+                                        step="0.01"
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Miles</label>
+                                    <input
+                                        type="number"
+                                        name="miles"
+                                        value={formData.miles}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                        min="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Units</label>
+                                    <input
+                                        type="number"
+                                        name="units"
+                                        value={formData.units}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                        min="1"
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>ETA Min (days)</label>
+                                    <input
+                                        type="number"
+                                        name="etaMin"
+                                        value={formData.etaMin}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                        min="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>ETA Max (days)</label>
+                                    <input
+                                        type="number"
+                                        name="etaMax"
+                                        value={formData.etaMax}
+                                        onChange={handleChange}
+                                        className={fieldClass}
+                                        required
+                                        min="0"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Transport Options */}
+                        <div className={sectionClass}>
+                            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
+                                <SlidersHorizontal className="size-4 text-primary" /> Transport Options
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
+                                    <div>
+                                        <p className="text-sm font-bold">Enclosed Trailer</p>
+                                        <p className="text-[10px] text-muted-foreground font-medium">Ship vehicle in an enclosed trailer</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, enclosedTrailer: !prev.enclosedTrailer }))}
+                                        className={cn(
+                                            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                                            formData.enclosedTrailer ? "bg-primary" : "bg-muted-foreground/30"
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                            formData.enclosedTrailer ? "translate-x-6" : "translate-x-1"
+                                        )} />
+                                    </button>
+                                </div>
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
+                                    <div>
+                                        <p className="text-sm font-bold">Vehicle Inoperable</p>
+                                        <p className="text-[10px] text-muted-foreground font-medium">Vehicle cannot be driven onto the carrier</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, vehicleInoperable: !prev.vehicleInoperable }))}
+                                        className={cn(
+                                            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                                            formData.vehicleInoperable ? "bg-primary" : "bg-muted-foreground/30"
+                                        )}
+                                    >
+                                        <span className={cn(
+                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                            formData.vehicleInoperable ? "translate-x-6" : "translate-x-1"
+                                        )} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-4 flex items-center justify-end gap-3 border-t border-border bg-muted/10">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            disabled={isSaving}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold min-w-[120px]"
+                        >
+                            {isSaving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                            {isSaving ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </div>
+                </form>
+            </div>
         </div>
-
-        {/* Content */}
-        <form
-          onSubmit={handleSubmit}
-          className="overflow-y-auto max-h-[calc(100dvh-132px)] sm:max-h-[calc(90vh-140px)] custom-scrollbar"
-        >
-          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-            {/* Customer Information */}
-            <div className={sectionClass}>
-              <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
-                <User className="size-4 text-primary" /> Customer Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>First Name</label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Last Name</label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Phone</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Vehicle Information */}
-            <div className={sectionClass}>
-              <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
-                <Car className="size-4 text-primary" /> Vehicle Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Vehicle Name</label>
-                  <input
-                    type="text"
-                    name="vehicleName"
-                    value={formData.vehicleName}
-                    onChange={handleChange}
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>VIN</label>
-                  <input
-                    type="text"
-                    name="vin"
-                    value={formData.vin}
-                    onChange={handleChange}
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Stock Number</label>
-                  <input
-                    type="text"
-                    name="stockNumber"
-                    value={formData.stockNumber}
-                    onChange={handleChange}
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Vehicle Location</label>
-                  <input
-                    type="text"
-                    name="vehicleLocation"
-                    value={formData.vehicleLocation}
-                    onChange={handleChange}
-                    className={fieldClass}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Route Information */}
-            <div className={sectionClass}>
-              <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
-                <MapPin className="size-4 text-primary" /> Route Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <p className="text-[10px] font-bold text-primary uppercase">
-                    Origin
-                  </p>
-                  <div>
-                    <label className={labelClass}>From Address</label>
-                    <input
-                      type="text"
-                      name="fromAddress"
-                      value={formData.fromAddress}
-                      onChange={handleChange}
-                      className={fieldClass}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>From Zip Code</label>
-                    <input
-                      type="text"
-                      name="fromZip"
-                      value={formData.fromZip}
-                      onChange={handleChange}
-                      className={fieldClass}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <p className="text-[10px] font-bold text-rose-500 uppercase">
-                    Destination
-                  </p>
-                  <div>
-                    <label className={labelClass}>To Address</label>
-                    <input
-                      type="text"
-                      name="toAddress"
-                      value={formData.toAddress}
-                      onChange={handleChange}
-                      className={fieldClass}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>To Zip Code</label>
-                    <input
-                      type="text"
-                      name="toZip"
-                      value={formData.toZip}
-                      onChange={handleChange}
-                      className={fieldClass}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quote Details */}
-            <div className={sectionClass}>
-              <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
-                <DollarSign className="size-4 text-primary" /> Quote Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className={labelClass}>Rate ($)</label>
-                  <input
-                    type="number"
-                    name="rate"
-                    value={formData.rate}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Miles</label>
-                  <input
-                    type="number"
-                    name="miles"
-                    value={formData.miles}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Units</label>
-                  <input
-                    type="number"
-                    name="units"
-                    value={formData.units}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>ETA Min (days)</label>
-                  <input
-                    type="number"
-                    name="etaMin"
-                    value={formData.etaMin}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>ETA Max (days)</label>
-                  <input
-                    type="number"
-                    name="etaMax"
-                    value={formData.etaMax}
-                    onChange={handleChange}
-                    className={fieldClass}
-                    required
-                    min="0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Transport Options */}
-            <div className={sectionClass}>
-              <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
-                <SlidersHorizontal className="size-4 text-primary" /> Transport
-                Options
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
-                  <div>
-                    <p className="text-sm font-bold">Enclosed Trailer</p>
-                    <p className="text-[10px] text-muted-foreground font-medium">
-                      Ship vehicle in an enclosed trailer
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        enclosedTrailer: !prev.enclosedTrailer,
-                      }))
-                    }
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                      formData.enclosedTrailer
-                        ? "bg-primary"
-                        : "bg-muted-foreground/30",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                        formData.enclosedTrailer
-                          ? "translate-x-6"
-                          : "translate-x-1",
-                      )}
-                    />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
-                  <div>
-                    <p className="text-sm font-bold">Vehicle Inoperable</p>
-                    <p className="text-[10px] text-muted-foreground font-medium">
-                      Vehicle cannot be driven onto the carrier
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        vehicleInoperable: !prev.vehicleInoperable,
-                      }))
-                    }
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                      formData.vehicleInoperable
-                        ? "bg-primary"
-                        : "bg-muted-foreground/30",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                        formData.vehicleInoperable
-                          ? "translate-x-6"
-                          : "translate-x-1",
-                      )}
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 border-t border-border bg-muted/10">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSaving}
-              className="w-full sm:w-auto"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground font-bold min-w-[120px]"
-            >
-              {isSaving ? (
-                <Loader2 className="size-4 animate-spin mr-2" />
-              ) : null}
-              {isSaving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+    )
 }

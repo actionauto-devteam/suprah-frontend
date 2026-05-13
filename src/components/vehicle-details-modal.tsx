@@ -46,7 +46,7 @@ export function VehicleDetailsModal({
         className={cn(
           "w-full p-0 gap-0 overflow-hidden flex flex-col bg-background/95 backdrop-blur-3xl border-border/40 shadow-2xl",
           isMobile
-            ? "z-40 inset-x-0 top-auto left-0 bottom-16 translate-x-0 translate-y-0 max-w-none rounded-b-none rounded-t-2xl border-x-0 border-b-0 h-[calc(100dvh-4rem)]"
+            ? "z-40 !top-3 !bottom-[calc(5.75rem+env(safe-area-inset-bottom))] !left-1/2 !right-auto !w-[calc(100%-1rem)] !max-w-none !-translate-x-1/2 !translate-y-0 rounded-2xl h-auto"
             : "max-w-[95vw] lg:max-w-6xl h-[90vh]",
         )}
       >
