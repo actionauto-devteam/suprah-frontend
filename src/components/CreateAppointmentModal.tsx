@@ -18,6 +18,7 @@ import { GuestEmailInput } from "@/components/GuestEmailInput"
 import { CustomerBookingForm } from "@/components/CustomerBookingForm"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
+import { VehiclePickerModal } from "@/components/VehiclePickerModal"
 import type { Vehicle } from "@/types/inventory"
 
 interface CreateAppointmentModalProps {
@@ -38,48 +39,6 @@ interface CreateAppointmentModalProps {
   entryTypeLock?: EntryType
 }
 
-const DRAFT_STORAGE_KEY = 'crm-appointment-draft'
-
-type AppointmentDraft = {
-  version: 1
-  resume?: boolean
-  formData: {
-    title: string
-    description: string
-    startDate: string
-    startTime: string
-    endDate: string
-    endTime: string
-    location: string
-    type: string
-    customTypeDetails: string
-    entryType: EntryType
-    conversationId: string
-    participants: string[]
-    guestEmails: string[]
-    meetingLink: string
-    notes: string
-    isCustomerBooking: boolean
-    customerBooking: {
-      firstName: string
-      lastName: string
-      email: string
-      phone: string
-    }
-  }
-  selectedVehicles?: Vehicle[]
-  meta?: {
-    initialCustomerBooking?: {
-      firstName?: string
-      lastName?: string
-      email?: string
-      phone?: string
-    }
-    forceCustomerBooking?: boolean
-    extraPayload?: Record<string, unknown>
-  }
-}
-
 export function CreateAppointmentModal({
   open,
   onOpenChange,
@@ -92,11 +51,9 @@ export function CreateAppointmentModal({
   extraPayload,
   entryTypeLock
 }: CreateAppointmentModalProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [pickerModalOpen, setPickerModalOpen] = React.useState(false)
 
   const [formData, setFormData] = React.useState({
     title: '',
@@ -125,33 +82,21 @@ export function CreateAppointmentModal({
 
   const [customerErrors, setCustomerErrors] = React.useState<Record<string, string>>({})
   const [selectedVehicles, setSelectedVehicles] = React.useState<Vehicle[]>([])
-  const [draftMeta, setDraftMeta] = React.useState<AppointmentDraft['meta'] | null>(null)
-  const draftLoadedRef = React.useRef(false)
 
   React.useEffect(() => {
-    if (draftLoadedRef.current) return
     if (preselectedDate) {
-      setFormData(prev => ({
-        ...prev,
-        startDate: preselectedDate,
-        endDate: preselectedDate
-      }))
+      setFormData(prev => ({ ...prev, startDate: preselectedDate, endDate: preselectedDate }))
     }
   }, [preselectedDate])
 
   React.useEffect(() => {
-    if (draftLoadedRef.current) return
     if (preselectedConversation) {
-      setFormData(prev => ({
-        ...prev,
-        conversationId: preselectedConversation
-      }))
+      setFormData(prev => ({ ...prev, conversationId: preselectedConversation }))
     }
   }, [preselectedConversation])
 
   React.useEffect(() => {
     if (!open) return
-    if (draftLoadedRef.current) return
     if (!initialCustomerBooking && !forceCustomerBooking) return
 
     setFormData(prev => ({
@@ -171,71 +116,6 @@ export function CreateAppointmentModal({
     if (!entryTypeLock) return
     setFormData(prev => ({ ...prev, entryType: entryTypeLock }))
   }, [entryTypeLock])
-
-  const readDraft = React.useCallback((): AppointmentDraft | null => {
-    if (typeof window === 'undefined') return null
-    const stored = sessionStorage.getItem(DRAFT_STORAGE_KEY)
-    if (!stored) return null
-
-    try {
-      const parsed = JSON.parse(stored) as AppointmentDraft
-      if (!parsed?.formData) return null
-      return parsed
-    } catch {
-      return null
-    }
-  }, [])
-
-  const clearDraft = React.useCallback(() => {
-    if (typeof window === 'undefined') return
-    sessionStorage.removeItem(DRAFT_STORAGE_KEY)
-    draftLoadedRef.current = false
-  }, [])
-
-  const saveDraft = React.useCallback((resume: boolean) => {
-    if (typeof window === 'undefined') return
-    const draft: AppointmentDraft = {
-      version: 1,
-      resume,
-      formData: {
-        ...formData,
-        startDate: formData.startDate.toISOString(),
-        endDate: formData.endDate.toISOString(),
-      },
-      selectedVehicles,
-      meta: {
-        initialCustomerBooking,
-        forceCustomerBooking,
-        extraPayload
-      }
-    }
-
-    sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
-  }, [formData, selectedVehicles, initialCustomerBooking, forceCustomerBooking, extraPayload])
-
-  React.useEffect(() => {
-    if (!open) {
-      draftLoadedRef.current = false
-      setDraftMeta(null)
-      return
-    }
-
-    const draft = readDraft()
-    if (draft?.formData) {
-      draftLoadedRef.current = true
-      setFormData({
-        ...draft.formData,
-        startDate: new Date(draft.formData.startDate),
-        endDate: new Date(draft.formData.endDate)
-      })
-      setSelectedVehicles(draft.selectedVehicles || [])
-      setDraftMeta(draft.meta || null)
-    } else {
-      draftLoadedRef.current = false
-      setDraftMeta(null)
-      setSelectedVehicles([])
-    }
-  }, [open, readDraft])
 
   const validateCustomerBooking = (): boolean => {
     if (!formData.isCustomerBooking) return true
@@ -332,7 +212,6 @@ export function CreateAppointmentModal({
       }
 
       const resolvedEntryType = entryTypeLock || formData.entryType
-      const resolvedExtraPayload = extraPayload || draftMeta?.extraPayload
 
       const appointmentData: Record<string, unknown> = {
         title: formData.title,
@@ -349,7 +228,7 @@ export function CreateAppointmentModal({
         meetingLink: formData.meetingLink || undefined,
         notes: formData.notes || undefined,
         vehicleIds: selectedVehicles.map(v => v.id),
-        ...(resolvedExtraPayload || {})
+        ...(extraPayload || {})
       }
 
       if (formData.isCustomerBooking) {
@@ -390,7 +269,6 @@ export function CreateAppointmentModal({
         }
       })
       setSelectedVehicles([])
-      clearDraft()
       setError(null)
       setCustomerErrors({})
     } catch (error: any) {
@@ -401,21 +279,9 @@ export function CreateAppointmentModal({
     }
   }
 
-  const handleDialogOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) clearDraft()
-    onOpenChange(nextOpen)
-  }
-
-  const handleOpenVehiclePicker = () => {
-    saveDraft(true)
-    const search = searchParams.toString()
-    const returnTo = `${pathname}${search ? `?${search}` : ''}`
-    router.push(`/crm/appointments/vehicle-picker?returnTo=${encodeURIComponent(returnTo)}`)
-  }
-
   return (
     <>
-      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 z-[200]">
           <div className="max-h-[90vh] overflow-y-auto modal-scrollbar p-6">
             <DialogHeader>
@@ -518,7 +384,7 @@ export function CreateAppointmentModal({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleOpenVehiclePicker}
+                    onClick={() => setPickerModalOpen(true)}
                     className="w-full rounded-lg border border-dashed border-border bg-muted/20 px-3 py-3 text-left transition hover:border-emerald-400 hover:bg-muted/40 flex items-center justify-between gap-3 h-auto"
                   >
                     <div>
@@ -623,7 +489,7 @@ export function CreateAppointmentModal({
 
                 {formData.type === 'other' && (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                    <Label htmlFor="customTypeDetails">Specify Dynamic Meeting Type Details *</Label>
+                    <Label htmlFor="customTypeDetails">Specify Meeting Type or Details *</Label>
                     <Input
                       id="customTypeDetails"
                       placeholder="e.g., At Customer Showroom Setup"
@@ -707,7 +573,7 @@ export function CreateAppointmentModal({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => handleDialogOpenChange(false)}
+                  onClick={() => onOpenChange(false)}
                   disabled={isSubmitting}
                 >
                   Cancel
@@ -731,6 +597,13 @@ export function CreateAppointmentModal({
           </div>
         </DialogContent>
       </Dialog>
+
+      <VehiclePickerModal
+        open={pickerModalOpen}
+        onOpenChange={setPickerModalOpen}
+        initialSelectedVehicles={selectedVehicles}
+        onConfirmSelection={(vehicles) => setSelectedVehicles(vehicles)}
+      />
     </>
   )
 }

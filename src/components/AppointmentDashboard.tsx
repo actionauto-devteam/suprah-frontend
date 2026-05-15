@@ -67,7 +67,7 @@ interface DashboardAppointment {
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-:root {
+.apd {
   --c-bg:          #f4f7fa;
   --c-surface:     #ffffff;
   --c-surface-2:   #fcfdfe;
@@ -98,9 +98,15 @@ const STYLES = `
 
   --font:          'Sora', sans-serif;
   --mono:          'JetBrains Mono', monospace;
+
+  font-family: var(--font);
+  background: var(--c-bg);
+  color: var(--c-text-1);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
-.dark {
+.dark .apd {
   --c-bg:          #0b101a;
   --c-surface:     #111726;
   --c-surface-2:   #161e2f;
@@ -113,16 +119,6 @@ const STYLES = `
   
   --c-green-light: rgba(16,185,129,0.08);
   --c-blue-light:  rgba(59,130,246,0.08);
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-.apd {
-  font-family: var(--font);
-  background: var(--c-bg);
-  color: var(--c-text-1);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
 }
 
 .apd-layout {
@@ -160,7 +156,7 @@ const STYLES = `
   transition: all 0.2s ease;
   box-shadow: var(--shadow-sm);
 }
-.apd-back:hover { border-color: var(--c-blue); color: var(--blue); transform: translateX(-2px); }
+.apd-back:hover { border-color: var(--c-blue); color: var(--c-blue); transform: translateX(-2px); }
 
 .apd-header-title-block { display: flex; flex-direction: column; }
 .apd-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-blue); margin-bottom: 3px; }
@@ -198,7 +194,7 @@ const STYLES = `
 .apd-ctrl {
   height: 38px; padding: 0 14px; background: var(--c-surface-3);
   border: 1px solid transparent; border-radius: var(--radius-sm);
-  color: var(--c-text-1); font-family: var(--font); font-size: 13.5px;
+  color: var(--c-text-1); font-family: var(--font); font-size: 13px;
   outline: none; transition: all 0.15s ease; width: 100%;
 }
 .apd-ctrl:focus { background: var(--c-surface); border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
@@ -237,7 +233,7 @@ const STYLES = `
 .apd-table-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .apd-header-meta { display: flex; align-items: center; gap: 8px; }
 .apd-header-date { font-size: 15px; font-weight: 600; color: var(--c-text-1); }
-.apd-count-pill { background: var(--c-violet); color: #fff; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+.apd-count-pill { background: #6b7280; color: #fff; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
 
 .apd-table-actions { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; }
 @media (min-width: 580px) { .apd-table-actions { width: auto; } }
@@ -278,7 +274,7 @@ const STYLES = `
 .apd-cust-name { font-weight: 600; color: var(--c-text-1); }
 .apd-cust-email { font-size: 12.5px; color: var(--c-text-3); }
 .apd-phone { font-family: var(--mono); font-size: 13px; font-weight: 500; }
-.apd-time { font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--c-violet); }
+.apd-time { font-family: var(--font); font-size: 15px; font-weight: 600; color: #4b5563; }
 
 .asd-vehicle-cell { display: flex; flex-direction: column; gap: 4px; max-width: 250px;}
 .asd-v-badge { 
@@ -296,7 +292,7 @@ const STYLES = `
   background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm);
   color: var(--c-text-1); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
 }
-.apd-view-btn:hover { border-color: var(--c-violet); color: var(--c-violet); background: rgba(139,92,246,0.06); }
+.apd-view-btn:hover { border-color: var(--c-blue); color: var(--c-blue); background: rgba(59,130,246,0.06); }
 
 .apd-tbl-foot {
   display: flex; align-items: center; justify-content: space-between;
@@ -317,6 +313,10 @@ export function AppointmentDashboard() {
     el.id = id;
     el.textContent = STYLES;
     document.head.appendChild(el);
+    return () => {
+      const element = document.getElementById(id);
+      if (element) element.remove();
+    };
   }, []);
 
   const router = useRouter();
@@ -402,6 +402,37 @@ export function AppointmentDashboard() {
     } catch (e) { console.error("CSV Export failed:", e); }
   };
 
+  // HELPER: Returns Green, Yellow, Orange palettes for Statuses
+  const getStatusBadgeClass = (status: string) => {
+    const base = "px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest border ";
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'completed':
+        return base + "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400";
+      case 'scheduled':
+      case 'pending':
+        return base + "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400";
+      case 'cancelled':
+      case 'no-show':
+      default:
+        return base + "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400";
+    }
+  };
+
+  // HELPER: Returns Green, Yellow, Orange palettes for Meeting Types
+  const getMeetingTypeBadgeClass = (type: string) => {
+    const base = "rounded-md px-2 py-0.5 font-semibold text-xs border ";
+    const cleanType = type.toLowerCase().trim();
+    
+    if (cleanType.includes('drive') || cleanType.includes('person')) {
+      return base + "bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400";
+    }
+    if (cleanType.includes('meeting') || cleanType.includes('video') || cleanType.includes('call')) {
+      return base + "bg-amber-50/50 dark:bg-amber-950/10 border-amber-100 dark:border-amber-900 text-amber-600 dark:text-amber-400";
+    }
+    return base + "bg-orange-50/50 dark:bg-orange-950/10 border-orange-100 dark:border-orange-900 text-orange-600 dark:text-orange-400";
+  };
+
   return (
     <div className="apd">
       <div className="apd-layout">
@@ -412,7 +443,7 @@ export function AppointmentDashboard() {
             </button>
             <div className="apd-header-title-block">
               <div className="apd-eyebrow">Operations Hub</div>
-              <div className="apd-title">Daily Appointment Dashboard</div>
+              <div className="apd-title">Appointment Dashboard</div>
             </div>
           </div>
           <div className="apd-header-right">
@@ -424,35 +455,40 @@ export function AppointmentDashboard() {
 
         {statsData && (
           <div className="apd-stats">
-            <div className="apd-stat apd-stat-blue">
+            <div className="apd-stat" style={{ "--stripe": "#3b82f6" } as React.CSSProperties}>
+              <div className="apd-stat-stripe" />
               <div className="apd-stat-icon-w text-blue-500" style={{background: 'rgba(59,130,246,0.06)'}}><Zap size={24} /></div>
               <div className="apd-stat-info">
                 <div className="apd-stat-label">Total Volume</div>
                 <div className="apd-stat-value">{statsData.total ?? 0}</div>
               </div>
             </div>
-            <div className="apd-stat apd-stat-orange">
+            <div className="apd-stat" style={{ "--stripe": "#f59e0b" } as React.CSSProperties}>
+              <div className="apd-stat-stripe" />
               <div className="apd-stat-icon-w text-amber-600" style={{background: 'rgba(245,158,11,0.06)'}}><CalendarDays size={24} /></div>
               <div className="apd-stat-info">
                 <div className="apd-stat-label">Scheduled</div>
                 <div className="apd-stat-value">{statsData.scheduled ?? 0}</div>
               </div>
             </div>
-            <div className="apd-stat apd-stat-teal">
+            <div className="apd-stat" style={{ "--stripe": "#14b8a6" } as React.CSSProperties}>
+              <div className="apd-stat-stripe" />
               <div className="apd-stat-icon-w text-teal-600" style={{background: 'rgba(20,184,166,0.06)'}}><UserCheck size={24} /></div>
               <div className="apd-stat-info">
                 <div className="apd-stat-label">Confirmed</div>
                 <div className="apd-stat-value">{statsData.confirmed ?? 0}</div>
               </div>
             </div>
-            <div className="apd-stat apd-stat-green">
+            <div className="apd-stat" style={{ "--stripe": "#10b981" } as React.CSSProperties}>
+              <div className="apd-stat-stripe" />
               <div className="apd-stat-icon-w text-green-600" style={{background: 'rgba(16,185,129,0.06)'}}><CheckCircle size={24} /></div>
               <div className="apd-stat-info">
                 <div className="apd-stat-label">Completed</div>
                 <div className="apd-stat-value">{statsData.completed ?? 0}</div>
               </div>
             </div>
-            <div className="apd-stat apd-stat-red">
+            <div className="apd-stat" style={{ "--stripe": "#ef4444" } as React.CSSProperties}>
+              <div className="apd-stat-stripe" />
               <div className="apd-stat-icon-w text-red-600" style={{background: 'rgba(239,68,68,0.06)'}}><XCircle size={24} /></div>
               <div className="apd-stat-info">
                 <div className="apd-stat-label">Cancelled</div>
@@ -498,7 +534,7 @@ export function AppointmentDashboard() {
           <div className="apd-table-header">
             <div className="apd-table-header-left">
               <div className="apd-header-meta">
-                <CalendarDays className="h-5 w-5 text-violet-600" />
+                <CalendarDays className="h-5 w-5 text-gray-500" />
                 <span className="apd-header-date">{selectedDate}</span>
               </div>
               <span className="apd-count-pill">{filtered.length} Bookings</span>
@@ -549,7 +585,14 @@ export function AppointmentDashboard() {
                           </td>
                           <td><span className="apd-phone">{apt.customerBooking.phone}</span></td>
                           <td><div className="flex items-center gap-2 apd-time"><Clock size={15}/> {format(new Date(apt.startTime), "HH:mm")}</div></td>
-                          <td className="capitalize font-medium text-xs"><Badge variant="outline" className="rounded-md border-violet-200 text-violet-700 bg-violet-50/20">{finalMeetingTypeDisplayName.replace('-', ' ')}</Badge></td>
+                          
+                          {/* UPDATED: Green, Yellow, Orange palette for Meeting Type badges */}
+                          <td className="capitalize">
+                            <Badge variant="outline" className={getMeetingTypeBadgeClass(finalMeetingTypeDisplayName)}>
+                              {finalMeetingTypeDisplayName.replace('-', ' ')}
+                            </Badge>
+                          </td>
+                          
                           <td>
                             <div className="asd-vehicle-cell">
                               {apt.vehicles && apt.vehicles.length > 0 ? apt.vehicles.map((v: any, i: number) => (
@@ -561,15 +604,14 @@ export function AppointmentDashboard() {
                             </div>
                           </td>
                           <td><div className="flex items-center gap-2 apd-crm-user"><Users size={14}/> {apt.crmUser?.fullName || "—"}</div></td>
+                          
+                          {/* UPDATED: Green, Yellow, Orange palette for Status badges */}
                           <td>
-                            <span className={cn("px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest border",
-                              apt.status === 'confirmed' ? 'bg-green-50/30 border-green-200 text-green-700' : 
-                              apt.status === 'completed' ? 'bg-teal-50/30 border-teal-200 text-teal-700' :
-                              apt.status === 'cancelled' ? 'bg-red-50/30 border-red-200 text-red-700' :
-                              'bg-blue-50/30 border-blue-200 text-blue-700')}>
+                            <span className={getStatusBadgeClass(apt.status)}>
                               {apt.status}
                             </span>
                           </td>
+                          
                           <td className="apd-view-btn-w" onClick={(e) => e.stopPropagation()}>
                             <button className="apd-view-btn" onClick={() => handleOpenDetailsModal(apt._id)}>
                               <Eye size={14} /> Open
