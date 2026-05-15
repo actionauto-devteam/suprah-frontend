@@ -5,30 +5,31 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Calendar,
-  ChevronRight,
   Loader2,
   AlertCircle,
   ArrowLeft,
   Download,
   Eye,
-  Filter,
-  FileText,
   RefreshCw,
   Search,
   Car,
-  TrendingUp,
-  CheckCircle2,
-  XCircle,
   Clock,
   CalendarDays,
-  Users,
+  FileText,
+  UserCheck,
+  Zap,
+  CheckCircle,
+  XCircle,
+  Users
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useQuery } from "@tanstack/react-query";
+import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CustomerBooking {
   firstName: string;
@@ -45,89 +46,75 @@ interface CrmUserData {
   username: string;
 }
 
-interface VehicleInterest {
-  year?: string;
-  make?: string;
-  model?: string;
-  trim?: string;
-}
-
 interface DashboardAppointment {
   _id: string;
   title: string;
   description?: string;
   startTime: Date | string;
   endTime: Date | string;
-  type: "appointment" | "event" | "task" | "reminder";
+  type: string;
+  customTypeDetails?: string;
   status: "scheduled" | "confirmed" | "completed" | "cancelled";
   entryType: string;
   source: string;
   customerBooking: CustomerBooking;
   crmUser: CrmUserData;
-  vehicleInterest?: VehicleInterest;
+  vehicles: any[];
   createdAt: Date | string;
   updatedAt: Date | string;
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --c-bg:          #f0f2f5;
+  --c-bg:          #f4f7fa;
   --c-surface:     #ffffff;
-  --c-surface-2:   #f7f9fb;
+  --c-surface-2:   #fcfdfe;
   --c-surface-3:   #eef1f6;
-  --c-border:      #e2e6ef;
-  --c-border-2:    #d3d9e8;
+  --c-border:      #e9edf3;
 
   --c-text-1:      #0c1220;
-  --c-text-2:      #3b4560;
-  --c-text-3:      #6e7a99;
-  --c-text-4:      #aab2cc;
+  --c-text-2:      #4e5a7a;
+  --c-text-3:      #92a1b9;
 
-  --c-green:       #16a34a;
-  --c-green-h:     #15803d;
-  --c-green-light: rgba(22,163,74,0.08);
-  --c-green-ring:  rgba(22,163,74,0.20);
+  --c-green:       #10b981;
+  --c-green-light: rgba(16,185,129,0.06);
+  
+  --c-blue:        #3b82f6;
+  --c-blue-light:  rgba(59,130,246,0.06);
 
-  --c-blue:        #2563eb;
-  --c-teal:        #0d9488;
-  --c-violet:      #7c3aed;
-  --c-amber:       #d97706;
-  --c-red:         #dc2626;
+  --c-teal:        #14b8a6;
+  --c-violet:      #8b5cf6;
+  --c-amber:       #f59e0b;
+  --c-red:         #ef4444;
 
-  --radius:        8px;
-  --radius-sm:     5px;
-  --shadow-xs:     0 1px 2px rgba(0,0,0,0.05);
-  --shadow-sm:     0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md:     0 4px 16px rgba(0,0,0,0.10);
+  --radius:        12px;
+  --radius-sm:     8px;
+  
+  --shadow-sm:     0 2px 4px rgba(0,0,0,0.02);
+  --shadow-md:     0 10px 15px -3px rgba(0,0,0,0.04), 0 4px 6px -2px rgba(0,0,0,0.01);
+  --shadow-inner:  inset 0 1px 3px rgba(0,0,0,0.03);
 
   --font:          'Sora', sans-serif;
   --mono:          'JetBrains Mono', monospace;
 }
 
 .dark {
-  --c-bg:          #080c14;
-  --c-surface:     #0e1422;
-  --c-surface-2:   #131927;
-  --c-surface-3:   #1a2135;
-  --c-border:      #1e2840;
-  --c-border-2:    #28344e;
+  --c-bg:          #0b101a;
+  --c-surface:     #111726;
+  --c-surface-2:   #161e2f;
+  --c-surface-3:   #1f2a3f;
+  --c-border:      #1d283e;
 
-  --c-text-1:      #e8ecf8;
-  --c-text-2:      #8b96b8;
-  --c-text-3:      #4e5a7a;
-  --c-text-4:      #2e3855;
-
-  --c-green:       #22c55e;
-  --c-green-h:     #16a34a;
-  --c-green-light: rgba(34,197,94,0.08);
-  --c-green-ring:  rgba(34,197,94,0.20);
+  --c-text-1:      #f1f5f9;
+  --c-text-2:      #94a3b8;
+  --c-text-3:      #4e5d7a;
+  
+  --c-green-light: rgba(16,185,129,0.08);
+  --c-blue-light:  rgba(59,130,246,0.08);
 }
 
-/* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 .apd {
@@ -136,483 +123,215 @@ const STYLES = `
   color: var(--c-text-1);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Layout ── */
 .apd-layout {
-  max-width: 1560px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 24px 28px 60px;
+  padding: 24px 16px 60px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-/* ── Header ── */
+@media (min-width: 768px) {
+  .apd-layout { padding: 30px 40px 80px; gap: 24px;}
+}
+
 .apd-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--c-border);
+  gap: 20px;
+  padding-bottom: 24px;
+  flex-wrap: wrap;
 }
 
-.apd-header-left { display: flex; align-items: center; gap: 12px; }
+.apd-header-left { display: flex; align-items: center; gap: 16px; }
 
 .apd-back {
-  width: 32px; height: 32px;
+  width: 38px; height: 38px;
   display: flex; align-items: center; justify-content: center;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  color: var(--c-text-3);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
-  flex-shrink: 0;
-}
-.apd-back:hover { border-color: var(--c-green); color: var(--c-green); box-shadow: 0 0 0 3px var(--c-green-ring); }
-
-.apd-header-info {}
-.apd-eyebrow {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--c-green); margin-bottom: 2px;
-}
-.apd-title {
-  font-size: 19px; font-weight: 700; color: var(--c-text-1);
-  letter-spacing: -0.02em; line-height: 1.2;
-}
-
-.apd-header-right { display: flex; align-items: center; gap: 8px; }
-
-.apd-btn-ghost {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 34px; padding: 0 14px;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   color: var(--c-text-2);
-  font-family: var(--font); font-size: 12.5px; font-weight: 500;
-  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
 }
-.apd-btn-ghost:hover { border-color: var(--c-green); color: var(--c-green); background: var(--c-green-light); }
-.apd-btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+.apd-back:hover { border-color: var(--c-blue); color: var(--blue); transform: translateX(-2px); }
+
+.apd-header-title-block { display: flex; flex-direction: column; }
+.apd-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-blue); margin-bottom: 3px; }
+.apd-title { font-size: 26px; font-weight: 700; color: var(--c-text-1); letter-spacing: -0.02em; line-height: 1.2; }
 
 .apd-btn-primary {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 34px; padding: 0 16px;
-  background: var(--c-green); border: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 18px;
+  background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
-  color: #fff; font-family: var(--font); font-size: 12.5px; font-weight: 600;
-  cursor: pointer; transition: background 0.15s, box-shadow 0.15s; white-space: nowrap;
+  color: var(--c-text-1); font-family: var(--font); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+  box-shadow: var(--shadow-sm); width: 100%; justify-content: center;
 }
-.apd-btn-primary:hover { background: var(--c-green-h); box-shadow: var(--shadow-md); }
+@media (min-width: 480px) {
+  .apd-btn-primary { width: auto; }
+}
+.apd-btn-primary:hover { border-color: var(--c-text-1); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 
-/* ── Toolbar row ── */
 .apd-toolbar {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  box-shadow: var(--shadow-xs);
+  display: flex; align-items: stretch; gap: 16px;
+  background: var(--c-surface); border-radius: var(--radius); padding: 18px; 
+  box-shadow: var(--shadow-sm); flex-direction: column;
+}
+@media (min-width: 768px) {
+  .apd-toolbar { flex-direction: row; align-items: flex-end; }
 }
 
-.apd-toolbar-group { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
-.apd-toolbar-divider { width: 1px; height: 32px; background: var(--c-border); margin: 0 4px; align-self: center; }
-
-.apd-field { display: flex; flex-direction: column; gap: 5px; }
-.apd-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--c-text-3);
+.apd-field { display: flex; flex-direction: column; gap: 7px; flex: 1; width: 100%; }
+@media (min-width: 768px) {
+  .apd-field { width: auto; }
 }
+.apd-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--c-text-3); }
 
 .apd-ctrl {
-  height: 34px; padding: 0 10px;
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
+  height: 38px; padding: 0 14px; background: var(--c-surface-3);
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  color: var(--c-text-1); font-family: var(--font); font-size: 13.5px;
+  outline: none; transition: all 0.15s ease; width: 100%;
+}
+.apd-ctrl:focus { background: var(--c-surface); border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+@media (min-width: 768px) {
+  .apd-ctrl-date { width: 190px; }
+  .apd-ctrl-select { width: 190px; }
+}
+
+.apd-search-wrapper { position: relative; width: 100%; }
+.apd-search-icon { absolute; left: 13px; top: 50%; transform: translateY(-50%); size: 16px; text-muted-foreground; pointer-events: none; }
+.apd-ctrl-search { padding-left: 40px; }
+
+.apd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+@media (min-width: 1200px) { .apd-stats { grid-template-columns: repeat(5, 1fr); } }
+
+.apd-stat { 
+  background: var(--c-surface); border-radius: var(--radius); padding: 20px; 
+  box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 16px; 
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.apd-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.apd-stat-icon-w { size: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--c-bg); }
+
+.apd-stat-info { display: flex; flex-direction: column; flex-grow: 1;}
+.apd-stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-text-3); margin-bottom: 4px; }
+.apd-stat-value { font-size: 28px; font-weight: 700; line-height: 1.1; color: var(--c-text-1); letter-spacing: -0.03em; }
+
+.apd-table-section { display: flex; flex-direction: column; gap: 16px; }
+
+.apd-table-header { 
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; 
+  flex-wrap: wrap; padding: 0 4px;
+}
+.apd-table-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.apd-header-meta { display: flex; align-items: center; gap: 8px; }
+.apd-header-date { font-size: 15px; font-weight: 600; color: var(--c-text-1); }
+.apd-count-pill { background: var(--c-violet); color: #fff; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+
+.apd-table-actions { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; }
+@media (min-width: 580px) { .apd-table-actions { width: auto; } }
+
+.apd-btn-ghost {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 16px;
+  background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
-  color: var(--c-text-1);
-  font-family: var(--font); font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  color-scheme: light dark;
+  color: var(--c-text-2); font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s ease; white-space: nowrap; flex: 1; justify-content: center;
 }
-.apd-ctrl:focus { border-color: var(--c-green); box-shadow: 0 0 0 3px var(--c-green-ring); }
-.apd-ctrl::placeholder { color: var(--c-text-4); }
-.apd-ctrl-date { width: 160px; cursor: pointer; }
-.apd-ctrl-select {
-  width: 148px; cursor: pointer;
-  padding-right: 28px; -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236e7a99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 8px center;
-}
-.apd-ctrl-select option { background: var(--c-surface); }
-.apd-search-wrap { position: relative; }
-.apd-search-ico { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--c-text-3); pointer-events: none; }
-.apd-search-wrap .apd-ctrl { padding-left: 30px; width: 220px; }
+@media (min-width: 580px) { .apd-btn-ghost { flex: none; } }
+.apd-btn-ghost:hover:not(:disabled) { background: var(--c-bg); border-color: var(--c-blue); color: var(--c-blue); }
+.apd-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.apd-quick-chips { display: flex; align-items: center; gap: 6px; }
-.apd-chip {
-  height: 26px; padding: 0 10px;
-  background: var(--c-surface-3);
-  border: 1px solid var(--c-border);
-  border-radius: 4px;
-  color: var(--c-text-3);
-  font-family: var(--font); font-size: 11.5px; font-weight: 500;
-  cursor: pointer; transition: all 0.14s; white-space: nowrap;
-}
-.apd-chip:hover { border-color: var(--c-green); color: var(--c-green); background: var(--c-green-light); }
-.apd-chip.is-on { background: var(--c-green-light); border-color: var(--c-green); color: var(--c-green); font-weight: 600; }
+.apd-table-card { background: var(--c-surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
 
-/* ── Stats row ── */
-.apd-stats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
-@media (max-width: 900px) { .apd-stats { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 520px)  { .apd-stats { grid-template-columns: repeat(2, 1fr); } }
+.apd-tbl-scroll { overflow-x: auto; overflow-y: hidden; max-height: none; }
 
-.apd-stat {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  padding: 14px 16px 12px;
-  box-shadow: var(--shadow-xs);
-  position: relative;
-  overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.apd-stat:hover { border-color: var(--c-border-2); box-shadow: var(--shadow-sm); }
+.apd-tbl { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
 
-.apd-stat-stripe {
-  position: absolute; top: 0; left: 0; right: 0; height: 2.5px;
-  background: var(--stripe);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-.apd-stat-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--c-text-3); margin-bottom: 6px;
-}
-.apd-stat-value {
-  font-size: 30px; font-weight: 700; line-height: 1;
-  color: var(--c-text-1); letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-.apd-stat-icon {
-  position: absolute; bottom: 8px; right: 12px;
-  color: var(--stripe); opacity: 0.10;
-}
-
-/* ── Table card ── */
-.apd-table-card {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-xs);
-  overflow: hidden;
-}
-
-.apd-table-header {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; padding: 12px 20px;
+.apd-tbl thead { position: sticky; top: 0; z-index: 10; background: var(--c-surface); }
+.apd-tbl thead th { 
+  padding: 16px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; 
+  text-transform: uppercase; color: var(--c-text-3); text-align: left; 
   border-bottom: 1px solid var(--c-border);
-  background: var(--c-surface-2);
-}
-.apd-table-header-left {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; font-weight: 600; color: var(--c-text-2);
-}
-.apd-count-pill {
-  background: var(--c-surface-3);
-  border: 1px solid var(--c-border);
-  border-radius: 20px;
-  padding: 1px 8px;
-  font-size: 11px; font-weight: 600; color: var(--c-text-3);
-}
-.apd-table-actions { display: flex; gap: 7px; align-items: center; }
-
-/* ── Table ── */
-.apd-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
-
-/* Column widths */
-.apd-tbl .col-customer { width: 22%; }
-.apd-tbl .col-phone    { width: 12%; }
-.apd-tbl .col-time     { width: 10%; }
-.apd-tbl .col-type     { width: 13%; }
-.apd-tbl .col-booked   { width: 16%; }
-.apd-tbl .col-source   { width: 10%; }
-.apd-tbl .col-status   { width: 10%; }
-.apd-tbl .col-action   { width: 7%; }
-
-.apd-tbl thead tr {
-  border-bottom: 1px solid var(--c-border);
-}
-.apd-tbl thead th {
-  padding: 9px 14px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--c-text-3);
-  text-align: left; white-space: nowrap;
-}
-.apd-tbl thead th:last-child { text-align: center; }
-
-.apd-tbl tbody tr {
-  border-bottom: 1px solid var(--c-border);
-  transition: background 0.1s;
-}
-.apd-tbl tbody tr:last-child { border-bottom: none; }
-.apd-tbl tbody tr:hover { background: var(--c-surface-2); }
-
-.apd-tbl td {
-  padding: 11px 14px;
-  vertical-align: middle;
-  font-size: 13px; color: var(--c-text-2);
-}
-.apd-tbl td:last-child { text-align: center; }
-
-/* Customer cell */
-.apd-cust-name {
-  font-size: 13px; font-weight: 600; color: var(--c-text-1);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.apd-cust-email {
-  font-size: 11.5px; color: var(--c-text-3); margin-top: 1px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  backdrop-filter: blur(8px); background: rgba(var(--c-surface-rgb), 0.9);
 }
 
-/* Phone */
-.apd-phone {
-  font-family: var(--mono); font-size: 12px;
-  color: var(--c-text-2); letter-spacing: -0.01em;
-  white-space: nowrap;
+.apd-tbl tbody tr { transition: background 0.2s ease, transform 0.15s ease; cursor: pointer; }
+.apd-tbl tbody tr:hover td { background: var(--c-surface-2); }
+.apd-tbl tbody tr:not(:last-child) td { border-bottom: 1px solid var(--c-border); }
+
+.apd-tbl td { padding: 18px 16px; vertical-align: middle; font-size: 14px; color: var(--c-text-2); background: transparent; }
+
+.apd-customer-cell { display: flex; flex-direction: column; gap: 2px; }
+.apd-cust-name { font-weight: 600; color: var(--c-text-1); }
+.apd-cust-email { font-size: 12.5px; color: var(--c-text-3); }
+.apd-phone { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+.apd-time { font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--c-violet); }
+
+.asd-vehicle-cell { display: flex; flex-direction: column; gap: 4px; max-width: 250px;}
+.asd-v-badge { 
+  display: inline-flex; align-items: center; gap: 5px; 
+  background: var(--c-green-light); color: var(--c-green); 
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 500; truncate;
 }
+.asd-v-no { font-size: 12px; text-muted-foreground italic;}
 
-/* Time */
-.apd-time-val { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--c-text-1); }
-.apd-time-dur { font-size: 11px; color: var(--c-text-4); margin-top: 1px; }
+.apd-crm-user { font-size: 12.5px; color: var(--c-text-3); }
 
-/* Staff */
-.apd-staff {
-  font-size: 12.5px; color: var(--c-text-2);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-/* ── Badges ── */
-.badge {
-  display: inline-flex; align-items: center;
-  height: 20px; padding: 0 7px;
-  border-radius: 4px;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 0.05em; text-transform: uppercase;
-  border: 1px solid transparent; white-space: nowrap;
-}
-
-/* Status */
-.bs-scheduled { background: rgba(37,99,235,.08); color: #2563eb; border-color: rgba(37,99,235,.2); }
-.bs-confirmed { background: rgba(5,150,105,.08); color: #059669; border-color: rgba(5,150,105,.2); }
-.bs-completed { background: rgba(22,163,74,.08);  color: #16a34a; border-color: rgba(22,163,74,.2); }
-.bs-cancelled { background: rgba(220,38,38,.08);  color: #dc2626; border-color: rgba(220,38,38,.2); }
-
-/* Type */
-.bt-appointment { background: rgba(124,58,237,.08); color: #7c3aed; border-color: rgba(124,58,237,.2); }
-.bt-test-drive  { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.2); }
-.bt-phone-call  { background: rgba(37,99,235,.08);  color: #2563eb; border-color: rgba(37,99,235,.2); }
-.bt-meeting     { background: rgba(13,148,136,.08); color: #0d9488; border-color: rgba(13,148,136,.2); }
-.bt-event       { background: rgba(219,39,119,.08); color: #db2777; border-color: rgba(219,39,119,.2); }
-.bt-task        { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.2); }
-.bt-reminder    { background: rgba(13,148,136,.08); color: #0d9488; border-color: rgba(13,148,136,.2); }
-
-/* Source */
-.bsrc-sms     { background: rgba(22,163,74,.08);  color: #16a34a; border-color: rgba(22,163,74,.2); }
-.bsrc-phone   { background: rgba(37,99,235,.08);  color: #2563eb; border-color: rgba(37,99,235,.2); }
-.bsrc-email   { background: rgba(124,58,237,.08); color: #7c3aed; border-color: rgba(124,58,237,.2); }
-.bsrc-lead    { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.2); }
-.bsrc-booking { background: rgba(13,148,136,.08); color: #0d9488; border-color: rgba(13,148,136,.2); }
-.bsrc-manual  { background: rgba(107,114,128,.08);color: #6b7280; border-color: rgba(107,114,128,.2); }
-
-/* ── View button ── */
+.apd-view-btn-w { text-align: center; }
 .apd-view-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 26px; padding: 0 10px;
-  background: transparent;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  color: var(--c-text-3);
-  font-family: var(--font); font-size: 11px; font-weight: 500;
-  cursor: pointer; transition: all 0.14s;
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm);
+  color: var(--c-text-1); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
 }
-.apd-view-btn:hover { border-color: var(--c-green); color: var(--c-green); background: var(--c-green-light); }
+.apd-view-btn:hover { border-color: var(--c-violet); color: var(--c-violet); background: rgba(139,92,246,0.06); }
 
-/* ── Empty / Loading / Error ── */
-.apd-center {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 60px 24px; gap: 10px; text-align: center;
-}
-.apd-center-icon {
-  width: 46px; height: 46px;
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--c-text-3); margin-bottom: 2px;
-}
-.apd-center-title { font-size: 14.5px; font-weight: 600; color: var(--c-text-2); }
-.apd-center-sub   { font-size: 13px; color: var(--c-text-3); max-width: 320px; }
-
-.apd-error {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 16px;
-  background: rgba(220,38,38,.06);
-  border: 1px solid rgba(220,38,38,.18);
-  border-radius: var(--radius-sm);
-  font-size: 13px; color: #dc2626;
-}
-
-/* ── Table scroll ── */
-.apd-tbl-scroll {
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 520px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--c-border) transparent;
-}
-.apd-tbl-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
-.apd-tbl-scroll::-webkit-scrollbar-thumb { background: var(--c-border-2); border-radius: 2px; }
-
-/* ── Footer ── */
 .apd-tbl-foot {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; padding: 9px 20px;
-  border-top: 1px solid var(--c-border);
-  font-size: 11.5px; color: var(--c-text-3);
-  background: var(--c-surface-2);
+  gap: 12px; padding: 18px 20px; border-top: 1px solid var(--c-border);
+  font-size: 12.5px; color: var(--c-text-3); background: var(--c-surface-2); flex-wrap: wrap;
 }
-.apd-tbl-foot strong { color: var(--c-text-2); font-weight: 600; }
+.apd-tbl-count strong { color: var(--c-text-1); font-weight: 600; }
 
-/* ── Spin ── */
-@keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 `;
 
-// ─── Style injection ──────────────────────────────────────────────────────────
-
-function useStyles() {
+export function AppointmentDashboard() {
   React.useEffect(() => {
-    const id = "apd-styles-v3";
+    const id = "apd-clean-unique-styles";
     if (document.getElementById(id)) return;
     const el = document.createElement("style");
     el.id = id;
     el.textContent = STYLES;
     document.head.appendChild(el);
-    return () => el.remove();
   }, []);
-}
 
-// ─── Badges ───────────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const label = status.charAt(0).toUpperCase() + status.slice(1);
-  return <span className={`badge bs-${status}`}>{label}</span>;
-}
-
-function TypeBadge({ type }: { type: string }) {
-  const key = type.toLowerCase().replace(/[\s_]+/g, "-");
-  const label = type.split(/[-\s_]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  return <span className={`badge bt-${key}`}>{label}</span>;
-}
-
-function SourceBadge({ source }: { source: string }) {
-  const key = source.toLowerCase();
-  return (
-    <span className={`badge bsrc-${key}`}>
-      {source.charAt(0).toUpperCase() + source.slice(1)}
-    </span>
-  );
-}
-
-// ─── Stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, stripe, icon }: {
-  label: string; value: number; stripe: string; icon: React.ReactNode;
-}) {
-  return (
-    <div className="apd-stat" style={{ "--stripe": stripe } as React.CSSProperties}>
-      <div className="apd-stat-stripe" />
-      <div className="apd-stat-label">{label}</div>
-      <div className="apd-stat-value">{value}</div>
-      <div className="apd-stat-icon">{icon}</div>
-    </div>
-  );
-}
-
-// ─── Table row ────────────────────────────────────────────────────────────────
-
-function AppointmentRow({ apt, onView }: {
-  apt: DashboardAppointment; onView: (id: string) => void;
-}) {
-  const start = new Date(apt.startTime);
-  const end   = new Date(apt.endTime);
-  const dur   = Math.round((end.getTime() - start.getTime()) / 60000);
-  const name  = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
-
-  return (
-    <tr>
-      <td className="col-customer">
-        <div className="apd-cust-name">{name}</div>
-        <div className="apd-cust-email">{apt.customerBooking.email}</div>
-      </td>
-      <td className="col-phone">
-        <span className="apd-phone">{apt.customerBooking.phone}</span>
-      </td>
-      <td className="col-time">
-        <div className="apd-time-val">{format(start, "HH:mm")}</div>
-        <div className="apd-time-dur">{dur} min</div>
-      </td>
-      <td className="col-type">
-        <TypeBadge type={apt.entryType || apt.type} />
-      </td>
-      <td className="col-booked">
-        <span className="apd-staff">{apt.crmUser?.fullName || "—"}</span>
-      </td>
-      <td className="col-source">
-        <SourceBadge source={apt.source} />
-      </td>
-      <td className="col-status">
-        <StatusBadge status={apt.status} />
-      </td>
-      <td className="col-action">
-        <button
-          className="apd-view-btn"
-          onClick={() => onView(apt._id)}
-          aria-label={`View appointment for ${name}`}
-        >
-          <Eye size={11} strokeWidth={2} />
-          View
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export function AppointmentDashboard() {
-  useStyles();
-  const router       = useRouter();
+  const router = useRouter();
   const { getToken } = useAuth();
 
-  const today    = format(new Date(), "yyyy-MM-dd");
-  const tomorrow = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
+  const today = format(new Date(), "yyyy-MM-dd");
+  const tomorrow = format(new Date(Date.now() + 86400000), "yyyy-MM-dd");
 
   const [selectedDate, setSelectedDate] = React.useState(today);
   const [statusFilter, setStatusFilter] = React.useState("all");
-  const [typeFilter,   setTypeFilter]   = React.useState("all");
-  const [searchQuery,  setSearchQuery]  = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState("all");
+  const [searchQuery, setSearchQuery] = React.useState("");
+
+  const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
+  const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null);
 
   const getHeaders = async () => {
     const token = await getToken();
@@ -625,11 +344,10 @@ export function AppointmentDashboard() {
       const h = await getHeaders();
       const params: Record<string, string> = { date: selectedDate };
       if (statusFilter !== "all") params.status = statusFilter;
-      if (typeFilter   !== "all") params.type   = typeFilter;
+      if (typeFilter !== "all") params.type = typeFilter;
       const r = await apiClient.get("/api/appointments/dashboard", { ...h, params });
       return r.data?.data ?? r.data;
     },
-    staleTime: 30_000,
   });
 
   const { data: statsData } = useQuery({
@@ -641,35 +359,32 @@ export function AppointmentDashboard() {
       });
       return r.data?.data ?? r.data;
     },
-    staleTime: 30_000,
   });
+
+  const handleOpenDetailsModal = async (id: string) => {
+    try {
+      const h = await getHeaders();
+      const response = await apiClient.get(`/api/appointments/${id}`, h);
+      setSelectedAppointment(response.data?.data || response.data);
+      setDetailsModalOpen(true);
+    } catch (e) {
+      console.error("Failed to fetch appointment details:", e);
+    }
+  };
 
   const filtered = React.useMemo(() => {
     if (!appointmentsData?.appointments) return [];
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     if (!q) return appointmentsData.appointments as DashboardAppointment[];
     return (appointmentsData.appointments as DashboardAppointment[]).filter(apt => {
       const name = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.toLowerCase();
       return (
         name.includes(q) ||
         apt.customerBooking.email?.toLowerCase().includes(q) ||
-        apt.customerBooking.phone?.toLowerCase().includes(q) ||
-        apt.crmUser?.fullName?.toLowerCase().includes(q)
+        apt.customerBooking.phone?.toLowerCase().includes(q)
       );
     });
   }, [appointmentsData?.appointments, searchQuery]);
-
-  const handleDateChange = (d: string) => {
-    setSelectedDate(d);
-    setStatusFilter("all");
-    setTypeFilter("all");
-    setSearchQuery("");
-  };
-
-  const displayDate = (() => {
-    try { return format(new Date(selectedDate + "T00:00:00"), "MMMM d, yyyy"); }
-    catch { return selectedDate; }
-  })();
 
   const handleExport = async () => {
     try {
@@ -678,93 +393,84 @@ export function AppointmentDashboard() {
         ...h, params: { date: selectedDate, format: "csv" }, responseType: "text",
       });
       const blob = new Blob([r.data], { type: "text/csv" });
-      const url  = URL.createObjectURL(blob);
-      const a    = Object.assign(document.createElement("a"), { href: url, download: `appointments-${selectedDate}.csv` });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement("a"), { href: url, download: `appointments-${selectedDate}.csv` });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (e) { console.error("Export failed:", e); }
+    } catch (e) { console.error("CSV Export failed:", e); }
   };
 
   return (
     <div className="apd">
       <div className="apd-layout">
-
-        {/* ── Page header ── */}
         <div className="apd-header">
           <div className="apd-header-left">
             <button className="apd-back" onClick={() => router.back()} aria-label="Go back">
-              <ArrowLeft size={14} strokeWidth={2} />
+              <ArrowLeft size={16} strokeWidth={2.5} />
             </button>
-            <div className="apd-header-info">
-              <div className="apd-eyebrow">Operations Center</div>
-              <div className="apd-title">Appointment Dashboard</div>
+            <div className="apd-header-title-block">
+              <div className="apd-eyebrow">Operations Hub</div>
+              <div className="apd-title">Daily Appointment Dashboard</div>
             </div>
           </div>
           <div className="apd-header-right">
             <button className="apd-btn-primary" onClick={() => router.push("/crm/appointments")}>
-              <FileText size={13} strokeWidth={2} />
-              Full Appointments
-              <ChevronRight size={13} strokeWidth={2} />
+              <FileText size={16} className="text-blue-500" /> Full Appointments Schedule
             </button>
           </div>
         </div>
 
-        {/* ── Stats ── */}
         {statsData && (
           <div className="apd-stats">
-            <StatCard label="Total"     value={statsData.total     ?? 0} stripe="#2563eb" icon={<TrendingUp  size={38} strokeWidth={1.5} />} />
-            <StatCard label="Scheduled" value={statsData.scheduled ?? 0} stripe="#3b82f6" icon={<Clock       size={38} strokeWidth={1.5} />} />
-            <StatCard label="Confirmed" value={statsData.confirmed ?? 0} stripe="#0d9488" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
-            <StatCard label="Completed" value={statsData.completed ?? 0} stripe="#16a34a" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
-            <StatCard label="Cancelled" value={statsData.cancelled ?? 0} stripe="#dc2626" icon={<XCircle     size={38} strokeWidth={1.5} />} />
+            <div className="apd-stat apd-stat-blue">
+              <div className="apd-stat-icon-w text-blue-500" style={{background: 'rgba(59,130,246,0.06)'}}><Zap size={24} /></div>
+              <div className="apd-stat-info">
+                <div className="apd-stat-label">Total Volume</div>
+                <div className="apd-stat-value">{statsData.total ?? 0}</div>
+              </div>
+            </div>
+            <div className="apd-stat apd-stat-orange">
+              <div className="apd-stat-icon-w text-amber-600" style={{background: 'rgba(245,158,11,0.06)'}}><CalendarDays size={24} /></div>
+              <div className="apd-stat-info">
+                <div className="apd-stat-label">Scheduled</div>
+                <div className="apd-stat-value">{statsData.scheduled ?? 0}</div>
+              </div>
+            </div>
+            <div className="apd-stat apd-stat-teal">
+              <div className="apd-stat-icon-w text-teal-600" style={{background: 'rgba(20,184,166,0.06)'}}><UserCheck size={24} /></div>
+              <div className="apd-stat-info">
+                <div className="apd-stat-label">Confirmed</div>
+                <div className="apd-stat-value">{statsData.confirmed ?? 0}</div>
+              </div>
+            </div>
+            <div className="apd-stat apd-stat-green">
+              <div className="apd-stat-icon-w text-green-600" style={{background: 'rgba(16,185,129,0.06)'}}><CheckCircle size={24} /></div>
+              <div className="apd-stat-info">
+                <div className="apd-stat-label">Completed</div>
+                <div className="apd-stat-value">{statsData.completed ?? 0}</div>
+              </div>
+            </div>
+            <div className="apd-stat apd-stat-red">
+              <div className="apd-stat-icon-w text-red-600" style={{background: 'rgba(239,68,68,0.06)'}}><XCircle size={24} /></div>
+              <div className="apd-stat-info">
+                <div className="apd-stat-label">Cancelled</div>
+                <div className="apd-stat-value">{statsData.cancelled ?? 0}</div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* ── Toolbar ── */}
         <div className="apd-toolbar">
-          {/* Date */}
           <div className="apd-field">
-            <span className="apd-label">Date</span>
-            <input
-              type="date"
-              className="apd-ctrl apd-ctrl-date"
-              value={selectedDate}
-              onChange={e => handleDateChange(e.target.value)}
-            />
+            <span className="apd-label">Select Date</span>
+            <input type="date" className="apd-ctrl apd-ctrl-date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
           </div>
 
-          {/* Quick chips */}
           <div className="apd-field">
-            <span className="apd-label">Quick select</span>
-            <div className="apd-quick-chips">
-              <button
-                className={cn("apd-chip", selectedDate === today && "is-on")}
-                onClick={() => handleDateChange(today)}
-              >Today</button>
-              <button
-                className={cn("apd-chip", selectedDate === tomorrow && "is-on")}
-                onClick={() => handleDateChange(tomorrow)}
-              >Tomorrow</button>
-              {selectedDate !== today && (
-                <button className="apd-chip" onClick={() => handleDateChange(today)}>
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="apd-toolbar-divider" />
-
-          {/* Status */}
-          <div className="apd-field">
-            <span className="apd-label">Status</span>
-            <select
-              className="apd-ctrl apd-ctrl-select"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            >
+            <span className="apd-label">Status Filter</span>
+            <select className="apd-ctrl apd-ctrl-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="all">All Statuses</option>
               <option value="scheduled">Scheduled</option>
               <option value="confirmed">Confirmed</option>
@@ -773,142 +479,124 @@ export function AppointmentDashboard() {
             </select>
           </div>
 
-          {/* Type */}
-          <div className="apd-field">
-            <span className="apd-label">Type</span>
-            <select
-              className="apd-ctrl apd-ctrl-select"
-              value={typeFilter}
-              onChange={e => setTypeFilter(e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="appointment">Appointment</option>
-              <option value="test-drive">Test Drive</option>
-              <option value="phone-call">Phone Call</option>
-              <option value="meeting">Meeting</option>
-              <option value="event">Event</option>
-              <option value="task">Task</option>
-            </select>
-          </div>
-
-          <div className="apd-toolbar-divider" />
-
-          {/* Search */}
-          <div className="apd-field">
-            <span className="apd-label">Search</span>
-            <div className="apd-search-wrap">
-              <Search size={12} className="apd-search-ico" strokeWidth={2} />
-              <input
-                className="apd-ctrl"
-                placeholder="Name, email, phone…"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
+          <div className="apd-field md:flex-1">
+            <span className="apd-label">Search Bookings</span>
+            <div className="apd-search-wrapper relative">
+              <Search className="apd-search-icon absolute size-5 text-muted-foreground pointer-events-none" style={{left: '12px', top: '50%', transform: 'translateY(-50%)'}} />
+              <Input className="apd-ctrl apd-ctrl-search pl-11 text-xs h-9 w-full bg-[#f7f9fb] dark:bg-[#131927]" placeholder="Type name, email, or phone to filter..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
           </div>
         </div>
 
-        {/* ── Error ── */}
         {error && (
-          <div className="apd-error">
-            <AlertCircle size={14} strokeWidth={2} />
-            {error instanceof Error ? error.message : "Failed to load appointments. Please try again."}
+          <div className="text-red-600 bg-red-50 dark:bg-red-950/20 p-4 rounded-xl border border-red-200 text-sm flex items-center gap-2">
+            <AlertCircle size={18} /> Error syncing operational dashboard data. Please try again.
           </div>
         )}
 
-        {/* ── Table card ── */}
-        <div className="apd-table-card">
+        <div className="apd-table-section">
           <div className="apd-table-header">
             <div className="apd-table-header-left">
-              <CalendarDays size={13} strokeWidth={2} style={{ color: "var(--c-green)" }} />
-              <span>{displayDate}</span>
-              {!isLoading && appointmentsData?.count != null && (
-                <span className="apd-count-pill">{appointmentsData.count} total</span>
-              )}
+              <div className="apd-header-meta">
+                <CalendarDays className="h-5 w-5 text-violet-600" />
+                <span className="apd-header-date">{selectedDate}</span>
+              </div>
+              <span className="apd-count-pill">{filtered.length} Bookings</span>
             </div>
             <div className="apd-table-actions">
-              <button
-                className="apd-btn-ghost"
-                onClick={handleExport}
-                disabled={isLoading || !filtered.length}
-              >
-                <Download size={12} strokeWidth={2} />
-                Export CSV
+              <button className="apd-btn-ghost" onClick={handleExport} disabled={isLoading || !filtered.length}>
+                <Download size={14} /> Export CSV
               </button>
               <button className="apd-btn-ghost" onClick={() => refetch()} disabled={isLoading}>
-                <RefreshCw size={12} strokeWidth={2} className={isLoading ? "spin" : ""} />
-                Refresh
+                <RefreshCw size={14} className={isLoading ? "spin" : ""} /> Sync Data
               </button>
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="apd-center">
-              <Loader2 size={22} strokeWidth={2} className="spin" style={{ color: "var(--c-green)" }} />
-              <p className="apd-center-sub">Loading appointments…</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="apd-center">
-              <div className="apd-center-icon">
-                <Calendar size={20} strokeWidth={1.5} />
-              </div>
-              <div className="apd-center-title">No Appointments Found</div>
-              <div className="apd-center-sub">
-                {searchQuery
-                  ? "Try adjusting your search or filters."
-                  : `No appointments scheduled for ${displayDate}.`}
-              </div>
-            </div>
-          ) : (
+          <div className="apd-table-card">
             <div className="apd-tbl-scroll">
               <table className="apd-tbl">
-                <colgroup>
-                  <col className="col-customer" />
-                  <col className="col-phone" />
-                  <col className="col-time" />
-                  <col className="col-type" />
-                  <col className="col-booked" />
-                  <col className="col-source" />
-                  <col className="col-status" />
-                  <col className="col-action" />
-                </colgroup>
                 <thead>
                   <tr>
-                    <th className="col-customer">Customer</th>
-                    <th className="col-phone">Phone</th>
-                    <th className="col-time">Time</th>
-                    <th className="col-type">Type</th>
-                    <th className="col-booked">Booked By</th>
-                    <th className="col-source">Source</th>
-                    <th className="col-status">Status</th>
-                    <th className="col-action" />
+                    <th style={{ width: "22%" }}>Customer</th>
+                    <th style={{ width: "13%" }}>Phone</th>
+                    <th style={{ width: "10%" }}>Time</th>
+                    <th style={{ width: "16%" }}>Meeting Type</th>
+                    <th style={{ width: "20%" }}>Linked Vehicles</th>
+                    <th style={{ width: "12%" }}>Booked By</th>
+                    <th style={{ width: "9%" }}>Status</th>
+                    <th style={{ width: "8%" }} className="text-center">Details</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(apt => (
-                    <AppointmentRow
-                      key={apt._id}
-                      apt={apt}
-                      onView={id => router.push(`/crm/appointments?id=${id}`)}
-                    />
-                  ))}
+                  {isLoading ? (
+                    <tr><td colSpan={8} className="p-16 text-center text-muted-foreground"><Loader2 className="animate-spin mx-auto h-8 w-8" /></td></tr>
+                  ) : filtered.length === 0 ? (
+                    <tr><td colSpan={8} className="p-16 text-center text-muted-foreground">No operations recorded matching current criteria layout.</td></tr>
+                  ) : (
+                    filtered.map((apt: any) => {
+                      const finalMeetingTypeDisplayName = apt.type === 'other' && apt.customTypeDetails
+                        ? apt.customTypeDetails
+                        : apt.type;
+
+                      return (
+                        <tr key={apt._id} onClick={() => handleOpenDetailsModal(apt._id)}>
+                          <td>
+                            <div className="apd-customer-cell">
+                              <div className="apd-cust-name">{apt.customerBooking.firstName} {apt.customerBooking.lastName}</div>
+                              <div className="apd-cust-email">{apt.customerBooking.email}</div>
+                            </div>
+                          </td>
+                          <td><span className="apd-phone">{apt.customerBooking.phone}</span></td>
+                          <td><div className="flex items-center gap-2 apd-time"><Clock size={15}/> {format(new Date(apt.startTime), "HH:mm")}</div></td>
+                          <td className="capitalize font-medium text-xs"><Badge variant="outline" className="rounded-md border-violet-200 text-violet-700 bg-violet-50/20">{finalMeetingTypeDisplayName.replace('-', ' ')}</Badge></td>
+                          <td>
+                            <div className="asd-vehicle-cell">
+                              {apt.vehicles && apt.vehicles.length > 0 ? apt.vehicles.map((v: any, i: number) => (
+                                <span key={v._id || i} className="asd-v-badge">
+                                  <Car className="h-3.5 w-3.5" />
+                                  <span>{v.year} {v.make} {v.model}</span>
+                                </span>
+                              )) : <span className="asd-v-no italic">None</span>}
+                            </div>
+                          </td>
+                          <td><div className="flex items-center gap-2 apd-crm-user"><Users size={14}/> {apt.crmUser?.fullName || "—"}</div></td>
+                          <td>
+                            <span className={cn("px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest border",
+                              apt.status === 'confirmed' ? 'bg-green-50/30 border-green-200 text-green-700' : 
+                              apt.status === 'completed' ? 'bg-teal-50/30 border-teal-200 text-teal-700' :
+                              apt.status === 'cancelled' ? 'bg-red-50/30 border-red-200 text-red-700' :
+                              'bg-blue-50/30 border-blue-200 text-blue-700')}>
+                              {apt.status}
+                            </span>
+                          </td>
+                          <td className="apd-view-btn-w" onClick={(e) => e.stopPropagation()}>
+                            <button className="apd-view-btn" onClick={() => handleOpenDetailsModal(apt._id)}>
+                              <Eye size={14} /> Open
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
 
-          {!isLoading && filtered.length > 0 && (
-            <div className="apd-tbl-foot">
-              <span>
-                Showing <strong>{filtered.length}</strong> of{" "}
-                <strong>{appointmentsData?.count ?? 0}</strong> appointments
-              </span>
-              <span>{displayDate}</span>
-            </div>
-          )}
+            {!isLoading && filtered.length > 0 && (
+              <div className="apd-tbl-foot">
+                <div className="apd-tbl-count">
+                  Displaying <strong>{filtered.length}</strong> of{" "}
+                  <strong>{appointmentsData?.count ?? 0}</strong> operational entries
+                </div>
+                <div className="apd-tbl-date font-mono">{selectedDate}</div>
+              </div>
+            )}
+          </div>
         </div>
-
       </div>
+
+      <AppointmentDetailsModal open={detailsModalOpen} onOpenChange={setDetailsModalOpen} appointment={selectedAppointment} />
     </div>
   );
 }

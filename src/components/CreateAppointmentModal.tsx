@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, MapPin, Link as LinkIcon, Loader2 } from "lucide-react"
+import { AlertCircle, MapPin, Link as LinkIcon, Loader2, Car, X } from "lucide-react"
 import { Conversation, EntryType } from "@/types/appointment"
 import { UserSearch } from "@/components/UserSearch"
 import { GuestEmailInput } from "@/components/GuestEmailInput"
@@ -52,6 +52,7 @@ type AppointmentDraft = {
     endTime: string
     location: string
     type: string
+    customTypeDetails: string
     entryType: EntryType
     conversationId: string
     participants: string[]
@@ -66,7 +67,7 @@ type AppointmentDraft = {
       phone: string
     }
   }
-  selectedVehicle?: Vehicle | null
+  selectedVehicles?: Vehicle[]
   meta?: {
     initialCustomerBooking?: {
       firstName?: string
@@ -106,6 +107,7 @@ export function CreateAppointmentModal({
     endTime: '',
     location: '',
     type: 'in-person',
+    customTypeDetails: '',
     entryType: entryTypeLock || 'appointment',
     conversationId: preselectedConversation || '',
     participants: [] as string[],
@@ -121,14 +123,8 @@ export function CreateAppointmentModal({
     }
   })
 
-  const [customerErrors, setCustomerErrors] = React.useState<{
-    firstName?: string
-    lastName?: string
-    email?: string
-    phone?: string
-  }>({})
-
-  const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null)
+  const [customerErrors, setCustomerErrors] = React.useState<Record<string, string>>({})
+  const [selectedVehicles, setSelectedVehicles] = React.useState<Vehicle[]>([])
   const [draftMeta, setDraftMeta] = React.useState<AppointmentDraft['meta'] | null>(null)
   const draftLoadedRef = React.useRef(false)
 
@@ -161,6 +157,7 @@ export function CreateAppointmentModal({
     setFormData(prev => ({
       ...prev,
       isCustomerBooking: forceCustomerBooking || prev.isCustomerBooking,
+      type: (forceCustomerBooking || prev.isCustomerBooking) ? 'test-drive' : prev.type,
       customerBooking: {
         firstName: initialCustomerBooking?.firstName || prev.customerBooking.firstName,
         lastName: initialCustomerBooking?.lastName || prev.customerBooking.lastName,
@@ -205,7 +202,7 @@ export function CreateAppointmentModal({
         startDate: formData.startDate.toISOString(),
         endDate: formData.endDate.toISOString(),
       },
-      selectedVehicle,
+      selectedVehicles,
       meta: {
         initialCustomerBooking,
         forceCustomerBooking,
@@ -214,7 +211,7 @@ export function CreateAppointmentModal({
     }
 
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
-  }, [formData, selectedVehicle, initialCustomerBooking, forceCustomerBooking, extraPayload])
+  }, [formData, selectedVehicles, initialCustomerBooking, forceCustomerBooking, extraPayload])
 
   React.useEffect(() => {
     if (!open) {
@@ -231,19 +228,19 @@ export function CreateAppointmentModal({
         startDate: new Date(draft.formData.startDate),
         endDate: new Date(draft.formData.endDate)
       })
-      setSelectedVehicle(draft.selectedVehicle || null)
+      setSelectedVehicles(draft.selectedVehicles || [])
       setDraftMeta(draft.meta || null)
     } else {
       draftLoadedRef.current = false
       setDraftMeta(null)
-      setSelectedVehicle(null)
+      setSelectedVehicles([])
     }
   }, [open, readDraft])
 
   const validateCustomerBooking = (): boolean => {
     if (!formData.isCustomerBooking) return true
 
-    const errors: typeof customerErrors = {}
+    const errors: Record<string, string> = {}
     let isValid = true
 
     if (!formData.customerBooking.firstName.trim()) {
@@ -280,6 +277,19 @@ export function CreateAppointmentModal({
     const time = new Date(timeString)
     combined.setHours(time.getHours(), time.getMinutes(), 0, 0)
     return combined.toISOString()
+  }
+
+  const handleToggleCustomerBooking = (checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      isCustomerBooking: checked,
+      type: checked ? 'test-drive' : 'in-person',
+      customTypeDetails: ''
+    }))
+  }
+
+  const handleRemoveVehicle = (id: string) => {
+    setSelectedVehicles(prev => prev.filter(v => v.id !== id))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -322,7 +332,6 @@ export function CreateAppointmentModal({
       }
 
       const resolvedEntryType = entryTypeLock || formData.entryType
-
       const resolvedExtraPayload = extraPayload || draftMeta?.extraPayload
 
       const appointmentData: Record<string, unknown> = {
@@ -332,17 +341,15 @@ export function CreateAppointmentModal({
         endTime: endDateTime,
         location: formData.location || undefined,
         type: formData.type,
+        customTypeDetails: formData.type === 'other' ? formData.customTypeDetails.trim() : undefined,
         entryType: resolvedEntryType,
         conversationId: formData.conversationId || undefined,
         participants: formData.isCustomerBooking ? [] : formData.participants,
         guestEmails: formData.isCustomerBooking ? [] : (formData.guestEmails.length > 0 ? formData.guestEmails : undefined),
         meetingLink: formData.meetingLink || undefined,
         notes: formData.notes || undefined,
+        vehicleIds: selectedVehicles.map(v => v.id),
         ...(resolvedExtraPayload || {})
-      }
-
-      if (selectedVehicle?.id) {
-        appointmentData.vehicleId = selectedVehicle.id
       }
 
       if (formData.isCustomerBooking) {
@@ -367,6 +374,7 @@ export function CreateAppointmentModal({
         endTime: '',
         location: '',
         type: 'in-person',
+        customTypeDetails: '',
         entryType: entryTypeLock || 'appointment',
         conversationId: '',
         participants: [],
@@ -381,7 +389,7 @@ export function CreateAppointmentModal({
           phone: ''
         }
       })
-      setSelectedVehicle(null)
+      setSelectedVehicles([])
       clearDraft()
       setError(null)
       setCustomerErrors({})
@@ -408,14 +416,7 @@ export function CreateAppointmentModal({
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-        {/*
-        FIX: The CRM dashboard wrapper uses `fixed inset-0 z-[100]`, which creates
-        a stacking context. shadcn's Dialog portal renders into document.body but
-        the default overlay/content z-index (z-50) is not enough to pierce through
-        the parent's stacking context visually. We override with z-[200] here to
-        ensure the modal always appears on top.
-      */}
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 z-200">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 z-[200]">
           <div className="max-h-[90vh] overflow-y-auto modal-scrollbar p-6">
             <DialogHeader>
               <DialogTitle>Schedule New {formData.entryType.charAt(0).toUpperCase() + formData.entryType.slice(1)}</DialogTitle>
@@ -459,7 +460,7 @@ export function CreateAppointmentModal({
               {formData.entryType === 'appointment' && (
                 <CustomerBookingForm
                   isCustomerBooking={formData.isCustomerBooking}
-                  onToggle={(checked) => setFormData({ ...formData, isCustomerBooking: checked })}
+                  onToggle={handleToggleCustomerBooking}
                   customerData={formData.customerBooking}
                   onChange={(field, value) =>
                     setFormData({
@@ -499,57 +500,34 @@ export function CreateAppointmentModal({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Vehicle</Label>
-                  {selectedVehicle && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedVehicle(null)}
-                      className="text-xs font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      Remove
-                    </button>
-                  )}
+                  <Label>Vehicles Selected ({selectedVehicles.length})</Label>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenVehiclePicker}
-                  className="w-full rounded-lg border border-dashed border-border bg-muted/20 px-3 py-3 text-left transition hover:border-emerald-400 hover:bg-muted/40"
-                >
-                  {selectedVehicle ? (
-                    <div className="flex items-center gap-3">
-                      <div className="h-14 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
-                        {selectedVehicle.image ? (
-                          <img
-                            src={selectedVehicle.image}
-                            alt={`${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}`}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                            No image
-                          </div>
-                        )}
+                <div className="space-y-2">
+                  {selectedVehicles.map(vehicle => (
+                    <div key={vehicle.id} className="flex items-center justify-between p-2 border rounded-lg bg-muted/40 text-sm">
+                      <div className="flex items-center gap-3 truncate">
+                        <Car className="h-4 w-4 shrink-0 text-emerald-500" />
+                        <span className="font-medium truncate">{vehicle.year} {vehicle.make} {vehicle.model}</span>
+                        <span className="text-xs text-muted-foreground">Stock #{vehicle.stockNumber}</span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">
-                          {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Stock #{selectedVehicle.stockNumber} • {selectedVehicle.location || 'Unknown location'}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px]">Change</Badge>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleRemoveVehicle(vehicle.id)}>
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">Choose a vehicle</p>
-                        <p className="text-xs text-muted-foreground">Browse inventory and select a car</p>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px]">Browse</Badge>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleOpenVehiclePicker}
+                    className="w-full rounded-lg border border-dashed border-border bg-muted/20 px-3 py-3 text-left transition hover:border-emerald-400 hover:bg-muted/40 flex items-center justify-between gap-3 h-auto"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">Add or manage selected vehicles</p>
+                      <p className="text-xs text-muted-foreground">Browse inventory and add multiple cars to this appointment</p>
                     </div>
-                  )}
-                </button>
+                    <Badge variant="secondary" className="text-[10px]">Browse Inventory</Badge>
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -616,19 +594,45 @@ export function CreateAppointmentModal({
                   <Label htmlFor="type">Meeting Type</Label>
                   <Select
                     value={formData.type}
-                    onValueChange={(value) => setFormData({ ...formData, type: value })}
+                    onValueChange={(value) => setFormData({ ...formData, type: value, customTypeDetails: '' })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-300">
-                      <SelectItem value="in-person">In-Person</SelectItem>
-                      <SelectItem value="video">Video Call</SelectItem>
-                      <SelectItem value="phone">Phone Call</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                    <SelectContent className="z-[300]">
+                      {formData.isCustomerBooking ? (
+                        <>
+                          <SelectItem value="test-drive">Test Drive</SelectItem>
+                          <SelectItem value="meeting">Meeting</SelectItem>
+                          <SelectItem value="in-person">In Person</SelectItem>
+                          <SelectItem value="video">Video Call</SelectItem>
+                          <SelectItem value="phone">Phone Call</SelectItem>
+                          <SelectItem value="other">Others</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="in-person">In-Person</SelectItem>
+                          <SelectItem value="video">Video Call</SelectItem>
+                          <SelectItem value="phone">Phone Call</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.type === 'other' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                    <Label htmlFor="customTypeDetails">Specify Dynamic Meeting Type Details *</Label>
+                    <Input
+                      id="customTypeDetails"
+                      placeholder="e.g., At Customer Showroom Setup"
+                      value={formData.customTypeDetails}
+                      onChange={(e) => setFormData({ ...formData, customTypeDetails: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="location">Location</Label>
@@ -675,7 +679,7 @@ export function CreateAppointmentModal({
                       <SelectTrigger>
                         <SelectValue placeholder="Select a conversation" />
                       </SelectTrigger>
-                      <SelectContent className="z-300">
+                      <SelectContent className="z-[300]">
                         <SelectItem value="none">None</SelectItem>
                         {conversations.map((conv) => (
                           <SelectItem key={conv._id} value={conv._id}>

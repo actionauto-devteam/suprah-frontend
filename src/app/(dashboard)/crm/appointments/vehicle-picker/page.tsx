@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check } from "lucide-react";
 
 import { InventoryFilters } from "@/components/inventory-filters";
 import { InventoryPagination } from "@/components/inventory-pagination";
@@ -19,7 +19,7 @@ type AppointmentDraft = {
     version?: number;
     resume?: boolean;
     formData?: Record<string, unknown>;
-    selectedVehicle?: Vehicle | null;
+    selectedVehicles?: Vehicle[];
     meta?: Record<string, unknown>;
 };
 
@@ -55,7 +55,7 @@ export default function AppointmentVehiclePickerPage() {
     const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [vehicleError, setVehicleError] = React.useState<string | null>(null);
-    const [selectedVehicleId, setSelectedVehicleId] = React.useState<string | null>(null);
+    const [selectedVehicles, setSelectedVehicles] = React.useState<Vehicle[]>([]);
 
     const readDraft = React.useCallback((): AppointmentDraft | null => {
         if (typeof window === "undefined") return null;
@@ -76,7 +76,7 @@ export default function AppointmentVehiclePickerPage() {
 
     React.useEffect(() => {
         const draft = readDraft();
-        setSelectedVehicleId(draft?.selectedVehicle?.id || null);
+        setSelectedVehicles(draft?.selectedVehicles || []);
     }, [readDraft]);
 
     React.useEffect(() => {
@@ -165,24 +165,29 @@ export default function AppointmentVehiclePickerPage() {
         router.push(returnTo);
     };
 
-    const handlePickVehicle = (vehicle: Vehicle) => {
+    const toggleVehicleSelection = (vehicle: Vehicle) => {
+        setSelectedVehicles((prev) => {
+            const isAlreadySelected = prev.some((v) => v.id === vehicle.id);
+            if (isAlreadySelected) {
+                return prev.filter((v) => v.id !== vehicle.id);
+            } else {
+                return [...prev, vehicle];
+            }
+        });
+    };
+
+    const handleConfirmSelection = () => {
         const draft = readDraft() || { version: 1 };
         writeDraft({
             ...draft,
-            selectedVehicle: vehicle,
+            selectedVehicles: selectedVehicles,
             resume: true,
         });
         router.push(returnTo);
     };
 
     const handleClearSelection = () => {
-        const draft = readDraft() || { version: 1 };
-        writeDraft({
-            ...draft,
-            selectedVehicle: null,
-            resume: true,
-        });
-        setSelectedVehicleId(null);
+        setSelectedVehicles([]);
     };
 
     return (
@@ -191,9 +196,9 @@ export default function AppointmentVehiclePickerPage() {
                 <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="space-y-1">
-                            <h1 className="text-2xl font-semibold tracking-tight">Select a Vehicle</h1>
+                            <h1 className="text-2xl font-semibold tracking-tight">Select Vehicles</h1>
                             <p className="text-sm text-muted-foreground">
-                                Browse the inventory and choose the vehicle for this appointment.
+                                Browse the inventory and choose multiple vehicles for this appointment.
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -201,11 +206,14 @@ export default function AppointmentVehiclePickerPage() {
                                 <ArrowLeft className="mr-2 h-4 w-4" />
                                 Back to appointment
                             </Button>
-                            {selectedVehicleId && (
+                            {selectedVehicles.length > 0 && (
                                 <Button variant="ghost" onClick={handleClearSelection}>
-                                    Clear selection
+                                    Clear all ({selectedVehicles.length})
                                 </Button>
                             )}
+                            <Button className="bg-green-500 hover:bg-green-600 text-white" onClick={handleConfirmSelection}>
+                                Confirm Selection ({selectedVehicles.length})
+                              </Button>
                         </div>
                     </div>
                 </div>
@@ -235,19 +243,19 @@ export default function AppointmentVehiclePickerPage() {
                 ) : vehicles.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {vehicles.map((vehicle) => {
-                            const isSelected = selectedVehicleId === vehicle.id;
+                            const isSelected = selectedVehicles.some((v) => v.id === vehicle.id);
                             return (
                                 <button
                                     key={vehicle.id}
                                     type="button"
-                                    onClick={() => handlePickVehicle(vehicle)}
-                                    className={`rounded-lg border p-3 text-left transition hover:border-emerald-400 ${isSelected
-                                            ? "border-emerald-500 ring-2 ring-emerald-500/30"
-                                            : "border-border"
+                                    onClick={() => toggleVehicleSelection(vehicle)}
+                                    className={`rounded-lg border p-3 text-left transition hover:border-emerald-400 text-card-foreground ${isSelected
+                                            ? "border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-500/5"
+                                            : "border-border bg-card"
                                         }`}
                                 >
                                     <div className="flex gap-3">
-                                        <div className="h-20 w-28 shrink-0 overflow-hidden rounded-md bg-muted">
+                                        <div className="h-20 w-28 shrink-0 overflow-hidden rounded-md bg-muted relative">
                                             {vehicle.image ? (
                                                 <img
                                                     src={vehicle.image}
@@ -257,6 +265,11 @@ export default function AppointmentVehiclePickerPage() {
                                             ) : (
                                                 <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
                                                     No image
+                                                </div>
+                                            )}
+                                            {isSelected && (
+                                                <div className="absolute top-1 right-1 bg-emerald-500 text-white p-0.5 rounded-full">
+                                                    <Check className="h-3 w-3" />
                                                 </div>
                                             )}
                                         </div>
@@ -271,7 +284,7 @@ export default function AppointmentVehiclePickerPage() {
                                                     </p>
                                                 </div>
                                                 {isSelected && (
-                                                    <Badge variant="secondary" className="text-[10px]">
+                                                    <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600">
                                                         Selected
                                                     </Badge>
                                                 )}

@@ -17,6 +17,7 @@ import { apiClient } from '@/lib/api-client';
 import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupraSpaceSocket';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
+import { JitsiMeet } from './JitsiMeet';
 
 const SS4_MAX_UPLOAD_FILES = 5;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -851,23 +852,84 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete, disableActions 
 }
 
 // ─── Video Call Modal ─────────────────────────────────────────────────────────
-function VideoCallModal({ conv, uid, onClose }: { conv: SSConversation; uid: string; onClose: () => void }) {
-  const [micOn, setMicOn] = React.useState(true);
-  const [camOn, setCamOn] = React.useState(true);
-  const [dur, setDur] = React.useState(0);
-  const [state, setState] = React.useState<'calling' | 'connected'>('calling');
+function VideoCallModal({ 
+  conv, 
+  uid, 
+  onClose,
+  allUsers,
+  token 
+}: { 
+  conv: SSConversation; 
+  uid: string; 
+  onClose: () => void;
+  allUsers: CrmUser[];
+  token: string;
+}) {
+  const [showJitsi, setShowJitsi] = React.useState(false);
+  const [isConnecting, setIsConnecting] = React.useState(true);
+  const [jitsiToken, setJitsiToken] = React.useState<string | null>(null);
 
   const name = getConvName(conv, uid);
-  const avatar = getConvAvatar(conv, uid);
+  const currentUser = React.useMemo(() => {
+    return allUsers.find(u => u._id === uid) || { fullName: 'User' };
+  }, [uid, allUsers]);
 
-  React.useEffect(() => { const t = setTimeout(() => setState('connected'), 2200); return () => clearTimeout(t); }, []);
+  // Generate a unique, consistent room name based on conversation ID
+  const roomName = React.useMemo(() => {
+    return `supraspace-${conv._id}`;
+  }, [conv._id]);
+
+  // Fetch Jitsi token from backend
   React.useEffect(() => {
-    if (state !== 'connected') return;
-    const t = setInterval(() => setDur(d => d + 1), 1000);
-    return () => clearInterval(t);
-  }, [state]);
+    const fetchToken = async () => {
+      try {
+        const res = await apiClient.post(
+          `/api/supraspace/conversations/${conv._id}/video-token`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const tokenData = res.data?.data?.token;
+        if (tokenData) {
+          setJitsiToken(tokenData);
+        }
+      } catch (err) {
+        console.error('[VideoCall] Failed to fetch Jitsi token:', err);
+        // Continue without token - works with public Jitsi instances
+      }
+    };
 
-  const fmtDur = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+    if (token && conv._id) {
+      fetchToken();
+    }
+  }, [token, conv._id]);
+
+  React.useEffect(() => {
+    // Show Jitsi after connection delay
+    const timer = setTimeout(() => {
+      setIsConnecting(false);
+      setShowJitsi(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // If Jitsi is loaded, render it
+  if (showJitsi) {
+    return (
+      <JitsiMeet
+        roomName={roomName}
+        displayName={currentUser.fullName}
+        onClose={onClose}
+        onError={(error) => {
+          console.error('[Jitsi] Error:', error);
+          onClose();
+        }}
+      />
+    );
+  }
+
+  // Show connecting screen
+  const avatar = getConvAvatar(conv, uid);
 
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -878,25 +940,17 @@ function VideoCallModal({ conv, uid, onClose }: { conv: SSConversation; uid: str
             <Video className="h-4 w-4" style={{ color: 'var(--accent-text)' }} />
             <span className="font-semibold" style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>Video Call</span>
           </div>
-          <div className="flex items-center gap-3">
-            {state === 'connected' && (
-              <span className="ss4-mono font-medium tabular-nums" style={{ fontSize: 12, color: 'var(--positive)' }}>
-                {fmtDur(dur)}
-              </span>
-            )}
-            <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        {/* Video area */}
+        {/* Connecting screen */}
         <div className="ss4-vcall-screen flex flex-col items-center justify-center" style={{ height: 260 }}>
           <div className="flex flex-col items-center gap-4 relative z-10">
             <div className={cn(
-              'h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden',
-              getAvaColor(name),
-              state === 'calling' && 'ss4-calling-ring'
+              'h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring',
+              getAvaColor(name)
             )}>
               {avatar
                 ? <img src={avatar} alt="" className="w-full h-full object-cover" />
@@ -906,58 +960,20 @@ function VideoCallModal({ conv, uid, onClose }: { conv: SSConversation; uid: str
             </div>
             <div className="flex flex-col items-center gap-1.5">
               <p className="ss4-display font-bold" style={{ fontSize: 17, color: '#fff' }}>{name}</p>
-              {state === 'calling' ? (
-                <div className="flex items-center gap-2">
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Calling</span>
-                  {[0, 1, 2].map(i => (
-                    <span key={i} className="ss4-typing-dot h-1 w-1 rounded-full inline-block"
-                      style={{ background: 'rgba(255,255,255,0.4)', animationDelay: `${i * 0.2}s` }} />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--positive)', boxShadow: '0 0 6px rgba(52,201,125,0.8)' }} />
-                  <span style={{ fontSize: 12, color: 'var(--positive)' }}>Connected</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Connecting</span>
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="ss4-typing-dot h-1 w-1 rounded-full inline-block"
+                    style={{ background: 'rgba(255,255,255,0.4)', animationDelay: `${i * 0.2}s` }} />
+                ))}
+              </div>
             </div>
           </div>
-
-          {/* Self PIP */}
-          <div className="absolute bottom-4 right-4 h-16 w-24 rounded-xl overflow-hidden flex items-center justify-center"
-            style={{ background: '#1a2035', border: '1px solid rgba(91,124,246,0.2)', boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
-            {camOn ? (
-              <span className="font-medium" style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>You</span>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                <VideoOff className="h-4 w-4" style={{ color: 'rgba(255,255,255,0.3)' }} />
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center justify-center gap-4 px-5 py-5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <button onClick={() => setMicOn(v => !v)}
-            className="ss4-vcall-ctrl h-11 w-11 flex items-center justify-center"
-            style={!micOn ? { background: 'rgba(240,92,92,0.15)', borderColor: 'rgba(240,92,92,0.25)' } : {}}>
-            {micOn ? <Mic className="h-4 w-4" style={{ color: 'rgba(255,255,255,0.7)' }} /> : <MicOff className="h-4 w-4" style={{ color: '#f05c5c' }} />}
-          </button>
-
-          <button onClick={onClose} className="ss4-vcall-end h-14 w-14 flex items-center justify-center">
-            <PhoneOff className="h-5 w-5" style={{ color: '#fff' }} />
-          </button>
-
-          <button onClick={() => setCamOn(v => !v)}
-            className="ss4-vcall-ctrl h-11 w-11 flex items-center justify-center"
-            style={!camOn ? { background: 'rgba(240,92,92,0.15)', borderColor: 'rgba(240,92,92,0.25)' } : {}}>
-            {camOn ? <Video className="h-4 w-4" style={{ color: 'rgba(255,255,255,0.7)' }} /> : <VideoOff className="h-4 w-4" style={{ color: '#f05c5c' }} />}
-          </button>
-        </div>
-
-        <div className="pb-4 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+        <div className="pb-4 pt-2 text-center">
           <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>
-            Integrate Daily · Agora · LiveKit for live video
+            Powered by Jitsi Meet
           </p>
         </div>
       </div>
@@ -2015,7 +2031,13 @@ export default function SupraSpacePage() {
         <NewConvModal users={allUsers} onClose={() => setShowModal(false)} onStartDM={handleDM} onCreateGroup={handleGroup} />
       )}
       {videoCallConv && (
-        <VideoCallModal conv={videoCallConv} uid={uid} onClose={() => setVideoCallConv(null)} />
+        <VideoCallModal 
+          conv={videoCallConv} 
+          uid={uid}
+          allUsers={allUsers}
+          token={token}
+          onClose={() => setVideoCallConv(null)} 
+        />
       )}
     </div>
   );
