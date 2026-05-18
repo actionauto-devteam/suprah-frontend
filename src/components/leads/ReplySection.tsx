@@ -21,10 +21,6 @@ interface ReplySectionProps {
   selectedLeadStatus: string
 }
 
-// ── Shared toolbar button ─────────────────────────────────────────────────────
-const toolbarBtn =
-  "flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[11px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 transition-all whitespace-nowrap"
-
 export const ReplySection = React.memo(({
   isClosed,
   replyMessage,
@@ -41,15 +37,15 @@ export const ReplySection = React.memo(({
   // ── Closed state ─────────────────────────────────────────────────────────────
   if (isClosed) {
     return (
-      <div className="border-t border-border/50 px-5 py-3.5 flex items-center justify-between bg-card/80 shrink-0">
+      <div
+        className="px-5 py-3.5 flex items-center justify-between shrink-0"
+        style={{ borderTop: '1px solid var(--border-1)', background: 'var(--bg-elevated)' }}
+      >
         <div className="flex items-center gap-2">
-          <Lock className="h-3.5 w-3.5 text-muted-foreground/40" />
-          <span className="text-xs text-muted-foreground/60">This inquiry is closed</span>
+          <Lock className="h-3.5 w-3.5" style={{ color: 'var(--text-disabled)' }} />
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>This inquiry is closed</span>
         </div>
-        <button
-          onClick={onReopen}
-          className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/40 hover:bg-primary/5 transition-all"
-        >
+        <button onClick={onReopen} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 text-xs font-medium">
           <LockOpen className="h-3 w-3" /> Reopen
         </button>
       </div>
@@ -58,9 +54,11 @@ export const ReplySection = React.memo(({
 
   // ── Active reply area ─────────────────────────────────────────────────────────
   return (
-    <div className="border-t border-border/50 bg-card/80 px-3 sm:px-4 py-3 shrink-0">
-      {/* SS4-style input wrap */}
-      <div className="rounded-[14px] border-[1.5px] border-border/60 bg-background overflow-hidden transition-all focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_rgba(var(--primary)/0.12)]">
+    <div
+      className="px-3 sm:px-4 py-3 shrink-0"
+      style={{ borderTop: '1px solid var(--border-1)', background: 'var(--bg-elevated)' }}
+    >
+      <div className="ss4-input-wrap overflow-hidden">
 
         {/* Textarea */}
         <textarea
@@ -74,18 +72,22 @@ export const ReplySection = React.memo(({
               onSend()
             }
           }}
-          className="w-full px-4 pt-3.5 pb-2 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground/40 resize-none outline-none leading-relaxed"
+          className="w-full px-4 pt-3.5 pb-2 bg-transparent resize-none outline-none leading-relaxed"
+          style={{ fontSize: 14, color: 'var(--text-primary)' }}
         />
 
         {/* Toolbar row */}
-        <div className="flex items-center justify-between px-2.5 py-2 border-t border-border/40">
-          {/* Left: action buttons — scrollable on mobile */}
+        <div
+          className="flex items-center justify-between px-2.5 py-2"
+          style={{ borderTop: '1px solid var(--border-1)' }}
+        >
+          {/* Left: action buttons */}
           <div className="flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink min-w-0">
 
             {/* Status dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className={toolbarBtn}>
+                <button className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium">
                   <Circle className="h-3 w-3" />
                   Status
                   <ChevronDown className="h-2.5 w-2.5 opacity-50" />
@@ -110,35 +112,36 @@ export const ReplySection = React.memo(({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Schedule */}
-            <button onClick={onApptOpen} className={toolbarBtn}>
+            <button onClick={onApptOpen} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium whitespace-nowrap">
               <Calendar className="h-3 w-3" />
               Schedule
             </button>
 
-            {/* Quote Shipping */}
-            <button onClick={onQuoteShipping} className={toolbarBtn}>
+            <button onClick={onQuoteShipping} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium whitespace-nowrap">
               <Truck className="h-3 w-3" />
               Quote
             </button>
 
-            {/* Close inquiry */}
             <button
               onClick={() => onStatusChange("Closed")}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[11px] font-medium text-destructive/50 hover:text-destructive hover:bg-destructive/8 transition-all whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap"
+              style={{ color: 'var(--danger)', opacity: 0.7 }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
             >
               <XCircle className="h-3 w-3" />
               Close
             </button>
           </div>
 
-          {/* Right: send button (SS4-style gradient) */}
+          {/* Right: send button */}
           <div className="flex items-center gap-2 shrink-0 pl-2">
-            <span className="text-[10px] text-muted-foreground/30 hidden sm:block">⌘↵</span>
+            <span className="hidden sm:block" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>⌘↵</span>
             <button
               onClick={onSend}
               disabled={isSending || !replyMessage.trim()}
-              className="flex items-center gap-1.5 px-4 h-8 rounded-xl text-[13px] font-semibold bg-linear-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.2)] hover:-translate-y-px active:translate-y-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+              className="ss4-send-btn flex items-center gap-1.5 px-4 h-8 font-semibold"
+              style={{ fontSize: 13 }}
             >
               <Send className="h-3.5 w-3.5" />
               {isSending ? "Sending…" : "Send"}

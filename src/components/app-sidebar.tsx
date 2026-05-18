@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardList,
   LayoutDashboard,
+  MessageSquare,
   Settings,
   Truck,
   User,
@@ -71,6 +72,11 @@ const data = {
       title: "Dashboard",
       url: "/",
       icon: LayoutDashboard,
+    },
+    {
+      title: "Supra Space",
+      url: "/crm/conversations",
+      icon: MessageSquare,
     },
     {
       title: "Team Pulse",

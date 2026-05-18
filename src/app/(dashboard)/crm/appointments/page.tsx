@@ -716,7 +716,7 @@ function AppointmentsPageInner() {
               {/* Tab content */}
               <div className="min-h-0">
                 {activeTab === "leads" && (
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm min-h-[650px] h-[75vh]">
+                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm min-h-162.5 h-[75vh]">
                     <LeadsTab
                       pendingNav={pendingLeadNav}
                       onNavConsumed={() => setPendingLeadNav(null)}

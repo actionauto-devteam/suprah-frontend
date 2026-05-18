@@ -147,7 +147,7 @@ export function VehicleInquiryModal({
     } catch (error: any) {
       toast.error(
         error.response?.data?.message ||
-          "Failed to send inquiry. Please try again.",
+        "Failed to send inquiry. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -162,7 +162,7 @@ export function VehicleInquiryModal({
           "p-0 overflow-hidden bg-white dark:bg-zinc-950 border-none shadow-2xl",
           isMobile
             ? "inset-x-0 top-auto left-0 bottom-16 translate-x-0 translate-y-0 max-w-none rounded-b-none rounded-t-2xl border-x-0 border-b-0 h-[calc(100dvh-4rem)]"
-            : "sm:max-w-[700px] max-h-[90dvh]",
+            : "sm:max-w-175 max-h-[90dvh]",
         )}
       >
         <DialogHeader className="bg-zinc-900 text-white p-4 md:p-6 shrink-0">
@@ -183,7 +183,7 @@ export function VehicleInquiryModal({
           {/* Left side: Vehicle Summary */}
           <div className="w-full md:w-5/12 bg-zinc-50 dark:bg-zinc-900/50 p-4 md:p-6 border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 shrink-0">
             <div className="space-y-4">
-              <div className="aspect-[4/3] rounded-xl overflow-hidden shadow-md border border-white/20">
+              <div className="aspect-4/3 rounded-xl overflow-hidden shadow-md border border-white/20">
                 <img
                   src={vehicle.image}
                   alt={`${vehicle.year} ${vehicle.make}`}
@@ -224,7 +224,7 @@ export function VehicleInquiryModal({
           {/* Right side: Inquiry Form */}
           <div className="w-full md:w-7/12 p-4 md:p-8 min-h-0 overflow-y-auto pb-24 md:pb-8">
             {isSuccess ? (
-              <div className="min-h-[280px] flex flex-col items-center justify-center text-center space-y-4 py-12 animate-in fade-in zoom-in-95 duration-500">
+              <div className="min-h-70 flex flex-col items-center justify-center text-center space-y-4 py-12 animate-in fade-in zoom-in-95 duration-500">
                 <div className="w-20 h-20 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center">
                   <CheckCircle2 className="w-10 h-10 text-green-600 dark:text-green-400" />
                 </div>
@@ -237,7 +237,7 @@ export function VehicleInquiryModal({
                 </p>
               </div>
             ) : !isSignedIn ? (
-              <div className="min-h-[280px] flex flex-col items-center justify-center text-center space-y-6 py-12 px-4 shadow-inner rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
+              <div className="min-h-70 flex flex-col items-center justify-center text-center space-y-6 py-12 px-4 shadow-inner rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
                 <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center">
                   <User className="w-8 h-8 text-zinc-400" />
                 </div>
@@ -245,7 +245,7 @@ export function VehicleInquiryModal({
                   <h4 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">
                     Login Required
                   </h4>
-                  <p className="text-sm text-zinc-500 max-w-[240px] mx-auto">
+                  <p className="text-sm text-zinc-500 max-w-60 mx-auto">
                     Please sign in to your ActionAuto account to process this
                     secure inquiry.
                   </p>
@@ -254,7 +254,7 @@ export function VehicleInquiryModal({
                   onClick={() =>
                     (window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`)
                   }
-                  className="w-full max-w-[200px] h-11 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 font-bold rounded-xl shadow-lg border-b-4 border-zinc-700 dark:border-zinc-300 active:border-b-0 active:translate-y-1 transition-all"
+                  className="w-full max-w-50 h-11 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 font-bold rounded-xl shadow-lg border-b-4 border-zinc-700 dark:border-zinc-300 active:border-b-0 active:translate-y-1 transition-all"
                 >
                   <LogIn className="w-4 h-4 mr-2" />
                   Sign In Now
@@ -368,7 +368,7 @@ export function VehicleInquiryModal({
                       {...register("message")}
                       placeholder="I'm interested in this vehicle. Is it still available?"
                       maxLength={500}
-                      className="pl-10 min-h-[80px] border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 resize-none focus:ring-2 focus:ring-green-500/50"
+                      className="pl-10 min-h-20 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 resize-none focus:ring-2 focus:ring-green-500/50"
                     />
                   </div>
                   <ErrorMsg message={errors.message?.message} />

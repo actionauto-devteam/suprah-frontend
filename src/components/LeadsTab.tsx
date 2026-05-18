@@ -1,13 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { RefreshCw, Mail, MessageSquare } from "lucide-react"
+import { RefreshCw, Mail, MessageSquare, Sun, Moon } from "lucide-react"
 import { useLeads, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal"
 import { Vehicle } from "@/types/inventory"
+import { useTheme } from "@/context/ThemeContext"
+import { injectSS4Styles } from "@/lib/ss4-styles"
+import { cn } from "@/lib/utils"
+
+injectSS4Styles()
 
 // Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus"
@@ -50,6 +55,7 @@ export function LeadsTab({
   onNavConsumed?: () => void
 } = {}) {
   const { getToken } = useAuth()
+  const { theme, toggleTheme } = useTheme()
 
   // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null)
@@ -396,26 +402,25 @@ export function LeadsTab({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background text-foreground">
+    <div className={cn('ss4 flex flex-col h-full min-h-0')} data-theme={theme}>
       <ToastStack toasts={toasts} dismiss={id => setToasts(p => p.filter(t => t.id !== id))} />
 
-      {/* ── TOPBAR — SS4-inspired ── */}
-      <div className="shrink-0 border-b border-border/60 bg-card/80">
+      {/* ── TOPBAR ── */}
+      <header className="ss4-topbar shrink-0" style={{ minHeight: 52 }}>
 
         {/* Title + actions */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-3 pb-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* SS4 logo-mark style */}
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/70 shadow-[0_2px_8px_rgba(0,0,0,0.15)]">
-              <Mail className="h-3.5 w-3.5 text-primary-foreground" />
+            <div className="h-8 w-8 ss4-logo-mark flex shrink-0 items-center justify-center">
+              <Mail className="h-3.5 w-3.5" style={{ color: '#fff' }} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-[14px] font-bold text-foreground tracking-tight leading-tight">
-                  Inquiries &amp; Leads
+                <h1 className="ss4-display font-bold leading-tight tracking-tight" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
+                  Lead Inbox
                 </h1>
                 {total > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary tabular-nums">
+                  <span className="ss4-badge inline-flex items-center tabular-nums" style={{ borderRadius: 10 }}>
                     {total}
                   </span>
                 )}
@@ -437,48 +442,54 @@ export function LeadsTab({
             <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[11px] font-medium border border-border/60 text-muted-foreground/70 hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`h-3 w-3 ${isWorkerSyncing || localIsSyncing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">
                 {(isWorkerSyncing || localIsSyncing) ? 'Syncing…' : 'Refresh'}
               </span>
             </button>
+            <button
+              onClick={toggleTheme}
+              className="ss4-theme-btn h-7 w-7 flex items-center justify-center"
+              title="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            </button>
             <SupraLeoAI variant="toolbar" />
           </div>
         </div>
 
         {/* Tab strip */}
-        <div className="flex items-center overflow-x-auto px-3 mt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center overflow-x-auto px-3 mt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ borderTop: '1px solid var(--border-1)' }}>
           {TABS.map((tab, i) => (
             <button
               key={i}
               onClick={() => { setStatusFilter(tab.key); setCurrentPage(1); setSelectedLead(null); }}
-              className={`relative flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold transition-all shrink-0 border-b-2 ${
-                statusFilter === tab.key
-                  ? 'text-primary border-primary'
-                  : 'text-muted-foreground/60 border-transparent hover:text-foreground hover:border-border/60'
-              }`}
+              className="relative flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold transition-all shrink-0"
+              style={{
+                color: statusFilter === tab.key ? 'var(--accent)' : 'var(--text-tertiary)',
+                borderBottom: `2px solid ${statusFilter === tab.key ? 'var(--accent)' : 'transparent'}`,
+              }}
             >
               {tab.key !== null && TAB_DOTS[tab.key] && (
                 <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                  statusFilter === tab.key ? TAB_DOTS[tab.key] : 'bg-muted-foreground/25'
-                }`} />
+                  statusFilter === tab.key ? TAB_DOTS[tab.key] : ''
+                }`} style={statusFilter !== tab.key ? { background: 'var(--text-disabled)' } : {}} />
               )}
               {tab.label}
             </button>
           ))}
         </div>
-      </div>
+      </header>
 
       {/* ── BODY ── */}
       {statusFilter === 'Inbound Calls' ? (
-        <div className="flex-1 overflow-auto p-6 bg-background">
+        <div className="flex-1 overflow-auto p-6" style={{ background: 'var(--bg-base)' }}>
           <InboundCallsTab />
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Left panel — SS4-style lead sidebar */}
           <LeadsList
             leads={leads}
             isLoading={isLoading}
@@ -496,8 +507,11 @@ export function LeadsTab({
             markAsRead={markAsRead}
           />
 
-          {/* Right panel — SS4-style conversation */}
-          <div className={`flex-1 flex flex-col min-w-0 min-h-0 border-l border-border/50 bg-background ${!selectedLead ? 'hidden lg:flex' : 'flex'}`}>
+          {/* Right panel */}
+          <div
+            className={cn('flex-1 flex flex-col min-w-0 min-h-0', !selectedLead ? 'hidden lg:flex' : 'flex')}
+            style={{ background: 'var(--bg-base)', borderLeft: '1px solid var(--border-1)' }}
+          >
             {selectedLead ? (
               <>
                 <ConversationView
@@ -520,22 +534,21 @@ export function LeadsTab({
                 />
               </>
             ) : (
-              /* Empty state — SS4-style */
               <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-10 py-16">
                 <div className="relative">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-primary/5">
-                    <MessageSquare className="h-8 w-8 text-primary/25" />
+                  <div className="ss4-empty-icon flex h-20 w-20 items-center justify-center">
+                    <MessageSquare className="h-8 w-8" style={{ color: 'var(--accent)', opacity: 0.4 }} />
                   </div>
-                  <div className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-xl bg-linear-to-br from-primary to-primary/70 shadow-[0_2px_8px_rgba(0,0,0,0.15)]">
-                    <Mail className="h-3 w-3 text-primary-foreground" />
+                  <div className="absolute -bottom-2 -right-2 h-7 w-7 ss4-logo-mark flex items-center justify-center">
+                    <Mail className="h-3 w-3" style={{ color: '#fff' }} />
                   </div>
                 </div>
                 <div className="space-y-1.5 max-w-xs">
-                  <p className="text-[15px] font-bold text-foreground">Select a conversation</p>
-                  <p className="text-[13px] text-muted-foreground/70 leading-relaxed">
+                  <p className="font-bold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Select a conversation</p>
+                  <p className="leading-relaxed" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
                     Choose a lead from the list to view their inquiry, reply, and schedule appointments.
                   </p>
-                  <p className="text-[10px] font-mono text-muted-foreground/30 pt-1">{LEADS_SOURCE_EMAIL}</p>
+                  <p className="ss4-mono pt-1" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{LEADS_SOURCE_EMAIL}</p>
                 </div>
               </div>
             )}
