@@ -21,11 +21,11 @@ import {
   XCircle,
   Clock,
   CalendarDays,
-  Users,
+  Plus,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,6 +67,16 @@ interface DashboardAppointment {
   vehicleInterest?: VehicleInterest;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+interface DashboardPost {
+  _id: string;
+  type: "event" | "news" | "announcement" | "update";
+  title: string;
+  content: string;
+  authorName: string;
+  authorRole: string;
+  createdAt: Date | string;
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -208,6 +218,145 @@ const STYLES = `
   cursor: pointer; transition: background 0.15s, box-shadow 0.15s; white-space: nowrap;
 }
 .apd-btn-primary:hover { background: var(--c-green-h); box-shadow: var(--shadow-md); }
+
+/* ── Posts ── */
+.apd-posts-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.apd-posts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface-2);
+}
+
+.apd-posts-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--c-text-2);
+  letter-spacing: 0.02em;
+}
+
+.apd-posts-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.apd-post-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.apd-post-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.apd-post-input,
+.apd-post-select,
+.apd-post-textarea {
+  width: 100%;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-1);
+  font-family: var(--font);
+  font-size: 12.5px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.apd-post-input:focus,
+.apd-post-select:focus,
+.apd-post-textarea:focus {
+  border-color: var(--c-green);
+  box-shadow: 0 0 0 3px var(--c-green-ring);
+}
+
+.apd-post-input { flex: 1; min-width: 240px; }
+.apd-post-select { width: 150px; }
+.apd-post-textarea { min-height: 86px; resize: vertical; }
+
+.apd-post-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.apd-post-item {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--c-surface-2);
+}
+
+.apd-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.apd-post-type {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--c-green);
+  background: var(--c-green-light);
+  border: 1px solid var(--c-green-ring);
+}
+
+.apd-post-author,
+.apd-post-time {
+  font-size: 11px;
+  color: var(--c-text-3);
+}
+
+.apd-post-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-1);
+  margin-bottom: 4px;
+}
+
+.apd-post-content {
+  font-size: 12px;
+  color: var(--c-text-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.apd-post-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
 
 /* ── Toolbar row ── */
 .apd-toolbar {
@@ -522,7 +671,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function TypeBadge({ type }: { type: string }) {
   const key = type.toLowerCase().replace(/[\s_]+/g, "-");
-  const label = type.split(/[-\s_]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const label = type
+    .split(/[-\s_]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
   return <span className={`badge bt-${key}`}>{label}</span>;
 }
 
@@ -537,11 +689,22 @@ function SourceBadge({ source }: { source: string }) {
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, stripe, icon }: {
-  label: string; value: number; stripe: string; icon: React.ReactNode;
+function StatCard({
+  label,
+  value,
+  stripe,
+  icon,
+}: {
+  label: string;
+  value: number;
+  stripe: string;
+  icon: React.ReactNode;
 }) {
   return (
-    <div className="apd-stat" style={{ "--stripe": stripe } as React.CSSProperties}>
+    <div
+      className="apd-stat"
+      style={{ "--stripe": stripe } as React.CSSProperties}
+    >
       <div className="apd-stat-stripe" />
       <div className="apd-stat-label">{label}</div>
       <div className="apd-stat-value">{value}</div>
@@ -552,13 +715,18 @@ function StatCard({ label, value, stripe, icon }: {
 
 // ─── Table row ────────────────────────────────────────────────────────────────
 
-function AppointmentRow({ apt, onView }: {
-  apt: DashboardAppointment; onView: (id: string) => void;
+function AppointmentRow({
+  apt,
+  onView,
+}: {
+  apt: DashboardAppointment;
+  onView: (id: string) => void;
 }) {
   const start = new Date(apt.startTime);
-  const end   = new Date(apt.endTime);
-  const dur   = Math.round((end.getTime() - start.getTime()) / 60000);
-  const name  = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
+  const end = new Date(apt.endTime);
+  const dur = Math.round((end.getTime() - start.getTime()) / 60000);
+  const name =
+    `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
 
   return (
     <tr>
@@ -603,41 +771,103 @@ function AppointmentRow({ apt, onView }: {
 
 export function AppointmentDashboard() {
   useStyles();
-  const router       = useRouter();
+  const router = useRouter();
   const { getToken } = useAuth();
+  const queryClient = useQueryClient();
 
-  const today    = format(new Date(), "yyyy-MM-dd");
+  const today = format(new Date(), "yyyy-MM-dd");
   const tomorrow = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
 
   const [selectedDate, setSelectedDate] = React.useState(today);
   const [statusFilter, setStatusFilter] = React.useState("all");
-  const [typeFilter,   setTypeFilter]   = React.useState("all");
-  const [searchQuery,  setSearchQuery]  = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState("all");
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [showPostComposer, setShowPostComposer] = React.useState(false);
+  const [postType, setPostType] = React.useState<
+    "event" | "news" | "announcement" | "update"
+  >("event");
+  const [postTitle, setPostTitle] = React.useState("");
+  const [postContent, setPostContent] = React.useState("");
 
   const getHeaders = async () => {
     const token = await getToken();
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
-  const { data: appointmentsData, isLoading, error, refetch } = useQuery({
+  const {
+    data: appointmentsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["appts-dash", selectedDate, statusFilter, typeFilter],
     queryFn: async () => {
       const h = await getHeaders();
       const params: Record<string, string> = { date: selectedDate };
       if (statusFilter !== "all") params.status = statusFilter;
-      if (typeFilter   !== "all") params.type   = typeFilter;
-      const r = await apiClient.get("/api/appointments/dashboard", { ...h, params });
+      if (typeFilter !== "all") params.type = typeFilter;
+      const r = await apiClient.get("/api/appointments/dashboard", {
+        ...h,
+        params,
+      });
       return r.data?.data ?? r.data;
     },
     staleTime: 30_000,
   });
+
+  const { data: crmMeData } = useQuery({
+    queryKey: ["crm-me-for-apd"],
+    queryFn: async () => {
+      const h = await getHeaders();
+      const r = await apiClient.get("/api/crm/me", h);
+      return r.data?.data ?? r.data;
+    },
+    staleTime: 60_000,
+  });
+
+  const isAdmin = crmMeData?.role === "admin";
+
+  const { data: postsData, isLoading: isPostsLoading } = useQuery({
+    queryKey: ["appts-dash-posts"],
+    queryFn: async () => {
+      const h = await getHeaders();
+      const r = await apiClient.get("/api/appointments/dashboard/posts", {
+        ...h,
+        params: { limit: 30 },
+      });
+      return r.data?.data ?? r.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const createPostMutation = useMutation({
+    mutationFn: async () => {
+      const h = await getHeaders();
+      return apiClient.post(
+        "/api/appointments/dashboard/posts",
+        { type: postType, title: postTitle, content: postContent },
+        h,
+      );
+    },
+    onSuccess: () => {
+      setPostTitle("");
+      setPostContent("");
+      setPostType("event");
+      setShowPostComposer(false);
+      queryClient.invalidateQueries({ queryKey: ["appts-dash-posts"] });
+    },
+  });
+
+  const posts: DashboardPost[] =
+    (postsData?.posts as DashboardPost[] | undefined) || [];
 
   const { data: statsData } = useQuery({
     queryKey: ["appts-dash-stats", selectedDate],
     queryFn: async () => {
       const h = await getHeaders();
       const r = await apiClient.get("/api/appointments/dashboard/stats", {
-        ...h, params: { date: selectedDate },
+        ...h,
+        params: { date: selectedDate },
       });
       return r.data?.data ?? r.data;
     },
@@ -648,15 +878,18 @@ export function AppointmentDashboard() {
     if (!appointmentsData?.appointments) return [];
     const q = searchQuery.toLowerCase();
     if (!q) return appointmentsData.appointments as DashboardAppointment[];
-    return (appointmentsData.appointments as DashboardAppointment[]).filter(apt => {
-      const name = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.toLowerCase();
-      return (
-        name.includes(q) ||
-        apt.customerBooking.email?.toLowerCase().includes(q) ||
-        apt.customerBooking.phone?.toLowerCase().includes(q) ||
-        apt.crmUser?.fullName?.toLowerCase().includes(q)
-      );
-    });
+    return (appointmentsData.appointments as DashboardAppointment[]).filter(
+      (apt) => {
+        const name =
+          `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.toLowerCase();
+        return (
+          name.includes(q) ||
+          apt.customerBooking.email?.toLowerCase().includes(q) ||
+          apt.customerBooking.phone?.toLowerCase().includes(q) ||
+          apt.crmUser?.fullName?.toLowerCase().includes(q)
+        );
+      },
+    );
   }, [appointmentsData?.appointments, searchQuery]);
 
   const handleDateChange = (d: string) => {
@@ -667,34 +900,54 @@ export function AppointmentDashboard() {
   };
 
   const displayDate = (() => {
-    try { return format(new Date(selectedDate + "T00:00:00"), "MMMM d, yyyy"); }
-    catch { return selectedDate; }
+    try {
+      return format(new Date(selectedDate + "T00:00:00"), "MMMM d, yyyy");
+    } catch {
+      return selectedDate;
+    }
   })();
 
   const handleExport = async () => {
     try {
       const h = await getHeaders();
       const r = await apiClient.get("/api/appointments/dashboard/export", {
-        ...h, params: { date: selectedDate, format: "csv" }, responseType: "text",
+        ...h,
+        params: { date: selectedDate, format: "csv" },
+        responseType: "text",
       });
       const blob = new Blob([r.data], { type: "text/csv" });
-      const url  = URL.createObjectURL(blob);
-      const a    = Object.assign(document.createElement("a"), { href: url, download: `appointments-${selectedDate}.csv` });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement("a"), {
+        href: url,
+        download: `appointments-${selectedDate}.csv`,
+      });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (e) { console.error("Export failed:", e); }
+    } catch (e) {
+      console.error("Export failed:", e);
+    }
+  };
+
+  const handleCreatePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    if (!postTitle.trim() || !postContent.trim()) return;
+    await createPostMutation.mutateAsync();
   };
 
   return (
     <div className="apd">
       <div className="apd-layout">
-
         {/* ── Page header ── */}
         <div className="apd-header">
           <div className="apd-header-left">
-            <button className="apd-back" onClick={() => router.back()} aria-label="Go back">
+            <button
+              className="apd-back"
+              onClick={() => router.back()}
+              aria-label="Go back"
+            >
               <ArrowLeft size={14} strokeWidth={2} />
             </button>
             <div className="apd-header-info">
@@ -703,7 +956,10 @@ export function AppointmentDashboard() {
             </div>
           </div>
           <div className="apd-header-right">
-            <button className="apd-btn-primary" onClick={() => router.push("/crm/appointments")}>
+            <button
+              className="apd-btn-primary"
+              onClick={() => router.push("/crm/appointments")}
+            >
               <FileText size={13} strokeWidth={2} />
               Full Appointments
               <ChevronRight size={13} strokeWidth={2} />
@@ -714,11 +970,36 @@ export function AppointmentDashboard() {
         {/* ── Stats ── */}
         {statsData && (
           <div className="apd-stats">
-            <StatCard label="Total"     value={statsData.total     ?? 0} stripe="#2563eb" icon={<TrendingUp  size={38} strokeWidth={1.5} />} />
-            <StatCard label="Scheduled" value={statsData.scheduled ?? 0} stripe="#3b82f6" icon={<Clock       size={38} strokeWidth={1.5} />} />
-            <StatCard label="Confirmed" value={statsData.confirmed ?? 0} stripe="#0d9488" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
-            <StatCard label="Completed" value={statsData.completed ?? 0} stripe="#16a34a" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
-            <StatCard label="Cancelled" value={statsData.cancelled ?? 0} stripe="#dc2626" icon={<XCircle     size={38} strokeWidth={1.5} />} />
+            <StatCard
+              label="Total"
+              value={statsData.total ?? 0}
+              stripe="#2563eb"
+              icon={<TrendingUp size={38} strokeWidth={1.5} />}
+            />
+            <StatCard
+              label="Scheduled"
+              value={statsData.scheduled ?? 0}
+              stripe="#3b82f6"
+              icon={<Clock size={38} strokeWidth={1.5} />}
+            />
+            <StatCard
+              label="Confirmed"
+              value={statsData.confirmed ?? 0}
+              stripe="#0d9488"
+              icon={<CheckCircle2 size={38} strokeWidth={1.5} />}
+            />
+            <StatCard
+              label="Completed"
+              value={statsData.completed ?? 0}
+              stripe="#16a34a"
+              icon={<CheckCircle2 size={38} strokeWidth={1.5} />}
+            />
+            <StatCard
+              label="Cancelled"
+              value={statsData.cancelled ?? 0}
+              stripe="#dc2626"
+              icon={<XCircle size={38} strokeWidth={1.5} />}
+            />
           </div>
         )}
 
@@ -731,7 +1012,7 @@ export function AppointmentDashboard() {
               type="date"
               className="apd-ctrl apd-ctrl-date"
               value={selectedDate}
-              onChange={e => handleDateChange(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
             />
           </div>
 
@@ -742,13 +1023,20 @@ export function AppointmentDashboard() {
               <button
                 className={cn("apd-chip", selectedDate === today && "is-on")}
                 onClick={() => handleDateChange(today)}
-              >Today</button>
+              >
+                Today
+              </button>
               <button
                 className={cn("apd-chip", selectedDate === tomorrow && "is-on")}
                 onClick={() => handleDateChange(tomorrow)}
-              >Tomorrow</button>
+              >
+                Tomorrow
+              </button>
               {selectedDate !== today && (
-                <button className="apd-chip" onClick={() => handleDateChange(today)}>
+                <button
+                  className="apd-chip"
+                  onClick={() => handleDateChange(today)}
+                >
                   Reset
                 </button>
               )}
@@ -763,7 +1051,7 @@ export function AppointmentDashboard() {
             <select
               className="apd-ctrl apd-ctrl-select"
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="all">All Statuses</option>
               <option value="scheduled">Scheduled</option>
@@ -779,7 +1067,7 @@ export function AppointmentDashboard() {
             <select
               className="apd-ctrl apd-ctrl-select"
               value={typeFilter}
-              onChange={e => setTypeFilter(e.target.value)}
+              onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option value="all">All Types</option>
               <option value="appointment">Appointment</option>
@@ -802,7 +1090,7 @@ export function AppointmentDashboard() {
                 className="apd-ctrl"
                 placeholder="Name, email, phone…"
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
@@ -812,7 +1100,9 @@ export function AppointmentDashboard() {
         {error && (
           <div className="apd-error">
             <AlertCircle size={14} strokeWidth={2} />
-            {error instanceof Error ? error.message : "Failed to load appointments. Please try again."}
+            {error instanceof Error
+              ? error.message
+              : "Failed to load appointments. Please try again."}
           </div>
         )}
 
@@ -820,13 +1110,28 @@ export function AppointmentDashboard() {
         <div className="apd-table-card">
           <div className="apd-table-header">
             <div className="apd-table-header-left">
-              <CalendarDays size={13} strokeWidth={2} style={{ color: "var(--c-green)" }} />
+              <CalendarDays
+                size={13}
+                strokeWidth={2}
+                style={{ color: "var(--c-green)" }}
+              />
               <span>{displayDate}</span>
               {!isLoading && appointmentsData?.count != null && (
-                <span className="apd-count-pill">{appointmentsData.count} total</span>
+                <span className="apd-count-pill">
+                  {appointmentsData.count} total
+                </span>
               )}
             </div>
             <div className="apd-table-actions">
+              {isAdmin && (
+                <button
+                  className="apd-btn-primary"
+                  onClick={() => setShowPostComposer((v) => !v)}
+                >
+                  <Plus size={12} strokeWidth={2} />
+                  add event
+                </button>
+              )}
               <button
                 className="apd-btn-ghost"
                 onClick={handleExport}
@@ -835,16 +1140,111 @@ export function AppointmentDashboard() {
                 <Download size={12} strokeWidth={2} />
                 Export CSV
               </button>
-              <button className="apd-btn-ghost" onClick={() => refetch()} disabled={isLoading}>
-                <RefreshCw size={12} strokeWidth={2} className={isLoading ? "spin" : ""} />
+              <button
+                className="apd-btn-ghost"
+                onClick={() => refetch()}
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  size={12}
+                  strokeWidth={2}
+                  className={isLoading ? "spin" : ""}
+                />
                 Refresh
               </button>
             </div>
           </div>
 
+          {showPostComposer && isAdmin && (
+            <div className="apd-post-stream">
+              <form className="apd-post-form" onSubmit={handleCreatePost}>
+                <div className="apd-post-row">
+                  <input
+                    className="apd-post-input"
+                    placeholder="Post title"
+                    value={postTitle}
+                    onChange={(e) => setPostTitle(e.target.value)}
+                    maxLength={160}
+                  />
+                  <select
+                    className="apd-post-select"
+                    value={postType}
+                    onChange={(e) =>
+                      setPostType(e.target.value as DashboardPost["type"])
+                    }
+                  >
+                    <option value="event">Event</option>
+                    <option value="news">News</option>
+                    <option value="announcement">Announcement</option>
+                    <option value="update">Update</option>
+                  </select>
+                </div>
+                <textarea
+                  className="apd-post-textarea"
+                  placeholder="Write your update..."
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  maxLength={5000}
+                />
+                <div className="apd-post-actions">
+                  <button
+                    type="button"
+                    className="apd-btn-ghost"
+                    onClick={() => setShowPostComposer(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="apd-btn-primary"
+                    disabled={
+                      createPostMutation.isPending ||
+                      !postTitle.trim() ||
+                      !postContent.trim()
+                    }
+                  >
+                    {createPostMutation.isPending ? "Posting..." : "Post"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {(isPostsLoading || posts.length > 0) && (
+            <div className="apd-post-stream">
+              {isPostsLoading ? (
+                <div className="apd-center-sub">Loading posts...</div>
+              ) : (
+                posts.map((post) => (
+                  <div className="apd-post-item" key={post._id}>
+                    <div className="apd-post-meta">
+                      <span className="apd-post-type">{post.type}</span>
+                      <span className="apd-post-author">
+                        By {post.authorName} ({post.authorRole})
+                      </span>
+                      <span className="apd-post-time">
+                        {format(
+                          new Date(post.createdAt),
+                          "MMM d, yyyy · HH:mm",
+                        )}
+                      </span>
+                    </div>
+                    <div className="apd-post-title">{post.title}</div>
+                    <div className="apd-post-content">{post.content}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {isLoading ? (
             <div className="apd-center">
-              <Loader2 size={22} strokeWidth={2} className="spin" style={{ color: "var(--c-green)" }} />
+              <Loader2
+                size={22}
+                strokeWidth={2}
+                className="spin"
+                style={{ color: "var(--c-green)" }}
+              />
               <p className="apd-center-sub">Loading appointments…</p>
             </div>
           ) : filtered.length === 0 ? (
@@ -885,11 +1285,11 @@ export function AppointmentDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(apt => (
+                  {filtered.map((apt) => (
                     <AppointmentRow
                       key={apt._id}
                       apt={apt}
-                      onView={id => router.push(`/crm/appointments?id=${id}`)}
+                      onView={(id) => router.push(`/crm/appointments?id=${id}`)}
                     />
                   ))}
                 </tbody>
@@ -907,7 +1307,6 @@ export function AppointmentDashboard() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
