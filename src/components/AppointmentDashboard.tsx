@@ -4,31 +4,26 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
-  Calendar,
-  Loader2,
   AlertCircle,
   ArrowLeft,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   Download,
   Eye,
+  FileText,
+  Loader2,
+  Plus,
   RefreshCw,
   Search,
-  Car,
-  Clock,
-  CalendarDays,
-  FileText,
-  UserCheck,
-  Zap,
-  CheckCircle,
+  TrendingUp,
   XCircle,
-  Users
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
-import { useQuery } from "@tanstack/react-query";
-import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface CustomerBooking {
@@ -53,384 +48,424 @@ interface DashboardAppointment {
   startTime: Date | string;
   endTime: Date | string;
   type: string;
-  customTypeDetails?: string;
-  status: "scheduled" | "confirmed" | "completed" | "cancelled";
   entryType: string;
   source: string;
+  status: "scheduled" | "confirmed" | "completed" | "cancelled";
   customerBooking: CustomerBooking;
   crmUser: CrmUserData;
-  vehicles: any[];
+}
+
+interface DashboardPost {
+  _id: string;
+  type: "event" | "news" | "announcement" | "update";
+  title: string;
+  content: string;
+  authorName: string;
+  authorRole: string;
   createdAt: Date | string;
-  updatedAt: Date | string;
 }
 
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 .apd {
-  --c-bg:          #f4f7fa;
-  --c-surface:     #ffffff;
-  --c-surface-2:   #fcfdfe;
-  --c-surface-3:   #eef1f6;
-  --c-border:      #e9edf3;
-
-  --c-text-1:      #0c1220;
-  --c-text-2:      #4e5a7a;
-  --c-text-3:      #92a1b9;
-
-  --c-green:       #10b981;
-  --c-green-light: rgba(16,185,129,0.06);
-  
-  --c-blue:        #3b82f6;
-  --c-blue-light:  rgba(59,130,246,0.06);
-
-  --c-teal:        #14b8a6;
-  --c-violet:      #8b5cf6;
-  --c-amber:       #f59e0b;
-  --c-red:         #ef4444;
-
-  --radius:        12px;
-  --radius-sm:     8px;
-  
-  --shadow-sm:     0 2px 4px rgba(0,0,0,0.02);
-  --shadow-md:     0 10px 15px -3px rgba(0,0,0,0.04), 0 4px 6px -2px rgba(0,0,0,0.01);
-  --shadow-inner:  inset 0 1px 3px rgba(0,0,0,0.03);
-
-  --font:          'Sora', sans-serif;
-  --mono:          'JetBrains Mono', monospace;
-
-  font-family: var(--font);
+  --c-bg: #f4f7fa;
+  --c-surface: #ffffff;
+  --c-surface-2: #fcfdfe;
+  --c-surface-3: #eef1f6;
+  --c-border: #e9edf3;
+  --c-text-1: #0c1220;
+  --c-text-2: #4e5a7a;
+  --c-text-3: #92a1b9;
+  --c-green: #10b981;
+  --c-blue: #3b82f6;
+  --c-red: #ef4444;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.01);
+  font-family: Inter, system-ui, sans-serif;
   background: var(--c-bg);
   color: var(--c-text-1);
   min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
 }
 
 .dark .apd {
-  --c-bg:          #0b101a;
-  --c-surface:     #111726;
-  --c-surface-2:   #161e2f;
-  --c-surface-3:   #1f2a3f;
-  --c-border:      #1d283e;
-
-  --c-text-1:      #f1f5f9;
-  --c-text-2:      #94a3b8;
-  --c-text-3:      #4e5d7a;
-  
-  --c-green-light: rgba(16,185,129,0.08);
-  --c-blue-light:  rgba(59,130,246,0.08);
+  --c-bg: #0b101a;
+  --c-surface: #111726;
+  --c-surface-2: #161e2f;
+  --c-surface-3: #1f2a3f;
+  --c-border: #1d283e;
+  --c-text-1: #f1f5f9;
+  --c-text-2: #94a3b8;
+  --c-text-3: #4e5d7a;
 }
 
-.apd-layout {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px 16px 60px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-@media (min-width: 768px) {
-  .apd-layout { padding: 30px 40px 80px; gap: 24px;}
-}
-
-.apd-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 24px;
-  flex-wrap: wrap;
-}
-
-.apd-header-left { display: flex; align-items: center; gap: 16px; }
+.apd-layout { max-width: 1600px; margin: 0 auto; padding: 24px 16px 60px; display: flex; flex-direction: column; gap: 20px; }
+.apd-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.apd-header-left { display: flex; align-items: center; gap: 14px; }
+.apd-header-title { display: flex; flex-direction: column; }
+.apd-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-blue); }
+.apd-title { font-size: 24px; font-weight: 700; line-height: 1.2; }
 
 .apd-back {
-  width: 38px; height: 38px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: 50%;
-  color: var(--c-text-2);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: var(--shadow-sm);
-}
-.apd-back:hover { border-color: var(--c-blue); color: var(--c-blue); transform: translateX(-2px); }
-
-.apd-header-title-block { display: flex; flex-direction: column; }
-.apd-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-blue); margin-bottom: 3px; }
-.apd-title { font-size: 26px; font-weight: 700; color: var(--c-text-1); letter-spacing: -0.02em; line-height: 1.2; }
-
-.apd-btn-primary {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 40px; padding: 0 18px;
-  background: var(--c-surface); border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  color: var(--c-text-1); font-family: var(--font); font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
-  box-shadow: var(--shadow-sm); width: 100%; justify-content: center;
-}
-@media (min-width: 480px) {
-  .apd-btn-primary { width: auto; }
-}
-.apd-btn-primary:hover { border-color: var(--c-text-1); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-
-.apd-toolbar {
-  display: flex; align-items: stretch; gap: 16px;
-  background: var(--c-surface); border-radius: var(--radius); padding: 18px; 
-  box-shadow: var(--shadow-sm); flex-direction: column;
-}
-@media (min-width: 768px) {
-  .apd-toolbar { flex-direction: row; align-items: flex-end; }
+  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 50%; color: var(--c-text-2);
 }
 
-.apd-field { display: flex; flex-direction: column; gap: 7px; flex: 1; width: 100%; }
-@media (min-width: 768px) {
-  .apd-field { width: auto; }
+.apd-btn-primary, .apd-btn-ghost {
+  height: 36px; padding: 0 14px; border-radius: var(--radius-sm); border: 1px solid var(--c-border);
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; font-size: 12.5px;
 }
-.apd-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--c-text-3); }
+.apd-btn-primary { background: var(--c-surface); color: var(--c-text-1); font-weight: 600; }
+.apd-btn-ghost { background: var(--c-surface); color: var(--c-text-2); }
+.apd-btn-primary:disabled, .apd-btn-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.apd-ctrl {
-  height: 38px; padding: 0 14px; background: var(--c-surface-3);
-  border: 1px solid transparent; border-radius: var(--radius-sm);
-  color: var(--c-text-1); font-family: var(--font); font-size: 13px;
-  outline: none; transition: all 0.15s ease; width: 100%;
-}
-.apd-ctrl:focus { background: var(--c-surface); border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.apd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.apd-stat { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); padding: 14px; }
+.apd-stat-label { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--c-text-3); }
+.apd-stat-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
 
-@media (min-width: 768px) {
-  .apd-ctrl-date { width: 190px; }
-  .apd-ctrl-select { width: 190px; }
-}
+.apd-toolbar { display: flex; flex-wrap: wrap; gap: 10px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); padding: 12px; }
+.apd-field { display: flex; flex-direction: column; gap: 5px; }
+.apd-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--c-text-3); }
+.apd-ctrl { height: 34px; min-width: 150px; border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-surface-2); color: var(--c-text-1); padding: 0 10px; }
+.apd-search-wrap { position: relative; }
+.apd-search-ico { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--c-text-3); }
+.apd-search-wrap .apd-ctrl { padding-left: 30px; min-width: 220px; }
+.apd-quick-chips { display: flex; gap: 6px; }
+.apd-chip { height: 26px; padding: 0 10px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-surface-3); color: var(--c-text-2); }
+.apd-chip.is-on { border-color: var(--c-blue); color: var(--c-blue); }
 
-.apd-search-wrapper { position: relative; width: 100%; }
-.apd-search-icon { absolute; left: 13px; top: 50%; transform: translateY(-50%); size: 16px; text-muted-foreground; pointer-events: none; }
-.apd-ctrl-search { padding-left: 40px; }
+.apd-error { display: flex; gap: 8px; align-items: center; color: var(--c-red); background: color-mix(in srgb, var(--c-red) 8%, transparent); border: 1px solid color-mix(in srgb, var(--c-red) 20%, transparent); border-radius: var(--radius-sm); padding: 10px 12px; }
 
-.apd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
-@media (min-width: 1200px) { .apd-stats { grid-template-columns: repeat(5, 1fr); } }
+.apd-table-card { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); overflow: hidden; }
+.apd-table-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--c-border); background: var(--c-surface-2); }
+.apd-table-header-left { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--c-text-2); }
+.apd-table-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.apd-count-pill { font-size: 11px; color: var(--c-text-3); background: var(--c-surface-3); border: 1px solid var(--c-border); border-radius: 999px; padding: 2px 8px; }
 
-.apd-stat { 
-  background: var(--c-surface); border-radius: var(--radius); padding: 20px; 
-  box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 16px; 
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.apd-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.apd-post-stream { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--c-border); }
+.apd-post-form { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 10px; background: var(--c-surface-2); }
+.apd-post-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.apd-post-input, .apd-post-select, .apd-post-textarea { border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-surface); color: var(--c-text-1); padding: 8px 10px; font-size: 12.5px; }
+.apd-post-input { flex: 1; min-width: 220px; }
+.apd-post-select { width: 150px; }
+.apd-post-textarea { min-height: 84px; resize: vertical; }
+.apd-post-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.apd-post-item { border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 10px; background: var(--c-surface-2); }
+.apd-post-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.apd-post-type { font-size: 10px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--c-border); border-radius: 999px; padding: 2px 8px; color: var(--c-blue); }
+.apd-post-author, .apd-post-time { font-size: 11px; color: var(--c-text-3); }
+.apd-post-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.apd-post-content { font-size: 12px; color: var(--c-text-2); white-space: pre-wrap; }
 
-.apd-stat-icon-w { size: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--c-bg); }
+.apd-center { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 52px 20px; }
+.apd-center-title { font-size: 15px; font-weight: 700; color: var(--c-text-2); }
+.apd-center-sub { font-size: 13px; color: var(--c-text-3); }
 
-.apd-stat-info { display: flex; flex-direction: column; flex-grow: 1;}
-.apd-stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-text-3); margin-bottom: 4px; }
-.apd-stat-value { font-size: 28px; font-weight: 700; line-height: 1.1; color: var(--c-text-1); letter-spacing: -0.03em; }
+.apd-tbl-scroll { overflow-x: auto; }
+.apd-tbl { width: 100%; min-width: 920px; border-collapse: collapse; }
+.apd-tbl th, .apd-tbl td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--c-border); font-size: 12.5px; }
+.apd-tbl th { font-size: 10px; color: var(--c-text-3); text-transform: uppercase; letter-spacing: .08em; }
+.apd-cust-name { font-weight: 700; color: var(--c-text-1); }
+.apd-cust-email { font-size: 11.5px; color: var(--c-text-3); }
+.apd-phone { font-size: 12px; }
+.apd-time-val { font-weight: 700; }
+.apd-time-dur { font-size: 11px; color: var(--c-text-3); }
+.apd-staff { color: var(--c-text-2); }
 
-.apd-table-section { display: flex; flex-direction: column; gap: 16px; }
+.badge { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px solid var(--c-border); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.bs-scheduled { color: #2563eb; }
+.bs-confirmed { color: #059669; }
+.bs-completed { color: #16a34a; }
+.bs-cancelled { color: #dc2626; }
+.bt-event { color: #db2777; }
+.bt-task { color: #d97706; }
+.bt-appointment { color: #7c3aed; }
+.bt-phone-call { color: #2563eb; }
+.bt-meeting { color: #0d9488; }
+.bt-test-drive { color: #d97706; }
+.bsrc-manual { color: #6b7280; }
 
-.apd-table-header { 
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; 
-  flex-wrap: wrap; padding: 0 4px;
-}
-.apd-table-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.apd-header-meta { display: flex; align-items: center; gap: 8px; }
-.apd-header-date { font-size: 15px; font-weight: 600; color: var(--c-text-1); }
-.apd-count-pill { background: #6b7280; color: #fff; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+.apd-view-btn { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: transparent; color: var(--c-text-2); }
+.apd-tbl-foot { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-size: 11.5px; color: var(--c-text-3); }
 
-.apd-table-actions { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; }
-@media (min-width: 580px) { .apd-table-actions { width: auto; } }
-
-.apd-btn-ghost {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 36px; padding: 0 16px;
-  background: var(--c-surface); border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  color: var(--c-text-2); font-family: var(--font); font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: all 0.15s ease; white-space: nowrap; flex: 1; justify-content: center;
-}
-@media (min-width: 580px) { .apd-btn-ghost { flex: none; } }
-.apd-btn-ghost:hover:not(:disabled) { background: var(--c-bg); border-color: var(--c-blue); color: var(--c-blue); }
-.apd-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.apd-table-card { background: var(--c-surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
-
-.apd-tbl-scroll { overflow-x: auto; overflow-y: hidden; max-height: none; }
-
-.apd-tbl { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
-
-.apd-tbl thead { position: sticky; top: 0; z-index: 10; background: var(--c-surface); }
-.apd-tbl thead th { 
-  padding: 16px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; 
-  text-transform: uppercase; color: var(--c-text-3); text-align: left; 
-  border-bottom: 1px solid var(--c-border);
-  backdrop-filter: blur(8px); background: rgba(var(--c-surface-rgb), 0.9);
-}
-
-.apd-tbl tbody tr { transition: background 0.2s ease, transform 0.15s ease; cursor: pointer; }
-.apd-tbl tbody tr:hover td { background: var(--c-surface-2); }
-.apd-tbl tbody tr:not(:last-child) td { border-bottom: 1px solid var(--c-border); }
-
-.apd-tbl td { padding: 18px 16px; vertical-align: middle; font-size: 14px; color: var(--c-text-2); background: transparent; }
-
-.apd-customer-cell { display: flex; flex-direction: column; gap: 2px; }
-.apd-cust-name { font-weight: 600; color: var(--c-text-1); }
-.apd-cust-email { font-size: 12.5px; color: var(--c-text-3); }
-.apd-phone { font-family: var(--mono); font-size: 13px; font-weight: 500; }
-.apd-time { font-family: var(--font); font-size: 15px; font-weight: 600; color: #4b5563; }
-
-.asd-vehicle-cell { display: flex; flex-direction: column; gap: 4px; max-width: 250px;}
-.asd-v-badge { 
-  display: inline-flex; align-items: center; gap: 5px; 
-  background: var(--c-green-light); color: var(--c-green); 
-  border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 500; truncate;
-}
-.asd-v-no { font-size: 12px; text-muted-foreground italic;}
-
-.apd-crm-user { font-size: 12.5px; color: var(--c-text-3); }
-
-.apd-view-btn-w { text-align: center; }
-.apd-view-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px;
-  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm);
-  color: var(--c-text-1); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
-}
-.apd-view-btn:hover { border-color: var(--c-blue); color: var(--c-blue); background: rgba(59,130,246,0.06); }
-
-.apd-tbl-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 18px 20px; border-top: 1px solid var(--c-border);
-  font-size: 12.5px; color: var(--c-text-3); background: var(--c-surface-2); flex-wrap: wrap;
-}
-.apd-tbl-count strong { color: var(--c-text-1); font-weight: 600; }
-
-.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
 `;
 
-export function AppointmentDashboard() {
+function useStyles() {
   React.useEffect(() => {
-    const id = "apd-clean-unique-styles";
+    const id = "apd-clean-styles";
     if (document.getElementById(id)) return;
-    const el = document.createElement("style");
-    el.id = id;
-    el.textContent = STYLES;
-    document.head.appendChild(el);
+    const styleElement = document.createElement("style");
+    styleElement.id = id;
+    styleElement.textContent = STYLES;
+    document.head.appendChild(styleElement);
     return () => {
-      const element = document.getElementById(id);
-      if (element) element.remove();
+      const existing = document.getElementById(id);
+      if (existing) existing.remove();
     };
   }, []);
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return <span className={`badge bs-${status}`}>{label}</span>;
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const key = type.toLowerCase().replace(/[\s_]+/g, "-");
+  const label = type
+    .split(/[-\s_]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return <span className={`badge bt-${key}`}>{label}</span>;
+}
+
+function SourceBadge({ source }: { source: string }) {
+  const key = source.toLowerCase().replace(/[\s_]+/g, "-");
+  return <span className={`badge bsrc-${key}`}>{source}</span>;
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="apd-stat">
+      <div className="apd-stat-label">{label}</div>
+      <div className="apd-stat-value">{value}</div>
+      <div>{icon}</div>
+    </div>
+  );
+}
+
+function AppointmentRow({
+  apt,
+  onView,
+}: {
+  apt: DashboardAppointment;
+  onView: (id: string) => void;
+}) {
+  const start = new Date(apt.startTime);
+  const end = new Date(apt.endTime);
+  const duration = Math.round((end.getTime() - start.getTime()) / 60000);
+  const customerName =
+    `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
+
+  return (
+    <tr>
+      <td>
+        <div className="apd-cust-name">{customerName}</div>
+        <div className="apd-cust-email">{apt.customerBooking.email}</div>
+      </td>
+      <td>
+        <span className="apd-phone">{apt.customerBooking.phone}</span>
+      </td>
+      <td>
+        <div className="apd-time-val">{format(start, "HH:mm")}</div>
+        <div className="apd-time-dur">{duration} min</div>
+      </td>
+      <td>
+        <TypeBadge type={apt.entryType || apt.type} />
+      </td>
+      <td>
+        <span className="apd-staff">{apt.crmUser?.fullName || "—"}</span>
+      </td>
+      <td>
+        <SourceBadge source={apt.source || "manual"} />
+      </td>
+      <td>
+        <StatusBadge status={apt.status} />
+      </td>
+      <td>
+        <button
+          className="apd-view-btn"
+          onClick={() => onView(apt._id)}
+          aria-label={`View appointment for ${customerName}`}
+        >
+          <Eye size={11} strokeWidth={2} />
+          View
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+export function AppointmentDashboard() {
+  useStyles();
 
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { getToken } = useAuth();
 
   const today = format(new Date(), "yyyy-MM-dd");
-  const tomorrow = format(new Date(Date.now() + 86400000), "yyyy-MM-dd");
+  const tomorrow = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
 
   const [selectedDate, setSelectedDate] = React.useState(today);
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [searchQuery, setSearchQuery] = React.useState("");
-
-  const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
-  const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null);
+  const [showPostComposer, setShowPostComposer] = React.useState(false);
+  const [postType, setPostType] =
+    React.useState<DashboardPost["type"]>("event");
+  const [postTitle, setPostTitle] = React.useState("");
+  const [postContent, setPostContent] = React.useState("");
 
   const getHeaders = async () => {
     const token = await getToken();
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
-  const { data: appointmentsData, isLoading, error, refetch } = useQuery({
+  const {
+    data: appointmentsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["appts-dash", selectedDate, statusFilter, typeFilter],
     queryFn: async () => {
-      const h = await getHeaders();
+      const headers = await getHeaders();
       const params: Record<string, string> = { date: selectedDate };
       if (statusFilter !== "all") params.status = statusFilter;
       if (typeFilter !== "all") params.type = typeFilter;
-      const r = await apiClient.get("/api/appointments/dashboard", { ...h, params });
-      return r.data?.data ?? r.data;
+      const response = await apiClient.get("/api/appointments/dashboard", {
+        ...headers,
+        params,
+      });
+      return response.data?.data ?? response.data;
     },
   });
 
   const { data: statsData } = useQuery({
     queryKey: ["appts-dash-stats", selectedDate],
     queryFn: async () => {
-      const h = await getHeaders();
-      const r = await apiClient.get("/api/appointments/dashboard/stats", {
-        ...h, params: { date: selectedDate },
-      });
-      return r.data?.data ?? r.data;
+      const headers = await getHeaders();
+      const response = await apiClient.get(
+        "/api/appointments/dashboard/stats",
+        { ...headers, params: { date: selectedDate } },
+      );
+      return response.data?.data ?? response.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const { data: crmMeData } = useQuery({
+    queryKey: ["crm-me-for-apd"],
+    queryFn: async () => {
+      const headers = await getHeaders();
+      const response = await apiClient.get("/api/crm/me", headers);
+      return response.data?.data ?? response.data;
+    },
+    staleTime: 60_000,
+  });
+
+  const isAdmin = crmMeData?.role === "admin";
+
+  const { data: postsData, isLoading: isPostsLoading } = useQuery({
+    queryKey: ["appts-dash-posts"],
+    queryFn: async () => {
+      const headers = await getHeaders();
+      const response = await apiClient.get(
+        "/api/appointments/dashboard/posts",
+        { ...headers, params: { limit: 30 } },
+      );
+      return response.data?.data ?? response.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const posts: DashboardPost[] =
+    (postsData?.posts as DashboardPost[] | undefined) || [];
+
+  const createPostMutation = useMutation({
+    mutationFn: async () => {
+      const headers = await getHeaders();
+      return apiClient.post(
+        "/api/appointments/dashboard/posts",
+        { type: postType, title: postTitle, content: postContent },
+        headers,
+      );
+    },
+    onSuccess: () => {
+      setPostType("event");
+      setPostTitle("");
+      setPostContent("");
+      setShowPostComposer(false);
+      queryClient.invalidateQueries({ queryKey: ["appts-dash-posts"] });
     },
   });
 
-  const handleOpenDetailsModal = async (id: string) => {
-    try {
-      const h = await getHeaders();
-      const response = await apiClient.get(`/api/appointments/${id}`, h);
-      setSelectedAppointment(response.data?.data || response.data);
-      setDetailsModalOpen(true);
-    } catch (e) {
-      console.error("Failed to fetch appointment details:", e);
-    }
-  };
-
   const filtered = React.useMemo(() => {
     if (!appointmentsData?.appointments) return [];
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return appointmentsData.appointments as DashboardAppointment[];
-    return (appointmentsData.appointments as DashboardAppointment[]).filter(apt => {
-      const name = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.toLowerCase();
-      return (
-        name.includes(q) ||
-        apt.customerBooking.email?.toLowerCase().includes(q) ||
-        apt.customerBooking.phone?.toLowerCase().includes(q)
-      );
-    });
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return appointmentsData.appointments as DashboardAppointment[];
+
+    return (appointmentsData.appointments as DashboardAppointment[]).filter(
+      (appointment) => {
+        const name =
+          `${appointment.customerBooking.firstName} ${appointment.customerBooking.lastName}`.toLowerCase();
+        return (
+          name.includes(query) ||
+          appointment.customerBooking.email?.toLowerCase().includes(query) ||
+          appointment.customerBooking.phone?.toLowerCase().includes(query) ||
+          appointment.crmUser?.fullName?.toLowerCase().includes(query)
+        );
+      },
+    );
   }, [appointmentsData?.appointments, searchQuery]);
+
+  const handleDateChange = (value: string) => {
+    setSelectedDate(value);
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setSearchQuery("");
+  };
+
+  const displayDate = React.useMemo(() => {
+    try {
+      return format(new Date(`${selectedDate}T00:00:00`), "MMMM d, yyyy");
+    } catch {
+      return selectedDate;
+    }
+  }, [selectedDate]);
+
+  const handleCreatePost = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!isAdmin) return;
+    if (!postTitle.trim() || !postContent.trim()) return;
+    await createPostMutation.mutateAsync();
+  };
 
   const handleExport = async () => {
     try {
-      const h = await getHeaders();
-      const r = await apiClient.get("/api/appointments/dashboard/export", {
-        ...h, params: { date: selectedDate, format: "csv" }, responseType: "text",
-      });
-      const blob = new Blob([r.data], { type: "text/csv" });
+      const headers = await getHeaders();
+      const response = await apiClient.get(
+        "/api/appointments/dashboard/export",
+        {
+          ...headers,
+          params: { date: selectedDate, format: "csv" },
+          responseType: "text",
+        },
+      );
+      const blob = new Blob([response.data], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement("a"), { href: url, download: `appointments-${selectedDate}.csv` });
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const link = Object.assign(document.createElement("a"), {
+        href: url,
+        download: `appointments-${selectedDate}.csv`,
+      });
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (e) { console.error("CSV Export failed:", e); }
-  };
-
-  // HELPER: Returns Green, Yellow, Orange palettes for Statuses
-  const getStatusBadgeClass = (status: string) => {
-    const base = "px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest border ";
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-      case 'completed':
-        return base + "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400";
-      case 'scheduled':
-      case 'pending':
-        return base + "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400";
-      case 'cancelled':
-      case 'no-show':
-      default:
-        return base + "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400";
+    } catch (exportError) {
+      console.error("Export failed:", exportError);
     }
-  };
-
-  // HELPER: Returns Green, Yellow, Orange palettes for Meeting Types
-  const getMeetingTypeBadgeClass = (type: string) => {
-    const base = "rounded-md px-2 py-0.5 font-semibold text-xs border ";
-    const cleanType = type.toLowerCase().trim();
-    
-    if (cleanType.includes('drive') || cleanType.includes('person')) {
-      return base + "bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400";
-    }
-    if (cleanType.includes('meeting') || cleanType.includes('video') || cleanType.includes('call')) {
-      return base + "bg-amber-50/50 dark:bg-amber-950/10 border-amber-100 dark:border-amber-900 text-amber-600 dark:text-amber-400";
-    }
-    return base + "bg-orange-50/50 dark:bg-orange-950/10 border-orange-100 dark:border-orange-900 text-orange-600 dark:text-orange-400";
   };
 
   return (
@@ -438,75 +473,102 @@ export function AppointmentDashboard() {
       <div className="apd-layout">
         <div className="apd-header">
           <div className="apd-header-left">
-            <button className="apd-back" onClick={() => router.back()} aria-label="Go back">
-              <ArrowLeft size={16} strokeWidth={2.5} />
+            <button
+              className="apd-back"
+              onClick={() => router.back()}
+              aria-label="Go back"
+            >
+              <ArrowLeft size={14} strokeWidth={2} />
             </button>
-            <div className="apd-header-title-block">
+            <div className="apd-header-title">
               <div className="apd-eyebrow">Operations Hub</div>
               <div className="apd-title">Appointment Dashboard</div>
             </div>
           </div>
-          <div className="apd-header-right">
-            <button className="apd-btn-primary" onClick={() => router.push("/crm/appointments")}>
-              <FileText size={16} className="text-blue-500" /> Full Appointments Schedule
-            </button>
-          </div>
+          <button
+            className="apd-btn-primary"
+            onClick={() => router.push("/crm/appointments")}
+          >
+            <FileText size={13} strokeWidth={2} />
+            Full Appointments
+            <ChevronRight size={13} strokeWidth={2} />
+          </button>
         </div>
 
         {statsData && (
           <div className="apd-stats">
-            <div className="apd-stat" style={{ "--stripe": "#3b82f6" } as React.CSSProperties}>
-              <div className="apd-stat-stripe" />
-              <div className="apd-stat-icon-w text-blue-500" style={{background: 'rgba(59,130,246,0.06)'}}><Zap size={24} /></div>
-              <div className="apd-stat-info">
-                <div className="apd-stat-label">Total Volume</div>
-                <div className="apd-stat-value">{statsData.total ?? 0}</div>
-              </div>
-            </div>
-            <div className="apd-stat" style={{ "--stripe": "#f59e0b" } as React.CSSProperties}>
-              <div className="apd-stat-stripe" />
-              <div className="apd-stat-icon-w text-amber-600" style={{background: 'rgba(245,158,11,0.06)'}}><CalendarDays size={24} /></div>
-              <div className="apd-stat-info">
-                <div className="apd-stat-label">Scheduled</div>
-                <div className="apd-stat-value">{statsData.scheduled ?? 0}</div>
-              </div>
-            </div>
-            <div className="apd-stat" style={{ "--stripe": "#14b8a6" } as React.CSSProperties}>
-              <div className="apd-stat-stripe" />
-              <div className="apd-stat-icon-w text-teal-600" style={{background: 'rgba(20,184,166,0.06)'}}><UserCheck size={24} /></div>
-              <div className="apd-stat-info">
-                <div className="apd-stat-label">Confirmed</div>
-                <div className="apd-stat-value">{statsData.confirmed ?? 0}</div>
-              </div>
-            </div>
-            <div className="apd-stat" style={{ "--stripe": "#10b981" } as React.CSSProperties}>
-              <div className="apd-stat-stripe" />
-              <div className="apd-stat-icon-w text-green-600" style={{background: 'rgba(16,185,129,0.06)'}}><CheckCircle size={24} /></div>
-              <div className="apd-stat-info">
-                <div className="apd-stat-label">Completed</div>
-                <div className="apd-stat-value">{statsData.completed ?? 0}</div>
-              </div>
-            </div>
-            <div className="apd-stat" style={{ "--stripe": "#ef4444" } as React.CSSProperties}>
-              <div className="apd-stat-stripe" />
-              <div className="apd-stat-icon-w text-red-600" style={{background: 'rgba(239,68,68,0.06)'}}><XCircle size={24} /></div>
-              <div className="apd-stat-info">
-                <div className="apd-stat-label">Cancelled</div>
-                <div className="apd-stat-value">{statsData.cancelled ?? 0}</div>
-              </div>
-            </div>
+            <StatCard
+              label="Total"
+              value={statsData.total ?? 0}
+              icon={<TrendingUp size={18} />}
+            />
+            <StatCard
+              label="Scheduled"
+              value={statsData.scheduled ?? 0}
+              icon={<Clock size={18} />}
+            />
+            <StatCard
+              label="Confirmed"
+              value={statsData.confirmed ?? 0}
+              icon={<CheckCircle2 size={18} />}
+            />
+            <StatCard
+              label="Completed"
+              value={statsData.completed ?? 0}
+              icon={<CheckCircle2 size={18} />}
+            />
+            <StatCard
+              label="Cancelled"
+              value={statsData.cancelled ?? 0}
+              icon={<XCircle size={18} />}
+            />
           </div>
         )}
 
         <div className="apd-toolbar">
           <div className="apd-field">
-            <span className="apd-label">Select Date</span>
-            <input type="date" className="apd-ctrl apd-ctrl-date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+            <span className="apd-label">Date</span>
+            <input
+              type="date"
+              className="apd-ctrl"
+              value={selectedDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+            />
           </div>
 
           <div className="apd-field">
-            <span className="apd-label">Status Filter</span>
-            <select className="apd-ctrl apd-ctrl-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <span className="apd-label">Quick Select</span>
+            <div className="apd-quick-chips">
+              <button
+                className={cn("apd-chip", selectedDate === today && "is-on")}
+                onClick={() => handleDateChange(today)}
+              >
+                Today
+              </button>
+              <button
+                className={cn("apd-chip", selectedDate === tomorrow && "is-on")}
+                onClick={() => handleDateChange(tomorrow)}
+              >
+                Tomorrow
+              </button>
+              {selectedDate !== today && (
+                <button
+                  className="apd-chip"
+                  onClick={() => handleDateChange(today)}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="apd-field">
+            <span className="apd-label">Status</span>
+            <select
+              className="apd-ctrl"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
               <option value="all">All Statuses</option>
               <option value="scheduled">Scheduled</option>
               <option value="confirmed">Confirmed</option>
@@ -515,130 +577,235 @@ export function AppointmentDashboard() {
             </select>
           </div>
 
-          <div className="apd-field md:flex-1">
-            <span className="apd-label">Search Bookings</span>
-            <div className="apd-search-wrapper relative">
-              <Search className="apd-search-icon absolute size-5 text-muted-foreground pointer-events-none" style={{left: '12px', top: '50%', transform: 'translateY(-50%)'}} />
-              <Input className="apd-ctrl apd-ctrl-search pl-11 text-xs h-9 w-full bg-[#f7f9fb] dark:bg-[#131927]" placeholder="Type name, email, or phone to filter..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          <div className="apd-field">
+            <span className="apd-label">Type</span>
+            <select
+              className="apd-ctrl"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="appointment">Appointment</option>
+              <option value="test-drive">Test Drive</option>
+              <option value="phone-call">Phone Call</option>
+              <option value="meeting">Meeting</option>
+              <option value="event">Event</option>
+              <option value="task">Task</option>
+            </select>
+          </div>
+
+          <div className="apd-field">
+            <span className="apd-label">Search</span>
+            <div className="apd-search-wrap">
+              <Search size={12} className="apd-search-ico" strokeWidth={2} />
+              <input
+                className="apd-ctrl"
+                placeholder="Name, email, phone…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
         </div>
 
         {error && (
-          <div className="text-red-600 bg-red-50 dark:bg-red-950/20 p-4 rounded-xl border border-red-200 text-sm flex items-center gap-2">
-            <AlertCircle size={18} /> Error syncing operational dashboard data. Please try again.
+          <div className="apd-error">
+            <AlertCircle size={14} strokeWidth={2} />
+            {error instanceof Error
+              ? error.message
+              : "Failed to load appointments. Please try again."}
           </div>
         )}
 
-        <div className="apd-table-section">
+        <div className="apd-table-card">
           <div className="apd-table-header">
             <div className="apd-table-header-left">
-              <div className="apd-header-meta">
-                <CalendarDays className="h-5 w-5 text-gray-500" />
-                <span className="apd-header-date">{selectedDate}</span>
-              </div>
-              <span className="apd-count-pill">{filtered.length} Bookings</span>
+              <CalendarDays
+                size={13}
+                strokeWidth={2}
+                style={{ color: "var(--c-green)" }}
+              />
+              <span>{displayDate}</span>
+              {!isLoading && appointmentsData?.count != null && (
+                <span className="apd-count-pill">
+                  {appointmentsData.count} total
+                </span>
+              )}
             </div>
             <div className="apd-table-actions">
-              <button className="apd-btn-ghost" onClick={handleExport} disabled={isLoading || !filtered.length}>
-                <Download size={14} /> Export CSV
+              {isAdmin && (
+                <button
+                  className="apd-btn-primary"
+                  onClick={() => setShowPostComposer((value) => !value)}
+                >
+                  <Plus size={12} strokeWidth={2} />+ add event
+                </button>
+              )}
+              <button
+                className="apd-btn-ghost"
+                onClick={handleExport}
+                disabled={isLoading || !filtered.length}
+              >
+                <Download size={12} strokeWidth={2} />
+                Export CSV
               </button>
-              <button className="apd-btn-ghost" onClick={() => refetch()} disabled={isLoading}>
-                <RefreshCw size={14} className={isLoading ? "spin" : ""} /> Sync Data
+              <button
+                className="apd-btn-ghost"
+                onClick={() => refetch()}
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  size={12}
+                  strokeWidth={2}
+                  className={isLoading ? "spin" : ""}
+                />
+                Refresh
               </button>
             </div>
           </div>
 
-          <div className="apd-table-card">
-            <div className="apd-tbl-scroll">
-              <table className="apd-tbl">
-                <thead>
-                  <tr>
-                    <th style={{ width: "22%" }}>Customer</th>
-                    <th style={{ width: "13%" }}>Phone</th>
-                    <th style={{ width: "10%" }}>Time</th>
-                    <th style={{ width: "16%" }}>Meeting Type</th>
-                    <th style={{ width: "20%" }}>Linked Vehicles</th>
-                    <th style={{ width: "12%" }}>Booked By</th>
-                    <th style={{ width: "9%" }}>Status</th>
-                    <th style={{ width: "8%" }} className="text-center">Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr><td colSpan={8} className="p-16 text-center text-muted-foreground"><Loader2 className="animate-spin mx-auto h-8 w-8" /></td></tr>
-                  ) : filtered.length === 0 ? (
-                    <tr><td colSpan={8} className="p-16 text-center text-muted-foreground">No operations recorded matching current criteria layout.</td></tr>
-                  ) : (
-                    filtered.map((apt: any) => {
-                      const finalMeetingTypeDisplayName = apt.type === 'other' && apt.customTypeDetails
-                        ? apt.customTypeDetails
-                        : apt.type;
-
-                      return (
-                        <tr key={apt._id} onClick={() => handleOpenDetailsModal(apt._id)}>
-                          <td>
-                            <div className="apd-customer-cell">
-                              <div className="apd-cust-name">{apt.customerBooking.firstName} {apt.customerBooking.lastName}</div>
-                              <div className="apd-cust-email">{apt.customerBooking.email}</div>
-                            </div>
-                          </td>
-                          <td><span className="apd-phone">{apt.customerBooking.phone}</span></td>
-                          <td><div className="flex items-center gap-2 apd-time"><Clock size={15}/> {format(new Date(apt.startTime), "HH:mm")}</div></td>
-                          
-                          {/* UPDATED: Green, Yellow, Orange palette for Meeting Type badges */}
-                          <td className="capitalize">
-                            <Badge variant="outline" className={getMeetingTypeBadgeClass(finalMeetingTypeDisplayName)}>
-                              {finalMeetingTypeDisplayName.replace('-', ' ')}
-                            </Badge>
-                          </td>
-                          
-                          <td>
-                            <div className="asd-vehicle-cell">
-                              {apt.vehicles && apt.vehicles.length > 0 ? apt.vehicles.map((v: any, i: number) => (
-                                <span key={v._id || i} className="asd-v-badge">
-                                  <Car className="h-3.5 w-3.5" />
-                                  <span>{v.year} {v.make} {v.model}</span>
-                                </span>
-                              )) : <span className="asd-v-no italic">None</span>}
-                            </div>
-                          </td>
-                          <td><div className="flex items-center gap-2 apd-crm-user"><Users size={14}/> {apt.crmUser?.fullName || "—"}</div></td>
-                          
-                          {/* UPDATED: Green, Yellow, Orange palette for Status badges */}
-                          <td>
-                            <span className={getStatusBadgeClass(apt.status)}>
-                              {apt.status}
-                            </span>
-                          </td>
-                          
-                          <td className="apd-view-btn-w" onClick={(e) => e.stopPropagation()}>
-                            <button className="apd-view-btn" onClick={() => handleOpenDetailsModal(apt._id)}>
-                              <Eye size={14} /> Open
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {!isLoading && filtered.length > 0 && (
-              <div className="apd-tbl-foot">
-                <div className="apd-tbl-count">
-                  Displaying <strong>{filtered.length}</strong> of{" "}
-                  <strong>{appointmentsData?.count ?? 0}</strong> operational entries
+          {showPostComposer && isAdmin && (
+            <div className="apd-post-stream">
+              <form className="apd-post-form" onSubmit={handleCreatePost}>
+                <div className="apd-post-row">
+                  <input
+                    className="apd-post-input"
+                    placeholder="Post title"
+                    value={postTitle}
+                    onChange={(e) => setPostTitle(e.target.value)}
+                    maxLength={160}
+                  />
+                  <select
+                    className="apd-post-select"
+                    value={postType}
+                    onChange={(e) =>
+                      setPostType(e.target.value as DashboardPost["type"])
+                    }
+                  >
+                    <option value="event">Event</option>
+                    <option value="news">News</option>
+                    <option value="announcement">Announcement</option>
+                    <option value="update">Update</option>
+                  </select>
                 </div>
-                <div className="apd-tbl-date font-mono">{selectedDate}</div>
+                <textarea
+                  className="apd-post-textarea"
+                  placeholder="Write your update..."
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  maxLength={5000}
+                />
+                <div className="apd-post-actions">
+                  <button
+                    type="button"
+                    className="apd-btn-ghost"
+                    onClick={() => setShowPostComposer(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="apd-btn-primary"
+                    disabled={
+                      createPostMutation.isPending ||
+                      !postTitle.trim() ||
+                      !postContent.trim()
+                    }
+                  >
+                    {createPostMutation.isPending ? "Posting..." : "Post"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {(isPostsLoading || posts.length > 0) && (
+            <div className="apd-post-stream">
+              {isPostsLoading ? (
+                <div className="apd-center-sub">Loading posts...</div>
+              ) : (
+                posts.map((post) => (
+                  <div className="apd-post-item" key={post._id}>
+                    <div className="apd-post-meta">
+                      <span className="apd-post-type">{post.type}</span>
+                      <span className="apd-post-author">
+                        By {post.authorName} ({post.authorRole})
+                      </span>
+                      <span className="apd-post-time">
+                        {format(
+                          new Date(post.createdAt),
+                          "MMM d, yyyy · HH:mm",
+                        )}
+                      </span>
+                    </div>
+                    <div className="apd-post-title">{post.title}</div>
+                    <div className="apd-post-content">{post.content}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="apd-center">
+              <Loader2
+                size={22}
+                strokeWidth={2}
+                className="spin"
+                style={{ color: "var(--c-green)" }}
+              />
+              <p className="apd-center-sub">Loading appointments…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="apd-center">
+              <Calendar size={20} strokeWidth={1.5} />
+              <div className="apd-center-title">No Appointments Found</div>
+              <div className="apd-center-sub">
+                {searchQuery
+                  ? "Try adjusting your search or filters."
+                  : `No appointments scheduled for ${displayDate}.`}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <>
+              <div className="apd-tbl-scroll">
+                <table className="apd-tbl">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "22%" }}>Customer</th>
+                      <th style={{ width: "13%" }}>Phone</th>
+                      <th style={{ width: "10%" }}>Time</th>
+                      <th style={{ width: "16%" }}>Type</th>
+                      <th style={{ width: "12%" }}>Booked By</th>
+                      <th style={{ width: "12%" }}>Source</th>
+                      <th style={{ width: "9%" }}>Status</th>
+                      <th style={{ width: "8%" }}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((appointment) => (
+                      <AppointmentRow
+                        key={appointment._id}
+                        apt={appointment}
+                        onView={(id) =>
+                          router.push(`/crm/appointments?id=${id}`)
+                        }
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="apd-tbl-foot">
+                <span>
+                  Displaying <strong>{filtered.length}</strong> of{" "}
+                  <strong>{appointmentsData?.count ?? 0}</strong> entries
+                </span>
+                <span>{selectedDate}</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      <AppointmentDetailsModal open={detailsModalOpen} onOpenChange={setDetailsModalOpen} appointment={selectedAppointment} />
     </div>
   );
 }
