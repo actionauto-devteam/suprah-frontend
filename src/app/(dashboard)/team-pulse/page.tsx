@@ -497,7 +497,7 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
           <div className="flex-1 min-w-0">
             {note.emoji && <span className="text-2xl leading-none block mb-1.5">{note.emoji}</span>}
             {note.title && (
-              <p className="text-sm font-black tracking-tight leading-snug break-words">{note.title}</p>
+              <p className="text-sm font-black tracking-tight leading-snug wrap-break-word">{note.title}</p>
             )}
             {!note.title && !note.emoji && (
               <p className="text-[10px] italic text-foreground/25 uppercase tracking-widest font-semibold">Note</p>
@@ -534,7 +534,7 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
 
         {/* Content */}
         <div className="px-3.5 py-3 flex-1">
-          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words text-foreground/80">{note.content}</p>
+          <p className="text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{note.content}</p>
         </div>
 
         {/* Footer */}
@@ -550,8 +550,8 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
           {daysLeft !== null && (
             <span className={cn("text-[9px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full shrink-0",
               daysLeft <= 0 ? "bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400" :
-              daysLeft <= 2 ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400" :
-              "bg-black/8 dark:bg-white/10 text-foreground/50",
+                daysLeft <= 2 ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400" :
+                  "bg-black/8 dark:bg-white/10 text-foreground/50",
             )}>
               <Timer className="size-2.5" />{daysLeft <= 0 ? "Expiring" : `${daysLeft}d`}
             </span>
@@ -581,12 +581,12 @@ function OverviewDashboard({
   todayAbsences: Absence[];
   onMemberClick: (id: string) => void;
 }) {
-  const online   = members.filter((m) => m.onlineStatus === "online").length;
-  const busy     = members.filter((m) => m.onlineStatus === "busy" || m.onlineStatus === "do_not_disturb").length;
-  const away     = members.filter((m) => m.onlineStatus === "away" || m.onlineStatus === "idle").length;
-  const offline  = members.filter((m) => m.onlineStatus === "offline").length;
-  const active   = members.length - offline;
-  const total    = members.length;
+  const online = members.filter((m) => m.onlineStatus === "online").length;
+  const busy = members.filter((m) => m.onlineStatus === "busy" || m.onlineStatus === "do_not_disturb").length;
+  const away = members.filter((m) => m.onlineStatus === "away" || m.onlineStatus === "idle").length;
+  const offline = members.filter((m) => m.onlineStatus === "offline").length;
+  const active = members.length - offline;
+  const total = members.length;
 
   const pct = (n: number) => total ? Math.round((n / total) * 100) : 0;
 
@@ -665,10 +665,10 @@ function OverviewDashboard({
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Team Members", value: total,   sub: `${active} currently active`,       icon: Users,       color: "text-foreground",                       bg: "bg-card border-border/40" },
-          { label: "Online Now",   value: online,  sub: `${pct(online)}% of team`,           icon: Zap,         color: "text-green-600 dark:text-green-400",    bg: "bg-green-50 dark:bg-green-950/30 border-green-200/60 dark:border-green-800/30" },
-          { label: "Away / Busy",  value: away + busy, sub: `${away} away · ${busy} busy`,  icon: Clock,       color: "text-amber-600 dark:text-amber-400",    bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-800/30" },
-          { label: "Out Today",    value: todayAbsences.length, sub: todayAbsences.length ? "on leave / absent" : "everyone in", icon: CalendarDays, color: "text-rose-600 dark:text-rose-400", bg: todayAbsences.length ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200/60 dark:border-rose-800/30" : "bg-card border-border/40" },
+          { label: "Team Members", value: total, sub: `${active} currently active`, icon: Users, color: "text-foreground", bg: "bg-card border-border/40" },
+          { label: "Online Now", value: online, sub: `${pct(online)}% of team`, icon: Zap, color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-950/30 border-green-200/60 dark:border-green-800/30" },
+          { label: "Away / Busy", value: away + busy, sub: `${away} away · ${busy} busy`, icon: Clock, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-800/30" },
+          { label: "Out Today", value: todayAbsences.length, sub: todayAbsences.length ? "on leave / absent" : "everyone in", icon: CalendarDays, color: "text-rose-600 dark:text-rose-400", bg: todayAbsences.length ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200/60 dark:border-rose-800/30" : "bg-card border-border/40" },
         ].map((s) => (
           <div key={s.label} className={cn("flex items-start gap-3 p-4 rounded-xl border", s.bg)}>
             <div className={cn("mt-0.5 p-1.5 rounded-lg bg-background/60", s.color)}>
@@ -722,12 +722,12 @@ function OverviewDashboard({
                         <span className={cn("absolute -bottom-0.5 -right-0.5 size-3.5 rounded-full border-2 border-background", S.dot[st])} />
                       </div>
                       <div className="text-center">
-                        <p className="text-[10px] font-semibold max-w-[56px] truncate leading-tight">{m.name.split(" ")[0]}</p>
+                        <p className="text-[10px] font-semibold max-w-14 truncate leading-tight">{m.name.split(" ")[0]}</p>
                         <p className={cn("text-[9px] font-bold leading-tight", {
-                          "text-green-600 dark:text-green-400":  st === "online",
-                          "text-red-500 dark:text-red-400":      st === "busy" || st === "do_not_disturb",
-                          "text-amber-500 dark:text-amber-400":  st === "away" || st === "idle",
-                          "text-muted-foreground/40":            st === "offline",
+                          "text-green-600 dark:text-green-400": st === "online",
+                          "text-red-500 dark:text-red-400": st === "busy" || st === "do_not_disturb",
+                          "text-amber-500 dark:text-amber-400": st === "away" || st === "idle",
+                          "text-muted-foreground/40": st === "offline",
                         })}>{S.label[st]}</p>
                       </div>
                     </button>
@@ -752,17 +752,17 @@ function OverviewDashboard({
             <span className="text-[10px] text-muted-foreground/50 tabular-nums">{active}/{total} active</span>
           </div>
           <div className="h-2 rounded-full bg-muted/40 overflow-hidden flex">
-            {online > 0  && <div className="bg-green-500 transition-all"         style={{ width: `${pct(online)}%` }} />}
-            {busy > 0    && <div className="bg-red-400 transition-all"           style={{ width: `${pct(busy)}%` }} />}
-            {away > 0    && <div className="bg-amber-400 transition-all"         style={{ width: `${pct(away)}%` }} />}
+            {online > 0 && <div className="bg-green-500 transition-all" style={{ width: `${pct(online)}%` }} />}
+            {busy > 0 && <div className="bg-red-400 transition-all" style={{ width: `${pct(busy)}%` }} />}
+            {away > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${pct(away)}%` }} />}
             {offline > 0 && <div className="bg-muted-foreground/20 transition-all" style={{ width: `${pct(offline)}%` }} />}
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             {[
-              { label: "Online",  color: "bg-green-500",            count: online },
-              { label: "Busy",    color: "bg-red-400",              count: busy },
-              { label: "Away",    color: "bg-amber-400",            count: away },
-              { label: "Offline", color: "bg-muted-foreground/30",  count: offline },
+              { label: "Online", color: "bg-green-500", count: online },
+              { label: "Busy", color: "bg-red-400", count: busy },
+              { label: "Away", color: "bg-amber-400", count: away },
+              { label: "Offline", color: "bg-muted-foreground/30", count: offline },
             ].filter((s) => s.count > 0).map((s) => (
               <div key={s.label} className="flex items-center gap-1.5">
                 <span className={cn("size-2 rounded-full", s.color)} />
@@ -781,14 +781,14 @@ function OverviewDashboard({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {deptGroups.map(({ key, label, members: dm }) => {
-            const dOnline  = dm.filter((m) => m.onlineStatus === "online").length;
-            const dBusy    = dm.filter((m) => m.onlineStatus === "busy" || m.onlineStatus === "do_not_disturb").length;
-            const dAway    = dm.filter((m) => m.onlineStatus === "away" || m.onlineStatus === "idle").length;
+            const dOnline = dm.filter((m) => m.onlineStatus === "online").length;
+            const dBusy = dm.filter((m) => m.onlineStatus === "busy" || m.onlineStatus === "do_not_disturb").length;
+            const dAway = dm.filter((m) => m.onlineStatus === "away" || m.onlineStatus === "idle").length;
             const dOffline = dm.filter((m) => m.onlineStatus === "offline").length;
-            const dActive  = dm.length - dOffline;
-            const isEmpty  = dm.length === 0;
-            const isNone   = key === "__none__";
-            const leadDot  = dOnline > 0 ? "bg-green-500" : dActive > 0 ? "bg-amber-500" : isEmpty ? "bg-border" : "bg-gray-300 dark:bg-gray-600";
+            const dActive = dm.length - dOffline;
+            const isEmpty = dm.length === 0;
+            const isNone = key === "__none__";
+            const leadDot = dOnline > 0 ? "bg-green-500" : dActive > 0 ? "bg-amber-500" : isEmpty ? "bg-border" : "bg-gray-300 dark:bg-gray-600";
 
             return (
               <div key={key} className={cn(
@@ -867,9 +867,9 @@ function OverviewDashboard({
 
                 {/* Activity bar — always rendered; gray-only for all-offline/empty */}
                 <div className="h-1 rounded-full bg-muted/40 overflow-hidden flex gap-px">
-                  {dOnline > 0 && <div className="bg-green-500"  style={{ width: `${Math.round((dOnline / Math.max(dm.length, 1)) * 100)}%` }} />}
-                  {dBusy > 0   && <div className="bg-red-400"    style={{ width: `${Math.round((dBusy   / Math.max(dm.length, 1)) * 100)}%` }} />}
-                  {dAway > 0   && <div className="bg-amber-400"  style={{ width: `${Math.round((dAway   / Math.max(dm.length, 1)) * 100)}%` }} />}
+                  {dOnline > 0 && <div className="bg-green-500" style={{ width: `${Math.round((dOnline / Math.max(dm.length, 1)) * 100)}%` }} />}
+                  {dBusy > 0 && <div className="bg-red-400" style={{ width: `${Math.round((dBusy / Math.max(dm.length, 1)) * 100)}%` }} />}
+                  {dAway > 0 && <div className="bg-amber-400" style={{ width: `${Math.round((dAway / Math.max(dm.length, 1)) * 100)}%` }} />}
                 </div>
               </div>
             );
@@ -1961,7 +1961,7 @@ export default function TeamPulsePage() {
                       {noteTitle && <p className="font-black text-sm tracking-tight">{noteTitle}</p>}
                     </div>
                   )}
-                  {noteBody && <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words text-foreground/80">{noteBody}</p>}
+                  {noteBody && <p className="text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{noteBody}</p>}
                 </div>
               </div>
             )}

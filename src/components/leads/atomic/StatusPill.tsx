@@ -6,7 +6,7 @@ export const STATUS_CONFIG: Record<string, { bg: string; text: string; border: s
   'Pending': { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/25', dot: 'bg-amber-400', label: 'Pending', icon: <Clock3 className="h-3 w-3" /> },
   'Contacted': { bg: 'bg-sky-500/10', text: 'text-sky-400', border: 'border-sky-500/25', dot: 'bg-sky-400', label: 'Contacted', icon: <Phone className="h-3 w-3" /> },
   'Appointment Set': { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/25', dot: 'bg-violet-400', label: 'Appt. Set', icon: <Calendar className="h-3 w-3" /> },
-  'Closed': { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/25', dot: 'bg-slate-500', label: 'Closed', icon: <XCircle className="h-3 w-3" /> },
+  'Closed': { bg: 'bg-muted/60', text: 'text-muted-foreground', border: 'border-border', dot: 'bg-muted-foreground/50', label: 'Closed', icon: <XCircle className="h-3 w-3" /> },
   'Inbound Calls': { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/25', dot: 'bg-teal-400', label: 'Inbound', icon: <PhoneIncoming className="h-3 w-3" /> },
 }
 

@@ -35,15 +35,15 @@ export const AppointmentDialog = React.memo(({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm rounded-2xl bg-card border border-border/40 text-foreground shadow-2xl shadow-black/70">
         <DialogHeader>
-          <DialogTitle className="text-slate-100 text-base font-semibold">Schedule Appointment</DialogTitle>
-          <DialogDescription className="text-slate-500 text-xs">
+          <DialogTitle className="text-foreground text-base font-semibold">Schedule Appointment</DialogTitle>
+          <DialogDescription className="text-muted-foreground text-xs">
             {lead?.firstName} {lead?.lastName}
             {lead?.phone && <span className="ml-2 font-mono">{lead.phone}</span>}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-1">
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Appointment Title *</label>
+            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Appointment Title *</label>
             <input
               type="text"
               placeholder="e.g. Test Drive, Vehicle Delivery…"
@@ -55,7 +55,7 @@ export const AppointmentDialog = React.memo(({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Date *</label>
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Date *</label>
               <input
                 type="date"
                 value={apptForm.date}
@@ -64,7 +64,7 @@ export const AppointmentDialog = React.memo(({
               />
             </div>
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Time *</label>
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Time *</label>
               <input
                 type="time"
                 value={apptForm.time}
@@ -76,7 +76,7 @@ export const AppointmentDialog = React.memo(({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Type *</label>
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Type *</label>
               <select
                 value={apptForm.type || 'in-person'}
                 onChange={e => setApptForm({ ...apptForm, type: e.target.value })}
@@ -88,7 +88,7 @@ export const AppointmentDialog = React.memo(({
               </select>
             </div>
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Duration</label>
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Duration</label>
               <select
                 value={apptForm.duration || '30'}
                 onChange={e => setApptForm({ ...apptForm, duration: e.target.value })}
@@ -103,7 +103,7 @@ export const AppointmentDialog = React.memo(({
           </div>
 
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Location / Vehicle</label>
+            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Location / Vehicle</label>
             <input
               type="text"
               placeholder="e.g. Orem Showroom, Test Drive…"
@@ -114,7 +114,7 @@ export const AppointmentDialog = React.memo(({
           </div>
 
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-700 block mb-1.5">Notes</label>
+            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground block mb-1.5">Notes</label>
             <textarea
               placeholder="Additional details…"
               value={apptForm.notes}
@@ -127,14 +127,14 @@ export const AppointmentDialog = React.memo(({
         <DialogFooter className="gap-2 pt-1">
           <button
             onClick={() => onOpenChange(false)}
-            className="px-4 h-8 rounded-lg text-xs text-slate-500 border border-[#1e3327] hover:text-slate-200 hover:bg-[#162a1f] transition-colors"
+            className="px-4 h-8 rounded-lg text-xs text-muted-foreground border border-border hover:text-foreground hover:bg-muted transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={onSave}
             disabled={!apptForm.date || !apptForm.time || !apptForm.title || isSubmitting}
-            className="px-4 h-8 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-900/20"
+            className="px-4 h-8 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {isSubmitting ? 'Saving...' : 'Save & Schedule'}
           </button>

@@ -9,23 +9,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
-  Calendar,
-  Clock,
-  MapPin,
-  Users,
-  Video,
-  Phone,
-  Mail,
-  Edit2,
-  Save,
-  X,
-  Trash2,
-  Ban,
-  CheckCircle,
-  AlertCircle,
-  Link as LinkIcon,
-  RefreshCw,
-  Car
+  Calendar, Car, Clock, MapPin, Users, Video, Phone, Mail,
+  Edit2, Save, X, Trash2, Ban, CheckCircle, AlertCircle,
+  Link as LinkIcon, RefreshCw,
 } from "lucide-react"
 import { Appointment } from "@/types/appointment"
 import { format } from "date-fns"
@@ -37,15 +23,74 @@ import { UserSearch } from "@/components/UserSearch"
 import { GuestEmailInput } from "@/components/GuestEmailInput"
 import { useAppointmentPolling } from "@/hooks/useAppointmentPolling"
 import { useNotifications } from "@/context/NotificationContext"
+import { cn } from "@/lib/utils"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AppointmentDetailsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   appointment: Appointment | null
+  // All handlers are optional — when absent the modal is read-only (e.g. dashboard)
   onUpdate?: (id: string, data: any) => Promise<void>
   onCancel?: (id: string) => Promise<void>
   onDelete?: (id: string) => Promise<void>
 }
+
+// ─── Style helpers ────────────────────────────────────────────────────────────
+
+const STATUS_BADGE: Record<string, string> = {
+  confirmed:  "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
+  scheduled:  "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
+  cancelled:  "bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-400",
+  completed:  "bg-gray-500/10 text-gray-700 border-gray-400/30 dark:text-gray-400",
+  "no-show":  "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
+}
+
+const ENTRY_BADGE: Record<string, string> = {
+  appointment: "bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-400",
+  event:       "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
+  task:        "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
+  reminder:    "bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-400",
+}
+
+const GUEST_STATUS_STYLE: Record<string, string> = {
+  accepted: "border-emerald-500 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400",
+  declined: "border-red-500 text-red-700 bg-red-50 dark:bg-red-950/30 dark:text-red-400",
+  pending:  "border-border text-muted-foreground",
+}
+
+function getStatusBadge(status: string) {
+  return STATUS_BADGE[status] ?? "bg-muted text-muted-foreground border-border"
+}
+
+function getEntryBadge(type: string) {
+  return ENTRY_BADGE[type] ?? "bg-muted text-muted-foreground border-border"
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// ─── Section wrapper ──────────────────────────────────────────────────────────
+
+function Section({ title, icon, children }: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        {icon && <span className="opacity-70">{icon}</span>}
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function AppointmentDetailsModal({
   open,
@@ -53,45 +98,39 @@ export function AppointmentDetailsModal({
   appointment: initialAppointment,
   onUpdate,
   onCancel,
-  onDelete
+  onDelete,
 }: AppointmentDetailsModalProps) {
   const { user: currentUser } = useUser()
   const { fetchNotifications } = useNotifications()
   const [appointment, setAppointment] = React.useState<Appointment | null>(initialAppointment)
-  const [isEditing, setIsEditing] = React.useState(false)
+  const [isEditing,    setIsEditing]    = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [editData, setEditData] = React.useState<any>({})
+  const [error,        setError]        = React.useState<string | null>(null)
+  const [editData,     setEditData]     = React.useState<any>({})
 
-  const handleAppointmentUpdate = React.useCallback((updatedAppointment: Appointment) => {
-    console.log('[AppointmentDetailsModal] Received appointment update');
-    setAppointment(updatedAppointment);
-    fetchNotifications();
-  }, [fetchNotifications]);
+  const handleAppointmentUpdate = React.useCallback((updated: Appointment) => {
+    setAppointment(updated)
+    fetchNotifications()
+  }, [fetchNotifications])
 
   useAppointmentPolling({
     appointmentId: appointment?._id || null,
     onUpdate: handleAppointmentUpdate,
     enabled: open && !isEditing,
     intervalMs: 10000,
-  });
+  })
 
   React.useEffect(() => {
-    if (initialAppointment) {
-      setAppointment(initialAppointment);
-    }
-  }, [initialAppointment]);
+    if (initialAppointment) setAppointment(initialAppointment)
+  }, [initialAppointment])
 
   const isRegisteredParticipant = React.useMemo(() => {
     if (!currentUser?.id || !appointment?.participants) return false
-
-    const currentUserId = currentUser.id
+    const currentUserId    = currentUser.id
     const currentUserEmail = currentUser.primaryEmailAddress?.emailAddress || currentUser.emailAddresses?.[0]?.emailAddress
-
-    return appointment.participants.some(participant => {
-      const participantId = participant._id || ''
-      const participantEmail = participant.email || ''
-
+    return appointment.participants.some((participant) => {
+      const participantId    = participant._id || ""
+      const participantEmail = participant.email || ""
       return (
         String(participantId) === String(currentUserId) ||
         (participantEmail && currentUserEmail && participantEmail.toLowerCase() === currentUserEmail.toLowerCase())
@@ -100,88 +139,64 @@ export function AppointmentDetailsModal({
   }, [currentUser, appointment])
 
   const isCreator = React.useMemo(() => {
-    if (!currentUser?.id || !appointment?.createdBy) {
-      return false
-    }
-
-    const createdBy = appointment.createdBy
-    const creatorId = createdBy._id || ''
-    const creatorEmail = createdBy.email || ''
-
-    const currentUserId = currentUser.id
+    if (!currentUser?.id || !appointment?.createdBy) return false
+    const createdBy        = appointment.createdBy
+    const creatorId        = createdBy._id || ""
+    const creatorEmail     = createdBy.email || ""
+    const currentUserId    = currentUser.id
     const currentUserEmail = currentUser.primaryEmailAddress?.emailAddress || currentUser.emailAddresses?.[0]?.emailAddress
-
     if (String(creatorId) === String(currentUserId)) return true
-
-    if (currentUserEmail && creatorEmail && currentUserEmail.toLowerCase() === creatorEmail.toLowerCase()) {
-      return true
-    }
-
+    if (currentUserEmail && creatorEmail && currentUserEmail.toLowerCase() === creatorEmail.toLowerCase()) return true
     return false
   }, [currentUser, appointment])
 
-  const canEdit = isCreator || isRegisteredParticipant
-  const canCancel = isCreator && (appointment?.status !== 'cancelled')
-  const canDelete = isCreator
+  // Only allow actions when the relevant handler is provided (read-only when used from dashboard)
+  const canEdit   = !!onUpdate && (isCreator || isRegisteredParticipant)
+  const canCancel = !!onCancel && isCreator && appointment?.status !== "cancelled"
+  const canDelete = !!onDelete && isCreator
 
   React.useEffect(() => {
-    if (appointment) {
-      setEditData({
-        title: appointment.title,
-        description: appointment.description || '',
-        startDate: new Date(appointment.startTime),
-        startTime: appointment.startTime,
-        endDate: new Date(appointment.endTime),
-        endTime: appointment.endTime,
-        location: appointment.location || '',
-        type: appointment.type,
-        customTypeDetails: (appointment as any).customTypeDetails || '',
-        status: appointment.status,
-        meetingLink: appointment.meetingLink || '',
-        notes: appointment.notes || '',
-        outcomeNotes: appointment.outcomeNotes || '',
-        participants: appointment.participants.map(p => p._id),
-        guestEmailsData: appointment.guestEmails || [],
-        guestEmails: appointment.guestEmails?.map(g => {
-          if (typeof g === 'string') return g
-          if (typeof g === 'object' && g.email) return g.email
-          return ''
-        }).filter(Boolean) || []
-      })
-      setIsEditing(false)
-      setError(null)
-    }
+    if (!appointment) return
+    setEditData({
+      title:           appointment.title,
+      description:     appointment.description || "",
+      startDate:       new Date(appointment.startTime),
+      startTime:       appointment.startTime,
+      endDate:         new Date(appointment.endTime),
+      endTime:         appointment.endTime,
+      location:        appointment.location || "",
+      type:            appointment.type,
+      // senior dev: custom type label for "other"
+      customTypeDetails: (appointment as any).customTypeDetails || "",
+      status:          appointment.status,
+      meetingLink:     appointment.meetingLink || "",
+      notes:           appointment.notes || "",
+      outcomeNotes:    appointment.outcomeNotes || "",
+      participants:    appointment.participants.map((p) => p._id),
+      guestEmailsData: appointment.guestEmails || [],
+      guestEmails:     appointment.guestEmails?.map((g: any) => {
+        if (typeof g === "string") return g
+        if (typeof g === "object" && g.email) return g.email
+        return ""
+      }).filter(Boolean) || [],
+    })
+    setIsEditing(false)
+    setError(null)
   }, [appointment])
 
   if (!appointment) return null
 
+  // senior dev: resolve display type — use customTypeDetails when type is "other"
+  const resolvedDisplayType = appointment.type === "other" && (appointment as any).customTypeDetails
+    ? (appointment as any).customTypeDetails
+    : appointment.type
+
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'video': return <Video className="size-4" />
-      case 'phone': return <Phone className="size-4" />
-      case 'in-person': return <MapPin className="size-4" />
-      default: return <Calendar className="size-4" />
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
-      case 'scheduled': return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-      case 'cancelled': return 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-      case 'completed': return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-      case 'no-show': return 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-    }
-  }
-
-  const getEntryTypeColor = (entryType: string) => {
-    switch (entryType) {
-      case 'appointment': return 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
-      case 'event': return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-      case 'task': return 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300'
-      case 'reminder': return 'bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300'
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+      case "video":     return <Video className="size-4" />
+      case "phone":     return <Phone className="size-4" />
+      case "in-person": return <MapPin className="size-4" />
+      default:          return <Calendar className="size-4" />
     }
   }
 
@@ -189,62 +204,57 @@ export function AppointmentDetailsModal({
     if (!onUpdate) return
     setIsSubmitting(true)
     setError(null)
-
     try {
       const startDateTime = new Date(editData.startDate)
-      const startTime = new Date(editData.startTime)
+      const startTime     = new Date(editData.startTime)
       startDateTime.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0)
 
       const endDateTime = new Date(editData.endDate)
-      const endTime = new Date(editData.endTime)
+      const endTime     = new Date(editData.endTime)
       endDateTime.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0)
 
       if (endDateTime <= startDateTime) {
-        setError('End time must be after start time')
-        setIsSubmitting(false)
-        return
+        setError("End time must be after start time")
+        setIsSubmitting(false); return
       }
-
-      if (editData.participants.length === 0 && editData.guestEmails.length === 0 && !appointment.customerBooking) {
-        setError('At least one participant or guest is required')
-        setIsSubmitting(false)
-        return
+      // senior dev: customer bookings don't require participants
+      const customerBooking = (appointment as any).customerBooking
+      if (editData.participants.length === 0 && editData.guestEmails.length === 0 && !customerBooking) {
+        setError("At least one participant or guest is required")
+        setIsSubmitting(false); return
       }
-
-      if (['completed', 'no-show'].includes(editData.status) && !editData.outcomeNotes?.trim()) {
-        setError(`Outcome notes are required when marking as ${editData.status.replace('-', ' ')}`)
-        setIsSubmitting(false)
-        return
+      if (["completed", "no-show"].includes(editData.status) && !editData.outcomeNotes?.trim()) {
+        setError(`Outcome notes are required when marking as ${editData.status.replace("-", " ")}`)
+        setIsSubmitting(false); return
       }
 
       const formattedGuestEmails = editData.guestEmails.length > 0
         ? editData.guestEmails.map((email: string) => {
-          const existingGuest = editData.guestEmailsData?.find((g: any) => g.email === email)
-          if (existingGuest) return existingGuest
-          return { email, status: 'pending' }
-        })
+            const existing = editData.guestEmailsData?.find((g: any) => g.email === email)
+            return existing ?? { email, status: "pending" }
+          })
         : undefined
 
       await onUpdate(appointment._id, {
-        title: editData.title,
-        description: editData.description || undefined,
-        startTime: startDateTime.toISOString(),
-        endTime: endDateTime.toISOString(),
-        location: editData.location || undefined,
-        type: editData.type,
-        customTypeDetails: editData.type === 'other' ? editData.customTypeDetails : undefined,
-        meetingLink: editData.meetingLink || undefined,
-        notes: editData.notes || undefined,
-        status: editData.status,
-        outcomeNotes: editData.outcomeNotes || undefined,
-        participants: editData.participants,
-        guestEmails: formattedGuestEmails
+        title:            editData.title,
+        description:      editData.description   || undefined,
+        startTime:        startDateTime.toISOString(),
+        endTime:          endDateTime.toISOString(),
+        location:         editData.location      || undefined,
+        type:             editData.type,
+        // senior dev: pass customTypeDetails when "other"
+        customTypeDetails: editData.type === "other" ? editData.customTypeDetails || undefined : undefined,
+        meetingLink:      editData.meetingLink   || undefined,
+        notes:            editData.notes         || undefined,
+        status:           editData.status,
+        outcomeNotes:     editData.outcomeNotes  || undefined,
+        participants:     editData.participants,
+        guestEmails:      formattedGuestEmails,
       })
-
       setIsEditing(false)
       setError(null)
-    } catch (error: any) {
-      setError(error.message || 'Failed to update')
+    } catch (err: any) {
+      setError(err.message || "Failed to update")
     } finally {
       setIsSubmitting(false)
     }
@@ -252,14 +262,13 @@ export function AppointmentDetailsModal({
 
   const handleCancel = async () => {
     if (!onCancel) return
-    if (!confirm('Are you sure you want to cancel this appointment?')) return
-
+    if (!confirm("Are you sure you want to cancel this appointment?")) return
     setIsSubmitting(true)
     try {
       await onCancel(appointment._id)
       onOpenChange(false)
-    } catch (error: any) {
-      setError(error.message || 'Failed to cancel')
+    } catch (err: any) {
+      setError(err.message || "Failed to cancel")
     } finally {
       setIsSubmitting(false)
     }
@@ -267,132 +276,162 @@ export function AppointmentDetailsModal({
 
   const handleDelete = async () => {
     if (!onDelete) return
-    if (!confirm('Are you sure you want to delete this appointment? This action cannot be undone.')) return
-
+    if (!confirm("Are you sure you want to delete this appointment? This action cannot be undone.")) return
     setIsSubmitting(true)
     try {
       await onDelete(appointment._id)
       onOpenChange(false)
-    } catch (error: any) {
-      setError(error.message || 'Failed to delete')
+    } catch (err: any) {
+      setError(err.message || "Failed to delete")
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const resolvedDisplayType = appointment.type === 'other' && (appointment as any).customTypeDetails
-    ? (appointment as any).customTypeDetails
-    : appointment.type;
-
-  // Local escape hatch casting configuration to seamlessly avoid compilation mismatches
-  const customer = appointment.customerBooking as any;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto z-[250]">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>
-              {isEditing ? 'Edit ' : ''}
-              {appointment.entryType.charAt(0).toUpperCase() + appointment.entryType.slice(1)} Details
-            </DialogTitle>
-            <div className="flex gap-2 items-center">
-              <Badge className={getEntryTypeColor(appointment.entryType || 'appointment')}>{appointment.entryType}</Badge>
-              <Badge className={getStatusColor(appointment.status || 'scheduled')}>{appointment.status}</Badge>
-              {!isEditing && <RefreshCw className="size-4 text-muted-foreground animate-pulse" />}
+      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl p-0 overflow-hidden gap-0">
+
+        {/* ── Status-tinted header ── */}
+        <div className={cn(
+          "px-6 pt-5 pb-4 border-b border-border",
+          appointment.status === "confirmed" ? "bg-emerald-500/5" :
+          appointment.status === "cancelled" ? "bg-red-500/5"     :
+          appointment.status === "completed" ? "bg-gray-500/5"    :
+          appointment.status === "no-show"   ? "bg-amber-500/5"   :
+          "bg-muted/20"
+        )}>
+          <DialogHeader>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wide", getEntryBadge(appointment.entryType))}>
+                    {capitalize(appointment.entryType)}
+                  </Badge>
+                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wide", getStatusBadge(appointment.status))}>
+                    {appointment.status.replace("-", " ")}
+                  </Badge>
+                  {!isEditing && (
+                    <span title="Live updates active">
+                      <RefreshCw className="size-3 text-muted-foreground/50 animate-pulse" />
+                    </span>
+                  )}
+                </div>
+                <DialogTitle className="text-xl font-bold leading-tight">
+                  {isEditing ? "Edit —" : ""} {appointment.title}
+                </DialogTitle>
+              </div>
             </div>
-          </div>
+          </DialogHeader>
           <DialogDescription className="sr-only">
-            View and manage specific client appointment files details context.
+            View and manage appointment details including time, location, participants, and status.
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {/* ── Scrollable body ── */}
+        <div className="overflow-y-auto max-h-[65dvh] modal-scrollbar px-4 sm:px-6 py-5 space-y-6">
 
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <Label>Title</Label>
-            {isEditing ? (
-              <Input value={editData.title} onChange={(e) => setEditData({ ...editData, title: e.target.value })} />
-            ) : (
-              <p className="text-lg font-semibold">{appointment.title}</p>
-            )}
-          </div>
+          {/* Error */}
+          {error && (
+            <Alert variant="destructive" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 shrink-0 rounded-full bg-red-100 dark:bg-red-900 p-1">
+                  <AlertCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-red-900 dark:text-red-100">Error</p>
+                  <AlertDescription className="text-sm text-red-800 dark:text-red-200">{error}</AlertDescription>
+                </div>
+              </div>
+            </Alert>
+          )}
 
+          {/* Title (edit mode only) */}
+          {isEditing && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Title</Label>
+              <Input value={editData.title} onChange={(e) => setEditData({ ...editData, title: e.target.value })} className="font-medium" />
+            </div>
+          )}
+
+          {/* Description */}
           {(isEditing || appointment.description) && (
-            <div className="space-y-2">
-              <Label>Description</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Description</Label>
               {isEditing ? (
                 <Textarea value={editData.description} onChange={(e) => setEditData({ ...editData, description: e.target.value })} rows={3} />
               ) : (
-                <p className="text-muted-foreground">{appointment.description}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{appointment.description}</p>
               )}
             </div>
           )}
 
-          {/* List of Multiple Selected Vehicles Display Context Section */}
-          <div className="p-4 border rounded-xl bg-card space-y-3">
-            <h4 className="text-sm font-bold flex items-center gap-2">
-              <Car className="h-4 w-4 text-emerald-500" /> Complete Selected Vehicles
-            </h4>
-            {((appointment as any).vehicleIds && (appointment as any).vehicleIds.length > 0) ? (
+          {/* ── Linked Vehicles (senior dev) ── */}
+          {(appointment as any).vehicleIds?.length > 0 && (
+            <Section title="Linked Vehicles" icon={<Car className="size-3.5" />}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(appointment as any).vehicleIds.map((vehicle: any) => (
-                  <div key={vehicle._id || vehicle.id} className="p-3 border rounded-lg bg-muted/20 flex gap-3 text-xs">
-                    {vehicle.image && <img src={vehicle.image} alt="" className="w-16 h-12 object-cover rounded shrink-0 bg-muted" />}
+                  <div key={vehicle._id || vehicle.id} className="flex gap-3 rounded-lg border bg-muted/20 p-3 text-xs">
+                    {vehicle.image && (
+                      <img src={vehicle.image} alt="" className="h-12 w-16 rounded object-cover shrink-0 bg-muted" />
+                    )}
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <p className="font-semibold truncate">{vehicle.year} {vehicle.make} {vehicle.model}</p>
-                      <p className="text-muted-foreground text-[11px]">Stock: #{vehicle.stockNumber}</p>
-                      {vehicle.price && <p className="text-emerald-600 font-bold">${vehicle.price.toLocaleString()}</p>}
+                      <p className="text-muted-foreground">Stock #{vehicle.stockNumber}</p>
+                      {vehicle.price && (
+                        <p className="font-bold text-primary">${vehicle.price.toLocaleString()}</p>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">No vehicles attached to this operational appointment setup context.</p>
-            )}
-          </div>
+            </Section>
+          )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><Calendar className="size-4" /> Start</Label>
-              {isEditing ? (
-                <div className="space-y-2">
-                  <DatePicker value={editData.startDate} onChange={(d) => d && setEditData({ ...editData, startDate: d })} />
-                  <TimePicker value={editData.startTime} onChange={(t) => setEditData({ ...editData, startTime: t })} />
-                </div>
-              ) : (
-                <p className="text-sm">{format(new Date(appointment.startTime), 'PPP')}<br /><span className="text-muted-foreground">{format(new Date(appointment.startTime), 'p')}</span></p>
-              )}
+          {/* ── Schedule ── */}
+          <Section title="Schedule" icon={<Clock className="size-3.5" />}>
+            <div className="grid grid-cols-1 xxs:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Start</Label>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <DatePicker value={editData.startDate} onChange={(d) => d && setEditData({ ...editData, startDate: d })} />
+                    <TimePicker value={editData.startTime} onChange={(t) => setEditData({ ...editData, startTime: t })} />
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-0.5">
+                    <p className="text-sm font-semibold">{format(new Date(appointment.startTime), "PPP")}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(appointment.startTime), "p")}</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">End</Label>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <DatePicker value={editData.endDate} onChange={(d) => d && setEditData({ ...editData, endDate: d })} />
+                    <TimePicker value={editData.endTime} onChange={(t) => setEditData({ ...editData, endTime: t })} />
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-0.5">
+                    <p className="text-sm font-semibold">{format(new Date(appointment.endTime), "PPP")}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(appointment.endTime), "p")}</p>
+                  </div>
+                )}
+              </div>
             </div>
+          </Section>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><Clock className="size-4" /> End</Label>
-              {isEditing ? (
-                <div className="space-y-2">
-                  <DatePicker value={editData.endDate} onChange={(d) => d && setEditData({ ...editData, endDate: d })} />
-                  <TimePicker value={editData.endTime} onChange={(t) => setEditData({ ...editData, endTime: t })} />
-                </div>
-              ) : (
-                <p className="text-sm">{format(new Date(appointment.endTime), 'PPP')}<br /><span className="text-muted-foreground">{format(new Date(appointment.endTime), 'p')}</span></p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Type of Appointment</Label>
-              {isEditing ? (
-                <div className="space-y-2">
-                  <Select value={editData.type} onValueChange={(v) => setEditData({ ...editData, type: v })}>
+          {/* ── Details ── */}
+          <Section title="Details" icon={<Calendar className="size-3.5" />}>
+            <div className="grid grid-cols-1 xxs:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Type</Label>
+                {isEditing ? (
+                  <Select value={editData.type} onValueChange={(v) => setEditData({ ...editData, type: v, customTypeDetails: "" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent className="z-[300]">
-                      {appointment.customerBooking ? (
+                    <SelectContent className="z-350">
+                      {(appointment as any).customerBooking ? (
                         <>
                           <SelectItem value="test-drive">Test Drive</SelectItem>
                           <SelectItem value="meeting">Meeting</SelectItem>
@@ -411,167 +450,265 @@ export function AppointmentDetailsModal({
                       )}
                     </SelectContent>
                   </Select>
-                  {editData.type === 'other' && (
-                    <Input placeholder="Specify meeting details" value={editData.customTypeDetails} onChange={(e) => setEditData({ ...editData, customTypeDetails: e.target.value })} required />
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 capitalize text-sm font-medium">
-                  {getTypeIcon(appointment.type)}
-                  <span>{resolvedDisplayType?.replace('-', ' ')}</span>
-                </div>
-              )}
-            </div>
-
-            {(isEditing || appointment.location) && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><MapPin className="size-4" /> Location</Label>
-                {isEditing ? (
-                  <Input value={editData.location} onChange={(e) => setEditData({ ...editData, location: e.target.value })} />
                 ) : (
-                  <p className="text-sm">{appointment.location}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {isEditing && (
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={editData.status} onValueChange={(v) => setEditData({ ...editData, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent className="z-[300]">
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="no-show">No-Show</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {(isEditing || appointment.meetingLink) && (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><LinkIcon className="size-4" /> Meeting Link</Label>
-              {isEditing ? (
-                <Input type="url" value={editData.meetingLink} onChange={(e) => setEditData({ ...editData, meetingLink: e.target.value })} />
-              ) : (
-                <a href={appointment.meetingLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">
-                  {appointment.meetingLink}
-                </a>
-              )}
-            </div>
-          )}
-
-          {!appointment.customerBooking && (
-            <>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Users className="size-4" /> Participants ({isEditing ? editData.participants.length : appointment.participants.length})</Label>
-                {isEditing ? (
-                  <UserSearch selectedUsers={editData.participants} onSelectUsers={(ids) => setEditData({ ...editData, participants: ids })} label="" placeholder="Search..." multiple={true} />
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {appointment.participants.map((p) => (
-                      <Badge key={p._id} variant="outline" className="gap-2">
-                        {p.avatar ? <img src={p.avatar} alt="" className="size-4 rounded-full" /> : <div className="size-4 rounded-full bg-green-100" />}
-                        {p.fullName || p.name}
-                        {p._id === appointment.createdBy?._id && <span className="text-[10px] text-muted-foreground ml-1">(Organizer)</span>}
-                      </Badge>
-                    ))}
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5">
+                    <span className="text-muted-foreground">{getTypeIcon(appointment.type)}</span>
+                    <span className="text-sm capitalize">{resolvedDisplayType.replace("-", " ")}</span>
                   </div>
                 )}
               </div>
 
-              {(isEditing || (appointment.guestEmails && appointment.guestEmails.length > 0)) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</Label>
+                {isEditing ? (
+                  <Select value={editData.status} onValueChange={(v) => setEditData({ ...editData, status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-350">
+                      <SelectItem value="scheduled">Scheduled</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="no-show">No-Show</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5">
+                    <Badge variant="outline" className={cn("text-[11px] font-semibold", getStatusBadge(appointment.status))}>
+                      {appointment.status.replace("-", " ")}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* senior dev: custom type details field */}
+            {isEditing && editData.type === "other" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Specify Type <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  placeholder="e.g. At Customer Showroom…"
+                  value={editData.customTypeDetails}
+                  onChange={(e) => setEditData({ ...editData, customTypeDetails: e.target.value })}
+                />
+              </div>
+            )}
+
+            {(isEditing || appointment.location) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <MapPin className="size-3" /> Location
+                </Label>
+                {isEditing ? (
+                  <Input value={editData.location} onChange={(e) => setEditData({ ...editData, location: e.target.value })} placeholder="Enter location…" />
+                ) : (
+                  <p className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-sm">
+                    <MapPin className="size-3.5 text-muted-foreground shrink-0" />
+                    {appointment.location}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {(isEditing || appointment.meetingLink) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <LinkIcon className="size-3" /> Meeting Link
+                </Label>
+                {isEditing ? (
+                  <Input type="url" value={editData.meetingLink} onChange={(e) => setEditData({ ...editData, meetingLink: e.target.value })} placeholder="https://…" />
+                ) : (
+                  <a href={appointment.meetingLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-sm text-primary hover:underline truncate">
+                    <LinkIcon className="size-3.5 shrink-0" />
+                    {appointment.meetingLink}
+                  </a>
+                )}
+              </div>
+            )}
+          </Section>
+
+          {/* ── Participants ── */}
+          <Section title={`Participants (${isEditing ? editData.participants.length : appointment.participants.length})`} icon={<Users className="size-3.5" />}>
+            {isEditing ? (
+              <UserSearch
+                selectedUsers={editData.participants}
+                onSelectUsers={(ids) => setEditData({ ...editData, participants: ids })}
+                label=""
+                placeholder="Search and select participants…"
+                multiple
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {appointment.participants.map((participant) => (
+                  <div key={participant._id} className="flex items-center gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5">
+                    {participant.avatar ? (
+                      <img src={participant.avatar} alt="" className="size-5 rounded-full object-cover" />
+                    ) : (
+                      <div className="size-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                        {(participant.fullName || participant.name || "?").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm font-medium">{participant.fullName || participant.name}</span>
+                    {participant._id === appointment.createdBy._id && (
+                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Organizer</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* ── External Guests ── */}
+          {(isEditing || (appointment.guestEmails && appointment.guestEmails.length > 0)) && (
+            <Section title={`External Guests (${isEditing ? editData.guestEmails.length : appointment.guestEmails?.length || 0})`} icon={<Mail className="size-3.5" />}>
+              {isEditing ? (
+                <GuestEmailInput
+                  emails={Array.isArray(editData.guestEmails) ? editData.guestEmails.map((item: any) =>
+                    typeof item === "string" ? item : item.email
+                  ) : []}
+                  onChange={(emails) => setEditData({ ...editData, guestEmails: emails })}
+                />
+              ) : (
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2"><Mail className="size-4" /> External Guests</Label>
-                  {isEditing ? (
-                    <GuestEmailInput emails={editData.guestEmails} onChange={(e) => setEditData({ ...editData, guestEmails: e })} />
-                  ) : (
-                    <div className="space-y-2">
-                      {appointment.guestEmails?.map((guest, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 border rounded-lg text-xs bg-muted/20">
-                          <span>{guest.email} {guest.guestName && `(${guest.guestName})`}</span>
-                          <Badge variant="outline" className="capitalize">{guest.status}</Badge>
+                  {appointment.guestEmails?.map((guest, index) => (
+                    <div key={index} className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5 gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium truncate">{guest.email}</span>
+                          {guest.guestName && <span className="text-xs text-muted-foreground">({guest.guestName})</span>}
                         </div>
-                      ))}
+                        {guest.guestPhone && (
+                          <p className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                            <Phone className="size-3" /> {guest.guestPhone}
+                          </p>
+                        )}
+                        {guest.respondedAt && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Responded {format(new Date(guest.respondedAt), "PPp")}
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn("shrink-0 text-[10px] font-semibold uppercase tracking-wide gap-1",
+                          GUEST_STATUS_STYLE[guest.status] ?? GUEST_STATUS_STYLE.pending
+                        )}
+                      >
+                        {guest.status === "accepted" && <CheckCircle className="size-3" />}
+                        {guest.status === "declined" && <X className="size-3" />}
+                        {guest.status === "pending"  && <Clock className="size-3" />}
+                        {guest.status}
+                      </Badge>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
-            </>
+            </Section>
           )}
 
-          {appointment.customerBooking && (
-            <div className="p-4 border border-green-200 bg-green-50/20 rounded-xl space-y-2">
-              <h4 className="text-sm font-bold text-green-700">Customer Booking Information</h4>
+          {/* ── Notes ── */}
+          {(isEditing || appointment.notes) && (
+            <Section title="Notes">
+              {isEditing ? (
+                <Textarea value={editData.notes} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} rows={3} placeholder="Add internal notes…" />
+              ) : (
+                <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {appointment.notes}
+                </div>
+              )}
+            </Section>
+          )}
+
+          {/* ── Outcome Notes (terminal statuses) ── */}
+          {(isEditing ? ["completed", "no-show"].includes(editData.status) : ["completed", "no-show"].includes(appointment.status)) && (
+            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                <CheckCircle className="size-3.5" />
+                Outcome Notes
+                {isEditing && <span className="text-destructive ml-0.5">*</span>}
+              </Label>
+              {isEditing ? (
+                <Textarea
+                  placeholder="What was the result of this appointment?"
+                  value={editData.outcomeNotes}
+                  onChange={(e) => setEditData({ ...editData, outcomeNotes: e.target.value })}
+                  rows={3}
+                  className="bg-white dark:bg-background border-amber-200 dark:border-amber-800"
+                />
+              ) : (
+                <p className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap leading-relaxed">
+                  {appointment.outcomeNotes || "No outcome notes provided."}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Customer Booking Information (senior dev) ── */}
+          {(appointment as any).customerBooking && (
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/20 p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                <Users className="size-3.5" /> Customer Booking Information
+              </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                {/* Fixed lines safely parsing elements across the verified custom inline type-cast target */}
-                <p><strong>Name:</strong> {customer.firstName} {customer.lastName}</p>
-                <p><strong>Phone:</strong> {customer.phone}</p>
-                <p className="col-span-2"><strong>Email:</strong> {customer.email}</p>
+                <p className="text-foreground/80"><span className="font-semibold">Name:</span> {(appointment as any).customerBooking.firstName} {(appointment as any).customerBooking.lastName}</p>
+                <p className="text-foreground/80"><span className="font-semibold">Phone:</span> {(appointment as any).customerBooking.phone}</p>
+                <p className="col-span-2 text-foreground/80"><span className="font-semibold">Email:</span> {(appointment as any).customerBooking.email}</p>
               </div>
             </div>
           )}
 
-          {(isEditing || appointment.notes) && (
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              {isEditing ? (
-                <Textarea value={editData.notes} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} rows={3} />
-              ) : (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{appointment.notes}</p>
-              )}
-            </div>
-          )}
+          {/* ── Metadata ── */}
+          <div className="rounded-lg border bg-muted/20 px-3 py-3 text-[11px] text-muted-foreground space-y-1">
+            <p>Created by: <span className="font-medium text-foreground/70">{appointment.createdBy.fullName || appointment.createdBy.name}</span> ({appointment.createdBy.email})</p>
+            <p>Created: {format(new Date(appointment.createdAt), "PPp")}</p>
+            {appointment.updatedAt !== appointment.createdAt && (
+              <p>Last updated: {format(new Date(appointment.updatedAt), "PPp")}</p>
+            )}
+          </div>
+        </div>
 
-          {((isEditing ? ['completed', 'no-show'].includes(editData.status) : ['completed', 'no-show'].includes(appointment.status))) && (
-            <div className="space-y-2 p-4 rounded-lg bg-amber-50/40 border border-amber-200">
-              <Label className="flex items-center gap-2 text-amber-900"><CheckCircle className="size-4" /> Outcome Notes</Label>
-              {isEditing ? (
-                <Textarea value={editData.outcomeNotes} onChange={(e) => setEditData({ ...editData, outcomeNotes: e.target.value })} rows={3} />
-              ) : (
-                <p className="text-sm text-amber-800 whitespace-pre-wrap">{appointment.outcomeNotes || "No notes provided."}</p>
-              )}
-            </div>
-          )}
+        {/* ── Footer ── */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 sm:px-6 py-3 sm:py-4 bg-muted/10">
+          <div className="flex gap-2 flex-wrap">
+            {canDelete && !isEditing && (
+              <Button variant="ghost" size="sm" onClick={handleDelete} disabled={isSubmitting}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5">
+                <Trash2 className="size-4" />
+                <span className="hidden xs:inline">Delete</span>
+              </Button>
+            )}
+            {canCancel && !isEditing && (
+              <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isSubmitting}
+                className="text-muted-foreground hover:text-foreground gap-1.5">
+                <Ban className="size-4" />
+                <span className="hidden xs:inline">Cancel Appointment</span>
+              </Button>
+            )}
+          </div>
 
-          <div className="flex gap-2 justify-between border-t pt-4">
-            <div className="flex gap-2">
-              {canDelete && !isEditing && (
-                <Button variant="outline" size="sm" onClick={handleDelete} disabled={isSubmitting} className="text-red-600 hover:bg-red-50">
-                  <Trash2 className="size-4 mr-2" /> Delete
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setError(null) }} disabled={isSubmitting} className="gap-1.5">
+                  <X className="size-4" />
+                  <span className="hidden xs:inline">Discard</span>
                 </Button>
-              )}
-              {canCancel && !isEditing && (
-                <Button variant="outline" size="sm" onClick={handleCancel} disabled={isSubmitting}>
-                  <Ban className="size-4 mr-2" /> Cancel Appointment
+                <Button size="sm" onClick={handleSave} disabled={isSubmitting} className="bg-primary hover:bg-primary/90 gap-1.5">
+                  <Save className="size-4" />
+                  {isSubmitting ? "Saving…" : "Save Changes"}
                 </Button>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              {isEditing ? (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setError(null); }} disabled={isSubmitting}>
-                    <X className="size-4 mr-2" /> Cancel
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
+                {canEdit && (
+                  <Button size="sm" onClick={() => setIsEditing(true)} className="bg-primary hover:bg-primary/90 gap-1.5">
+                    <Edit2 className="size-4" /> Edit
                   </Button>
-                  <Button size="sm" onClick={handleSave} disabled={isSubmitting} className="bg-green-500 hover:bg-green-600">
-                    <Save className="size-4 mr-2" /> Save Changes
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
-                  {canEdit && onUpdate && (
-                    <Button size="sm" onClick={() => setIsEditing(true)} className="bg-green-500 hover:bg-green-600">
-                      <Edit2 className="size-4 mr-2" /> Edit
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </DialogContent>

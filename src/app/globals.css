@@ -406,6 +406,20 @@ body.app-fullscreen .main-content {
   }
 }
 
+/* Force native date/time/select to respect app dark mode (not system preference) */
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="week"] {
+  color-scheme: dark;
+}
+
+/* Native select dropdowns also respect dark theme */
+.dark select {
+  color-scheme: dark;
+}
+
 /* Notification progress bar animation - shrinks from full width to 0 */
 @keyframes shrink {
   from {

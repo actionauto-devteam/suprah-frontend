@@ -42,7 +42,7 @@ export const AdfContent = React.memo(({ parsed }: AdfContentProps) => {
             </span>
           )}
           {parsed.requestDate && (
-            <span className="text-[11px] text-slate-700 ml-auto">
+            <span className="text-[11px] text-muted-foreground/60 ml-auto">
               {(() => { try { return new Date(parsed.requestDate).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return parsed.requestDate } })()}
             </span>
           )}

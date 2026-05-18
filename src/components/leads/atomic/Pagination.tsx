@@ -43,7 +43,7 @@ export const Pagination = React.memo(({
         {pages.map((p, i) => p === '…'
           ? <span key={`el${i}`} className="px-1 text-[10px] text-muted-foreground/80">…</span>
           : <button key={p} onClick={() => onPageChange(p as number)}
-              className={`h-6 min-w-[24px] px-1.5 rounded-md text-[10px] font-medium transition-colors ${currentPage === p ? 'bg-emerald-600 text-white' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}>{p}</button>
+              className={`h-6 min-w-6 px-1.5 rounded-md text-[10px] font-medium transition-colors ${currentPage === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}>{p}</button>
         )}
         <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className={btn}><ChevronRight className="h-3 w-3" /></button>
         <button onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages} className={btn}><ChevronsRight className="h-3 w-3" /></button>

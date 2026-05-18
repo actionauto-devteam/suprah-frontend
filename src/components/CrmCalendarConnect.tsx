@@ -116,7 +116,7 @@ export function CrmCalendarConnect() {
     "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[13px] font-medium transition-all duration-150 cursor-pointer"
 
   if (isLoading) return (
-    <button disabled className={`${base} border-zinc-200 text-zinc-400 bg-white cursor-not-allowed`}>
+    <button disabled className={`${base} border-border text-muted-foreground bg-card cursor-not-allowed`}>
       <Loader2 className="size-3.5 animate-spin" /> Checking…
     </button>
   )
@@ -124,7 +124,7 @@ export function CrmCalendarConnect() {
   if (!crmToken) return null
 
   if (isConnecting) return (
-    <button disabled className={`${base} border-zinc-200 text-zinc-400 bg-white cursor-not-allowed`}>
+    <button disabled className={`${base} border-border text-muted-foreground bg-card cursor-not-allowed`}>
       <Loader2 className="size-3.5 animate-spin" />
       {isConnected ? "Disconnecting…" : "Connecting…"}
     </button>
@@ -137,13 +137,13 @@ export function CrmCalendarConnect() {
       onMouseLeave={() => setHovered(false)}
       className={`${base} ${
         hovered
-          ? "border-red-300 text-red-600 bg-red-50"
-          : "border-green-300 text-green-700 bg-green-50"
+          ? "border-red-400/60 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30"
+          : "border-emerald-400/60 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
       }`}
     >
       <GoogleIcon />
       <span className="flex items-center gap-1.5">
-        <span className={`size-1.5 rounded-full ${hovered ? "bg-red-500" : "bg-green-500"}`} />
+        <span className={`size-1.5 rounded-full ${hovered ? "bg-red-500" : "bg-emerald-500"}`} />
         {hovered ? "Disconnect" : "Google Calendar"}
       </span>
     </button>
@@ -152,7 +152,7 @@ export function CrmCalendarConnect() {
   return (
     <button
       onClick={handleConnect}
-      className={`${base} border-zinc-200 text-zinc-700 bg-white hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50`}
+      className={`${base} border-border text-foreground/70 bg-card hover:border-blue-400/60 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30`}
     >
       <GoogleIcon />
       Connect Google Calendar
