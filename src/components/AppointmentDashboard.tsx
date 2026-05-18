@@ -638,7 +638,7 @@ export function AppointmentDashboard() {
                   className="apd-btn-primary"
                   onClick={() => setShowPostComposer((value) => !value)}
                 >
-                  <Plus size={12} strokeWidth={2} />+ add event
+                  <Plus size={12} strokeWidth={2} />add event
                 </button>
               )}
               <button
