@@ -20,15 +20,15 @@ export default function CommsPage() {
     <div className={cn('ss4 flex flex-col h-full overflow-hidden')} data-theme={theme}>
 
       {/* ── Top tab bar ── */}
-      <header className="ss4-topbar shrink-0 z-40" style={{ height: 48 }}>
-        <div className="flex items-center justify-between h-full px-4 gap-4">
+      <header className="ss4-topbar shrink-0 z-40">
+        <div className="flex items-center h-12 sm:h-12 px-3 sm:px-4 gap-3">
 
           {/* Left: logo + title */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="h-7 w-7 ss4-logo-mark flex items-center justify-center">
               <MessageSquare className="h-3.5 w-3.5" style={{ color: '#fff' }} />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <p className="ss4-display font-bold leading-none" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
                 Supra Space
               </p>
@@ -38,26 +38,28 @@ export default function CommsPage() {
             </div>
           </div>
 
-          {/* Center: tab switcher */}
-          <div className="ss4-tab-bar flex gap-0.5 shrink-0">
+          {/* Center: tab switcher — full width on mobile */}
+          <div className="ss4-tab-bar flex gap-0.5 flex-1 sm:flex-none sm:mx-auto">
             <button
               onClick={() => setActiveTab('leads')}
-              className={cn('ss4-tab flex items-center gap-1.5 px-4 py-1.5', activeTab === 'leads' && 'ss4-tab-active')}
+              className={cn('ss4-tab flex items-center justify-center gap-1.5 flex-1 sm:flex-none sm:px-5 py-1.5', activeTab === 'leads' && 'ss4-tab-active')}
             >
-              <Mail className="h-3 w-3" />
-              Lead Inbox
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="hidden xs:inline sm:inline">Lead Inbox</span>
+              <span className="xs:hidden sm:hidden">Leads</span>
             </button>
             <button
               onClick={() => setActiveTab('team')}
-              className={cn('ss4-tab flex items-center gap-1.5 px-4 py-1.5', activeTab === 'team' && 'ss4-tab-active')}
+              className={cn('ss4-tab flex items-center justify-center gap-1.5 flex-1 sm:flex-none sm:px-5 py-1.5', activeTab === 'team' && 'ss4-tab-active')}
             >
-              <Radio className="h-3 w-3" />
-              Supra Space
+              <Radio className="h-3 w-3 shrink-0" />
+              <span className="hidden sm:inline">Supra Space</span>
+              <span className="sm:hidden">Space</span>
             </button>
           </div>
 
-          {/* Spacer so tab bar stays centered */}
-          <div className="w-7 shrink-0" />
+          {/* Spacer */}
+          <div className="hidden sm:block w-7 shrink-0" />
         </div>
       </header>
 

@@ -1635,8 +1635,8 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
     <div className={cn('ss4 flex flex-col h-full overflow-hidden')} data-theme={theme}>
 
       {/* ── Topbar ── */}
-      <header className="ss4-topbar shrink-0 z-40" style={{ height: 52 }}>
-        <div className="flex items-center justify-between h-full px-4">
+      <header className="ss4-topbar shrink-0 z-40" style={{ minHeight: 52 }}>
+        <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
           {/* Left */}
           <div className="flex items-center gap-3">
             {!embedded && (
@@ -1689,7 +1689,7 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
         const onlineUsers = allUsers.filter(u => u._id !== uid && presence[u._id] === 'online');
         if (!isConnected || onlineUsers.length === 0) return null;
         return (
-          <div className="shrink-0 flex items-center gap-3 px-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          <div className="hidden lg:flex shrink-0 items-center gap-3 px-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-subtle)', minHeight: 40 }}>
             <span className="ss4-section-label shrink-0" style={{ fontSize: 9 }}>Active</span>
             {onlineUsers.map(user => {
@@ -1718,20 +1718,72 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
         );
       })()}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
 
         {/* ── Sidebar ── */}
         <aside
           className={cn(
-            'ss4-sidebar shrink-0 flex flex-col transition-all duration-300 overflow-hidden',
-            'absolute z-30 w-full sm:w-72',
-            'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:flex',
-            (!sideOpen && activeId) ? '-translate-x-full lg:translate-x-0' : 'translate-x-0'
+            'ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden',
+            // Mobile/tablet: full-screen absolute, slides when chat opens
+            'absolute inset-0 z-20',
+            // Desktop: static side panel always visible
+            'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0',
+            activeId ? '-translate-x-full' : 'translate-x-0'
           )}
-          style={{ top: 0, bottom: 0 }}
         >
-          {/* Sidebar header */}
-          <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
+          {/* ── Mobile header: title + buttons + avatar strip + search ── */}
+          <div className="lg:hidden shrink-0">
+            {/* Top row */}
+            <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="ss4-display font-bold truncate" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Supra Space</p>
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: isConnected ? '#34c97d' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 5px rgba(52,201,125,0.7)' : 'none' }} />
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => setShowModal({ open: true, tab: 'dm' })} className="ss4-new-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 600 }}>
+                  <Plus className="h-3.5 w-3.5" /> Message
+                </button>
+                <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-8 w-8 flex items-center justify-center" title="New channel">
+                  <Hash className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Avatar strip (online first, then rest) */}
+            <div className="px-4 pb-3">
+              <div className="flex gap-3 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ minHeight: 70 }}>
+                {[...allUsers.filter(u => u._id !== uid && presence[u._id] === 'online'), ...allUsers.filter(u => u._id !== uid && presence[u._id] !== 'online')].map(user => {
+                  const isOn = presence[user._id] === 'online';
+                  return (
+                    <button key={user._id}
+                      onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setMemberCard({ member: { _id: user._id, fullName: user.fullName, username: user.username, avatar: user.avatar, role: user.role }, pos: { x: Math.min(r.left, window.innerWidth - 210), y: r.bottom + 8 } }); }}
+                      className="flex flex-col items-center gap-1 shrink-0 transition-opacity hover:opacity-80">
+                      <div className="relative">
+                        <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(user.fullName))} style={{ fontSize: 13 }}>
+                          {user.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : ini(user.fullName)}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full flex items-center justify-center" style={{ background: 'var(--sidebar-bg)', boxShadow: '0 0 0 1.5px var(--sidebar-bg)' }}>
+                          <span className="h-2 w-2 rounded-full" style={{ background: isOn ? '#34c97d' : 'var(--text-disabled)' }} />
+                        </span>
+                      </div>
+                      <span className="max-w-[40px] truncate text-center" style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 500 }}>{user.fullName.split(' ')[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="px-3 pb-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
+              <div className="relative">
+                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search conversations…" className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Desktop header ── */}
+          <div className="hidden lg:block px-4 pt-5 pb-3 shrink-0 space-y-3">
             <div className="flex items-center justify-between">
               <span className="ss4-section-label">Messages</span>
               <button onClick={() => setShowModal({ open: true, tab: 'dm' })}
@@ -1753,7 +1805,7 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
             </div>
           </div>
 
-          <div className="mx-4 ss4-divider" />
+          <div className="hidden lg:block mx-4 ss4-divider" />
 
           {/* Conversation list */}
           <div className="flex-1 overflow-y-auto ss4-scroll pb-2">
@@ -1868,11 +1920,18 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
           </div>
         </aside>
 
-        {/* ── Chat area ── */}
-        <main className="flex-1 flex min-h-0 overflow-hidden min-w-0">
+        {/* ── Chat / Welcome area ── */}
+        <main className={cn(
+          'flex flex-col min-h-0 overflow-hidden',
+          // Mobile: full-screen absolute, slides in when chat opens
+          'absolute inset-0 z-10 transition-transform duration-300 ease-in-out',
+          // Desktop: flex-1 always visible
+          'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0',
+          !activeId ? 'translate-x-full' : 'translate-x-0'
+        )}>
           <div className="flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
 
-            {/* Welcome / empty state */}
+            {/* Welcome / empty state — desktop only; mobile uses sidebar as home screen */}
             {!activeId && (() => {
               const onlineMembers = allUsers.filter(u => u._id !== uid && presence[u._id] === 'online');
               const allTeam = allUsers.filter(u => u._id !== uid);
@@ -1914,7 +1973,7 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
               };
 
               return (
-                <div className="flex-1 overflow-y-auto ss4-scroll">
+                <div className="hidden lg:flex flex-1 overflow-y-auto ss4-scroll flex-col">
 
                   {/* ── Active team members avatars strip ── */}
                   <div className="px-4 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
@@ -2002,7 +2061,7 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
             {activeId && activeConv && (
               <>
                 {/* Chat header */}
-                <div className="ss4-chat-header shrink-0 flex items-center gap-3 px-4 py-3">
+                <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-3">
                   <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); setSideOpen(true); }} title="Back">
                     <ChevronLeft className="h-4 w-4" />
                   </button>
@@ -2178,7 +2237,7 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
                 </div>
 
                 {/* ── Input area ── */}
-                <div className="shrink-0 px-4 pb-2 pt-2 space-y-1.5">
+                <div className="shrink-0 px-3 sm:px-4 pb-2 pt-2 space-y-1.5 ss4-input-safe">
                   {/* Reply bar */}
                   {replyTo && (
                     <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
@@ -2399,11 +2458,17 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
             const otherMember = activeConv.type === 'direct' ? activeConv.members.find(m => m._id !== uid) : null;
             const isOtherOnline = otherMember ? presence[otherMember._id] === 'online' : false;
             return (
-              <div className="ss4-sidebar shrink-0 flex flex-col overflow-hidden" style={{ width: 280, borderLeft: '1px solid var(--sidebar-border)' }}>
+              <div className="ss4-sidebar flex flex-col overflow-hidden absolute inset-0 z-30 lg:relative lg:inset-auto lg:z-auto lg:shrink-0 lg:w-72" style={{ borderLeft: '1px solid var(--sidebar-border)' }}>
 
                 {/* ── Profile hero ── */}
                 <div className="shrink-0 flex flex-col items-center gap-2 px-4 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                  <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-6 w-6 self-end mb-1"><X className="h-3.5 w-3.5" /></button>
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <button onClick={() => setShowInfo(false)} className="lg:hidden ss4-icon-btn h-7 w-7 flex items-center gap-1" style={{ fontSize: 12 }}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <div className="flex-1 lg:flex-none" />
+                    <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-6 w-6"><X className="h-3.5 w-3.5" /></button>
+                  </div>
                   <div className="relative group/ava">
                     <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(convName))}>
                       {getConvAvatar(activeConv, uid)
