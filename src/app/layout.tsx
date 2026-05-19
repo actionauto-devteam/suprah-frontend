@@ -17,9 +17,14 @@ const geistMono = Geist_Mono({
 import type { Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Supra AI",
+  title: "Suprah AI",
   description: "Advanced Car Dealership Management",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/favicon.PNG",
+    shortcut: "/favicon.PNG",
+    apple: "/favicon.PNG",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

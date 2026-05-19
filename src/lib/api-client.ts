@@ -1,11 +1,8 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosRequestConfig } from "axios";
 
-// Use absolute URLs in both browser and server to hit the backend directly
-// This ensures consistency across services and simplifies network debugging
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 // ── Token refresh queue ───────────────────────────────────────────────────────
-// Prevents multiple simultaneous refresh calls during a burst of 401 errors.
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -40,7 +37,6 @@ class ApiClient {
     // ── Request interceptor ──────────────────────────────────────────────
     this.client.interceptors.request.use(
       async (config) => {
-        // Auto-inject native auth token if not already set
         if (typeof window !== "undefined" && !config.headers.Authorization) {
           try {
             const token = (window as any).__AUTH_TOKEN__;
@@ -52,10 +48,9 @@ class ApiClient {
           }
         }
 
-        // Inject impersonation header if present
         if (typeof window !== "undefined") {
           const impersonatedOrgId = localStorage.getItem(
-            "admin_impersonate_org_id",
+            "admin_impersonate_org_id"
           );
           if (impersonatedOrgId) {
             config.headers["x-impersonate-org-id"] = impersonatedOrgId;
@@ -67,14 +62,12 @@ class ApiClient {
       (error) => {
         console.error("[apiClient] Request setup failed:", error);
         return Promise.reject(error);
-      },
+      }
     );
 
     // ── Response interceptor ─────────────────────────────────────────────
     this.client.interceptors.response.use(
-      (response) => {
-        return response;
-      },
+      (response) => response,
       async (error) => {
         // ── Silently ignore intentional request cancellations ─────────
         if (
@@ -85,46 +78,53 @@ class ApiClient {
           return Promise.reject(error);
         }
 
-        // ── 401 Handler: Silent Token Refresh & Retry ─────────────────
-        // When the access token expires mid-session, we silently refresh
-        // it using the HttpOnly refreshToken cookie, then retry the
-        // original request. The user never sees the error.
         const originalRequest = error.config;
         const requestUrl = String(originalRequest?.url || "");
+
+        // _skipAuthRefresh is set on:
+        //   - Login/register calls (public auth endpoints)
+        //   - Silent refresh calls originating from AuthProvider/getToken
+        //     so we never recursively try to refresh the refresh endpoint.
         const skipAuthRefresh = Boolean(
-          (originalRequest as any)?._skipAuthRefresh,
+          (originalRequest as any)?._skipAuthRefresh
         );
+
         const isRefreshEndpoint = requestUrl.includes(
-          "/api/auth/refresh-tokens",
+          "/api/auth/refresh-tokens"
         );
         const isPublicAuthEndpoint =
           /\/api\/auth\/(login|register|register-dealership|verify-email|resend-otp|forgot-password|reset-password)/.test(
-            requestUrl,
+            requestUrl
           );
 
         if (error.response?.status === 401 && typeof window !== "undefined") {
-          // Never refresh for auth endpoints that are expected to be unauthenticated
-          // or explicitly marked to skip refresh. This prevents login/signup flows
-          // from being polluted by refresh-token errors.
-          if (skipAuthRefresh || isPublicAuthEndpoint) {
-            return Promise.reject(error);
-          }
-
-          // Prevent retrying the refresh-tokens endpoint itself
-          if (isRefreshEndpoint) {
-            // Refresh failed — clear the token and let the auth provider handle redirect
-            (window as any).__AUTH_TOKEN__ = null;
+          // Never attempt a refresh for:
+          //   1. Requests explicitly marked to skip refresh
+          //   2. Public auth endpoints (login/register etc.)
+          //   3. The refresh endpoint itself (prevents infinite loop)
+          if (skipAuthRefresh || isPublicAuthEndpoint || isRefreshEndpoint) {
+            // For the refresh endpoint specifically, clear the stale token
+            // but do NOT call onAuthFailure — a 401 here just means the
+            // user has no session, which is normal on first load.
+            if (isRefreshEndpoint) {
+              (window as any).__AUTH_TOKEN__ = null;
+            }
             return Promise.reject(error);
           }
 
           if (originalRequest._retry) {
+            // We already retried once and got another 401 — real auth failure.
+            // Trigger global logout.
+            (window as any).__AUTH_TOKEN__ = null;
+            if (this.onAuthFailure) {
+              this.onAuthFailure();
+            }
             return Promise.reject(error);
           }
 
           originalRequest._retry = true;
 
           if (isRefreshing) {
-            // Another request is already refreshing — queue this one
             return new Promise((resolve, reject) => {
               failedQueue.push({ resolve, reject });
             })
@@ -132,9 +132,7 @@ class ApiClient {
                 originalRequest.headers.Authorization = `Bearer ${token}`;
                 return this.client(originalRequest);
               })
-              .catch((err) => {
-                return Promise.reject(err);
-              });
+              .catch((err) => Promise.reject(err));
           }
 
           isRefreshing = true;
@@ -143,7 +141,7 @@ class ApiClient {
             const refreshResponse = await axios.post(
               `${API_URL}/api/auth/refresh-tokens`,
               {},
-              { withCredentials: true },
+              { withCredentials: true }
             );
 
             const newToken =
@@ -152,24 +150,21 @@ class ApiClient {
 
             if (!newToken) throw new Error("No token in refresh response");
 
-            // Update the global token store
             (window as any).__AUTH_TOKEN__ = newToken;
-
-            // Notify queued requests
             processQueue(null, newToken);
 
-            // Retry the original request
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Refresh failed — clear token and reject all queued requests
             processQueue(refreshError, null);
             (window as any).__AUTH_TOKEN__ = null;
             console.error(
-              "[apiClient] Token refresh failed. User may need to re-login.",
+              "[apiClient] Token refresh failed. User may need to re-login."
             );
 
-            // Trigger global logout if listener is registered
+            // onAuthFailure fires here because this is a REAL mid-session
+            // refresh failure (i.e. the user had a request in flight and the
+            // refresh to extend their session failed).
             if (this.onAuthFailure) {
               this.onAuthFailure();
             }
@@ -194,25 +189,25 @@ class ApiClient {
           console.error("   Attempted URL:", attemptedUrl);
           console.error("   This means: Cannot reach backend server");
           console.error(
-            "   Check: Is backend running on http://localhost:5000?",
+            "   Check: Is backend running on http://localhost:5000?"
           );
         } else if (error.response) {
           console.error(
             `[apiClient] Server responded with ${error.response.status}:`,
-            error.response.data,
+            error.response.data
           );
         } else {
           console.error("[apiClient] Error:", error.message);
         }
 
         return Promise.reject(error);
-      },
+      }
     );
   }
 
   async get<T = any>(
     url: string,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
     return this.client.get<T>(url, config);
   }
@@ -220,7 +215,7 @@ class ApiClient {
   async post<T = any>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
     return this.client.post<T>(url, data, config);
   }
@@ -228,14 +223,14 @@ class ApiClient {
   async patch<T = any>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
     return this.client.patch<T>(url, data, config);
   }
 
   async delete<T = any>(
     url: string,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
     return this.client.delete<T>(url, config);
   }
@@ -243,28 +238,26 @@ class ApiClient {
   async put<T = any>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
     return this.client.put<T>(url, data, config);
   }
 
-  // Extended timeout (120s) for long-running operations like Gmail sync.
-  // Now uses the primary client to ensure interceptors (Tokens/Retry) are applied.
   async syncPost<T = any>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
     return this.client.post<T>(url, data, {
       ...config,
-      timeout: 120000, // Explicitly set long timeout for sync operations
+      timeout: 120000,
     });
   }
 
   // ── Organization Methods ─────────────────────────────────────────────────
   async createOrganization(
     data: { name: string; slug: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/organizations", data, config);
   }
@@ -273,7 +266,11 @@ class ApiClient {
     return this.get(`/api/organizations/${id}`, config);
   }
 
-  async updateOrganization(id: string, data: any, config?: AxiosRequestConfig) {
+  async updateOrganization(
+    id: string,
+    data: any,
+    config?: AxiosRequestConfig
+  ) {
     return this.patch(`/api/organizations/${id}`, data, config);
   }
 
@@ -283,7 +280,7 @@ class ApiClient {
 
   async selectOrganization(
     organizationId: string,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/users/me/select-org", { organizationId }, config);
   }
@@ -295,15 +292,18 @@ class ApiClient {
   async removeMember(
     orgId: string,
     userId: string,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
-    return this.delete(`/api/organizations/${orgId}/members/${userId}`, config);
+    return this.delete(
+      `/api/organizations/${orgId}/members/${userId}`,
+      config
+    );
   }
 
   // ── Invitation Methods ───────────────────────────────────────────────────
   async sendInvite(
     data: { email: string; role: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/invitations", data, config);
   }
@@ -319,7 +319,7 @@ class ApiClient {
   // ── Driver Request Methods ───────────────────────────────────────────────
   async createDriverRequest(
     data?: Record<string, unknown>,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/driver-requests", data, config);
   }
@@ -330,7 +330,7 @@ class ApiClient {
 
   async getDriverRequests(
     params?: { status?: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.get("/api/driver-requests", { ...config, params });
   }
@@ -343,18 +343,17 @@ class ApiClient {
     return this.patch(`/api/driver-requests/${id}/reject`, {}, config);
   }
 
-  // ── Auth Methods ─────────────────────────────────────────────────────────
   // ── Dashboard Methods ────────────────────────────────────────────────────
   async getDashboardMetrics(
     params: { period?: string; month?: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.get("/api/dashboard/metrics", { ...config, params });
   }
 
   async getLeaderboard(
     params: { page?: number; limit?: number },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.get("/api/dashboard/leaderboard", { ...config, params });
   }
@@ -366,14 +365,14 @@ class ApiClient {
 
   async getTeamAbsences(
     params: { year?: number; month?: number },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.get("/api/team-pulse/absences", { ...config, params });
   }
 
   async createAbsence(
     data: { date: string; type: string; note?: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/team-pulse/absences", data, config);
   }
@@ -381,7 +380,7 @@ class ApiClient {
   async updateAbsence(
     id: string,
     data: { title?: string; note?: string; otherText?: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.patch(`/api/team-pulse/absences/${id}`, data, config);
   }
@@ -395,8 +394,15 @@ class ApiClient {
   }
 
   async createBoardNote(
-    data: { content: string; color?: string; title?: string; durationDays?: number | null; announcementType?: string; emoji?: string },
-    config?: AxiosRequestConfig,
+    data: {
+      content: string;
+      color?: string;
+      title?: string;
+      durationDays?: number | null;
+      announcementType?: string;
+      emoji?: string;
+    },
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/team-pulse/board", data, config);
   }
@@ -407,8 +413,13 @@ class ApiClient {
 
   async updateBoardNote(
     id: string,
-    data: { title?: string; content?: string; color?: string; emoji?: string },
-    config?: AxiosRequestConfig,
+    data: {
+      title?: string;
+      content?: string;
+      color?: string;
+      emoji?: string;
+    },
+    config?: AxiosRequestConfig
   ) {
     return this.patch(`/api/team-pulse/board/${id}`, data, config);
   }
@@ -417,8 +428,15 @@ class ApiClient {
     return this.patch(`/api/team-pulse/board/${id}/pin`, {}, config);
   }
 
-  async reorderBoardNotes(orderedIds: string[], config?: AxiosRequestConfig) {
-    return this.patch("/api/team-pulse/board/reorder", { orderedIds }, config);
+  async reorderBoardNotes(
+    orderedIds: string[],
+    config?: AxiosRequestConfig
+  ) {
+    return this.patch(
+      "/api/team-pulse/board/reorder",
+      { orderedIds },
+      config
+    );
   }
 
   async getTeamMemberProfile(userId: string, config?: AxiosRequestConfig) {
@@ -427,7 +445,7 @@ class ApiClient {
 
   async updateOnlineStatus(
     data: { status: string; customStatus?: string },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.patch("/api/profile/online-status", data, config);
   }
@@ -456,7 +474,7 @@ class ApiClient {
   async reserveVehicle(
     id: string,
     customerName: string,
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post(`/api/vehicles/${id}/reserve`, { customerName }, config);
   }
@@ -471,7 +489,7 @@ class ApiClient {
       email?: string;
       phone?: string;
     },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/customer/leads/inquiry", data, config);
   }
@@ -482,7 +500,7 @@ class ApiClient {
       personalInfo: any;
       employmentInfo: any;
     },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/customer/leads/finance", data, config);
   }
@@ -496,7 +514,7 @@ class ApiClient {
       image?: string;
       icon?: string;
     },
-    config?: AxiosRequestConfig,
+    config?: AxiosRequestConfig
   ) {
     return this.post("/api/admin/broadcast-push", data, config);
   }

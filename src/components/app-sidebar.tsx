@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   Activity,
   Car,
@@ -21,6 +22,7 @@ import {
   Wallet,
   LayoutGrid,
   PlusSquare,
+  Rss,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -74,25 +76,24 @@ const data = {
       icon: LayoutDashboard,
     },
     {
-      title: "Supra Space",
-      url: "/crm/conversations",
-      icon: MessageSquare,
-    },
-    {
       title: "Team Pulse",
       url: "/team-pulse",
       icon: Activity,
     },
     {
+      title: "Suprah Space",
+      url: "/crm/supra-space",
+      icon: MessageSquare,
+    },
+    {
+      title: "Feeds",
+      url: "/crm/feeds",
+      icon: Rss,
+    },
+    {
       title: "All Inventory",
       url: "/inventory",
       icon: Car,
-    },
-    {
-      title: "Plugins",
-      url: "/plugins",
-      icon: LayoutGrid,
-      isNew: true,
     },
   ] satisfies SidebarNavItem[],
 
@@ -118,6 +119,16 @@ const data = {
       icon: CreditCard,
     },
   ] satisfies SidebarNavItem[],
+
+  premium: [
+    {
+      title: "Plugins",
+      url: "/plugins",
+      icon: LayoutGrid,
+      isNew: true,
+    },
+  ] satisfies SidebarNavItem[],
+
   account: [
     {
       title: "Profile",
@@ -176,20 +187,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [router]);
 
   return (
-    <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
-      <SidebarHeader className="h-16 border-b flex items-center px-6">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-            <span className="font-bold text-sm tracking-tight uppercase truncate max-w-35">
-              ACTION AUTO UTAH
-            </span>
-            <span className="text-[9px] font-extrabold text-green-600 uppercase tracking-widest leading-tight">
-              Powered by Supra AI
-            </span>
-          </div>
+    <Sidebar
+      variant="inset"
+      collapsible="icon"
+      className="border-r [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:hover:bg-gray-600"
+      {...props}
+    >
+      <SidebarHeader className="h-16 border-b flex items-center justify-center px-6">
+        <div className="flex items-center justify-center w-full group-data-[collapsible=icon]:justify-center">
+          <Image
+            src="/favicon.PNG"
+            alt="Logo"
+            width={300}
+            height={300}
+            className="object-contain group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8 dark:invert-0 invert"
+            priority
+          />
         </div>
       </SidebarHeader>
-      <SidebarContent className="p-2">
+      <SidebarContent className="p-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:hover:bg-gray-600">
         <SidebarMenu>
           {activeNavMain.map((item) => (
             <SidebarMenuItem key={item.title}>
@@ -247,6 +263,45 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
+
+            <div className="px-4 py-2 mt-4 text-[11px] font-semibold uppercase text-muted-foreground tracking-wider group-data-[collapsible=icon]:hidden">
+              Premium
+            </div>
+
+            <SidebarMenu>
+              {data.premium.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={
+                      pathname === item.url ||
+                      pathname.startsWith(item.url + "/")
+                    }
+                    className={
+                      item.isNew
+                        ? "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
+                        : ""
+                    }
+                  >
+                    <Link href={item.url}>
+                      <item.icon
+                        className={item.isNew ? "animate-pulse" : ""}
+                      />
+                      <span className="font-medium">{item.title}</span>
+                      {item.isNew && (
+                        <Badge
+                          variant="secondary"
+                          className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                        >
+                          New
+                        </Badge>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
           </>
         )}
 
@@ -283,7 +338,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
                     <AvatarImage
                       src={resolveImageUrl(
-                        avatarUrl !== null ? avatarUrl : user?.imageUrl,
+                        avatarUrl !== null ? avatarUrl : user?.imageUrl
                       )}
                       alt={user?.fullName || ""}
                     />
@@ -313,7 +368,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Avatar className="h-8 w-8 rounded-lg">
                       <AvatarImage
                         src={resolveImageUrl(
-                          avatarUrl !== null ? avatarUrl : user?.imageUrl,
+                          avatarUrl !== null ? avatarUrl : user?.imageUrl
                         )}
                         alt={user?.fullName || ""}
                       />

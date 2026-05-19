@@ -1323,3 +1323,202 @@ body.app-fullscreen .main-content {
     right: var(--supra-leo-side) !important;
   }
 }
+
+
+/* Scrollbar styling for light and dark modes */
+
+/* Light Mode Scrollbar */
+.scrollbar-styled {
+  scrollbar-color: #d1d5db #f3f4f6;
+  scrollbar-width: thin;
+}
+
+.scrollbar-styled::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+  border: 2px solid #f3f4f6;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.scrollbar-styled::-webkit-scrollbar-corner {
+  background: #f3f4f6;
+}
+
+/* Dark Mode Scrollbar */
+@media (prefers-color-scheme: dark) {
+  .scrollbar-styled {
+    scrollbar-color: #404040 #1f2937;
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-track {
+    background: #1f2937;
+    border-radius: 4px;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-thumb {
+    background: #404040;
+    border-radius: 4px;
+    border: 2px solid #1f2937;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+    background: #525252;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-corner {
+    background: #1f2937;
+  }
+}
+
+/* Alternative: Using dark class instead of prefers-color-scheme */
+.dark .scrollbar-styled {
+  scrollbar-color: #404040 #1f2937;
+  scrollbar-width: thin;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+  border: 2px solid #1f2937;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: #525252;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-corner {
+  background: #1f2937;
+}
+
+/* Smooth scrollbar behavior */
+.scrollbar-styled {
+  scroll-behavior: smooth;
+}
+
+/* Bold Light Mode Scrollbar - More Visible Version */
+
+/* Light Mode Scrollbar - BOLD VERSION */
+.scrollbar-styled {
+  scrollbar-color: #9ca3af #ffffff;
+  scrollbar-width: thin;
+}
+
+.scrollbar-styled::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-track {
+  background: #ffffff;
+  border-radius: 4px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+  border: 2px solid #ffffff;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+.scrollbar-styled::-webkit-scrollbar-corner {
+  background: #ffffff;
+}
+
+/* Dark Mode Scrollbar */
+@media (prefers-color-scheme: dark) {
+  .scrollbar-styled {
+    scrollbar-color: #404040 #1f2937;
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-track {
+    background: #1f2937;
+    border-radius: 4px;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-thumb {
+    background: #404040;
+    border-radius: 4px;
+    border: 2px solid #1f2937;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+    background: #525252;
+  }
+
+  .scrollbar-styled::-webkit-scrollbar-corner {
+    background: #1f2937;
+  }
+}
+
+/* Alternative: Using dark class instead of prefers-color-scheme */
+.dark .scrollbar-styled {
+  scrollbar-color: #404040 #1f2937;
+  scrollbar-width: thin;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+  border: 2px solid #1f2937;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: #525252;
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-corner {
+  background: #1f2937;
+}
+
+/* Smooth scrollbar behavior */
+.scrollbar-styled {
+  scroll-behavior: smooth;
+}

@@ -434,12 +434,12 @@ export function AppointmentDashboard() {
             </button>
             <div className="min-w-0">
               <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-primary mb-0.5">Operations Center</div>
-              <div className="text-base sm:text-[19px] font-bold tracking-tight leading-tight truncate">Appointment Dashboard</div>
+              <div className="text-base sm:text-[19px] font-bold tracking-tight leading-tight truncate">Service Hub</div>
             </div>
           </div>
           <Button size="sm" onClick={() => router.push("/crm/appointments")} className="bg-primary hover:bg-primary/90 gap-1.5 shrink-0">
             <FileText size={13} strokeWidth={2} />
-            <span className="hidden xs:inline">Full Appointments</span>
+            <span className="hidden xs:inline">Go to Appointments</span>
             <span className="xs:hidden">Appointments</span>
             <ChevronRight size={13} strokeWidth={2} />
           </Button>

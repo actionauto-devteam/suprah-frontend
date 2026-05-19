@@ -21,9 +21,8 @@ import {
   Sparkles,
   Coffee,
   Play,
-  MessageSquare,
-  Rss,
   Trophy,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -565,10 +564,24 @@ export default function CrmDashboardPage() {
   const quickActions = [
     {
       icon: (
+        <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+      ),
+      label: "Leads",
+      route: "/crm/leads",
+    },
+    {
+      icon: (
+        <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+      ),
+      label: "Service Hub",
+      route: "/crm/appointments/dashboard",
+    },
+        {
+      icon: (
         <CalendarCheck className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
       label: "Appointments",
-      route: "/crm/appointments/dashboard",
+      route: "/crm/appointments",
     },
     {
       icon: (
@@ -579,22 +592,10 @@ export default function CrmDashboardPage() {
     },
     {
       icon: (
-        <MessageSquare className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
-      ),
-      label: "Supra Space",
-      route: "/crm/supra-space",
-    },
-    {
-      icon: (
         <Fingerprint className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
       label: "Biometrics",
       route: "/crm/biometrics",
-    },
-    {
-      icon: <Rss className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
-      label: "Feeds",
-      route: "/crm/feeds",
     },
     {
       icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />,
