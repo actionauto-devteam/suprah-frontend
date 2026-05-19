@@ -196,7 +196,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader className="h-16 border-b flex items-center justify-center px-6">
         <div className="flex items-center justify-center w-full group-data-[collapsible=icon]:justify-center">
           <Image
-            src="/favicon.PNG"
+            src="/favicon.png"
             alt="Logo"
             width={300}
             height={300}

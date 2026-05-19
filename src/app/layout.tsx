@@ -21,9 +21,9 @@ export const metadata: Metadata = {
   description: "Advanced Car Dealership Management",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.PNG",
-    shortcut: "/favicon.PNG",
-    apple: "/favicon.PNG",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
   appleWebApp: {
     capable: true,
