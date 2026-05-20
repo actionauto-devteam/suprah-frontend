@@ -96,7 +96,7 @@ const data = {
       icon: Rss,
     },
     {
-      title: "HR & People",
+      title: "Team Engagement",
       url: "/crm/hr",
       icon: HeartHandshake,
     },

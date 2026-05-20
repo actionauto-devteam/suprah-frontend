@@ -291,7 +291,7 @@ export default function CrmSettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <HeartHandshake className="h-3.5 w-3.5" />
-                    HR &amp; People
+                    Team Engagement
                   </div>
                   <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                 </button>
