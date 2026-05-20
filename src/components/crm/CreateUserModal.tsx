@@ -29,6 +29,8 @@ interface CreateUserForm {
   email: string;
   password: string;
   role: string;
+  birthday: string;
+  hireDate: string;
 }
 
 interface FormErrors {
@@ -36,6 +38,7 @@ interface FormErrors {
   email?: string;
   password?: string;
   role?: string;
+  hireDate?: string;
 }
 
 interface CreateUserModalProps {
@@ -68,6 +71,9 @@ function validate(form: CreateUserForm): FormErrors {
   if (!form.role) {
     errors.role = "Please select a role.";
   }
+  if (!form.hireDate) {
+    errors.hireDate = "Hire date is required.";
+  }
 
   return errors;
 }
@@ -92,6 +98,8 @@ export function CreateUserModal({
     email: "",
     password: "",
     role: "",
+    birthday: "",
+    hireDate: "",
   });
 
   // Fetch next employee ID whenever modal opens
@@ -115,7 +123,7 @@ export function CreateUserModal({
 
   const handleClose = () => {
     if (submitting) return;
-    setForm({ fullName: "", email: "", password: "", role: "" });
+    setForm({ fullName: "", email: "", password: "", role: "", birthday: "", hireDate: "" });
     setErrors({});
     setShowPassword(false);
     setEmployeeId("");
@@ -184,6 +192,8 @@ export function CreateUserModal({
           email: `${form.email.trim()}${EMAIL_DOMAIN}`,
           password: form.password,
           role: form.role,
+          hireDate: form.hireDate || undefined,
+          birthday: form.birthday || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -351,6 +361,47 @@ export function CreateUserModal({
             {errors.role && (
               <p className="text-[11px] text-red-500">{errors.role}</p>
             )}
+          </div>
+
+          {/* Hire Date + Birthday row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                Hire Date
+                <span className="text-[9px] font-bold text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Required
+                </span>
+              </Label>
+              <input
+                type="date"
+                value={form.hireDate}
+                onChange={(e) => {
+                  setForm((p) => ({ ...p, hireDate: e.target.value }));
+                  if (errors.hireDate) setErrors((p) => ({ ...p, hireDate: undefined }));
+                }}
+                max={new Date().toISOString().split("T")[0]}
+                className={`flex h-10 w-full rounded-xl border px-3 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-colors ${errors.hireDate ? "border-red-400 focus:ring-red-400/30" : "border-border/50"}`}
+              />
+              {errors.hireDate && (
+                <p className="text-[11px] text-red-500">{errors.hireDate}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                Birthday
+                <span className="text-[9px] font-semibold text-muted-foreground/30 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
+              </Label>
+              <input
+                type="date"
+                value={form.birthday}
+                onChange={(e) => setForm((p) => ({ ...p, birthday: e.target.value }))}
+                max={new Date().toISOString().split("T")[0]}
+                className="flex h-10 w-full rounded-xl border border-border/50 px-3 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-colors"
+              />
+            </div>
           </div>
 
           {/* Role hint */}

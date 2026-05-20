@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   PlusSquare,
   Rss,
+  HeartHandshake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -89,6 +90,11 @@ const data = {
       title: "Feeds",
       url: "/crm/feeds",
       icon: Rss,
+    },
+    {
+      title: "HR & People",
+      url: "/crm/hr",
+      icon: HeartHandshake,
     },
     {
       title: "All Inventory",

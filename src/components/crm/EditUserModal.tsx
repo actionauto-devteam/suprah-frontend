@@ -28,12 +28,16 @@ interface EditUserForm {
   fullName: string
   email: string
   role: string
+  birthday: string
+  hireDate: string
 }
 
 interface FormErrors {
   fullName?: string
   email?: string
   role?: string
+  birthday?: string
+  hireDate?: string
 }
 
 interface EditUserModalProps {
@@ -45,6 +49,8 @@ interface EditUserModalProps {
     fullName: string
     email: string
     role: string
+    birthday?: string
+    hireDate?: string
   } | null
   onUpdated?: () => void
 }
@@ -74,12 +80,20 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     fullName: "",
     email: "",
     role: "",
+    birthday: "",
+    hireDate: "",
   })
 
   // Populate form when user changes
   React.useEffect(() => {
     if (user) {
-      setForm({ fullName: user.fullName, email: user.email, role: user.role })
+      setForm({
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        birthday: user.birthday ? user.birthday.split("T")[0] : "",
+        hireDate: user.hireDate ? user.hireDate.split("T")[0] : "",
+      })
       setErrors({})
     }
   }, [user])
@@ -118,6 +132,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           fullName: form.fullName.trim(),
           email: form.email.trim(),
           role: form.role,
+          hireDate: form.hireDate || undefined,
+          birthday: form.birthday || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -221,6 +237,34 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
             {errors.role && (
               <p className="text-[11px] text-red-500">{errors.role}</p>
             )}
+          </div>
+
+          {/* Hire Date + Birthday row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                Hire Date
+              </Label>
+              <input
+                type="date"
+                value={form.hireDate}
+                onChange={(e) => setForm((p) => ({ ...p, hireDate: e.target.value }))}
+                max={new Date().toISOString().split("T")[0]}
+                className="flex h-10 w-full rounded-xl border border-border/50 px-3 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                Birthday
+              </Label>
+              <input
+                type="date"
+                value={form.birthday}
+                onChange={(e) => setForm((p) => ({ ...p, birthday: e.target.value }))}
+                max={new Date().toISOString().split("T")[0]}
+                className="flex h-10 w-full rounded-xl border border-border/50 px-3 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors"
+              />
+            </div>
           </div>
 
           {/* Role hint */}
