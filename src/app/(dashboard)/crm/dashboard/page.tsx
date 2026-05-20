@@ -48,7 +48,6 @@ import { DashboardNotifications } from "@/components/crm/DashboardNotifications"
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
 import { cn, resolveImageUrl } from "@/lib/utils";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 interface CrmUserData {
   _id: string;
   fullName: string;
@@ -75,7 +74,6 @@ interface UnansweredInquiryReminder {
   reminderCount: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 function getGreeting(name: string) {
   const h = new Date().getHours();
   if (h >= 5 && h < 12)
@@ -128,7 +126,6 @@ function withAvatarCacheBust(avatar?: string | null) {
   return `${avatar}${avatar.includes("?") ? "&" : "?"}v=${Date.now()}`;
 }
 
-// ─── Animated Counter ────────────────────────────────────────────────────────
 function AnimatedDigit({ value }: { value: string }) {
   const [displayed, setDisplayed] = React.useState(value);
   const [animating, setAnimating] = React.useState(false);
@@ -160,7 +157,6 @@ function AnimatedDigit({ value }: { value: string }) {
   );
 }
 
-// ─── Live Clock ──────────────────────────────────────────────────────────────
 function LiveClock() {
   const [now, setNow] = React.useState(new Date());
   React.useEffect(() => {
@@ -177,13 +173,13 @@ function LiveClock() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group relative inline-flex items-center gap-2.5 rounded-full px-4 py-2 cursor-default select-none overflow-hidden border border-emerald-500/20 bg-linear-to-r from-emerald-950/40 to-emerald-900/20 dark:from-emerald-950/40 dark:to-emerald-900/20 light:from-emerald-50 light:to-emerald-100/50 backdrop-blur-sm hover:border-emerald-400/30 transition-all duration-300">
+        <div className="group relative inline-flex items-center gap-2.5 rounded-full px-4 py-2 cursor-default select-none overflow-hidden border border-emerald-200/80 dark:border-emerald-500/20 bg-linear-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 backdrop-blur-sm hover:border-emerald-300/80 dark:hover:border-emerald-400/30 transition-all duration-300">
           <div className="absolute inset-0 bg-linear-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
           </span>
-          <span className="font-mono text-xs font-bold tabular-nums tracking-wide text-emerald-600 dark:text-emerald-400">
+          <span className="font-mono text-xs font-bold tabular-nums tracking-wide text-emerald-700 dark:text-emerald-400">
             {timeStr}
           </span>
         </div>
@@ -205,7 +201,6 @@ function LiveClock() {
   );
 }
 
-// ─── Shift Timer ─────────────────────────────────────────────────────────────
 interface ShiftTimerProps {
   startTime: string;
   breakAccumulatedMs: number;
@@ -350,7 +345,6 @@ function ShiftTimer({
   );
 }
 
-// ─── Quick Action Card ────────────────────────────────────────────────────────
 function QuickAction({
   icon,
   label,
@@ -394,7 +388,6 @@ function QuickAction({
   );
 }
 
-// ─── Stat Chip ───────────────────────────────────────────────────────────────
 function StatChip({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-3 hover:border-zinc-300/60 dark:hover:border-zinc-700/60 transition-colors duration-200">
@@ -469,7 +462,6 @@ function InquiryReminderAlert({
   );
 }
 
-// ─── Dashboard ───────────────────────────────────────────────────────────────
 export default function CrmDashboardPage() {
   const router = useRouter();
   const [user, setUser] = React.useState<CrmUserData | null>(null);
@@ -720,9 +712,7 @@ export default function CrmDashboardPage() {
 
   return (
     <TooltipProvider>
-      {/* ── Root ── */}
       <div className="min-h-full w-full bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden transition-colors duration-300 flex flex-col">
-        {/* Ambient glow blobs */}
         <div
           className="fixed inset-0 pointer-events-none overflow-hidden"
           aria-hidden
@@ -732,10 +722,8 @@ export default function CrmDashboardPage() {
           <div className="absolute bottom-0 left-1/3 w-100 h-100 rounded-full bg-emerald-400/3 dark:bg-emerald-400/2 blur-3xl" />
         </div>
 
-        {/* ── Topbar ── */}
         <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
-          <div className="flex items-center justify-between h-16 px-6 max-w-7xl mx-auto">
-            {/* Logo */}
+          <div className="flex items-center justify-between h-16 px-4 sm:px-6 max-w-7xl mx-auto">
             <div className="flex items-center gap-3">
               <div className="relative h-9 w-9 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
                 <Car className="h-4 w-4 text-white" />
@@ -751,7 +739,6 @@ export default function CrmDashboardPage() {
               </div>
             </div>
 
-            {/* Right controls */}
             <div className="flex items-center gap-3">
               <LiveClock />
               <DropdownMenu>
@@ -827,9 +814,7 @@ export default function CrmDashboardPage() {
           </div>
         </header>
 
-        {/* ── Page content ── */}
-        <main className="relative max-w-7xl mx-auto px-6 py-8 space-y-7 flex-1 min-h-0 overflow-y-auto">
-          {/* ── Greeting strip ── */}
+        <main className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-7 flex-1 min-h-0 overflow-y-auto">
           <div
             className={cn(
               "flex items-center justify-between transition-all duration-700",
@@ -854,9 +839,7 @@ export default function CrmDashboardPage() {
             </div>
           </div>
 
-          {/* ── Main grid ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* ─── Time Clock card ─── */}
             <div
               className={cn(
                 "lg:col-span-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm flex flex-col overflow-hidden shadow-sm dark:shadow-none",
@@ -866,7 +849,6 @@ export default function CrmDashboardPage() {
                   : "opacity-0 translate-y-6",
               )}
             >
-              {/* Card header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
@@ -910,7 +892,6 @@ export default function CrmDashboardPage() {
                 </div>
               </div>
 
-              {/* Timer display */}
               <div className="flex-1 flex items-center justify-center px-8 py-8 min-h-55">
                 {isActive && timeIn && (
                   <ShiftTimer
@@ -955,7 +936,6 @@ export default function CrmDashboardPage() {
                 )}
               </div>
 
-              {/* Time display row */}
               <div className="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/20">
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {[
@@ -982,7 +962,6 @@ export default function CrmDashboardPage() {
                   ))}
                 </div>
 
-                {/* Action buttons */}
                 {!hasClockedIn && (
                   <Button
                     onClick={() => handleClock("time-in")}
@@ -1043,9 +1022,7 @@ export default function CrmDashboardPage() {
               </div>
             </div>
 
-            {/* ─── Right column ─── */}
             <div className="lg:col-span-8 flex flex-col gap-5">
-              {/* Profile card */}
               <div
                 className={cn(
                   "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-6 overflow-hidden relative shadow-sm dark:shadow-none",
@@ -1093,7 +1070,7 @@ export default function CrmDashboardPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 pt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4">
                   <StatChip label="Full Name" value={user.fullName} />
                   <StatChip label="Employee ID" value={user.username} />
                   <StatChip label="Role" value={user.role} />
@@ -1105,7 +1082,6 @@ export default function CrmDashboardPage() {
                 onViewAll={() => router.push("/crm/leads")}
               />
 
-              {/* Quick Actions card */}
               <div
                 className={cn(
                   "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-6 flex-1 shadow-sm dark:shadow-none",
@@ -1146,7 +1122,6 @@ export default function CrmDashboardPage() {
         </main>
       </div>
 
-      {/* ── Floating overlays ── */}
       <SupraLeoAI />
       <DashboardNotifications
         user={user}

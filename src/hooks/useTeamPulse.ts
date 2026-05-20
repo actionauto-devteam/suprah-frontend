@@ -65,8 +65,6 @@ function useAuthHeaders() {
     }, [getToken]);
 }
 
-// ── Members ───────────────────────────────────────────────────────────────────
-
 export function useTeamMembers() {
     const { isLoaded, isSignedIn } = useAuth();
     const getHeaders = useAuthHeaders();
@@ -79,12 +77,10 @@ export function useTeamMembers() {
             return response.data?.data || response.data || [];
         },
         enabled: !!isLoaded && !!isSignedIn,
-        refetchInterval: 30_000,   // live: every 30s
+        refetchInterval: 30_000,
         staleTime: 10_000,
     });
 }
-
-// ── Absences ──────────────────────────────────────────────────────────────────
 
 export function useTeamAbsences(year: number, month: number) {
     const { isLoaded, isSignedIn } = useAuth();
@@ -98,7 +94,7 @@ export function useTeamAbsences(year: number, month: number) {
             return response.data?.data || response.data || [];
         },
         enabled: !!isLoaded && !!isSignedIn,
-        refetchInterval: 30_000,  // live: every 30s
+        refetchInterval: 30_000,
         staleTime: 15_000,
     });
 }
@@ -144,8 +140,6 @@ export function useDeleteAbsence() {
     });
 }
 
-// ── Board Notes ───────────────────────────────────────────────────────────────
-
 export function useBoardNotes() {
     const { isLoaded, isSignedIn } = useAuth();
     const getHeaders = useAuthHeaders();
@@ -158,7 +152,7 @@ export function useBoardNotes() {
             return response.data?.data || response.data || [];
         },
         enabled: !!isLoaded && !!isSignedIn,
-        refetchInterval: 20_000,  // live: every 20s
+        refetchInterval: 20_000,
         staleTime: 10_000,
     });
 }
@@ -234,8 +228,6 @@ export function useReorderBoardNotes() {
     });
 }
 
-// ── My status ─────────────────────────────────────────────────────────────────
-
 export function useUpdateMyStatus() {
     const queryClient = useQueryClient();
     const getHeaders = useAuthHeaders();
@@ -250,10 +242,8 @@ export function useUpdateMyStatus() {
     });
 }
 
-// ── Member profile (click-through) ────────────────────────────────────────────
-
 export function useTeamMemberProfile(userId: string | null) {
-    const { isLoaded, isSignedIn, getToken } = useAuth();
+    const { isLoaded, isSignedIn } = useAuth();
     const getHeaders = useAuthHeaders();
 
     return useQuery({

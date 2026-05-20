@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   differenceInCalendarDays, format, formatDistanceToNow,
-  isSameDay, isThisWeek, parseISO,
+  isSameDay, parseISO,
 } from "date-fns";
 import {
   AlertTriangle, Bell, Briefcase, Building2, CalendarDays, Check,
@@ -41,8 +41,6 @@ import { useUser } from "@/providers/AuthProvider";
 import { onlineStatusOptions } from "@/components/profile/profile-constants";
 import { DEPARTMENTS, deptLabel } from "@/lib/departments";
 import { cn } from "@/lib/utils";
-
-// ── Config maps ───────────────────────────────────────────────────────────────
 
 const S = {
   dot: { online: "bg-green-500", idle: "bg-amber-500", away: "bg-yellow-500", busy: "bg-red-500", do_not_disturb: "bg-purple-500", offline: "bg-gray-400" } as Record<OnlineStatus, string>,
@@ -88,8 +86,6 @@ const N: Record<NoteColor, { bg: string; top: string; pin: string; hex: string }
 
 const SKEWS = ["-rotate-[1.1deg]", "rotate-[0.8deg]", "-rotate-[0.4deg]", "rotate-[1.3deg]", "-rotate-[0.6deg]", "rotate-[0.3deg]"];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function StatusDot({ s, size = "sm" }: { s: OnlineStatus; size?: "sm" | "md" }) {
   return <span className={cn("inline-block rounded-full shrink-0", S.dot[s], size === "sm" ? "size-2" : "size-2.5")} />;
 }
@@ -102,8 +98,6 @@ function PushPin({ color }: { color: string }) {
     </div>
   );
 }
-
-// ── Member Full Profile Dialog ────────────────────────────────────────────────
 
 function MemberFullProfileDialog({ profile, open, onClose }: {
   profile: any;
@@ -127,7 +121,6 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Hero banner */}
         <div className="relative bg-linear-to-br from-primary/80 via-primary/60 to-primary/40 px-6 pt-8 pb-6">
           <div className="flex items-end gap-5">
             <div className="relative shrink-0">
@@ -166,7 +159,6 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Bio */}
           {profile.personalInfo?.bio && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2">About</p>
@@ -174,7 +166,6 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
             </div>
           )}
 
-          {/* Info grid */}
           {infoItems.length > 0 && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2">Details</p>
@@ -192,7 +183,6 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
             </div>
           )}
 
-          {/* Account status */}
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2">Account</p>
             <div className="flex flex-wrap gap-2">
@@ -223,7 +213,6 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
             </div>
           </div>
 
-          {/* Last active */}
           {profile.lastActive && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground/60 px-0.5">
               <Clock className="size-3.5" />
@@ -236,8 +225,6 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
     </Dialog>
   );
 }
-
-// ── Member Profile Sheet ──────────────────────────────────────────────────────
 
 function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; onClose: () => void }) {
   const { data: profile, isLoading } = useTeamMemberProfile(memberId);
@@ -266,7 +253,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
 
           {!isLoading && profile && (
             <div className="space-y-5 mt-4">
-              {/* Avatar + name + badges */}
               <div className="flex items-start gap-5 p-4 rounded-2xl bg-muted/20 border border-border/30">
                 <div className="relative shrink-0">
                   <Avatar className={cn("size-18 ring-2 ring-offset-2 ring-offset-background", S.ring[status])}>
@@ -296,7 +282,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
                 </div>
               </div>
 
-              {/* Work info — 2-column grid */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2 px-0.5">Work</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -315,7 +300,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
                 </div>
               </div>
 
-              {/* Contact — 2-column grid */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2 px-0.5">Contact</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -336,7 +320,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
                 </div>
               </div>
 
-              {/* Bio */}
               <div className="rounded-xl bg-muted/20 border border-border/20 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-1.5">Bio</p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
@@ -344,7 +327,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
                 </p>
               </div>
 
-              {/* Last active */}
               {profile.lastActive && (
                 <p className="text-[11px] text-muted-foreground/40 flex items-center gap-1.5 px-0.5">
                   <Clock className="size-3" />
@@ -353,7 +335,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
                 </p>
               )}
 
-              {/* View Full Profile button */}
               <Button
                 className="w-full gap-2"
                 variant="outline"
@@ -377,8 +358,6 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
     </>
   );
 }
-
-// ── Member Card (clickable) ───────────────────────────────────────────────────
 
 function MemberCard({ member, isMe, leaveToday, onClick }: {
   member: TeamMember; isMe: boolean; leaveToday?: Absence; onClick: () => void;
@@ -445,8 +424,6 @@ function MemberCard({ member, isMe, leaveToday, onClick }: {
   );
 }
 
-// ── Bulletin Board Note Card ──────────────────────────────────────────────────
-
 function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
   note: BoardNote; index: number; isMe: boolean; isAdmin: boolean;
   onDelete: () => void; onPin: () => void; onEdit: () => void;
@@ -477,14 +454,12 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
         className={cn("rounded-xl overflow-hidden flex flex-col relative", style.bg, isNonGeneral ? announceConfig.border : "")}
         style={{ boxShadow: "0 2px 4px rgba(0,0,0,0.08), 0 6px 18px rgba(0,0,0,0.14), 0 1px 2px rgba(0,0,0,0.06)" }}
       >
-        {/* Announcement type ribbon */}
         {isNonGeneral && (
           <div className={cn("flex items-center justify-center gap-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest", announceConfig.badge)}>
             <AnnounceIcon className="size-3" />{announceConfig.label}
           </div>
         )}
 
-        {/* Pinned banner */}
         {note.pinned && (
           <div className="flex items-center gap-1 px-3.5 pt-2 pb-0">
             <Pin className="size-2.5 text-foreground/30" />
@@ -492,7 +467,6 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
           </div>
         )}
 
-        {/* Header */}
         <div className={cn("flex items-start gap-2 px-3.5 pt-3 pb-2", style.top, (isNonGeneral || note.pinned) && "pt-2")}>
           <div className="flex-1 min-w-0">
             {note.emoji && <span className="text-2xl leading-none block mb-1.5">{note.emoji}</span>}
@@ -503,7 +477,6 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
               <p className="text-[10px] italic text-foreground/25 uppercase tracking-widest font-semibold">Note</p>
             )}
           </div>
-          {/* Action buttons — always visible on own notes, hover only for others */}
           <div className={cn(
             "flex items-center gap-0.5 shrink-0 -mt-0.5 -mr-0.5 transition-opacity",
             isMe || isAdmin ? "opacity-0 group-hover:opacity-100" : "opacity-0 group-hover:opacity-100",
@@ -532,12 +505,10 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
           </div>
         </div>
 
-        {/* Content */}
         <div className="px-3.5 py-3 flex-1">
           <p className="text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{note.content}</p>
         </div>
 
-        {/* Footer */}
         <div className="px-3.5 pb-3.5 pt-2.5 border-t border-black/[0.07] dark:border-white/[0.07] flex items-center gap-2">
           <Avatar className="size-5 shrink-0">
             <AvatarImage src={note.userAvatar} />
@@ -558,7 +529,6 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
           )}
         </div>
 
-        {/* Folded corner decoration */}
         <div
           className="absolute bottom-0 right-0 pointer-events-none"
           style={{
@@ -571,8 +541,6 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
     </div>
   );
 }
-
-// ── Overview dashboard ────────────────────────────────────────────────────────
 
 function OverviewDashboard({
   members, todayAbsences, onMemberClick,
@@ -590,12 +558,9 @@ function OverviewDashboard({
 
   const pct = (n: number) => total ? Math.round((n / total) * 100) : 0;
 
-  // ── Drag-to-scroll: Pointer Events + capture so drag works even when
-  //    the pointer leaves the element; wheel redirected to horizontal scroll ──
   const stripRef = React.useRef<HTMLDivElement>(null);
   const drag = React.useRef({ active: false, startX: 0, scrollLeft: 0, moved: false });
 
-  // Non-passive wheel listener — prevents page scroll when hovering the strip
   React.useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
@@ -613,9 +578,9 @@ function OverviewDashboard({
     const el = stripRef.current;
     if (!el || e.button !== 0) return;
     drag.current = { active: true, startX: e.clientX, scrollLeft: el.scrollLeft, moved: false };
-    el.setPointerCapture(e.pointerId); // lock events to this element until release
+    el.setPointerCapture(e.pointerId);
     el.style.cursor = "grabbing";
-    e.preventDefault(); // block text-selection during drag
+    e.preventDefault();
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -634,11 +599,9 @@ function OverviewDashboard({
       stripRef.current.releasePointerCapture(e.pointerId);
       stripRef.current.style.cursor = "grab";
     }
-    // Reset moved flag after click event fires so next click works
     setTimeout(() => { drag.current.moved = false; }, 0);
   }
 
-  // All members sorted: online → busy → away → idle → dnd → offline
   const sortedMembers = React.useMemo(() => [...members].sort((a, b) => {
     const o: Record<string, number> = { online: 0, busy: 1, away: 2, idle: 3, do_not_disturb: 4, offline: 5 };
     return (o[a.onlineStatus] ?? 5) - (o[b.onlineStatus] ?? 5);
@@ -662,7 +625,6 @@ function OverviewDashboard({
   return (
     <div className="space-y-5">
 
-      {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Team Members", value: total, sub: `${active} currently active`, icon: Users, color: "text-foreground", bg: "bg-card border-border/40" },
@@ -683,7 +645,6 @@ function OverviewDashboard({
         ))}
       </div>
 
-      {/* ── All members — horizontal scroll strip (online first, offline last) ── */}
       {total > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -744,7 +705,6 @@ function OverviewDashboard({
         </div>
       )}
 
-      {/* ── Team presence ratio bar ──────────────────────────────────────────── */}
       {total > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -773,7 +733,6 @@ function OverviewDashboard({
         </div>
       )}
 
-      {/* ── By Department — always all 13, always shows offline + bar ───────── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <LayoutGrid className="size-3.5 text-muted-foreground/50" />
@@ -797,7 +756,6 @@ function OverviewDashboard({
                   ? "border-dashed border-border/30 bg-muted/10"
                   : "border-border/40 bg-card/60 hover:bg-accent/10",
               )}>
-                {/* Name + total */}
                 <div className="flex items-center gap-2">
                   <span className={cn("size-2 rounded-full shrink-0 mt-px", leadDot)} />
                   <p className={cn("text-xs font-bold truncate flex-1", (isNone || isEmpty) && "text-muted-foreground/60 italic")}>
@@ -806,7 +764,6 @@ function OverviewDashboard({
                   <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">{dm.length}</span>
                 </div>
 
-                {/* Status counts — always show offline; show "No members" for empty */}
                 {isEmpty ? (
                   <p className="text-[10px] text-muted-foreground/30 italic">No members yet</p>
                 ) : (
@@ -826,14 +783,12 @@ function OverviewDashboard({
                         <span className="size-1.5 rounded-full bg-amber-400" />{dAway} away
                       </span>
                     )}
-                    {/* Always show offline count if members exist */}
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
                       <span className="size-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />{dOffline} offline
                     </span>
                   </div>
                 )}
 
-                {/* Mini avatar strip — all members, online first */}
                 {dm.length > 0 && (
                   <div className="flex -space-x-1.5 overflow-hidden">
                     {[...dm]
@@ -865,7 +820,6 @@ function OverviewDashboard({
                   </div>
                 )}
 
-                {/* Activity bar — always rendered; gray-only for all-offline/empty */}
                 <div className="h-1 rounded-full bg-muted/40 overflow-hidden flex gap-px">
                   {dOnline > 0 && <div className="bg-green-500" style={{ width: `${Math.round((dOnline / Math.max(dm.length, 1)) * 100)}%` }} />}
                   {dBusy > 0 && <div className="bg-red-400" style={{ width: `${Math.round((dBusy / Math.max(dm.length, 1)) * 100)}%` }} />}
@@ -877,7 +831,6 @@ function OverviewDashboard({
         </div>
       </div>
 
-      {/* ── Out today ───────────────────────────────────────────────────────── */}
       {todayAbsences.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap px-3.5 py-2.5 rounded-xl border border-amber-200/60 dark:border-amber-800/30 bg-amber-50/80 dark:bg-amber-950/20">
           <span className="text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-400 shrink-0">Out today</span>
@@ -898,21 +851,17 @@ function OverviewDashboard({
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 type TabId = "overview" | "team" | "calendar" | "board";
 
 export default function TeamPulsePage() {
   const { user } = useUser();
 
-  // Tab & filters
   const [tab, setTab] = React.useState<TabId>("overview");
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [deptFilter, setDeptFilter] = React.useState("all");
   const [roleFilter, setRoleFilter] = React.useState("all");
 
-  // Calendar
   const [calMonth, setCalMonth] = React.useState(new Date());
   const [selectedDay, setSelectedDay] = React.useState<Date | null>(null);
   const [absType, setAbsType] = React.useState<AbsenceType>("day_off");
@@ -923,18 +872,16 @@ export default function TeamPulsePage() {
   const [calTypeFilter, setCalTypeFilter] = React.useState("all");
   const [showAddForm, setShowAddForm] = React.useState(false);
 
-  // Board
   const [boardTypeFilter, setBoardTypeFilter] = React.useState("all");
   const [noteDialog, setNoteDialog] = React.useState(false);
   const [editNoteId, setEditNoteId] = React.useState<string | null>(null);
   const [noteTitle, setNoteTitle] = React.useState("");
   const [noteBody, setNoteBody] = React.useState("");
   const [noteColor, setNoteColor] = React.useState<NoteColor>("yellow");
-  const [noteExpiry, setNoteExpiry] = React.useState(""); // "" = permanent, "YYYY-MM-DD" = expiry date
+  const [noteExpiry, setNoteExpiry] = React.useState("");
   const [noteAnnounce, setNoteAnnounce] = React.useState<AnnouncementType>("general");
   const [noteEmoji, setNoteEmoji] = React.useState("");
 
-  // Status & member sheet
   const [myStatus, setMyStatus] = React.useState<OnlineStatus>("offline");
   const [myCustomStatus, setMyCustomStatus] = React.useState("");
   const [openMemberId, setOpenMemberId] = React.useState<string | null>(null);
@@ -942,7 +889,6 @@ export default function TeamPulsePage() {
   const calYear = calMonth.getFullYear();
   const calMonthNum = calMonth.getMonth() + 1;
 
-  // Data
   const { data: members = [], isLoading: membersLoading } = useTeamMembers();
   const { data: absences = [] } = useTeamAbsences(calYear, calMonthNum);
   const { data: boardNotes = [], isLoading: boardLoading } = useBoardNotes();
@@ -955,8 +901,6 @@ export default function TeamPulsePage() {
   const pinNote = useTogglePinNote();
   const updateStatus = useUpdateMyStatus();
 
-  // Sync my status — only update the status value, never causes loop because
-  // setMyStatus doesn't affect `members` or `user?.fullName`
   React.useEffect(() => {
     const me = members.find((m) => m.name === user?.fullName);
     if (!me) return;
@@ -964,7 +908,6 @@ export default function TeamPulsePage() {
     setMyCustomStatus((prev) => (me.customStatus ?? "") !== prev ? (me.customStatus ?? "") : prev);
   }, [members, user?.fullName]);
 
-  // Reset add-form state whenever the selected day changes
   React.useEffect(() => {
     setShowAddForm(false);
     setAbsTitle("");
@@ -973,7 +916,6 @@ export default function TeamPulsePage() {
     setAbsType("day_off");
   }, [selectedDay]);
 
-  // Derived
   const myMember = members.find((m) => m.name === user?.fullName);
   const isAdmin = ["admin", "super_admin"].includes(myMember?.role ?? "");
 
@@ -987,7 +929,6 @@ export default function TeamPulsePage() {
     offline: members.filter((m) => m.onlineStatus === "offline").length,
   }), [members]);
 
-  // Always show all 13 departments from DayPulse — not just ones currently assigned to members
   const availableDepts = React.useMemo(() => ({
     ordered: [...DEPARTMENTS],
     hasNone: members.some((m) => !m.personalInfo?.department),
@@ -1018,8 +959,6 @@ export default function TeamPulsePage() {
   const dayAbsences = selectedDay ? calAbsences.filter((a) => isSameDay(parseISO(a.date), selectedDay)) : [];
   const myDayAbsence = selectedDay ? absences.filter((a) => isSameDay(parseISO(a.date), selectedDay)).find((a) => a.userName === user?.fullName) : undefined;
   const myMonthAbsences = absences.filter((a) => a.userName === user?.fullName);
-  const weekAbsences = calAbsences.filter((a) => isThisWeek(parseISO(a.date)));
-
   const upcomingAbsences = React.useMemo(() => {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const weekEnd = new Date(todayStart); weekEnd.setDate(todayStart.getDate() + 6);
@@ -1038,8 +977,6 @@ export default function TeamPulsePage() {
 
   const currentStatus = onlineStatusOptions.find((o) => o.value === myStatus) ?? onlineStatusOptions[0];
   const hasFilters = search || statusFilter !== "all" || deptFilter !== "all" || roleFilter !== "all";
-
-  // ── Handlers ────────────────────────────────────────────────────────────────
 
   async function handleAddAbsence() {
     if (!selectedDay) return;
@@ -1098,12 +1035,10 @@ export default function TeamPulsePage() {
     catch { setMyStatus(prev); toast.error("Failed to update status"); }
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <TooltipProvider delayDuration={150}>
       <div className="p-4 sm:p-8 container mx-auto pb-16 animate-in fade-in duration-500">
 
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -1127,7 +1062,7 @@ export default function TeamPulsePage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 p-1.5">
-              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest px-2 py-1">Your status</p>
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest px-2 py-1">Status</p>
               {onlineStatusOptions.map((opt) => (
                 <DropdownMenuItem key={opt.value} onClick={() => handleStatusChange(opt.value as OnlineStatus)} className="gap-2.5 rounded-lg cursor-pointer py-2 px-2">
                   <span className={cn("size-2.5 rounded-full shrink-0", opt.color)} />
@@ -1142,7 +1077,6 @@ export default function TeamPulsePage() {
           </DropdownMenu>
         </div>
 
-        {/* Tab bar */}
         <div className="border-b border-border/40 mb-6">
           <div className="flex gap-0 overflow-x-auto no-scrollbar">
             {([
@@ -1166,18 +1100,15 @@ export default function TeamPulsePage() {
           </div>
         </div>
 
-        {/* ══ OVERVIEW TAB ════════════════════════════════════════════════════ */}
         {tab === "overview" && (
           <div className="space-y-6">
-            {/* Stats + member strip + presence bar + dept breakdown + out today */}
             <OverviewDashboard
               members={members}
               todayAbsences={todayAbsences}
               onMemberClick={(id) => setOpenMemberId(id)}
             />
 
-            {/* Quick nav to other tabs */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { id: "team" as TabId, Icon: Users, label: "Team Directory", desc: `${members.length} members` },
                 { id: "calendar" as TabId, Icon: CalendarDays, label: "Team Calendar", desc: `${todayAbsences.length} out today` },
@@ -1199,10 +1130,8 @@ export default function TeamPulsePage() {
           </div>
         )}
 
-        {/* ══ TEAM TAB ════════════════════════════════════════════════════════ */}
         {tab === "team" && (
           <div className="space-y-3">
-            {/* Status filter chips */}
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
               {[
                 { key: "all", label: "All", dot: "bg-foreground/40" },
@@ -1227,7 +1156,6 @@ export default function TeamPulsePage() {
               })}
             </div>
 
-            {/* Extended filters */}
             <div className="flex flex-wrap gap-2 items-center">
               <div className="relative flex-1 min-w-52">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50" />
@@ -1265,7 +1193,6 @@ export default function TeamPulsePage() {
               <span className="ml-auto text-[11px] text-muted-foreground/40 font-semibold tabular-nums shrink-0">{filtered.length}/{members.length}</span>
             </div>
 
-            {/* Member list */}
             {membersLoading ? (
               <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16.5 rounded-2xl bg-muted/20 animate-pulse border border-border/10" />)}</div>
             ) : filtered.length === 0 ? (
@@ -1286,11 +1213,9 @@ export default function TeamPulsePage() {
           </div>
         )}
 
-        {/* ══ CALENDAR TAB ════════════════════════════════════════════════════ */}
         {tab === "calendar" && (
           <div className="space-y-5">
 
-            {/* ── Stats row ─────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "Out This Month", value: monthStats.total, sub: `${monthStats.unique} unique people`, icon: CalendarDays, bg: "bg-rose-50 dark:bg-rose-950/30 border-rose-200/60 dark:border-rose-800/30", color: "text-rose-600 dark:text-rose-400" },
@@ -1313,9 +1238,7 @@ export default function TeamPulsePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-              {/* ── Left: Calendar card ───────────────────────────────────── */}
               <Card className="lg:col-span-7 border-border/40 shadow-sm overflow-hidden">
-                {/* Gradient header */}
                 <div className="relative overflow-hidden bg-linear-to-br from-primary/90 via-primary/70 to-primary/50 px-5 pt-5 pb-4">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
                   <div className="relative flex items-center justify-between gap-3">
@@ -1330,7 +1253,6 @@ export default function TeamPulsePage() {
                     </div>
                   </div>
 
-                  {/* Filters row */}
                   <div className="relative mt-3 flex flex-wrap gap-2">
                     <Select value={calDeptFilter} onValueChange={setCalDeptFilter}>
                       <SelectTrigger className="h-7 text-xs w-auto bg-white/15 border-white/25 text-white [&>svg]:text-white/60 hover:bg-white/25">
@@ -1392,7 +1314,6 @@ export default function TeamPulsePage() {
                             hits.length > 0 && !isSel ? "bg-rose-50/40 dark:bg-rose-950/15" : "",
                             modifiers.outside ? "opacity-0 pointer-events-none" : "",
                           )}>
-                            {/* Day number */}
                             <span className={cn(
                               "text-[11px] font-black leading-none z-10",
                               isToday && !isSel ? "text-primary" : "",
@@ -1400,7 +1321,6 @@ export default function TeamPulsePage() {
                               isWknd && !isSel ? "text-muted-foreground/60" : "",
                             )}>{day.date.getDate()}</span>
 
-                            {/* Avatar cluster */}
                             {hits.length > 0 && (
                               <div className="flex flex-wrap gap-px mt-1 w-full justify-center z-10">
                                 {hits.slice(0, maxAvatars).map((a) => {
@@ -1427,7 +1347,6 @@ export default function TeamPulsePage() {
                               </div>
                             )}
 
-                            {/* Type color bar at bottom */}
                             {hits.length > 0 && !isSel && (
                               <div className="absolute bottom-0 left-0 right-0 h-1 flex overflow-hidden rounded-b-xl">
                                 {(Object.entries(typeCounts) as [AbsenceType, number][]).map(([type, count]) => (
@@ -1441,7 +1360,6 @@ export default function TeamPulsePage() {
                     }}
                   />
 
-                  {/* Legend */}
                   <div className="mt-4 pt-3 border-t border-border/20">
                     <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 mb-2">Legend</p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1.5">
@@ -1457,10 +1375,8 @@ export default function TeamPulsePage() {
                 </CardContent>
               </Card>
 
-              {/* ── Right panel ───────────────────────────────────────────── */}
               <div className="lg:col-span-5 space-y-4">
 
-                {/* Upcoming this week — always capped, never stretches */}
                 {upcomingAbsences.length > 0 && (
                   <Card className="border-border/40 shadow-sm overflow-hidden">
                     <div className="bg-linear-to-r from-violet-500/10 to-transparent border-b border-border/20 px-4 py-3 flex items-center gap-2">
@@ -1494,10 +1410,8 @@ export default function TeamPulsePage() {
                   </Card>
                 )}
 
-                {/* Selected day panel OR prompt */}
                 {selectedDay ? (
                   <Card className="border-border/40 shadow-sm overflow-hidden">
-                    {/* Day header */}
                     <div className="relative overflow-hidden border-b border-border/20">
                       <div className={cn("absolute inset-0 opacity-40", dayAbsences.length > 0 ? "bg-rose-50 dark:bg-rose-950/30" : "bg-emerald-50 dark:bg-emerald-950/20")} />
                       <div className="relative flex items-start justify-between px-4 py-3.5">
@@ -1513,7 +1427,6 @@ export default function TeamPulsePage() {
                     </div>
 
                     <CardContent className="p-4 space-y-3">
-                      {/* Existing entries — capped so they don't push form off-screen */}
                       {dayAbsences.length > 0 && (
                         <div className="overflow-y-auto space-y-1.5" style={{ maxHeight: 180, scrollbarWidth: "none" }}>
                           {dayAbsences.map((a) => {
@@ -1555,7 +1468,6 @@ export default function TeamPulsePage() {
                         </div>
                       )}
 
-                      {/* Bottom action row */}
                       {myDayAbsence ? (
                         <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 border border-border/20">
                           <Check className="size-3.5 text-primary shrink-0" />
@@ -1613,7 +1525,6 @@ export default function TeamPulsePage() {
                   </Card>
                 )}
 
-                {/* My month schedule */}
                 {myMonthAbsences.length > 0 && (
                   <Card className="border-border/40 shadow-sm overflow-hidden">
                     <div className="bg-linear-to-r from-emerald-500/10 to-transparent border-b border-border/20 px-4 py-3 flex items-center gap-2">
@@ -1648,7 +1559,6 @@ export default function TeamPulsePage() {
           </div>
         )}
 
-        {/* ══ BOARD TAB ══════════════════════════════════════════════════════ */}
         {tab === "board" && (() => {
           const filteredNotes = boardTypeFilter === "all"
             ? boardNotes
@@ -1659,7 +1569,6 @@ export default function TeamPulsePage() {
           return (
             <div className="space-y-4">
 
-              {/* ── Cork board ─────────────────────────────────────────────── */}
               <div
                 className="relative rounded-2xl overflow-hidden"
                 style={{
@@ -1667,7 +1576,6 @@ export default function TeamPulsePage() {
                   boxShadow: "inset 0 2px 12px rgba(0,0,0,0.25), inset 0 -2px 6px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.18)",
                 }}
               >
-                {/* Cork texture */}
                 <div
                   className="absolute inset-0"
                   style={{
@@ -1685,18 +1593,14 @@ export default function TeamPulsePage() {
                 />
                 <div className="absolute inset-0 dark:bg-black/55" />
 
-                {/* Inner shadow edges */}
                 <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.2)] pointer-events-none" />
 
-                {/* Board content */}
                 <div className="relative flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-5 py-4">
                   <div className="flex flex-col gap-2.5">
-                    {/* Name plate */}
                     <div className="inline-flex items-center gap-2 bg-amber-50/95 dark:bg-zinc-900/90 border border-amber-200/60 dark:border-zinc-700/60 rounded-lg px-3.5 py-2 shadow-md self-start">
                       <StickyNote className="size-4 text-amber-700 dark:text-amber-400 shrink-0" />
                       <span className="font-black text-sm text-amber-900 dark:text-amber-100 tracking-tight">Team Bulletin Board</span>
                     </div>
-                    {/* Stats chips */}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center gap-1 text-[10px] font-black bg-black/20 dark:bg-black/40 backdrop-blur-sm text-white px-2.5 py-1 rounded-full shadow-sm">
                         <StickyNote className="size-2.5" />{boardNotes.length} note{boardNotes.length !== 1 ? "s" : ""}
@@ -1723,7 +1627,6 @@ export default function TeamPulsePage() {
                 </div>
               </div>
 
-              {/* ── Type filter chips ──────────────────────────────────────── */}
               {boardNotes.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                   {([
@@ -1757,7 +1660,6 @@ export default function TeamPulsePage() {
                 </div>
               )}
 
-              {/* ── Notes ─────────────────────────────────────────────────── */}
               {boardLoading ? (
                 <div className="columns-1 sm:columns-2 lg:columns-3 gap-6" style={{ paddingTop: 20 }}>
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -1765,7 +1667,6 @@ export default function TeamPulsePage() {
                   ))}
                 </div>
               ) : boardNotes.length === 0 ? (
-                /* Empty state — cork board empty */
                 <div
                   className="relative rounded-xl overflow-hidden flex flex-col items-center justify-center py-20 text-center"
                   style={{
@@ -1810,13 +1711,10 @@ export default function TeamPulsePage() {
         })()}
       </div>
 
-      {/* ── Member Profile Sheet ─────────────────────────────────────────────── */}
       <MemberProfileSheet memberId={openMemberId} onClose={() => setOpenMemberId(null)} />
 
-      {/* ── Post / Edit Note Dialog ──────────────────────────────────────────── */}
       <Dialog open={noteDialog} onOpenChange={setNoteDialog}>
         <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto p-0">
-          {/* Dialog header — cork-themed */}
           <div className="relative overflow-hidden rounded-t-xl px-6 py-4 border-b border-amber-200/60 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/40">
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 1.5px 1.5px, rgba(120,80,30,0.3) 1.5px, transparent 0)", backgroundSize: "10px 10px" }} />
             <DialogHeader className="relative">
@@ -1833,7 +1731,6 @@ export default function TeamPulsePage() {
           </div>
 
           <div className="p-6 space-y-4">
-            {/* Emoji + Title row */}
             <div className="flex gap-2">
               <div className="space-y-1.5 w-16 shrink-0">
                 <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Emoji</label>
@@ -1909,7 +1806,6 @@ export default function TeamPulsePage() {
                         selected={noteExpiry ? parseISO(noteExpiry) : undefined}
                         onSelect={(day) => setNoteExpiry(day ? format(day, "yyyy-MM-dd") : "")}
                         disabled={(date) => date <= new Date()}
-                        initialFocus
                       />
                       {noteExpiry && (
                         <div className="px-3 pb-3 border-t border-border/40 pt-2">
@@ -1928,7 +1824,6 @@ export default function TeamPulsePage() {
               </>
             )}
 
-            {/* Color swatches */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Note Color</label>
               <div className="flex flex-wrap gap-2">
@@ -1938,7 +1833,7 @@ export default function TeamPulsePage() {
                       <button
                         onClick={() => setNoteColor(c)}
                         style={{ backgroundColor: N[c].hex }}
-                        className={cn("size-8 rounded-xl border-2 transition-all", noteColor === c ? "border-foreground/40 scale-115 shadow-lg" : "border-transparent hover:scale-110 opacity-55 hover:opacity-90")}
+                        className={cn("size-8 rounded-xl border-2 transition-all", noteColor === c ? "border-foreground/40 scale-[1.15] shadow-lg" : "border-transparent hover:scale-110 opacity-55 hover:opacity-90")}
                       />
                     </TooltipTrigger>
                     <TooltipContent className="text-xs capitalize">{c}</TooltipContent>
@@ -1947,7 +1842,6 @@ export default function TeamPulsePage() {
               </div>
             </div>
 
-            {/* Live preview */}
             {(noteTitle || noteBody || noteEmoji) && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Preview</label>
