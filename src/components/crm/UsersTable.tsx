@@ -17,6 +17,7 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  UserMinus,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -50,6 +51,7 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { EditUserModal } from "@/components/crm/EditUserModal"
 import { ResetPasswordModal } from "@/components/crm/ResetPasswordModal"
+import { OffboardModal } from "@/components/crm/OffboardModal"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,8 @@ interface CrmUserRow {
   isActive: boolean
   lastLoginAt?: string
   createdAt: string
+  birthday?: string
+  hireDate?: string
 }
 
 interface PaginationMeta {
@@ -234,6 +238,7 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
   const [resetTarget, setResetTarget] = React.useState<CrmUserRow | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<CrmUserRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+  const [offboardTarget, setOffboardTarget] = React.useState<CrmUserRow | null>(null)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all")
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
@@ -445,6 +450,16 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
               </>
             )}
           </DropdownMenuItem>
+
+          {u.isActive && (
+            <DropdownMenuItem
+              onClick={() => setOffboardTarget(u)}
+              className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-amber-600 focus:text-amber-600 focus:bg-amber-500/5"
+            >
+              <UserMinus className="h-3.5 w-3.5" />
+              Offboard
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuSeparator className="my-1" />
 
@@ -891,6 +906,18 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
         token={token}
         user={resetTarget}
         onReset={() => setResetTarget(null)}
+      />
+
+      {/* Offboard modal */}
+      <OffboardModal
+        open={!!offboardTarget}
+        onClose={() => setOffboardTarget(null)}
+        token={token}
+        user={offboardTarget}
+        onOffboarded={() => {
+          setOffboardTarget(null)
+          fetchUsers(page)
+        }}
       />
 
       {/* Delete confirmation dialog */}

@@ -21,6 +21,8 @@ import {
   Wallet,
   LayoutGrid,
   PlusSquare,
+  Rss,
+  HeartHandshake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -82,6 +84,21 @@ const data = {
       title: "Team Pulse",
       url: "/team-pulse",
       icon: Activity,
+    },
+    {
+      title: "Suprah Space",
+      url: "/crm/supra-space",
+      icon: MessageSquare,
+    },
+    {
+      title: "Feeds",
+      url: "/crm/feeds",
+      icon: Rss,
+    },
+    {
+      title: "HR & People",
+      url: "/crm/hr",
+      icon: HeartHandshake,
     },
     {
       title: "All Inventory",
