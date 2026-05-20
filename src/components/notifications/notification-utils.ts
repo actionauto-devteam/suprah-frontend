@@ -108,8 +108,8 @@ const ROUTE_MAP: Record<string, string> = {
   vehicle_status_changed: '/inventory', inventory_sync: '/inventory', new_inventory_alert: '/inventory',
   appointment_created: '/crm/appointments', appointment_updated: '/crm/appointments',
   appointment_cancelled: '/crm/appointments', appointment_reminder: '/crm/appointments', guest_response: '/crm/appointments',
-  new_lead: '/crm/leads', lead_assigned: '/crm/leads', lead_status_changed: '/crm/leads',
-  crm_message: '/crm/supra-space', crm_task_assigned: '/crm/leads', crm_task_due: '/crm/leads',
+  new_lead: '/crm', lead_assigned: '/crm', lead_status_changed: '/crm',
+  crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
   message_received: '/crm/supra-space',
   driver_location_update: '/driver-tracker',
@@ -148,8 +148,6 @@ function getRoleContext(pathname: string): 'driver' | 'customer' | 'admin' | 'da
 }
 
 export function getNotificationRoute(notification: Notification, pathname?: string): string | null {
-  if (typeof notification.metadata?.route === 'string') return notification.metadata.route;
-
   if (!pathname) return ROUTE_MAP[notification.type] || null;
 
   const role = getRoleContext(pathname);

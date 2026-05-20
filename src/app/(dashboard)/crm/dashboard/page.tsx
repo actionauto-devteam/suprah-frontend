@@ -18,7 +18,6 @@ import {
   Fingerprint,
   CalendarCheck,
   Activity,
-  AlertTriangle,
   Sparkles,
   Coffee,
   Play,
@@ -63,17 +62,7 @@ interface CrmUserData {
   }>;
 }
 
-interface UnansweredInquiryReminder {
-  _id: string;
-  customerName: string;
-  email?: string;
-  subject?: string;
-  channel?: string;
-  status: string;
-  minutesUnanswered: number;
-  reminderCount: number;
-}
-
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function getGreeting(name: string) {
   const h = new Date().getHours();
   if (h >= 5 && h < 12)
@@ -104,13 +93,6 @@ function ini(n: string) {
 }
 function fmt(d: Date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function fmtUnansweredDuration(minutes: number) {
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
 type ApiError = {
@@ -401,67 +383,7 @@ function StatChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InquiryReminderAlert({
-  reminders,
-  onViewAll,
-}: {
-  reminders: UnansweredInquiryReminder[];
-  onViewAll: () => void;
-}) {
-  if (reminders.length === 0) return null;
-
-  const topReminders = reminders.slice(0, 3);
-
-  return (
-    <div className="rounded-2xl border border-amber-300/70 dark:border-amber-500/30 bg-amber-50/90 dark:bg-amber-500/10 p-4 shadow-sm dark:shadow-none">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center shrink-0">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-black text-zinc-900 dark:text-white">
-              {reminders.length} unanswered customer {reminders.length === 1 ? "inquiry" : "inquiries"}
-            </p>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
-              Follow up on leads that have passed the response window.
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={onViewAll}
-          size="sm"
-          className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0"
-        >
-          View Leads
-        </Button>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {topReminders.map((reminder) => (
-          <button
-            key={reminder._id}
-            onClick={onViewAll}
-            className="text-left rounded-xl border border-amber-200/80 dark:border-amber-500/20 bg-white/70 dark:bg-zinc-950/30 px-3 py-2.5 hover:border-emerald-400/50 dark:hover:border-emerald-500/40 transition-colors min-w-0"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-black text-zinc-800 dark:text-zinc-100 truncate">
-                {reminder.customerName}
-              </p>
-              <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 tabular-nums shrink-0">
-                {fmtUnansweredDuration(reminder.minutesUnanswered)}
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-500 truncate">
-              {reminder.subject || reminder.email || "No subject"}
-            </p>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
+// ─── Dashboard ───────────────────────────────────────────────────────────────
 export default function CrmDashboardPage() {
   const router = useRouter();
   const [user, setUser] = React.useState<CrmUserData | null>(null);
@@ -477,7 +399,6 @@ export default function CrmDashboardPage() {
     null,
   );
   const [breakAccumulatedMs, setBreakAccumulatedMs] = React.useState(0);
-  const [inquiryReminders, setInquiryReminders] = React.useState<UnansweredInquiryReminder[]>([]);
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -516,39 +437,6 @@ export default function CrmDashboardPage() {
     };
     check();
   }, [router]);
-
-  React.useEffect(() => {
-    if (!token) return;
-
-    let cancelled = false;
-
-    const fetchUnansweredReminders = async () => {
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        await apiClient.post(
-          "/api/leads/reminders/unanswered/run",
-          { thresholdMinutes: 60, limit: 25 },
-          { headers },
-        );
-        const res = await apiClient.get(
-          "/api/leads/reminders/unanswered?thresholdMinutes=60&limit=6",
-          { headers },
-        );
-        const data = res.data?.data || res.data;
-        if (!cancelled) setInquiryReminders(data.reminders || []);
-      } catch {
-        if (!cancelled) setInquiryReminders([]);
-      }
-    };
-
-    fetchUnansweredReminders();
-    const interval = window.setInterval(fetchUnansweredReminders, 5 * 60 * 1000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [token]);
 
   const handleExit = async () => {
     try {
@@ -747,7 +635,7 @@ export default function CrmDashboardPage() {
                     variant="ghost"
                     size="sm"
                     className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-white/80 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:border-zinc-300/60 dark:hover:border-zinc-600/60 backdrop-blur-sm transition-all duration-200"
-                    >
+                  >
                     <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
                       <AvatarImage src={userAvatarSrc} />
                       <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
@@ -1077,11 +965,7 @@ export default function CrmDashboardPage() {
                 </div>
               </div>
 
-              <InquiryReminderAlert
-                reminders={inquiryReminders}
-                onViewAll={() => router.push("/crm/leads")}
-              />
-
+              {/* Quick Actions card */}
               <div
                 className={cn(
                   "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-6 flex-1 shadow-sm dark:shadow-none",
