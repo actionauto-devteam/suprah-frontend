@@ -9,6 +9,7 @@ import {
   Car,
   ChevronRight,
   ClipboardList,
+  HeartHandshake,
   LayoutDashboard,
   MessageSquare,
   Settings,
@@ -89,6 +90,11 @@ const data = {
       title: "Feeds",
       url: "/crm/feeds",
       icon: Rss,
+    },
+    {
+      title: "Team Engagement",
+      url: "/crm/hr",
+      icon: HeartHandshake,
     },
     {
       title: "All Inventory",
