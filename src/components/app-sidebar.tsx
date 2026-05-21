@@ -8,6 +8,7 @@ import {
   Car,
   ChevronRight,
   ClipboardList,
+  HeartHandshake,
   LayoutDashboard,
   MessageSquare,
   Settings,
@@ -22,7 +23,6 @@ import {
   LayoutGrid,
   PlusSquare,
   Rss,
-  HeartHandshake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 

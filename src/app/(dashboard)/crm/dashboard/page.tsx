@@ -24,6 +24,9 @@ import {
   MessageSquare,
   Rss,
   Trophy,
+
+  Users,
+  Tag,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -573,6 +576,7 @@ export default function CrmDashboardPage() {
     },
     {
       icon: (
+
         <MessageSquare className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
       label: "Supra Space",
@@ -580,10 +584,10 @@ export default function CrmDashboardPage() {
     },
     {
       icon: (
-        <Fingerprint className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+        <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
-      label: "Biometrics",
-      route: "/crm/biometrics",
+      label: "Aftermarket",
+      route: "/crm/aftermarket",
     },
     {
       icon: <Rss className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
@@ -678,6 +682,14 @@ export default function CrmDashboardPage() {
                     >
                       <User className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
                       My Profile
+                    </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                      onClick={() => router.push("/crm/biometrics")}
+                      className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 focus:bg-zinc-100 dark:focus:bg-zinc-800/60"
+                    >
+                      <Fingerprint className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
+                     Biometrics
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => router.push("/crm/settings")}

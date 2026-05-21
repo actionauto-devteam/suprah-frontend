@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -10,13 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { apiClient } from "@/lib/api-client"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface OffboardUser {
+export interface OffboardUser {
   _id: string
   fullName: string
   email: string
@@ -55,6 +57,7 @@ export function OffboardModal({
   user,
   onOffboarded,
 }: OffboardModalProps) {
+
   const [submitting, setSubmitting] = React.useState(false)
   const [confirmed, setConfirmed] = React.useState(false)
 
@@ -74,6 +77,7 @@ export function OffboardModal({
       await apiClient.post(
         `/api/crm/users/${user._id}/offboard`,
         {},
+
         { headers: { Authorization: `Bearer ${token}` } }
       )
       toast.success(`${user.fullName} has been offboarded successfully.`)
@@ -93,6 +97,7 @@ export function OffboardModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden gap-0">
 
+
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-5 border-b border-border/40 space-y-2">
           <div className="flex items-center gap-3">
@@ -100,6 +105,7 @@ export function OffboardModal({
               <UserMinus className="h-4 w-4 text-amber-500" />
             </div>
             <div>
+
               <DialogTitle className="text-sm font-bold">Offboard Employee</DialogTitle>
               <DialogDescription className="text-[11px] text-muted-foreground/50 mt-0.5">
                 Review the offboarding process before confirming.
@@ -110,6 +116,7 @@ export function OffboardModal({
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
+
 
           {/* Employee card */}
           <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-3">
@@ -188,6 +195,7 @@ export function OffboardModal({
             Cancel
           </Button>
           <Button
+
             onClick={handleOffboard}
             disabled={submitting || !confirmed}
             className="flex-1 h-10 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold shadow-md shadow-amber-600/15 gap-2 disabled:opacity-40"
@@ -201,5 +209,6 @@ export function OffboardModal({
         </div>
       </DialogContent>
     </Dialog>
+
   )
 }

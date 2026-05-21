@@ -1,605 +1,538 @@
-"use client"
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
+"use client";
+import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Car,
-  Users,
-  Gift,
-  Cake,
-  PartyPopper,
-  UserCheck,
-  UserMinus,
-  Loader2,
-  Calendar,
-  Clock,
-  ChevronDown,
-  ChevronRight,
   LogOut,
   User,
   Settings,
-  Lock,
-  Search,
+  ChevronDown,
+  Loader2,
+  ArrowLeft,
+  Users,
   ShieldCheck,
+  ChevronRight,
+  Lock,
   HeartHandshake,
-} from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+  Gift,
+  CalendarDays,
+  UserMinus,
+  UserCheck,
+  Zap,
+  CheckCircle2,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { apiClient } from "@/lib/api-client"
-import { OffboardModal } from "@/components/crm/OffboardModal"
-import { toast } from "sonner"
+
+} from "@/components/ui/dropdown-menu";
+import { apiClient } from "@/lib/api-client";
+import { OffboardModal, type OffboardUser } from "@/components/crm/OffboardModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface CrmUser {
-  _id: string
-  fullName: string
-  username: string
-  email: string
-  avatar?: string
-  role: "employee" | "manager" | "admin"
-  isActive: boolean
-  createdAt: string
-  birthday?: string
-  hireDate?: string
+interface CrmUserData {
+  _id: string;
+  fullName: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  role: string;
 }
 
 interface MilestoneEntry {
-  _id: string
-  fullName: string
-  username: string
-  avatar?: string
-  role: string
-  date: string
-  daysUntil: number
-  type: "birthday" | "anniversary"
-  yearsCount?: number
+  _id: string;
+  fullName: string;
+  username: string;
+  avatar?: string;
+  role: string;
+  date: string;
+  daysUntil: number;
+  type: "birthday" | "anniversary";
+  yearsCount?: number;
+  gender?: string | null;
 }
 
-interface MilestonesResponse {
-  birthdays: MilestoneEntry[]
-  anniversaries: MilestoneEntry[]
+interface ActiveEmployee {
+  _id: string;
+  fullName: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  role: string;
+  isActive: boolean;
+  hireDate?: string;
+  birthday?: string;
+  createdAt: string;
 }
 
-interface OffboardedUser {
-  _id: string
-  fullName: string
-  username: string
-  email: string
-  avatar?: string
-  role: string
-  offboardedAt: string
-  hireDate?: string
+interface OffboardedEmployee {
+  _id: string;
+  fullName: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  role: string;
+  offboardedAt?: string;
 }
 
-type Tab = "milestones" | "onboarding" | "offboarding"
+type Tab = "milestones" | "onboarding" | "offboarding";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ini(n: string) {
-  return n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+
+  return n
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
-function fmtDate(iso: string) {
+function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  })
+
+  });
 }
 
-function daysSince(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  return Math.floor(diff / 86_400_000)
+function roleColor(role: string) {
+  if (role === "admin") return "bg-violet-500";
+  if (role === "manager") return "bg-blue-500";
+  return "bg-emerald-600";
 }
 
-function RoleBadge({ role }: { role: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    admin:    { label: "Admin",    cls: "bg-violet-500/10 text-violet-600 border-violet-500/20" },
-    manager:  { label: "Manager",  cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
-    employee: { label: "Employee", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+function ordinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+function greeting(entry: MilestoneEntry): string {
+  const firstName = entry.fullName.split(" ")[0];
+  if (entry.type === "birthday") {
+    return `Happy Birthday, ${firstName}!`;
   }
-  const cfg = map[role] ?? { label: role, cls: "" }
-  return (
-    <Badge variant="outline" className={`text-[10px] h-5 px-2 rounded-full font-semibold capitalize ${cfg.cls}`}>
-      {cfg.label}
-    </Badge>
-  )
+  if (entry.yearsCount) {
+    return `Congratulations, ${firstName}! Happy ${ordinal(entry.yearsCount)} Work Anniversary!`;
+  }
+  return `Congratulations, ${firstName}! Happy Work Anniversary!`;
 }
 
-// ─── Milestone Card ───────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function MilestoneCard({ entry }: { entry: MilestoneEntry }) {
-  const isToday = entry.daysUntil === 0
-  const isBirthday = entry.type === "birthday"
+function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) {
+  const [entries, setEntries] = React.useState<MilestoneEntry[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [triggering, setTriggering] = React.useState(false);
+  const [triggerStatus, setTriggerStatus] = React.useState<"idle" | "ok" | "none" | "err">("idle");
+  const [triggerCount, setTriggerCount] = React.useState(0);
 
-  return (
-    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
-      isToday
-        ? isBirthday
-          ? "border-pink-500/30 bg-pink-500/5"
-          : "border-emerald-500/30 bg-emerald-500/5"
-        : "border-border/40 bg-card"
-    }`}>
-      <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 text-lg ${
-        isToday
-          ? isBirthday ? "bg-pink-500/10" : "bg-emerald-500/10"
-          : "bg-muted/30"
-      }`}>
-        {isBirthday ? "🎂" : "🎉"}
-      </div>
-      <Avatar className="h-8 w-8 shrink-0">
-        <AvatarImage src={entry.avatar} />
-        <AvatarFallback className={`text-[9px] font-bold text-white ${
-          entry.role === "admin" ? "bg-violet-500" : entry.role === "manager" ? "bg-blue-500" : "bg-emerald-600"
-        }`}>
-          {ini(entry.fullName)}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold truncate">{entry.fullName}</p>
-        <p className="text-[10px] text-muted-foreground/50 mt-0.5">
-          {isBirthday
-            ? "Birthday"
-            : `${entry.yearsCount} year${entry.yearsCount !== 1 ? "s" : ""} anniversary`}
-        </p>
-      </div>
-      <div className="shrink-0 text-right">
-        {isToday ? (
-          <span className={`text-[10px] font-black px-2 py-1 rounded-full ${
-            isBirthday
-              ? "bg-pink-500/15 text-pink-600"
-              : "bg-emerald-500/15 text-emerald-600"
-          }`}>
-            Today!
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold text-muted-foreground/50">
-            in {entry.daysUntil}d
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function EmptyState({ icon: Icon, label, sub }: { icon: React.ElementType; label: string; sub: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-14 gap-3">
-      <div className="h-12 w-12 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center">
-        <Icon className="h-5 w-5 text-muted-foreground/20" />
-      </div>
-      <p className="text-sm font-semibold text-muted-foreground/40">{label}</p>
-      <p className="text-xs text-muted-foreground/25 max-w-xs text-center">{sub}</p>
-    </div>
-  )
-}
-
-// ─── Milestones Tab ───────────────────────────────────────────────────────────
-
-function MilestonesTab({ token }: { token: string }) {
-  const [data, setData] = React.useState<MilestonesResponse | null>(null)
-  const [loading, setLoading] = React.useState(true)
+  const handleTrigger = async () => {
+    setTriggering(true);
+    setTriggerStatus("idle");
+    try {
+      const res = await apiClient.post(
+        "/api/crm/hr/milestones/trigger",
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const count: number = res.data?.data?.announcementsSent ?? 0;
+      setTriggerCount(count);
+      setTriggerStatus(count > 0 ? "ok" : "none");
+      setTimeout(() => setTriggerStatus("idle"), 6000);
+    } catch {
+      setTriggerStatus("err");
+      setTimeout(() => setTriggerStatus("idle"), 6000);
+    } finally {
+      setTriggering(false);
+    }
+  };
 
   React.useEffect(() => {
+    if (!token) return;
+    setLoading(true);
     apiClient
       .get("/api/crm/hr/milestones?window=30", {
         headers: { Authorization: `Bearer ${token}` },
       })
-      .then((res) => setData(res.data?.data ?? res.data))
-      .catch(() => setData({ birthdays: [], anniversaries: [] }))
-      .finally(() => setLoading(false))
-  }, [token])
+
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        // API returns { birthdays: [...], anniversaries: [...] } — merge them
+        const combined: MilestoneEntry[] = [
+          ...(Array.isArray(data?.birthdays) ? data.birthdays : []),
+          ...(Array.isArray(data?.anniversaries) ? data.anniversaries : []),
+        ];
+        combined.sort((a, b) => a.daysUntil - b.daysUntil);
+        setEntries(combined);
+      })
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, [token]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
       </div>
-    )
+
+    );
   }
 
-  const birthdays = data?.birthdays ?? []
-  const anniversaries = data?.anniversaries ?? []
-  const todayBirthdays = birthdays.filter((e) => e.daysUntil === 0)
-  const todayAnniversaries = anniversaries.filter((e) => e.daysUntil === 0)
-  const todayAll = [...todayBirthdays, ...todayAnniversaries]
-  const upcomingBirthdays = birthdays.filter((e) => e.daysUntil > 0)
-  const upcomingAnniversaries = anniversaries.filter((e) => e.daysUntil > 0)
+  if (entries.length === 0) {
+    return (
+      <div>
+        {isAdmin && (
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+              Upcoming Milestones
+            </p>
+            <button
+              onClick={handleTrigger}
+              disabled={triggering}
+              className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors border
+                ${triggerStatus === "ok"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  : triggerStatus === "none"
+                  ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                  : triggerStatus === "err"
+                  ? "bg-red-500/10 text-red-500 border-red-500/20"
+                  : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {triggering ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : triggerStatus === "ok" ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : (
+                <Zap className="h-3 w-3" />
+              )}
+              {triggering
+                ? "Running…"
+                : triggerStatus === "ok"
+                ? `${triggerCount} announcement${triggerCount !== 1 ? "s" : ""} sent!`
+                : triggerStatus === "none"
+                ? "No milestones today"
+                : triggerStatus === "err"
+                ? "Failed — try again"
+                : "Run Announcements Now"}
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
+            <Gift className="h-6 w-6 text-muted-foreground/20" />
+          </div>
+          <p className="text-sm font-semibold text-muted-foreground/40">
+            No upcoming milestones
+          </p>
+          <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+            Birthdays and work anniversaries in the next 30 days will appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-5">
-      {/* Today's celebrations */}
-      {todayAll.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <PartyPopper className="h-3.5 w-3.5 text-amber-500" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-              Celebrating Today
-            </p>
-          </div>
-          <div className="space-y-2">
-            {todayAll.map((e) => (
-              <MilestoneCard key={`${e._id}-${e.type}`} entry={e} />
-            ))}
-          </div>
+    <div>
+      {isAdmin && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+            Upcoming Milestones
+          </p>
+          <button
+            onClick={handleTrigger}
+            disabled={triggering}
+            className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors border
+              ${triggerStatus === "ok"
+                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                : triggerStatus === "err"
+                ? "bg-red-500/10 text-red-500 border-red-500/20"
+                : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {triggering ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : triggerStatus === "ok" ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <Zap className="h-3 w-3" />
+            )}
+            {triggering ? "Running…" : triggerStatus === "ok" ? "Announcements sent!" : triggerStatus === "err" ? "Failed — try again" : "Run Announcements Now"}
+          </button>
         </div>
       )}
-
-      {/* Upcoming birthdays */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Cake className="h-3.5 w-3.5 text-pink-500" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-            Upcoming Birthdays
-          </p>
-          <span className="text-[9px] font-bold text-muted-foreground/30 bg-muted/30 px-1.5 py-0.5 rounded-full">
-            next 30 days
-          </span>
-        </div>
-        {upcomingBirthdays.length === 0 ? (
-          <EmptyState
-            icon={Cake}
-            label="No upcoming birthdays"
-            sub="Birthdays will appear here once employees add their date of birth."
-          />
-        ) : (
-          <div className="space-y-2">
-            {upcomingBirthdays.map((e) => (
-              <MilestoneCard key={e._id} entry={e} />
-            ))}
+    <div className="divide-y divide-border/20">
+      {entries.map((entry) => (
+        <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 py-4">
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarImage src={entry.avatar} />
+            <AvatarFallback className={`text-[10px] font-bold text-white ${roleColor(entry.role)}`}>
+              {ini(entry.fullName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground/40 truncate">{entry.fullName}</p>
+            {entry.daysUntil === 0 ? (
+              <p className={`text-sm font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
+                {greeting(entry)}
+              </p>
+            ) : (
+              <p className={`text-sm font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-400/80" : "text-amber-400/80"}`}>
+                {`In ${entry.daysUntil} day${entry.daysUntil !== 1 ? "s" : ""}, ${entry.fullName.split(" ")[0]} will celebrate ${
+                  entry.type === "birthday"
+                    ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
+                    : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
+                }`}
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground/30 mt-0.5">
+              {entry.type === "birthday" ? "Birthday" : `${entry.yearsCount ? `${entry.yearsCount}-year ` : ""}Work Anniversary`}
+              {" · "}{formatDate(entry.date)}
+            </p>
           </div>
-        )}
-      </div>
-
-      {/* Upcoming anniversaries */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Gift className="h-3.5 w-3.5 text-emerald-500" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-            Work Anniversaries
-          </p>
-          <span className="text-[9px] font-bold text-muted-foreground/30 bg-muted/30 px-1.5 py-0.5 rounded-full">
-            next 30 days
-          </span>
-        </div>
-        {upcomingAnniversaries.length === 0 ? (
-          <EmptyState
-            icon={Gift}
-            label="No upcoming anniversaries"
-            sub="Work anniversaries will appear here once employees have a hire date recorded."
-          />
-        ) : (
-          <div className="space-y-2">
-            {upcomingAnniversaries.map((e) => (
-              <MilestoneCard key={e._id} entry={e} />
-            ))}
+          <div className="shrink-0 flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={`text-sm h-8 px-4 rounded-full font-bold ${
+                entry.type === "birthday"
+                  ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
+                  : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+              }`}
+            >
+              {entry.type === "birthday" ? "🎂" : "🎉"}{" "}
+              {entry.daysUntil === 0 ? "Today!" : `in ${entry.daysUntil}d`}
+            </Badge>
           </div>
-        )}
-      </div>
-
-      {/* Info note */}
-      <div className="rounded-xl border border-border/30 bg-muted/10 px-4 py-3 flex items-start gap-2.5">
-        <PartyPopper className="h-3.5 w-3.5 text-muted-foreground/30 mt-0.5 shrink-0" />
-        <p className="text-[11px] text-muted-foreground/40 leading-relaxed">
-          Birthday and work anniversary announcements are automatically posted in{" "}
-          <span className="font-semibold text-muted-foreground/60">Feeds</span> and{" "}
-          <span className="font-semibold text-muted-foreground/60">Supra Space</span> on the celebration day.
-        </p>
-      </div>
+        </div>
+      ))}
     </div>
-  )
+    </div>
+  );
 }
 
-// ─── Onboarding Tab ───────────────────────────────────────────────────────────
-
 function OnboardingTab({ token }: { token: string }) {
-  const [users, setUsers] = React.useState<CrmUser[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [search, setSearch] = React.useState("")
+  const [employees, setEmployees] = React.useState<ActiveEmployee[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
+    if (!token) return;
+    setLoading(true);
     apiClient
       .get("/api/crm/users?limit=100&sortBy=hireDate&sortOrder=desc&status=active", {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        const data = res.data?.data || res.data
-        setUsers(data?.users ?? data ?? [])
+
+        const data = res.data?.data || res.data;
+        setEmployees(data?.users || []);
       })
-      .catch(() => setUsers([]))
-      .finally(() => setLoading(false))
-  }, [token])
-
-  const now = new Date()
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-
-  const filtered = users.filter((u) =>
-    u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const newThisMonth = filtered.filter(
-    (u) => u.hireDate && u.hireDate >= thisMonthStart
-  )
-  const rest = filtered.filter(
-    (u) => !u.hireDate || u.hireDate < thisMonthStart
-  )
+      .catch(() => setEmployees([]))
+      .finally(() => setLoading(false));
+  }, [token]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
       </div>
-    )
+
+    );
+  }
+
+  if (employees.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
+          <UserCheck className="h-6 w-6 text-muted-foreground/20" />
+        </div>
+        <p className="text-sm font-semibold text-muted-foreground/40">No active employees</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search employees…"
-          className="h-9 pl-9 rounded-xl border-border/40 text-xs"
-        />
-      </div>
-
-      {/* New this month */}
-      {newThisMonth.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <UserCheck className="h-3.5 w-3.5 text-emerald-500" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
-              New This Month
-            </p>
-            <span className="ml-auto text-[10px] text-muted-foreground/40 font-semibold">
-              {newThisMonth.length} employee{newThisMonth.length !== 1 ? "s" : ""}
-            </span>
+    <div className="divide-y divide-border/20">
+      {employees.map((emp) => (
+        <div key={emp._id} className="flex items-center gap-4 px-5 py-4">
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarImage src={emp.avatar} />
+            <AvatarFallback className={`text-[10px] font-bold text-white ${roleColor(emp.role)}`}>
+              {ini(emp.fullName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{emp.fullName}</p>
+            <p className="text-[11px] text-muted-foreground/40 mt-0.5 truncate">{emp.email}</p>
           </div>
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/3 overflow-hidden">
-            {newThisMonth.map((u, i) => (
-              <OnboardingRow key={u._id} user={u} isLast={i === newThisMonth.length - 1} highlight />
-            ))}
+          <div className="shrink-0 text-right space-y-1">
+            {emp.hireDate ? (
+              <p className="text-[11px] text-muted-foreground/50">
+                Hired {formatDate(emp.hireDate)}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground/25 italic">No hire date set</p>
+            )}
+            {emp.birthday && (
+              <p className="text-[10px] text-pink-500/60">
+                🎂 {formatDate(emp.birthday)}
+              </p>
+            )}
           </div>
         </div>
-      )}
-
-      {/* All employees */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Users className="h-3.5 w-3.5 text-muted-foreground/40" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-            All Employees
-          </p>
-          <span className="ml-auto text-[10px] text-muted-foreground/40 font-semibold">
-            {filtered.length} total
-          </span>
-        </div>
-        {filtered.length === 0 ? (
-          <EmptyState icon={Users} label="No employees found" sub="Try adjusting the search." />
-        ) : (
-          <div className="rounded-xl border border-border/40 overflow-hidden">
-            {filtered.map((u, i) => (
-              <OnboardingRow key={u._id} user={u} isLast={i === filtered.length - 1} highlight={false} />
-            ))}
-          </div>
-        )}
-      </div>
+      ))}
     </div>
-  )
+  );
 }
 
-function OnboardingRow({
-  user,
-  isLast,
-  highlight,
+function OffboardingTab({
+  token,
+  isAdmin,
 }: {
-  user: CrmUser
-  isLast: boolean
-  highlight: boolean
+  token: string;
+  isAdmin: boolean;
 }) {
-  return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${!isLast ? "border-b border-border/20" : ""} ${highlight ? "hover:bg-emerald-500/5" : "hover:bg-muted/20"} transition-colors`}>
-      <Avatar className="h-8 w-8 shrink-0">
-        <AvatarImage src={user.avatar} />
-        <AvatarFallback className={`text-[9px] font-bold text-white ${
-          user.role === "admin" ? "bg-violet-500" : user.role === "manager" ? "bg-blue-500" : "bg-emerald-600"
-        }`}>
-          {ini(user.fullName)}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold truncate">{user.fullName}</p>
-        <p className="text-[10px] text-muted-foreground/40 truncate">{user.email}</p>
-      </div>
-      <div className="hidden sm:flex items-center gap-2 shrink-0">
-        <RoleBadge role={user.role} />
-      </div>
-      <div className="shrink-0 text-right">
-        {user.hireDate ? (
-          <>
-            <p className="text-[11px] font-semibold text-foreground/70">{fmtDate(user.hireDate)}</p>
-            <p className="text-[10px] text-muted-foreground/35">{daysSince(user.hireDate)}d tenure</p>
-          </>
-        ) : (
-          <span className="text-[10px] text-muted-foreground/25 italic">No hire date</span>
-        )}
-      </div>
-    </div>
-  )
-}
+  const [active, setActive] = React.useState<ActiveEmployee[]>([]);
+  const [offboarded, setOffboarded] = React.useState<OffboardedEmployee[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [offboardTarget, setOffboardTarget] = React.useState<OffboardUser | null>(null);
+  const [refreshKey, setRefreshKey] = React.useState(0);
 
-// ─── Offboarding Tab ──────────────────────────────────────────────────────────
+  React.useEffect(() => {
+    if (!token) return;
+    setLoading(true);
 
-function OffboardingTab({ token }: { token: string }) {
-  const [active, setActive] = React.useState<CrmUser[]>([])
-  const [offboarded, setOffboarded] = React.useState<OffboardedUser[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [search, setSearch] = React.useState("")
-  const [offboardTarget, setOffboardTarget] = React.useState<CrmUser | null>(null)
+    let settled = 0;
+    const done = () => { if (++settled === 2) setLoading(false); };
 
-  const load = React.useCallback(() => {
-    setLoading(true)
-    Promise.all([
-      apiClient.get("/api/crm/users?limit=100&status=active", {
+    apiClient
+      .get("/api/crm/users?limit=50&status=active", {
         headers: { Authorization: `Bearer ${token}` },
-      }),
-      apiClient
-        .get("/api/crm/hr/offboarded", { headers: { Authorization: `Bearer ${token}` } })
-        .catch(() => ({ data: { data: [] } })),
-    ])
-      .then(([activeRes, offRes]) => {
-        const activeData = activeRes.data?.data || activeRes.data
-        setActive(activeData?.users ?? activeData ?? [])
-        const offData = offRes.data?.data || offRes.data
-        setOffboarded(Array.isArray(offData) ? offData : [])
       })
-      .catch(() => {
-        setActive([])
-        setOffboarded([])
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setActive(data?.users || []);
       })
-      .finally(() => setLoading(false))
-  }, [token])
+      .catch(() => setActive([]))
+      .finally(done);
 
-  React.useEffect(() => { load() }, [load])
+    apiClient
+      .get("/api/crm/hr/offboarded", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setOffboarded(data?.users || []);
+      })
+      .catch(() => setOffboarded([]))
+      .finally(done);
+  }, [token, refreshKey]);
 
-  const filteredActive = active.filter((u) =>
-    u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
-  )
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+        <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
+          <Lock className="h-6 w-6 text-muted-foreground/20" />
+        </div>
+        <p className="text-sm font-semibold text-muted-foreground/40">Restricted</p>
+        <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+          Only admins can manage offboarding.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
       </div>
-    )
+
+    );
   }
 
   return (
     <>
-      <div className="space-y-5">
-        {/* Active employees — can be offboarded */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <UserCheck className="h-3.5 w-3.5 text-emerald-500" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-              Active Employees
-            </p>
-            <span className="ml-auto text-[10px] text-muted-foreground/40 font-semibold">
-              {active.length} active
-            </span>
-          </div>
 
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search active employees…"
-              className="h-9 pl-9 rounded-xl border-border/40 text-xs"
-            />
-          </div>
-
-          {filteredActive.length === 0 ? (
-            <EmptyState icon={UserCheck} label="No active employees found" sub="Try adjusting the search." />
-          ) : (
-            <div className="rounded-xl border border-border/40 overflow-hidden">
-              {filteredActive.map((u, i) => (
-                <div
-                  key={u._id}
-                  className={`flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors ${i < filteredActive.length - 1 ? "border-b border-border/20" : ""}`}
-                >
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage src={u.avatar} />
-                    <AvatarFallback className={`text-[9px] font-bold text-white ${
-                      u.role === "admin" ? "bg-violet-500" : u.role === "manager" ? "bg-blue-500" : "bg-emerald-600"
-                    }`}>
-                      {ini(u.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold truncate">{u.fullName}</p>
-                    <p className="text-[10px] text-muted-foreground/40 truncate">{u.email}</p>
-                  </div>
-                  <div className="hidden sm:block shrink-0">
-                    <RoleBadge role={u.role} />
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setOffboardTarget(u)}
-                    className="h-8 px-3 rounded-xl text-[11px] font-semibold text-amber-600 hover:text-amber-600 hover:bg-amber-500/10 border border-amber-500/20 gap-1.5 shrink-0"
-                  >
-                    <UserMinus className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Offboard</span>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Offboarded employees */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <UserMinus className="h-3.5 w-3.5 text-muted-foreground/40" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-              Offboarded
-            </p>
-            <span className="ml-auto text-[10px] text-muted-foreground/40 font-semibold">
-              {offboarded.length} records
-            </span>
-          </div>
-
-          {offboarded.length === 0 ? (
-            <EmptyState
-              icon={UserMinus}
-              label="No offboarded employees"
-              sub="Records of offboarded employees will appear here for audit and compliance purposes."
-            />
-          ) : (
-            <div className="rounded-xl border border-border/40 overflow-hidden">
-              {offboarded.map((u, i) => (
-                <div
-                  key={u._id}
-                  className={`flex items-center gap-3 px-4 py-3 opacity-60 hover:opacity-80 transition-opacity ${i < offboarded.length - 1 ? "border-b border-border/20" : ""}`}
-                >
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage src={u.avatar} />
-                    <AvatarFallback className="text-[9px] font-bold text-white bg-muted-foreground/40">
-                      {ini(u.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold truncate line-through text-muted-foreground/60">{u.fullName}</p>
-                    <p className="text-[10px] text-muted-foreground/35 truncate">{u.email}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] text-muted-foreground/40 font-semibold">Offboarded</p>
-                    <p className="text-[10px] text-muted-foreground/25">{fmtDate(u.offboardedAt)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Active employees — can be offboarded */}
+      <div className="px-5 py-3 border-b border-border/20">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+          Active Employees ({active.length})
+        </p>
       </div>
+      {active.length === 0 ? (
+        <div className="px-5 py-6 text-xs text-muted-foreground/30 text-center">No active employees.</div>
+      ) : (
+        <div className="divide-y divide-border/20">
+          {active.map((emp) => (
+            <div key={emp._id} className="flex items-center gap-4 px-5 py-4">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarImage src={emp.avatar} />
+                <AvatarFallback className={`text-[9px] font-bold text-white ${roleColor(emp.role)}`}>
+                  {ini(emp.fullName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold truncate">{emp.fullName}</p>
+                <p className="text-[11px] text-muted-foreground/40 truncate">{emp.email}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOffboardTarget({ _id: emp._id, fullName: emp.fullName, email: emp.email, username: emp.username, role: emp.role, avatar: emp.avatar })}
+                className="h-7 rounded-lg text-[11px] font-semibold border-amber-500/20 text-amber-600 hover:bg-amber-500/10 gap-1.5"
+              >
+                <UserMinus className="h-3 w-3" />
+                Offboard
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Already offboarded */}
+      <div className="px-5 py-3 border-y border-border/20 mt-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+          Offboarded ({offboarded.length})
+        </p>
+      </div>
+      {offboarded.length === 0 ? (
+        <div className="px-5 py-6 text-xs text-muted-foreground/30 text-center">No offboarded employees.</div>
+      ) : (
+        <div className="divide-y divide-border/20">
+          {offboarded.map((emp) => (
+            <div key={emp._id} className="flex items-center gap-4 px-5 py-4 opacity-60">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarImage src={emp.avatar} />
+                <AvatarFallback className="text-[9px] font-bold text-white bg-muted-foreground/40">
+                  {ini(emp.fullName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold truncate">{emp.fullName}</p>
+                <p className="text-[11px] text-muted-foreground/40 truncate">{emp.email}</p>
+              </div>
+              {emp.offboardedAt && (
+                <p className="text-[11px] text-muted-foreground/40 shrink-0">
+                  {formatDate(emp.offboardedAt)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <OffboardModal
         open={!!offboardTarget}
@@ -607,51 +540,64 @@ function OffboardingTab({ token }: { token: string }) {
         token={token}
         user={offboardTarget}
         onOffboarded={() => {
-          setOffboardTarget(null)
-          load()
-          toast.success("Offboarding complete. Records preserved for audit.")
+
+          setOffboardTarget(null);
+          setRefreshKey((k) => k + 1);
         }}
       />
     </>
-  )
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function HrPage() {
-  const router = useRouter()
-  const [tab, setTab] = React.useState<Tab>("milestones")
-  const [user, setUser] = React.useState<{ _id: string; fullName: string; email: string; avatar?: string; role: string } | null>(null)
-  const [token, setToken] = React.useState("")
-  const [isLoading, setIsLoading] = React.useState(true)
+
+export default function TeamEngagementPage() {
+  const router = useRouter();
+  const [user, setUser] = React.useState<CrmUserData | null>(null);
+  const [token, setToken] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [activeTab, setActiveTab] = React.useState<Tab>("milestones");
 
   React.useEffect(() => {
-    const t = localStorage.getItem("crm_token")
-    if (!t) { router.replace("/crm"); return }
-    apiClient
-      .get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
-      .then((res) => {
-        const data = res.data?.data || res.data
-        setUser(data)
-        setToken(t)
-      })
-      .catch(() => {
-        localStorage.removeItem("crm_token")
-        router.replace("/crm")
-      })
-      .finally(() => setIsLoading(false))
-  }, [router])
+    const check = async () => {
+      const t = localStorage.getItem("crm_token");
+      if (!t) {
+        router.replace("/crm");
+        return;
+      }
+      try {
+        const res = await apiClient.get("/api/crm/me", {
+          headers: { Authorization: `Bearer ${t}` },
+        });
+        const data = res.data?.data || res.data;
+        setUser(data);
+        setToken(t);
+      } catch {
+        localStorage.removeItem("crm_token");
+        localStorage.removeItem("crm_user");
+        router.replace("/crm");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    check();
+  }, [router]);
 
   const handleExit = async () => {
     try {
-      await apiClient.post("/api/crm/logout", {}, { headers: { Authorization: `Bearer ${token}` } })
+      await apiClient.post(
+        "/api/crm/logout",
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
     } catch {}
-    localStorage.removeItem("crm_token")
-    localStorage.removeItem("crm_user")
-    router.push("/")
-  }
+    localStorage.removeItem("crm_token");
+    localStorage.removeItem("crm_user");
+    router.push("/");
+  };
 
-  const isAdmin = user?.role === "admin"
+  const isAdmin = user?.role === "admin";
 
   if (isLoading) {
     return (
@@ -660,26 +606,28 @@ export default function HrPage() {
           <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
           </div>
-          <p className="text-xs text-muted-foreground/40 tracking-widest uppercase">Loading</p>
+
+          <p className="text-xs text-muted-foreground/40 tracking-widest uppercase">
+            Loading
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
-  if (!user) return null
+  if (!user) return null;
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "milestones",  label: "Milestones",  icon: Gift },
-    { id: "onboarding",  label: "Onboarding",  icon: UserCheck },
+    { id: "milestones", label: "Milestones", icon: Gift },
+    { id: "onboarding", label: "Onboarding", icon: CalendarDays },
     { id: "offboarding", label: "Offboarding", icon: UserMinus },
-  ]
+  ];
 
   return (
     <div className="min-h-screen w-full bg-background">
-
       {/* ── Topbar ── */}
       <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/90 backdrop-blur-xl">
-        <div className="flex items-center justify-between h-14 px-4 sm:px-6">
+        <div className="flex items-center justify-between h-14 px-6">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
               <Car className="h-4 w-4 text-white" />
@@ -695,35 +643,76 @@ export default function HrPage() {
           <div className="flex items-center gap-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-border/40 hover:bg-muted/50">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-border/40 hover:bg-muted/50"
+                >
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={user.avatar} />
-                    <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(user.fullName)}</AvatarFallback>
+                    <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">
+                      {ini(user.fullName)}
+                    </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">{user.fullName}</span>
+                  <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
+                    {user.fullName}
+                  </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1 shadow-xl border-border/40">
-                <DropdownMenuItem onClick={() => router.push("/crm/profile")} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" /> My Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push("/crm/settings")} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
-                  <Settings className="h-3.5 w-3.5 text-muted-foreground" /> Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleExit} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5">
-                  <LogOut className="h-3.5 w-3.5" /> Exit CRM
-                </DropdownMenuItem>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 rounded-2xl p-0 overflow-hidden shadow-xl border-border/40"
+              >
+                <div className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={user.avatar} />
+                      <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">
+                        {ini(user.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold truncate">{user.fullName}</p>
+                      <p className="text-[11px] text-muted-foreground/50 truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <DropdownMenuSeparator className="m-0" />
+                <div className="p-1.5">
+                  <DropdownMenuItem
+                    onClick={() => router.push("/crm/profile")}
+                    className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer"
+                  >
+                    <User className="h-3.5 w-3.5 text-muted-foreground" /> My Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => router.push("/crm/settings")}
+                    className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer"
+                  >
+                    <Settings className="h-3.5 w-3.5 text-muted-foreground" /> Settings
+                  </DropdownMenuItem>
+                </div>
+                <DropdownMenuSeparator className="m-0" />
+                <div className="p-1.5">
+                  <DropdownMenuItem
+                    onClick={handleExit}
+                    className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Exit CRM
+                  </DropdownMenuItem>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
       </header>
 
-      {/* ── Content ── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-24 md:pb-8">
 
+      {/* ── Page Content ── */}
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Page header */}
         <div className="flex items-center gap-4">
           <Button
@@ -748,9 +737,9 @@ export default function HrPage() {
           </Badge>
         </div>
 
-        {/* Layout: sidebar + content */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
+        {/* Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* ─── Sidebar nav ─── */}
           <div className="lg:col-span-3">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
@@ -799,76 +788,67 @@ export default function HrPage() {
 
           {/* ─── Main panel ─── */}
           <div className="lg:col-span-9 space-y-4">
-            {/* HR card */}
+
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               {/* Card header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                    <HeartHandshake className="h-4 w-4 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold">Team Engagement</p>
-                    <p className="text-[11px] text-muted-foreground/40 mt-0.5">
-                      Employee milestones, onboarding history, and offboarding management.
-                    </p>
-                  </div>
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30">
+                <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <HeartHandshake className="h-4 w-4 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Team Engagement</p>
+                  <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                    Milestones, onboarding, and offboarding for your team.
+                  </p>
                 </div>
               </div>
 
-              {/* Tabs */}
-              <div className="px-6 pt-4">
-                <div className="flex gap-1 p-1 rounded-xl border border-border/40 bg-muted/20 w-fit">
-                  {TABS.map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      onClick={() => setTab(id)}
-                      className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-all ${
-                        tab === id
-                          ? "bg-background shadow-sm text-foreground border border-border/40"
-                          : "text-muted-foreground/60 hover:text-foreground/70"
-                      }`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">{label}</span>
-                    </button>
-                  ))}
-                </div>
+              {/* Tab switcher */}
+              <div className="flex border-b border-border/30 px-4">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${
+                      activeTab === tab.id
+                        ? "border-emerald-500 text-emerald-600"
+                        : "border-transparent text-muted-foreground/50 hover:text-foreground/70"
+                    }`}
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
               {/* Tab content */}
-              <div className="px-6 py-5">
-                {tab === "milestones" && <MilestonesTab token={token} />}
-                {tab === "onboarding" && <OnboardingTab token={token} />}
-                {tab === "offboarding" && (
-                  isAdmin
-                    ? <OffboardingTab token={token} />
-                    : (
-                      <div className="flex flex-col items-center justify-center py-20 gap-3">
-                        <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center">
-                          <Lock className="h-6 w-6 text-muted-foreground/20" />
-                        </div>
-                        <p className="text-sm font-semibold text-muted-foreground/40">Admin Access Required</p>
-                        <p className="text-xs text-muted-foreground/25 max-w-xs text-center">
-                          Offboarding actions are restricted to CRM admins. Contact your administrator for access.
-                        </p>
-                      </div>
-                    )
-                )}
-              </div>
+              {activeTab === "milestones" && <MilestonesTab token={token} isAdmin={isAdmin} />}
+              {activeTab === "onboarding" && <OnboardingTab token={token} />}
+              {activeTab === "offboarding" && (
+                <OffboardingTab token={token} isAdmin={isAdmin} />
+              )}
+            </div>
 
-              {/* Stat bar */}
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/30 px-6 pb-4 border-t border-border/20 pt-3">
-                <Calendar className="h-3 w-3" />
-                <span>Milestones check 30-day window</span>
-                <span className="mx-1">·</span>
-                <Clock className="h-3 w-3" />
-                <span>Announcements post automatically on event day</span>
+            {/* Info note */}
+            <div className="rounded-2xl border border-border/30 bg-muted/1.5 px-6 py-4">
+              <div className="flex items-start gap-3">
+                <HeartHandshake className="h-4 w-4 text-emerald-500/60 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground/50">
+                    Automated announcements
+                  </p>
+                  <p className="text-[11px] text-muted-foreground/30 mt-0.5 leading-relaxed">
+                    Birthdays and work anniversaries are automatically announced
+                    in the team Feed and the General channel in Suprah Space
+                    every morning at 8:00 AM.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </main>
     </div>
-  )
+
+  );
 }

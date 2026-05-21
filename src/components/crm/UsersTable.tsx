@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Loader2,
   UserX,
+  UserMinus,
   MoreVertical,
   Pencil,
   Trash2,
@@ -17,7 +18,6 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
-  UserMinus,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -65,8 +65,10 @@ interface CrmUserRow {
   isActive: boolean
   lastLoginAt?: string
   createdAt: string
+
   birthday?: string
   hireDate?: string
+  isOffboarded?: boolean
 }
 
 interface PaginationMeta {
@@ -454,10 +456,11 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
           {u.isActive && (
             <DropdownMenuItem
               onClick={() => setOffboardTarget(u)}
-              className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-amber-600 focus:text-amber-600 focus:bg-amber-500/5"
+
+              className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
             >
-              <UserMinus className="h-3.5 w-3.5" />
-              Offboard
+              <UserMinus className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-amber-600">Offboard</span>
             </DropdownMenuItem>
           )}
 
@@ -899,15 +902,6 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
         }}
       />
 
-      {/* Reset password modal */}
-      <ResetPasswordModal
-        open={!!resetTarget}
-        onClose={() => setResetTarget(null)}
-        token={token}
-        user={resetTarget}
-        onReset={() => setResetTarget(null)}
-      />
-
       {/* Offboard modal */}
       <OffboardModal
         open={!!offboardTarget}
@@ -919,6 +913,16 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
           fetchUsers(page)
         }}
       />
+
+      {/* Reset password modal */}
+      <ResetPasswordModal
+        open={!!resetTarget}
+        onClose={() => setResetTarget(null)}
+        token={token}
+        user={resetTarget}
+        onReset={() => setResetTarget(null)}
+      />
+
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null) }}>

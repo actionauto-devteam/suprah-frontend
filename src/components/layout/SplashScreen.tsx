@@ -12,15 +12,15 @@ export const SplashScreen = () => {
         // Force scroll lock on initial load so user can't scroll past the splash
         document.body.style.overflow = "hidden";
 
-        const duration = 2500; // 2.5s pacing
+        const duration = 1000;
         const steps = 100;
         const intervalTime = duration / steps;
 
         const statusMessages = [
-            "Initializing Core...",
-            "Authenticating Modules...",
-            "Preparing AI Assets...",
-            "Welcome."
+            "Booting...",
+            "Checking Access...",
+            "Loading Assets...",
+            "Locked In."
         ];
 
         const interval = setInterval(() => {
@@ -39,9 +39,8 @@ export const SplashScreen = () => {
 
         const timeout = setTimeout(() => {
             setIsVisible(false);
-            // Release scroll lock once animation completes
-            setTimeout(() => document.body.style.overflow = "auto", 800);
-        }, duration + 800);
+            setTimeout(() => document.body.style.overflow = "auto", 350);
+        }, duration + 350);
 
         return () => {
             clearInterval(interval);
@@ -82,11 +81,11 @@ export const SplashScreen = () => {
             {isVisible && (
                 <motion.div
                     key="splash-screen"
-                    className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#050505] overflow-hidden"
+                    className="fixed inset-0 z-9999 flex flex-col items-center justify-center bg-[#050505] overflow-hidden"
                     initial={{ y: 0 }}
                     exit={{
                         y: "-100%",
-                        transition: { duration: 0.8, ease: [0.76, 0, 0.24, 1] },
+                        transition: { duration: 0.35, ease: [0.76, 0, 0.24, 1] },
                     }}
                 >
                     {/* Animated Background Grid */}
@@ -98,7 +97,7 @@ export const SplashScreen = () => {
                             <rect width="100%" height="100%" fill="url(#grid)" />
                         </svg>
                         <motion.div
-                            className="absolute inset-0 bg-gradient-to-t from-[#000000] to-transparent bg-opacity-80"
+                            className="absolute inset-0 bg-linear-to-t from-[#000000] to-transparent bg-opacity-80"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                         />
@@ -128,7 +127,7 @@ export const SplashScreen = () => {
                         </div>
 
                         {/* Dynamic Status Text & Counter */}
-                        <div className="w-[300px] flex flex-col gap-2">
+                        <div className="w-75 flex flex-col gap-2">
                             <div className="flex justify-between items-end mb-1">
                                 <motion.span
                                     key={status} // Key changing triggers animation
@@ -142,9 +141,9 @@ export const SplashScreen = () => {
                             </div>
 
                             {/* Progress Bar */}
-                            <div className="w-full h-[2px] bg-white/10 rounded-full overflow-hidden">
+                            <div className="w-full h-0.5 bg-white/10 rounded-full overflow-hidden">
                                 <motion.div
-                                    className="h-full bg-gradient-to-r from-emerald-500 to-green-400"
+                                    className="h-full bg-linear-to-r from-emerald-500 to-green-400"
                                     initial={{ width: "0%" }}
                                     animate={{ width: `${count}%` }}
                                 />

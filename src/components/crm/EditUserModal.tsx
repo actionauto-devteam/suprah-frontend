@@ -28,8 +28,10 @@ interface EditUserForm {
   fullName: string
   email: string
   role: string
-  birthday: string
+
   hireDate: string
+  birthday: string
+  gender: string
 }
 
 interface FormErrors {
@@ -49,8 +51,10 @@ interface EditUserModalProps {
     fullName: string
     email: string
     role: string
-    birthday?: string
+
     hireDate?: string
+    birthday?: string
+    gender?: string | null
   } | null
   onUpdated?: () => void
 }
@@ -80,8 +84,10 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     fullName: "",
     email: "",
     role: "",
-    birthday: "",
+
     hireDate: "",
+    birthday: "",
+    gender: "",
   })
 
   // Populate form when user changes
@@ -91,8 +97,10 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         fullName: user.fullName,
         email: user.email,
         role: user.role,
-        birthday: user.birthday ? user.birthday.split("T")[0] : "",
-        hireDate: user.hireDate ? user.hireDate.split("T")[0] : "",
+
+        hireDate: user.hireDate?.split("T")[0] ?? "",
+        birthday: user.birthday?.split("T")[0] ?? "",
+        gender: user.gender ?? "",
       })
       setErrors({})
     }
@@ -107,7 +115,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
   const setField = (k: keyof EditUserForm) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((p) => ({ ...p, [k]: e.target.value }))
-      if (errors[k]) setErrors((p) => ({ ...p, [k]: undefined }))
+      if (k in errors) setErrors((p) => ({ ...p, [k]: undefined }))
     }
 
   const setRole = (v: string) => {
@@ -134,6 +142,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           role: form.role,
           hireDate: form.hireDate || undefined,
           birthday: form.birthday || undefined,
+
+          gender: form.gender || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -245,28 +255,50 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
               <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
                 Hire Date
               </Label>
-              <input
+
+              <Input
                 type="date"
                 value={form.hireDate}
-                onChange={(e) => setForm((p) => ({ ...p, hireDate: e.target.value }))}
-                max={new Date().toISOString().split("T")[0]}
-                className="flex h-10 w-full rounded-xl border border-border/50 px-3 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors"
+                onChange={setField("hireDate")}
+                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
                 Birthday
+                <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
               </Label>
-              <input
+              <Input
                 type="date"
                 value={form.birthday}
-                onChange={(e) => setForm((p) => ({ ...p, birthday: e.target.value }))}
-                max={new Date().toISOString().split("T")[0]}
-                className="flex h-10 w-full rounded-xl border border-border/50 px-3 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors"
+                onChange={setField("birthday")}
+                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
               />
             </div>
           </div>
 
+
+          {/* Gender */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+              Gender
+              <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                Optional
+              </span>
+            </Label>
+            <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
+              <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-blue-500/30">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
+                <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Role hint */}
           {form.role && (
             <div className={`rounded-xl p-3 text-xs border ${

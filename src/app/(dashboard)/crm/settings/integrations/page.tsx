@@ -1,149 +1,183 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
+import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
     Car, User, Settings, ChevronDown, Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
-    AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake
+
+    AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake, Fingerprint
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { apiClient } from "@/lib/api-client"
-import { useAuth } from "@/providers/AuthProvider"
-import { toast } from "sonner"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/providers/AuthProvider";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CrmUserData {
-    _id: string
-    fullName: string
-    username: string
-    email: string
-    avatar?: string
-    role: string
+  _id: string;
+  fullName: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  role: string;
 }
 
 interface OrgLeadConfig {
-    gmailConnected: boolean
-    calendarConnected: boolean
-    gmailAddress?: string
-    leadSourceEmail?: string
-    webhookSecret?: string
-    hasWebhookSecret?: boolean
-    webhookUrl?: string
-    lastSyncAt?: string
+  gmailConnected: boolean;
+  calendarConnected: boolean;
+  gmailAddress?: string;
+  leadSourceEmail?: string;
+  webhookSecret?: string;
+  hasWebhookSecret?: boolean;
+  webhookUrl?: string;
+  lastSyncAt?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ini(n: string) {
-    return n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+  return n
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function IntegrationsSettingsPage() {
-    const router = useRouter()
-    const { getToken } = useAuth()
-    const [user, setUser] = React.useState<CrmUserData | null>(null)
-    const [token, setToken] = React.useState("")
-    const [isLoading, setIsLoading] = React.useState(true)
+  const router = useRouter();
+  const { getToken } = useAuth();
+  const [user, setUser] = React.useState<CrmUserData | null>(null);
+  const [token, setToken] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(true);
 
-    // Forms & State
-    const [config, setConfig] = React.useState<OrgLeadConfig | null>(null)
-    const [sourceEmailInput, setSourceEmailInput] = React.useState("")
-    const [isSaving, setIsSaving] = React.useState(false)
-    const [showCopied, setShowCopied] = React.useState(false)
+  // Forms & State
+  const [config, setConfig] = React.useState<OrgLeadConfig | null>(null);
+  const [sourceEmailInput, setSourceEmailInput] = React.useState("");
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [showCopied, setShowCopied] = React.useState(false);
 
-    React.useEffect(() => {
-        const init = async () => {
-            const t = localStorage.getItem("crm_token")
-            if (!t) { router.replace("/crm"); return }
-            try {
-                const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
-                const data = res.data?.data || res.data
-                setUser(data)
-                setToken(t)
+  React.useEffect(() => {
+    const init = async () => {
+      const t = localStorage.getItem("crm_token");
+      if (!t) {
+        router.replace("/crm");
+        return;
+      }
+      try {
+        const res = await apiClient.get("/api/crm/me", {
+          headers: { Authorization: `Bearer ${t}` },
+        });
+        const data = res.data?.data || res.data;
+        setUser(data);
+        setToken(t);
 
-                // Fetch actual org lead configuration
-                const confRes = await apiClient.get("/api/org-lead/config", { headers: { Authorization: `Bearer ${t}` } })
-                const configData = confRes.data?.data || confRes.data
-                setConfig(configData)
-                if (configData.leadSourceEmail) {
-                    setSourceEmailInput(configData.leadSourceEmail)
-                }
-
-            } catch (error) {
-                console.error("Initialization failed:", error)
-                localStorage.removeItem("crm_token")
-                localStorage.removeItem("crm_user")
-                router.replace("/crm")
-            } finally {
-                setIsLoading(false)
-            }
+        // Fetch actual org lead configuration
+        const confRes = await apiClient.get("/api/org-lead/config", {
+          headers: { Authorization: `Bearer ${t}` },
+        });
+        const configData = confRes.data?.data || confRes.data;
+        setConfig(configData);
+        if (configData.leadSourceEmail) {
+          setSourceEmailInput(configData.leadSourceEmail);
         }
-        init()
-    }, [router])
+      } catch (error) {
+        console.error("Initialization failed:", error);
+        localStorage.removeItem("crm_token");
+        localStorage.removeItem("crm_user");
+        router.replace("/crm");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    init();
+  }, [router]);
 
-    const handleExit = async () => {
-        try { await apiClient.post("/api/crm/logout", {}, { headers: { Authorization: `Bearer ${token}` } }) } catch { }
-        localStorage.removeItem("crm_token")
-        localStorage.removeItem("crm_user")
-        router.push("/")
-    }
+  const handleExit = async () => {
+    try {
+      await apiClient.post(
+        "/api/crm/logout",
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+    } catch {}
+    localStorage.removeItem("crm_token");
+    localStorage.removeItem("crm_user");
+    router.push("/");
+  };
 
-    const handleConnectGmail = async () => {
-        try {
-            const res = await apiClient.get("/api/org-lead/auth", { headers: { Authorization: `Bearer ${token}` } })
-            const { authUrl } = res.data?.data || res.data
-            if (authUrl) {
-                window.location.href = authUrl
-            } else {
-                toast.error("Connection Failed", {
-                    description: "Failed to generate authorization URL. Please try again later."
-                })
-            }
-        } catch (error) {
-            console.error("OAuth init failed:", error)
-            toast.error("Connection Failed", {
-                description: "Could not connect to Google. Please check your internet connection and try again."
-            })
-        }
+  const handleConnectGmail = async () => {
+    try {
+      const res = await apiClient.get("/api/org-lead/auth", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const { authUrl } = res.data?.data || res.data;
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        toast.error("Connection Failed", {
+          description:
+            "Failed to generate authorization URL. Please try again later.",
+        });
+      }
+    } catch (error) {
+      console.error("OAuth init failed:", error);
+      toast.error("Connection Failed", {
+        description:
+          "Could not connect to Google. Please check your internet connection and try again.",
+      });
     }
+  };
 
-    const fetchConfig = async () => {
-        try {
-            const t = await getToken()
-            const confRes = await apiClient.get("/api/org-lead/config", { headers: { Authorization: `Bearer ${t}` } })
-            const configData = confRes.data?.data || confRes.data
-            setConfig(configData)
-            if (configData.leadSourceEmail) {
-                setSourceEmailInput(configData.leadSourceEmail)
-            }
-        } catch (error) {
-            console.error("Failed to fetch config:", error)
-        }
+  const fetchConfig = async () => {
+    try {
+      const t = await getToken();
+      const confRes = await apiClient.get("/api/org-lead/config", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const configData = confRes.data?.data || confRes.data;
+      setConfig(configData);
+      if (configData.leadSourceEmail) {
+        setSourceEmailInput(configData.leadSourceEmail);
+      }
+    } catch (error) {
+      console.error("Failed to fetch config:", error);
     }
+  };
 
-    const handleManualSync = async () => {
-        setIsSaving(true)
-        try {
-            const res = await apiClient.post("/api/org-lead/sync", {}, { headers: { Authorization: `Bearer ${token}` } })
-            const data = res.data?.data
-            toast.success("Synchronization Complete", {
-                description: `Leads pulled: ${data?.leads?.synced || 0}. Calendar events: ${data?.calendar?.processed || 0}.`
-            })
-        } catch (error: any) {
-            console.error("Manual sync failed:", error)
-            toast.error("Synchronization Failed", {
-                description: error.response?.data?.message || "Please check your organization connection and try again."
-            })
-        } finally {
-            setIsSaving(false)
-        }
+  const handleManualSync = async () => {
+    setIsSaving(true);
+    try {
+      const res = await apiClient.post(
+        "/api/org-lead/sync",
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = res.data?.data;
+      toast.success("Synchronization Complete", {
+        description: `Leads pulled: ${data?.leads?.synced || 0}. Calendar events: ${data?.calendar?.processed || 0}.`,
+      });
+    } catch (error: any) {
+      console.error("Manual sync failed:", error);
+      toast.error("Synchronization Failed", {
+        description:
+          error.response?.data?.message ||
+          "Please check your organization connection and try again.",
+      });
+    } finally {
+      setIsSaving(false);
     }
+  };
 
     const handleDisconnectGmail = async () => {
         if (!isAdmin) return
@@ -250,7 +284,7 @@ export default function IntegrationsSettingsPage() {
                                         <AvatarImage src={user.avatar} />
                                         <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(user.fullName)}</AvatarFallback>
                                     </Avatar>
-                                    <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">{user.fullName}</span>
+                                    <span className="hidden sm:inline text-xs font-medium max-w-25 truncate">{user.fullName}</span>
                                     <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -272,6 +306,11 @@ export default function IntegrationsSettingsPage() {
                                     <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
                                         <User className="h-3.5 w-3.5 text-muted-foreground" /> My Profile
                                     </DropdownMenuItem>
+
+                                    <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
+                                        <Fingerprint className="h-3.5 w-3.5 text-muted-foreground" /> Biometrics
+                                    </DropdownMenuItem>
+
                                     <DropdownMenuItem onClick={() => router.push("/crm/settings")} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer bg-muted/30">
                                         <Settings className="h-3.5 w-3.5 text-emerald-500" />
                                         <span className="text-emerald-600 font-semibold">Settings</span>
@@ -290,7 +329,7 @@ export default function IntegrationsSettingsPage() {
             </header>
 
             {/* ── Page Content ── */}
-            <main className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+            <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="sm" onClick={() => router.push("/crm/dashboard")} className="h-8 w-8 p-0 rounded-xl border border-border/40 hover:bg-muted/50">
                         <ArrowLeft className="h-4 w-4" />
@@ -416,21 +455,21 @@ export default function IntegrationsSettingsPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Button 
+                                                    <Button
                                                         onClick={handleManualSync}
                                                         disabled={isSaving}
-                                                        variant="outline" 
-                                                        size="sm" 
+                                                        variant="outline"
+                                                        size="sm"
                                                         className="h-8 rounded-lg text-xs font-semibold border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700"
                                                     >
                                                         {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1.5" />}
                                                         Sync Now
                                                     </Button>
-                                                    <Button 
+                                                    <Button
                                                         onClick={handleDisconnectGmail}
                                                         disabled={isSaving || !isAdmin}
-                                                        variant="outline" 
-                                                        size="sm" 
+                                                        variant="outline"
+                                                        size="sm"
                                                         className="h-8 rounded-lg text-xs font-semibold border-border/50 bg-background hover:bg-muted/50 text-foreground"
                                                     >
                                                         Disconnect

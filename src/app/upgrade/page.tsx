@@ -14,7 +14,7 @@ export default function UpgradePage() {
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
             <p className="text-sm font-medium text-zinc-400">
-              Initializing upgrade flow...
+              Initializing upgrade flow....
             </p>
           </div>
         }
