@@ -30,6 +30,7 @@ interface EditUserForm {
   role: string
   hireDate: string
   birthday: string
+  gender: string
 }
 
 interface FormErrors {
@@ -49,6 +50,7 @@ interface EditUserModalProps {
     role: string
     hireDate?: string
     birthday?: string
+    gender?: string | null
   } | null
   onUpdated?: () => void
 }
@@ -80,6 +82,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     role: "",
     hireDate: "",
     birthday: "",
+    gender: "",
   })
 
   // Populate form when user changes
@@ -91,6 +94,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         role: user.role,
         hireDate: user.hireDate?.split("T")[0] ?? "",
         birthday: user.birthday?.split("T")[0] ?? "",
+        gender: user.gender ?? "",
       })
       setErrors({})
     }
@@ -132,6 +136,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           role: form.role,
           hireDate: form.hireDate || undefined,
           birthday: form.birthday || undefined,
+          gender: form.gender || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -264,6 +269,25 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
                 className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
               />
             </div>
+          </div>
+
+          {/* Gender */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+              Gender
+              <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                Optional
+              </span>
+            </Label>
+            <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
+              <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-blue-500/30">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
+                <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Role hint */}

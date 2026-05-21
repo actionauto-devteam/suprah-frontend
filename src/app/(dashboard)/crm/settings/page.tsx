@@ -18,6 +18,7 @@ import {
   Moon,
   Sun,
   HeartHandshake,
+  Fingerprint,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -201,7 +202,7 @@ export default function CrmSettingsPage() {
                     Profile
                   </DropdownMenuItem>
 
-                   <DropdownMenuItem
+                  <DropdownMenuItem
                     onClick={() => router.push("/crm/biometrics")}
                     className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer"
                   >

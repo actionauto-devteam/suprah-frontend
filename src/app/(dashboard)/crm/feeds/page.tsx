@@ -877,6 +877,7 @@ export default function FeedsPage() {
   const [newPostCount, setNewPostCount] = React.useState(0)
   const observerRef = React.useRef<HTMLDivElement>(null)
   const socketRef = React.useRef<any>(null)
+  const ssSocketRef = React.useRef<any>(null)
 
   // Auth check
   React.useEffect(() => {
@@ -934,6 +935,21 @@ export default function FeedsPage() {
       socketRef.current = socket
     }).catch(() => { })
     return () => { socketRef.current?.disconnect() }
+  }, [token])
+
+  // SupraSpace socket — receives milestone feed:new announcements
+  React.useEffect(() => {
+    if (!token || typeof window === "undefined") return
+    import("socket.io-client").then(({ io }) => {
+      const ssSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "", {
+        auth: { token }, path: "/socket/supraspace", transports: ["websocket"],
+      })
+      ssSocket.on("feed:new", ({ post }: { post: Post }) => {
+        setPosts((prev) => { if (prev.some((p) => p._id === post._id)) return prev; setNewPostCount((c) => c + 1); return prev })
+      })
+      ssSocketRef.current = ssSocket
+    }).catch(() => { })
+    return () => { ssSocketRef.current?.disconnect() }
   }, [token])
 
   React.useEffect(() => {

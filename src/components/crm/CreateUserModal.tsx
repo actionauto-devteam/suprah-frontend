@@ -31,6 +31,7 @@ interface CreateUserForm {
   role: string;
   hireDate: string;
   birthday: string;
+  gender: string;
 }
 
 interface FormErrors {
@@ -104,6 +105,7 @@ export function CreateUserModal({
     role: "",
     hireDate: "",
     birthday: "",
+    gender: "",
   });
 
   // Fetch next employee ID whenever modal opens
@@ -127,7 +129,15 @@ export function CreateUserModal({
 
   const handleClose = () => {
     if (submitting) return;
-    setForm({ fullName: "", email: "", password: "", role: "", hireDate: "", birthday: "" });
+    setForm({
+      fullName: "",
+      email: "",
+      password: "",
+      role: "",
+      hireDate: "",
+      birthday: "",
+      gender: "",
+    });
     setErrors({});
     setShowPassword(false);
     setEmployeeId("");
@@ -198,6 +208,7 @@ export function CreateUserModal({
           role: form.role,
           hireDate: form.hireDate || undefined,
           birthday: form.birthday || undefined,
+          gender: form.gender || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -371,14 +382,15 @@ export function CreateUserModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
-                Hire Date
+                Hire Date <span className="text-red-500">*</span>
               </Label>
               <Input
                 type="date"
                 value={form.hireDate}
                 onChange={(e) => {
                   setForm((p) => ({ ...p, hireDate: e.target.value }));
-                  if (errors.hireDate) setErrors((p) => ({ ...p, hireDate: undefined }));
+                  if (errors.hireDate)
+                    setErrors((p) => ({ ...p, hireDate: undefined }));
                 }}
                 className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 ${errors.hireDate ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
               />
@@ -388,14 +400,15 @@ export function CreateUserModal({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
-                Birthday
+                Birthday <span className="text-red-500">*</span>
               </Label>
               <Input
                 type="date"
                 value={form.birthday}
                 onChange={(e) => {
                   setForm((p) => ({ ...p, birthday: e.target.value }));
-                  if (errors.birthday) setErrors((p) => ({ ...p, birthday: undefined }));
+                  if (errors.birthday)
+                    setErrors((p) => ({ ...p, birthday: undefined }));
                 }}
                 className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 ${errors.birthday ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
               />
@@ -403,6 +416,25 @@ export function CreateUserModal({
                 <p className="text-[11px] text-red-500">{errors.birthday}</p>
               )}
             </div>
+          </div>
+
+          {/* Gender */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+              Gender
+              <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                Optional
+              </span>
+            </Label>
+            <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
+              <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-emerald-500/30">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
+                <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Role hint */}

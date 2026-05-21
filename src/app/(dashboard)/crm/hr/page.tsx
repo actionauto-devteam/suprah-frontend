@@ -18,6 +18,8 @@ import {
   CalendarDays,
   UserMinus,
   UserCheck,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,7 @@ interface MilestoneEntry {
   daysUntil: number;
   type: "birthday" | "anniversary";
   yearsCount?: number;
+  gender?: string | null;
 }
 
 interface ActiveEmployee {
@@ -105,11 +108,52 @@ function roleColor(role: string) {
   return "bg-emerald-600";
 }
 
+function ordinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+function greeting(entry: MilestoneEntry): string {
+  const firstName = entry.fullName.split(" ")[0];
+  if (entry.type === "birthday") {
+    return `Happy Birthday, ${firstName}!`;
+  }
+  if (entry.yearsCount) {
+    return `Congratulations, ${firstName}! Happy ${ordinal(entry.yearsCount)} Work Anniversary!`;
+  }
+  return `Congratulations, ${firstName}! Happy Work Anniversary!`;
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function MilestonesTab({ token }: { token: string }) {
+function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) {
   const [entries, setEntries] = React.useState<MilestoneEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [triggering, setTriggering] = React.useState(false);
+  const [triggerStatus, setTriggerStatus] = React.useState<"idle" | "ok" | "none" | "err">("idle");
+  const [triggerCount, setTriggerCount] = React.useState(0);
+
+  const handleTrigger = async () => {
+    setTriggering(true);
+    setTriggerStatus("idle");
+    try {
+      const res = await apiClient.post(
+        "/api/crm/hr/milestones/trigger",
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const count: number = res.data?.data?.announcementsSent ?? 0;
+      setTriggerCount(count);
+      setTriggerStatus(count > 0 ? "ok" : "none");
+      setTimeout(() => setTriggerStatus("idle"), 6000);
+    } catch {
+      setTriggerStatus("err");
+      setTimeout(() => setTriggerStatus("idle"), 6000);
+    } finally {
+      setTriggering(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!token) return;
@@ -142,21 +186,88 @@ function MilestonesTab({ token }: { token: string }) {
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
-          <Gift className="h-6 w-6 text-muted-foreground/20" />
+      <div>
+        {isAdmin && (
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+              Upcoming Milestones
+            </p>
+            <button
+              onClick={handleTrigger}
+              disabled={triggering}
+              className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors border
+                ${triggerStatus === "ok"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  : triggerStatus === "none"
+                  ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                  : triggerStatus === "err"
+                  ? "bg-red-500/10 text-red-500 border-red-500/20"
+                  : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {triggering ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : triggerStatus === "ok" ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : (
+                <Zap className="h-3 w-3" />
+              )}
+              {triggering
+                ? "Running…"
+                : triggerStatus === "ok"
+                ? `${triggerCount} announcement${triggerCount !== 1 ? "s" : ""} sent!`
+                : triggerStatus === "none"
+                ? "No milestones today"
+                : triggerStatus === "err"
+                ? "Failed — try again"
+                : "Run Announcements Now"}
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
+            <Gift className="h-6 w-6 text-muted-foreground/20" />
+          </div>
+          <p className="text-sm font-semibold text-muted-foreground/40">
+            No upcoming milestones
+          </p>
+          <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+            Birthdays and work anniversaries in the next 30 days will appear here.
+          </p>
         </div>
-        <p className="text-sm font-semibold text-muted-foreground/40">
-          No upcoming milestones
-        </p>
-        <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
-          Birthdays and work anniversaries in the next 30 days will appear here.
-        </p>
       </div>
     );
   }
 
   return (
+    <div>
+      {isAdmin && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+            Upcoming Milestones
+          </p>
+          <button
+            onClick={handleTrigger}
+            disabled={triggering}
+            className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors border
+              ${triggerStatus === "ok"
+                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                : triggerStatus === "err"
+                ? "bg-red-500/10 text-red-500 border-red-500/20"
+                : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {triggering ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : triggerStatus === "ok" ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <Zap className="h-3 w-3" />
+            )}
+            {triggering ? "Running…" : triggerStatus === "ok" ? "Announcements sent!" : triggerStatus === "err" ? "Failed — try again" : "Run Announcements Now"}
+          </button>
+        </div>
+      )}
     <div className="divide-y divide-border/20">
       {entries.map((entry) => (
         <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 py-4">
@@ -167,16 +278,29 @@ function MilestonesTab({ token }: { token: string }) {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate">{entry.fullName}</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-0.5">
-              {entry.type === "birthday" ? "Birthday" : `Work Anniversary${entry.yearsCount ? ` · ${entry.yearsCount} yr${entry.yearsCount !== 1 ? "s" : ""}` : ""}`}
+            <p className="text-xs text-muted-foreground/40 truncate">{entry.fullName}</p>
+            {entry.daysUntil === 0 ? (
+              <p className={`text-sm font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
+                {greeting(entry)}
+              </p>
+            ) : (
+              <p className={`text-sm font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-400/80" : "text-amber-400/80"}`}>
+                {`In ${entry.daysUntil} day${entry.daysUntil !== 1 ? "s" : ""}, ${entry.fullName.split(" ")[0]} will celebrate ${
+                  entry.type === "birthday"
+                    ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
+                    : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
+                }`}
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground/30 mt-0.5">
+              {entry.type === "birthday" ? "Birthday" : `${entry.yearsCount ? `${entry.yearsCount}-year ` : ""}Work Anniversary`}
               {" · "}{formatDate(entry.date)}
             </p>
           </div>
-          <div className="shrink-0 text-right">
+          <div className="shrink-0 flex items-center gap-2">
             <Badge
               variant="outline"
-              className={`text-[10px] h-5 px-2 rounded-full font-semibold ${
+              className={`text-sm h-8 px-4 rounded-full font-bold ${
                 entry.type === "birthday"
                   ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
                   : "bg-amber-500/10 text-amber-600 border-amber-500/20"
@@ -188,6 +312,7 @@ function MilestonesTab({ token }: { token: string }) {
           </div>
         </div>
       ))}
+    </div>
     </div>
   );
 }
@@ -680,7 +805,7 @@ export default function TeamEngagementPage() {
               </div>
 
               {/* Tab content */}
-              {activeTab === "milestones" && <MilestonesTab token={token} />}
+              {activeTab === "milestones" && <MilestonesTab token={token} isAdmin={isAdmin} />}
               {activeTab === "onboarding" && <OnboardingTab token={token} />}
               {activeTab === "offboarding" && (
                 <OffboardingTab token={token} isAdmin={isAdmin} />
