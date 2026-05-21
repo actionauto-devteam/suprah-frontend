@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Loader2,
   UserX,
+  UserMinus,
   MoreVertical,
   Pencil,
   Trash2,
@@ -50,6 +51,7 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { EditUserModal } from "@/components/crm/EditUserModal"
 import { ResetPasswordModal } from "@/components/crm/ResetPasswordModal"
+import { OffboardModal } from "@/components/crm/OffboardModal"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,9 @@ interface CrmUserRow {
   isActive: boolean
   lastLoginAt?: string
   createdAt: string
+  hireDate?: string
+  birthday?: string
+  isOffboarded?: boolean
 }
 
 interface PaginationMeta {
@@ -234,6 +239,7 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
   const [resetTarget, setResetTarget] = React.useState<CrmUserRow | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<CrmUserRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+  const [offboardTarget, setOffboardTarget] = React.useState<CrmUserRow | null>(null)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all")
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
@@ -445,6 +451,16 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
               </>
             )}
           </DropdownMenuItem>
+
+          {u.isActive && (
+            <DropdownMenuItem
+              onClick={() => setOffboardTarget(u)}
+              className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
+            >
+              <UserMinus className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-amber-600">Offboard</span>
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuSeparator className="my-1" />
 
@@ -880,6 +896,18 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
         user={editTarget}
         onUpdated={() => {
           setEditTarget(null)
+          fetchUsers(page)
+        }}
+      />
+
+      {/* Offboard modal */}
+      <OffboardModal
+        open={!!offboardTarget}
+        onClose={() => setOffboardTarget(null)}
+        token={token}
+        user={offboardTarget}
+        onOffboarded={() => {
+          setOffboardTarget(null)
           fetchUsers(page)
         }}
       />

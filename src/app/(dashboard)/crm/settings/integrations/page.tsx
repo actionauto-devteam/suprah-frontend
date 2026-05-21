@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import {
     Car, User, Settings, ChevronDown, Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
-    AlertTriangle, Copy, Key, LogOut, RefreshCw
+    AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -334,6 +334,16 @@ export default function IntegrationsSettingsPage() {
                                         <ShieldCheck className="h-3 w-3 text-emerald-500/40" />
                                         <ChevronRight className="h-3 w-3 text-emerald-500/40" />
                                     </div>
+                                </button>
+                                <button
+                                    onClick={() => router.push("/crm/hr")}
+                                    className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <HeartHandshake className="h-3.5 w-3.5" />
+                                        Team Engagement
+                                    </div>
+                                    <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                                 </button>
                             </div>
                         </div>
