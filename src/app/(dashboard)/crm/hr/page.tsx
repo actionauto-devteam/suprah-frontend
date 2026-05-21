@@ -121,7 +121,13 @@ function MilestonesTab({ token }: { token: string }) {
       })
       .then((res) => {
         const data = res.data?.data || res.data;
-        setEntries(Array.isArray(data) ? data : []);
+        // API returns { birthdays: [...], anniversaries: [...] } — merge them
+        const combined: MilestoneEntry[] = [
+          ...(Array.isArray(data?.birthdays) ? data.birthdays : []),
+          ...(Array.isArray(data?.anniversaries) ? data.anniversaries : []),
+        ];
+        combined.sort((a, b) => a.daysUntil - b.daysUntil);
+        setEntries(combined);
       })
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
@@ -287,7 +293,8 @@ function OffboardingTab({
         const activeData = activeRes.data?.data || activeRes.data;
         const offData = offRes.data?.data || offRes.data;
         setActive(activeData?.users || []);
-        setOffboarded(Array.isArray(offData) ? offData : []);
+        // API returns { users: [...] } for offboarded
+        setOffboarded(offData?.users || []);
       })
       .catch(() => {
         setActive([]);
