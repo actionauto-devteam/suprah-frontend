@@ -272,6 +272,11 @@ export default function IntegrationsSettingsPage() {
                                     <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
                                         <User className="h-3.5 w-3.5 text-muted-foreground" /> My Profile
                                     </DropdownMenuItem>
+
+                                     <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
+                                        <Fingerprint className="h-3.5 w-3.5 text-muted-foreground" /> Biometrics
+                                    </DropdownMenuItem>
+
                                     <DropdownMenuItem onClick={() => router.push("/crm/settings")} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer bg-muted/30">
                                         <Settings className="h-3.5 w-3.5 text-emerald-500" />
                                         <span className="text-emerald-600 font-semibold">Settings</span>
