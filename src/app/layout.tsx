@@ -23,12 +23,12 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.png",
     shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "Action Auto Utah Powered By Supra AI",
+    statusBarStyle: "black-translucent",
+    title: "Suprah AI",
   },
   formatDetection: {
     telephone: false,
@@ -65,6 +65,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scrollbar-thin" suppressHydrationWarning>
       <head>
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.add('light')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,
