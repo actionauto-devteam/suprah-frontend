@@ -101,7 +101,7 @@ export function RevenueIntelligence({
                 Revenue Trajectory
               </CardTitle>
               <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                Monthly Performance Momentum
+                Monthly Revenue
               </CardDescription>
             </div>
 
@@ -131,7 +131,7 @@ export function RevenueIntelligence({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-h-87.5">
+        <CardContent className="p-0 flex-1 min-h-64 sm:min-h-80">
           {isLoading ? (
             <div className="h-full w-full p-8 space-y-4">
               <Skeleton className="h-full w-full rounded-2xl" />
@@ -140,7 +140,7 @@ export function RevenueIntelligence({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={chartData}
-                margin={{ top: 20, right: 24, left: 24, bottom: 28 }}
+                margin={{ top: 16, right: 16, left: 16, bottom: 20 }}
               >
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -161,14 +161,15 @@ export function RevenueIntelligence({
                   tickLine={false}
                   axisLine={false}
                   interval={0}
-                  tickMargin={10}
-                  height={40}
-                  padding={{ left: 12, right: 12 }}
+                  tickMargin={period === "1Y" ? 4 : 8}
+                  height={period === "1Y" ? 52 : 36}
+                  padding={{ left: 4, right: 4 }}
                   tickFormatter={formatXAxisLabel}
                   tick={{
-                    fontSize: 11,
+                    fontSize: 9,
                     fontWeight: 700,
-                    fill: "var(--foreground)",
+                    fill: "var(--muted-foreground)",
+                    ...(period === "1Y" ? { angle: -45, textAnchor: "end", dy: 2 } : {}),
                   }}
                 />
                 <Tooltip
@@ -214,14 +215,14 @@ export function RevenueIntelligence({
               Live Payments
             </CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-              Transaction Stream
+              Recent Transactions
             </CardDescription>
           </div>
           <Link href="/billing/payments" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1 group">
             All <ChevronRight className="h-3 w-3 group-hover:translate-x-1" />
           </Link>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden max-h-120 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+        <CardContent className="p-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden max-h-120 touch-pan-y overscroll-contain scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
           <Table className="table-fixed w-full">
             <TableBody>
               {isLoading
@@ -235,32 +236,32 @@ export function RevenueIntelligence({
                 : livePayments.map((payment, i) => (
                   <TableRow
                     key={i}
-                    className="hover:bg-muted/30 border-border/30 transition-colors h-16 group"
+                    className="hover:bg-muted/30 border-border/30 transition-colors h-14 sm:h-16 group"
                   >
-                    <TableCell className="pl-6 w-[58%] max-w-0">
+                    <TableCell className="pl-3 sm:pl-5 w-[55%] max-w-0">
                       <div className="flex min-w-0 flex-col">
-                        <span className="truncate text-sm font-bold text-foreground leading-none">
+                        <span className="truncate text-xs sm:text-sm font-bold text-foreground leading-none">
                           {payment.customerName}
                         </span>
-                        <span className="mt-1 block truncate text-[9px] text-muted-foreground/60 font-medium uppercase tracking-tighter">
+                        <span className="mt-0.5 sm:mt-1 block truncate text-[8px] sm:text-[9px] text-muted-foreground/60 font-medium uppercase tracking-tighter">
                           {payment.description}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="w-32 font-black text-sm tabular-nums text-right whitespace-nowrap">
+                    <TableCell className="w-20 sm:w-28 font-black text-xs sm:text-sm tabular-nums text-right whitespace-nowrap">
                       {formatCurrency(payment.amount)}
                     </TableCell>
-                    <TableCell className="pr-6 w-28 text-right whitespace-nowrap">
+                    <TableCell className="pr-3 sm:pr-5 w-16 sm:w-24 text-right whitespace-nowrap">
                       <Badge
                         variant="secondary"
-                        className={`text-[8px] font-black uppercase px-2 py-0.5 border-none ${payment.status === "succeeded"
+                        className={`text-[7px] sm:text-[8px] font-black uppercase px-1.5 sm:px-2 py-0.5 border-none ${payment.status === "succeeded"
                           ? "bg-emerald-500/10 text-emerald-500"
                           : payment.status === "processing"
                             ? "bg-amber-500/10 text-amber-500"
                             : "bg-rose-500/10 text-rose-500"
                           }`}
                       >
-                        {payment.status}
+                        {payment.status === "succeeded" ? "Paid" : payment.status === "processing" ? "Pending" : "Failed"}
                       </Badge>
                     </TableCell>
                   </TableRow>

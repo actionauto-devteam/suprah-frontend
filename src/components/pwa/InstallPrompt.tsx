@@ -33,7 +33,7 @@ export const InstallPrompt = () => {
     if (!isVisible || isDismissed || isStandalone) return null;
 
     return (
-        <div className="fixed bottom-6 left-1/2 z-[9999] w-[90%] max-w-md -translate-x-1/2 animate-in fade-in slide-in-from-bottom-10 duration-500">
+        <div className="fixed bottom-6 left-1/2 z-9999 w-[90%] max-w-md -translate-x-1/2 animate-in fade-in slide-in-from-bottom-10 duration-500">
             <div className="relative overflow-hidden rounded-2xl border border-border/10 bg-background/80 p-6 backdrop-blur-xl shadow-2xl">
                 {/* Close Button */}
                 <button
