@@ -126,12 +126,12 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="w-[calc(100%-2rem)] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl">
         {/* Hero banner */}
-        <div className="relative bg-linear-to-br from-primary/80 via-primary/60 to-primary/40 px-6 pt-8 pb-6">
-          <div className="flex items-end gap-5">
+        <div className="relative bg-linear-to-br from-primary/80 via-primary/60 to-primary/40 px-4 sm:px-6 pt-5 sm:pt-8 pb-4 sm:pb-6">
+          <div className="flex items-start gap-3 sm:gap-5">
             <div className="relative shrink-0">
-              <Avatar className={cn("size-20 ring-4 ring-white/60 ring-offset-2 ring-offset-primary/50 shadow-xl")}>
+              <Avatar className={cn("size-16 sm:size-20 ring-4 ring-white/60 ring-offset-2 ring-offset-primary/50 shadow-xl")}>
                 <AvatarImage src={profile.avatar} />
                 <AvatarFallback className="text-2xl font-black bg-primary/30 text-white">{profile.name?.[0]}</AvatarFallback>
               </Avatar>
@@ -165,7 +165,7 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
           )}
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-5 sm:p-7 space-y-6">
           {/* Bio */}
           {profile.personalInfo?.bio && (
             <div>
@@ -178,9 +178,9 @@ function MemberFullProfileDialog({ profile, open, onClose }: {
           {infoItems.length > 0 && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2">Details</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {infoItems.map((item) => (
-                  <div key={item.label} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                  <div key={item.label} className="flex items-center gap-3 p-3.5 rounded-lg bg-muted/30 border border-border/30">
                     <item.icon className={cn("size-4 shrink-0", item.color)} />
                     <div className="min-w-0">
                       <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{item.label}</p>
@@ -248,7 +248,7 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
     <>
       <Sheet open={!!memberId} onOpenChange={(o) => { if (!o) { onClose(); setShowFullProfile(false); } }}>
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader className={cn(!profile && "sr-only")}>
+          <SheetHeader className={cn(!profile && "sr-only", "px-5 sm:px-6 pb-0")}>
             <SheetTitle className="text-lg font-black tracking-tight">
               {profile?.name ?? "Team Member"}
             </SheetTitle>
@@ -265,9 +265,9 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
           )}
 
           {!isLoading && profile && (
-            <div className="space-y-5 mt-4">
+            <div className="space-y-5 mt-4 px-5 sm:px-6 pb-6">
               {/* Avatar + name + badges */}
-              <div className="flex items-start gap-5 p-4 rounded-2xl bg-muted/20 border border-border/30">
+              <div className="flex items-start gap-4 p-5 rounded-2xl bg-muted/20 border border-border/30">
                 <div className="relative shrink-0">
                   <Avatar className={cn("size-18 ring-2 ring-offset-2 ring-offset-background", S.ring[status])}>
                     <AvatarImage src={profile.avatar} />
@@ -299,12 +299,12 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
               {/* Work info — 2-column grid */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2 px-0.5">Work</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { icon: Briefcase, label: "Job Title", value: profile.personalInfo?.jobTitle, color: "text-amber-500" },
                     { icon: Building2, label: "Department", value: profile.personalInfo?.department ? deptLabel(profile.personalInfo.department) : null, color: "text-cyan-500" },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/30 border border-border/30">
+                    <div key={item.label} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/30 border border-border/30">
                       <item.icon className={cn("size-3.5 shrink-0", item.color)} />
                       <div className="min-w-0">
                         <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/50">{item.label}</p>
@@ -318,15 +318,15 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
               {/* Contact — 2-column grid */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2 px-0.5">Contact</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { icon: Phone, label: "Phone", value: profile.personalInfo?.phone, color: "text-blue-500" },
                     { icon: MapPin, label: "Location", value: profile.personalInfo?.location, color: "text-emerald-500" },
                     { icon: Globe, label: "Timezone", value: (profile.personalInfo as any)?.timezone, color: "text-indigo-500" },
                     { icon: Globe, label: "Language", value: (profile.personalInfo as any)?.language, color: "text-violet-500" },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/30 border border-border/30">
-                      <item.icon className={cn("size-3.5 shrink-0", item.color)} />
+                    <div key={item.label} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/30 border border-border/30">
+                      <item.icon className={cn("size-4 shrink-0", item.color)} />
                       <div className="min-w-0">
                         <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/50">{item.label}</p>
                         <p className="text-xs font-semibold truncate">{item.value || <span className="italic font-normal text-muted-foreground/40">Not set</span>}</p>
@@ -337,7 +337,7 @@ function MemberProfileSheet({ memberId, onClose }: { memberId: string | null; on
               </div>
 
               {/* Bio */}
-              <div className="rounded-xl bg-muted/20 border border-border/20 px-4 py-3">
+              <div className="rounded-xl bg-muted/20 border border-border/20 px-4 py-4">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-1.5">Bio</p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {profile.personalInfo?.bio || <span className="italic opacity-50">No bio added yet.</span>}
@@ -392,7 +392,7 @@ function MemberCard({ member, isMe, leaveToday, onClick }: {
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left flex items-center gap-3.5 px-4 py-3 rounded-2xl border border-l-[3px] bg-card",
+        "w-full text-left flex items-center gap-4 px-4 sm:px-5 py-4 rounded-2xl border border-l-[3px] bg-card",
         "hover:bg-accent/20 hover:shadow-sm active:scale-[0.99] transition-all duration-150 cursor-pointer group",
         S.borderL[status], isMe && "ring-1 ring-primary/20",
       )}
@@ -415,13 +415,13 @@ function MemberCard({ member, isMe, leaveToday, onClick }: {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {member.personalInfo?.jobTitle && (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-              <Briefcase className="size-2.5 opacity-50 shrink-0" />
+            <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+              <Briefcase className="size-3 opacity-50 shrink-0" />
               <span>{member.personalInfo.jobTitle}</span>
             </span>
           )}
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-            <Building2 className="size-2.5 opacity-50 shrink-0" />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+            <Building2 className="size-3 opacity-50 shrink-0" />
             <span className={cn(noDept && "italic opacity-40")}>{dept}</span>
           </span>
           {member.customStatus && (
@@ -506,7 +506,7 @@ function NoteCard({ note, index, isMe, isAdmin, onDelete, onPin, onEdit }: {
           {/* Action buttons — always visible on own notes, hover only for others */}
           <div className={cn(
             "flex items-center gap-0.5 shrink-0 -mt-0.5 -mr-0.5 transition-opacity",
-            isMe || isAdmin ? "opacity-0 group-hover:opacity-100" : "opacity-0 group-hover:opacity-100",
+            isMe || isAdmin ? "opacity-100 sm:opacity-0 sm:group-hover:opacity-100" : "opacity-0 group-hover:opacity-100",
           )}>
             {note.pinned && !isAdmin && <Pin className="size-3 text-foreground/30 p-0.5" />}
             {isAdmin && (
@@ -660,7 +660,7 @@ function OverviewDashboard({
   }, [members]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -670,7 +670,7 @@ function OverviewDashboard({
           { label: "Away / Busy", value: away + busy, sub: `${away} away · ${busy} busy`, icon: Clock, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-800/30" },
           { label: "Out Today", value: todayAbsences.length, sub: todayAbsences.length ? "on leave / absent" : "everyone in", icon: CalendarDays, color: "text-rose-600 dark:text-rose-400", bg: todayAbsences.length ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200/60 dark:border-rose-800/30" : "bg-card border-border/40" },
         ].map((s) => (
-          <div key={s.label} className={cn("flex items-start gap-3 p-4 rounded-xl border", s.bg)}>
+          <div key={s.label} className={cn("flex items-start gap-3 p-4 sm:p-5 rounded-xl border", s.bg)}>
             <div className={cn("mt-0.5 p-1.5 rounded-lg bg-background/60", s.color)}>
               <s.icon className="size-4" />
             </div>
@@ -1152,7 +1152,7 @@ export default function TeamPulsePage() {
               { id: "board" as TabId, Icon: StickyNote, label: "Board", count: boardNotes.length },
             ] as const).map(({ id, Icon, label, count }) => (
               <button key={id} onClick={() => setTab(id)}
-                className={cn("relative flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors whitespace-nowrap shrink-0",
+                className={cn("relative flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0",
                   tab === id ? "text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/30")}>
                 <Icon className={cn("size-4", tab === id && "text-primary")} />
                 {label}
@@ -1177,7 +1177,7 @@ export default function TeamPulsePage() {
             />
 
             {/* Quick nav to other tabs */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { id: "team" as TabId, Icon: Users, label: "Team Directory", desc: `${members.length} members` },
                 { id: "calendar" as TabId, Icon: CalendarDays, label: "Team Calendar", desc: `${todayAbsences.length} out today` },
@@ -1186,12 +1186,12 @@ export default function TeamPulsePage() {
                 <button
                   key={id}
                   onClick={() => setTab(id)}
-                  className="flex flex-col items-start gap-2 p-4 rounded-xl border border-border/40 bg-card hover:bg-accent/20 hover:border-primary/20 transition-all text-left group"
+                  className="flex flex-col items-start gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl border border-border/40 bg-card hover:bg-accent/20 hover:border-primary/20 transition-all text-left group min-w-0"
                 >
-                  <Icon className="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                  <div>
-                    <p className="text-xs font-bold">{label}</p>
-                    <p className="text-[10px] text-muted-foreground/60">{desc}</p>
+                  <Icon className="size-4 sm:size-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                  <div className="min-w-0 w-full">
+                    <p className="text-[10px] sm:text-xs font-bold truncate">{label}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground/60 truncate">{desc}</p>
                   </div>
                 </button>
               ))}
@@ -1201,7 +1201,7 @@ export default function TeamPulsePage() {
 
         {/* ══ TEAM TAB ════════════════════════════════════════════════════════ */}
         {tab === "team" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {/* Status filter chips */}
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
               {[
@@ -1275,7 +1275,7 @@ export default function TeamPulsePage() {
                 <Button variant="link" size="sm" className="text-xs" onClick={() => { setSearch(""); setStatusFilter("all"); setDeptFilter("all"); setRoleFilter("all"); }}>Clear all</Button>
               </div>
             ) : (
-              <div className="space-y-1.5 overflow-y-auto no-scrollbar pr-0.5" style={{ maxHeight: 520 }}>
+              <div className="space-y-2 overflow-y-auto no-scrollbar pr-0.5" style={{ maxHeight: 560 }}>
                 {filtered.map((m) => (
                   <MemberCard key={m._id} member={m} isMe={m.name === user?.fullName}
                     leaveToday={todayAbsences.find((a) => a.userName === m.name)}
@@ -1298,7 +1298,7 @@ export default function TeamPulsePage() {
                 { label: "This Week", value: upcomingAbsences.length, sub: "upcoming absences", icon: Clock, bg: "bg-violet-50 dark:bg-violet-950/30 border-violet-200/60 dark:border-violet-800/30", color: "text-violet-600 dark:text-violet-400" },
                 { label: "My Schedule", value: myMonthAbsences.length, sub: `entries in ${format(calMonth, "MMM")}`, icon: TrendingUp, bg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-800/30", color: "text-emerald-600 dark:text-emerald-400" },
               ].map((s) => (
-                <div key={s.label} className={cn("flex items-start gap-3 p-4 rounded-xl border", s.bg)}>
+                <div key={s.label} className={cn("flex items-start gap-3 p-4 sm:p-5 rounded-xl border", s.bg)}>
                   <div className={cn("mt-0.5 p-1.5 rounded-lg bg-background/60 shrink-0", s.color)}>
                     <s.icon className="size-4" />
                   </div>
@@ -1370,7 +1370,7 @@ export default function TeamPulsePage() {
                     selected={selectedDay ?? undefined}
                     onDayClick={(day) => setSelectedDay(isSameDay(day, selectedDay ?? new Date(0)) ? null : day)}
                     showOutsideDays={false} hideNavigation
-                    className="w-full [--cell-size:--spacing(14)]"
+                    className="w-full [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(12)] lg:[--cell-size:--spacing(14)]"
                     classNames={{ month_caption: "hidden" }}
                     components={{
                       DayButton: ({ day, modifiers, ...props }: any) => {
@@ -1635,7 +1635,7 @@ export default function TeamPulsePage() {
                               {a.title && <span className="text-xs text-muted-foreground/70 flex-1 truncate">{a.title}</span>}
                               {!a.title && a.note && <span className="text-xs text-muted-foreground/50 flex-1 truncate italic">{a.note}</span>}
                               {!a.title && !a.note && <span className="flex-1" />}
-                              <Button variant="ghost" size="icon" className="size-5 opacity-0 group-hover/e:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0" onClick={() => handleDeleteAbsence(a._id)}><Trash2 className="size-3" /></Button>
+                              <Button variant="ghost" size="icon" className="size-5 opacity-100 sm:opacity-0 sm:group-hover/e:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0" onClick={() => handleDeleteAbsence(a._id)}><Trash2 className="size-3" /></Button>
                             </div>
                           );
                         })}
@@ -1815,7 +1815,7 @@ export default function TeamPulsePage() {
 
       {/* ── Post / Edit Note Dialog ──────────────────────────────────────────── */}
       <Dialog open={noteDialog} onOpenChange={setNoteDialog}>
-        <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto p-0">
+        <DialogContent className="w-[calc(100%-2rem)] sm:w-full sm:max-w-lg max-h-[92vh] overflow-y-auto p-0 rounded-2xl">
           {/* Dialog header — cork-themed */}
           <div className="relative overflow-hidden rounded-t-xl px-6 py-4 border-b border-amber-200/60 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/40">
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 1.5px 1.5px, rgba(120,80,30,0.3) 1.5px, transparent 0)", backgroundSize: "10px 10px" }} />
@@ -1832,7 +1832,7 @@ export default function TeamPulsePage() {
             </DialogHeader>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-5 sm:p-6 space-y-4">
             {/* Emoji + Title row */}
             <div className="flex gap-2">
               <div className="space-y-1.5 w-16 shrink-0">

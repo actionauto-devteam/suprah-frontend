@@ -66,8 +66,8 @@ export function LeaderboardPro() {
     return (
       <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-full font-sans p-0 overflow-hidden">
         <CardHeader className="h-24! py-5! px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-1!">
-          <CardTitle className="text-xl font-black">Intelligence Ledger</CardTitle>
-          <CardDescription className="text-xs">Connecting to team stream...</CardDescription>
+          <CardTitle className="text-xl font-black">Standings</CardTitle>
+          <CardDescription className="text-xs">Loading roster...</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 px-4 py-4">
           {[1, 2, 3, 4, 5].map(i => (
@@ -80,13 +80,13 @@ export function LeaderboardPro() {
 
   return (
     <>
-      <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-137.5 overflow-hidden flex flex-col font-sans p-0">
+      <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-104 sm:h-128 lg:h-137.5 overflow-hidden flex flex-col font-sans p-0">
         <CardHeader className="h-24! py-5! px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-1!">
           <div className="flex w-full items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-xl font-black tracking-tight">Intelligence Ledger</CardTitle>
+              <CardTitle className="text-xl font-black tracking-tight">Standings</CardTitle>
               <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                Departmental Rankings • Multi-Metric View
+                Rep Rankings · This Period
               </CardDescription>
             </div>
             <div className="p-2 rounded-xl bg-primary/5 text-primary border border-primary/10">
@@ -97,24 +97,24 @@ export function LeaderboardPro() {
 
         <CardContent
           ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto px-4 py-4 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 scrollbar-track-transparent transition-all"
+          className="flex-1 overflow-y-auto touch-pan-y overscroll-contain px-4 py-4 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 scrollbar-track-transparent transition-all"
         >
-          <div className="px-4 pb-2 border-b border-border/10">
-            <div className="flex items-center gap-4">
-              <div className="w-8 shrink-0" aria-hidden="true" />
-              <div className="w-11 shrink-0" aria-hidden="true" />
+          <div className="px-1 pb-2.5 border-b border-border/20">
+            <div className="flex items-center gap-2 sm:gap-3 bg-muted/30 rounded-xl px-3 py-2">
+              <div className="w-6 sm:w-8 shrink-0" aria-hidden="true" />
+              <div className="w-9 sm:w-11 shrink-0" aria-hidden="true" />
 
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/45">
-                  Team Member
+                <p className="text-[10px] font-black uppercase tracking-wider text-foreground/55">
+                  Rep
                 </p>
               </div>
 
-              <div className="flex items-center gap-6 text-right shrink-0">
-                <p className="hidden sm:block text-[9px] font-black uppercase tracking-widest text-muted-foreground/45">
+              <div className="flex items-center gap-3 sm:gap-6 text-right shrink-0">
+                <p className="hidden sm:block text-[10px] font-black uppercase tracking-wider text-foreground/55">
                   Leads
                 </p>
-                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/45">
+                <p className="text-[10px] font-black uppercase tracking-wider text-foreground/55">
                   Appts
                 </p>
               </div>
@@ -133,62 +133,61 @@ export function LeaderboardPro() {
                 <button
                   key={user.id || i}
                   onClick={() => handleUserClick(user)}
-                  className={`w-full group flex items-center gap-4 rounded-2xl border px-4 py-3 text-left transition-all duration-300 hover:ring-2 hover:ring-primary/20 hover:scale-[1.01] active:scale-[0.99] ${isTop3 ? "border-primary/20 bg-card/80 shadow-md ring-1 ring-primary/5" : "border-border/20 bg-transparent hover:bg-card/40"
+                  className={`w-full group flex items-center gap-2 sm:gap-3 rounded-2xl border px-3 sm:px-4 py-2.5 sm:py-3 text-left transition-all duration-300 hover:ring-2 hover:ring-primary/20 hover:scale-[1.01] active:scale-[0.99] ${isTop3 ? "border-primary/20 bg-card/80 shadow-md ring-1 ring-primary/5" : "border-border/20 bg-transparent hover:bg-card/40"
                     }`}
                 >
                   {/* Rank Icon or Number */}
-                  <div className="w-8 flex flex-col items-center shrink-0">
-                    {isTop3 ? RANK_ICONS[rank - 1] : (
-                      <span className="text-sm font-bold text-muted-foreground/30 tabular-nums">#{rank}</span>
+                  <div className="w-6 sm:w-8 flex flex-col items-center shrink-0">
+                    {isTop3 ? (
+                      <span className="[&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-5 sm:[&>svg]:w-5">{RANK_ICONS[rank - 1]}</span>
+                    ) : (
+                      <span className="text-xs sm:text-sm font-bold text-muted-foreground/30 tabular-nums">#{rank}</span>
                     )}
                   </div>
 
                   {/* Avatar */}
                   <div className="relative shrink-0">
-                    <Avatar className={`h-11 w-11 ring-2 ring-offset-2 ring-offset-background transition-all group-hover:ring-primary/40 ${isTop3 ? "ring-primary/30" : "ring-border/20"}`}>
+                    <Avatar className={`h-9 w-9 sm:h-11 sm:w-11 ring-1 sm:ring-2 ring-offset-1 sm:ring-offset-2 ring-offset-background transition-all group-hover:ring-primary/40 ${isTop3 ? "ring-primary/30" : "ring-border/20"}`}>
                       <AvatarImage src={user.avatar} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs font-black">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-[10px] sm:text-xs font-black">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
                     {isTop3 && (
-                      <div className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
-                        <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                      <div className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+                        <div className="h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full bg-white animate-pulse" />
                       </div>
                     )}
                   </div>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-black truncate leading-tight group-hover:text-primary transition-colors">
-                        {user.name}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-[0.05em]
+                    <p className="text-xs sm:text-sm font-black truncate leading-tight group-hover:text-primary transition-colors">
+                      {user.name}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className={`text-[8px] sm:text-[9px] font-black px-1 sm:px-1.5 py-0.5 rounded-md uppercase tracking-[0.05em]
                         ${user.role.toLowerCase().includes('admin') ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground/60"}`}
                       >
                         {user.role}
                       </span>
-                      <div className="h-1 w-1 rounded-full bg-border" />
-                      <span className="text-[9px] font-bold text-muted-foreground/40 tabular-nums">{user.calls || 0} calls</span>
+                      <span className="hidden sm:inline text-[9px] font-bold text-muted-foreground/40 tabular-nums">· {user.calls || 0} calls</span>
                     </div>
                   </div>
 
                   {/* Metrics */}
-                  <div className="flex items-center gap-6 text-right shrink-0">
+                  <div className="flex items-center gap-3 sm:gap-6 text-right shrink-0">
                     <div className="hidden sm:block">
                       <p className="text-sm font-black tabular-nums">{user.convs || 0}</p>
-                      <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-widest leading-none mt-1">Leads</p>
+                      <p className="text-[8px] font-bold text-muted-foreground/55 uppercase tracking-widest leading-none mt-1">Leads</p>
                     </div>
                     <div>
-                      <p className="text-lg font-black tabular-nums text-primary">{user.appts || 0}</p>
-                      <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-widest leading-none mt-1">Appts</p>
+                      <p className="text-base sm:text-lg font-black tabular-nums text-primary">{user.appts || 0}</p>
+                      <p className="text-[8px] font-bold text-muted-foreground/55 uppercase tracking-widest leading-none mt-1">Appts</p>
                     </div>
                   </div>
 
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/20 group-hover:text-primary transition-all group-hover:translate-x-1" />
+                  <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground/20 group-hover:text-primary transition-all group-hover:translate-x-1 shrink-0" />
                 </button>
               )
             })}
@@ -198,13 +197,13 @@ export function LeaderboardPro() {
               {isFetchingNextPage ? (
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 animate-pulse">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Syncing Ledger...
+                  Loading...
                 </div>
               ) : hasNextPage ? (
                 <div className="h-4" />
               ) : (
                 <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground/20 italic">
-                  End of Intelligence Stream
+                  All reps loaded.
                 </p>
               )}
             </div>

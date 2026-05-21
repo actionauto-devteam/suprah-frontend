@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import {
     Car, User, Settings, ChevronDown, Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
-    AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake
+    AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake, Fingerprint
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -250,7 +250,7 @@ export default function IntegrationsSettingsPage() {
                                         <AvatarImage src={user.avatar} />
                                         <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(user.fullName)}</AvatarFallback>
                                     </Avatar>
-                                    <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">{user.fullName}</span>
+                                    <span className="hidden sm:inline text-xs font-medium max-w-25 truncate">{user.fullName}</span>
                                     <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -273,7 +273,7 @@ export default function IntegrationsSettingsPage() {
                                         <User className="h-3.5 w-3.5 text-muted-foreground" /> My Profile
                                     </DropdownMenuItem>
 
-                                     <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
+                                    <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
                                         <Fingerprint className="h-3.5 w-3.5 text-muted-foreground" /> Biometrics
                                     </DropdownMenuItem>
 
@@ -295,7 +295,7 @@ export default function IntegrationsSettingsPage() {
             </header>
 
             {/* ── Page Content ── */}
-            <main className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+            <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="sm" onClick={() => router.push("/crm/dashboard")} className="h-8 w-8 p-0 rounded-xl border border-border/40 hover:bg-muted/50">
                         <ArrowLeft className="h-4 w-4" />
@@ -421,21 +421,21 @@ export default function IntegrationsSettingsPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Button 
+                                                    <Button
                                                         onClick={handleManualSync}
                                                         disabled={isSaving}
-                                                        variant="outline" 
-                                                        size="sm" 
+                                                        variant="outline"
+                                                        size="sm"
                                                         className="h-8 rounded-lg text-xs font-semibold border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700"
                                                     >
                                                         {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1.5" />}
                                                         Sync Now
                                                     </Button>
-                                                    <Button 
+                                                    <Button
                                                         onClick={handleDisconnectGmail}
                                                         disabled={isSaving || !isAdmin}
-                                                        variant="outline" 
-                                                        size="sm" 
+                                                        variant="outline"
+                                                        size="sm"
                                                         className="h-8 rounded-lg text-xs font-semibold border-border/50 bg-background hover:bg-muted/50 text-foreground"
                                                     >
                                                         Disconnect

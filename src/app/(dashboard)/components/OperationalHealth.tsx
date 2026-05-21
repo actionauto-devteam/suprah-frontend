@@ -27,14 +27,14 @@ export function OperationalHealth({ metrics, isLoading }: OperationalHealthProps
     <Card className="border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col p-0">
       <CardHeader className="py-5 px-6 border-b border-border/10">
         <CardTitle className="text-sm font-black uppercase tracking-widest text-primary">
-          Operational Pipeline Momentum
+          Pipeline Status
         </CardTitle>
         <CardDescription className="text-xs font-bold text-muted-foreground/50 italic">
-          Infrastructure Health & Velocity
+          Throughput &amp; Capacity
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
           <div className="space-y-4">
             <div className="flex justify-between items-end">
               <h4 className="text-lg font-black tracking-tighter">Inventory Turnover</h4>
@@ -57,7 +57,7 @@ export function OperationalHealth({ metrics, isLoading }: OperationalHealthProps
               <div className="h-full bg-emerald-500 rounded-full" style={{ width: '62%' }} />
             </div>
             <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">
-              Inbound volume up 12% this month
+              Volume up 12% this month
             </p>
           </div>
 
@@ -72,8 +72,8 @@ export function OperationalHealth({ metrics, isLoading }: OperationalHealthProps
                 style={{ width: `${networkHealthPct}%` }}
               />
             </div>
-            <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest text-nowrap">
-              {networkHealthPct}% of driver network is currently engaged
+            <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+              {networkHealthPct}% of driver network engaged
             </p>
           </div>
         </div>
