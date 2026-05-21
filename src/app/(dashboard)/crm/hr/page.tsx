@@ -280,26 +280,31 @@ function OffboardingTab({
   React.useEffect(() => {
     if (!token) return;
     setLoading(true);
-    Promise.all([
-      apiClient.get("/api/crm/users?limit=100&status=active", {
+
+    let settled = 0;
+    const done = () => { if (++settled === 2) setLoading(false); };
+
+    apiClient
+      .get("/api/crm/users?limit=50&status=active", {
         headers: { Authorization: `Bearer ${token}` },
-      }),
-      apiClient.get("/api/crm/hr/offboarded", {
+      })
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setActive(data?.users || []);
+      })
+      .catch(() => setActive([]))
+      .finally(done);
+
+    apiClient
+      .get("/api/crm/hr/offboarded", {
         headers: { Authorization: `Bearer ${token}` },
-      }),
-    ])
-      .then(([activeRes, offRes]) => {
-        const activeData = activeRes.data?.data || activeRes.data;
-        const offData = offRes.data?.data || offRes.data;
-        setActive(activeData?.users || []);
-        // API returns { users: [...] } for offboarded
-        setOffboarded(offData?.users || []);
       })
-      .catch(() => {
-        setActive([]);
-        setOffboarded([]);
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setOffboarded(data?.users || []);
       })
-      .finally(() => setLoading(false));
+      .catch(() => setOffboarded([]))
+      .finally(done);
   }, [token, refreshKey]);
 
   if (!isAdmin) {
