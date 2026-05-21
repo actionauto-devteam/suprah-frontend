@@ -55,7 +55,7 @@ export function CarInventoryCard({
 
         {/* Image */}
         {!imgError ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
+          /* eslint-disable-next-line @next/next/no-img-elements! */
           <img
             src={vehicle.image}
             alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
