@@ -1,7 +1,7 @@
 "use client"
 
-import { LogOut, LayoutDashboard, CarFront, MapIcon, Wallet, Settings, CreditCard } from "lucide-react"
-import { useAuthActions, useUser } from "@/providers/AuthProvider"
+import { LogOut, LayoutDashboard, CarFront, MapIcon, Wallet, Settings, CreditCard, ShoppingBag } from "lucide-react"
+import { useAuthActions } from "@/providers/AuthProvider"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -31,6 +31,11 @@ const navItems = [
         icon: LayoutDashboard,
     },
     {
+        title: "Aftermarket",
+        url: "/customer/aftermarket",
+        icon: ShoppingBag,          // ← was incorrectly LayoutDashboard
+    },
+    {
         title: "Payments",
         url: "/customer/payments",
         icon: CreditCard,
@@ -54,7 +59,7 @@ export function CustomerSidebar() {
 
     return (
         <Sidebar variant="sidebar" collapsible="icon">
-            <SidebarHeader className="flex f2lex-col items-center justify-center p-4">
+            <SidebarHeader className="flex flex-col items-center justify-center p-4">
                 <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
                     <span className="font-bold text-sm tracking-tight uppercase truncate max-w-35">
                         ACTION AUTO UTAH

@@ -3,9 +3,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+<<<<<<< Updated upstream
     Car, User, Settings, ChevronDown, Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
     AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake, Fingerprint
+=======
+    Car, User, Settings, ChevronDown, Fingerprint, Loader2, ArrowLeft,
+    Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, 
+    Replace, CheckCircle2, AlertTriangle, Copy, Key, LogOut, 
+    RefreshCw, HeartHandshake
+>>>>>>> Stashed changes
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

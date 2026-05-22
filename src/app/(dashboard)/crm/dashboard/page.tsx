@@ -643,7 +643,7 @@ export default function CrmDashboardPage() {
       icon: (
         <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
-      label: "Aftermarket",
+      label: "Finance Line",
       route: "/crm/aftermarket",
     },
     {

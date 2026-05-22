@@ -67,6 +67,11 @@ const customerData = {
       icon: Wrench,
     },
     {
+      title: "Aftermarket",        
+      url: "/dashboard/aftermarket", 
+      icon: Tag,
+    },
+    {
       title: "Service Network",
       url: "/dashboard/network",
       icon: MapPin,
@@ -81,7 +86,7 @@ const customerData = {
       url: "/dashboard/wallet",
       icon: Wallet,
     },
-  ]
+  ],
 };
 
 export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
