@@ -5,6 +5,7 @@ import { useUser } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 
 type Theme = 'light' | 'dark';
+const THEME_SWITCHING_CLASS = 'theme-switching';
 
 interface ThemeContextType {
   theme: Theme;
@@ -25,11 +26,35 @@ function applyThemeToDOM(theme: Theme) {
   const root = document.documentElement;
   root.classList.remove('light', 'dark');
   root.classList.add(theme);
+  root.setAttribute('data-theme', theme);
+  root.style.colorScheme = theme;
+  document.body?.setAttribute('data-theme', theme);
+  document.body?.style.setProperty('color-scheme', theme);
 }
 
 function persistTheme(theme: Theme) {
   localStorage.setItem('theme', theme);
   apiClient.patch('/api/profile/theme', { theme }).catch(() => { });
+}
+
+function flushThemePaint() {
+  if (typeof window === 'undefined') return;
+
+  const root = document.documentElement;
+  const body = document.body;
+
+  root.classList.add(THEME_SWITCHING_CLASS);
+  body?.classList.add(THEME_SWITCHING_CLASS);
+
+  // Force style recalculation so the new theme repaints in a single pass.
+  void root.offsetHeight;
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      root.classList.remove(THEME_SWITCHING_CLASS);
+      body?.classList.remove(THEME_SWITCHING_CLASS);
+    });
+  });
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -40,8 +65,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (hasLocalSave) return;
     if (user?.theme === 'light' || user?.theme === 'dark') {
-      setThemeState(user.theme);
-      applyThemeToDOM(user.theme);
+      const resolvedTheme = user.theme as Theme;
+      const rafId = window.requestAnimationFrame(() => {
+        setThemeState(resolvedTheme);
+        applyThemeToDOM(resolvedTheme);
+      });
+
+      return () => window.cancelAnimationFrame(rafId);
     }
   }, [user?.theme, hasLocalSave]);
 
@@ -50,16 +80,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   const setTheme = useCallback(async (newTheme: Theme) => {
+    if (newTheme === theme) return;
+
     setThemeState(newTheme);
     applyThemeToDOM(newTheme);
     persistTheme(newTheme);
-  }, []);
+    flushThemePaint();
+  }, [theme]);
 
   const toggleTheme = useCallback(() => {
     setThemeState(prev => {
       const next = prev === 'light' ? 'dark' : 'light';
       applyThemeToDOM(next);
       persistTheme(next);
+      flushThemePaint();
       return next;
     });
   }, []);

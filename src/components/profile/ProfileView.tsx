@@ -394,7 +394,7 @@ export const ProfileView: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 space-y-6 sm:space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 space-y-6 sm:space-y-8 animate-fade-in overflow-x-hidden">
       <ProfileHeader
         profile={profile}
         authUser={authUser}
@@ -417,16 +417,19 @@ export const ProfileView: React.FC = () => {
         onValueChange={handleTabChange}
         className="w-full"
       >
-        <div className="mb-6 sm:mb-8 bg-white/80 dark:bg-gray-900/70 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-800 backdrop-blur-sm sticky top-20 sm:top-24 z-30 shadow-sm">
-          <TabsList className="bg-transparent h-auto gap-1 sm:gap-1.5 p-0 w-full flex flex-nowrap overflow-x-auto scrollbar-hide">
+        <div className="mb-4 sm:mb-8 bg-white/80 dark:bg-gray-900/70 p-1 sm:p-2 rounded-lg sm:rounded-2xl border border-gray-200 dark:border-gray-800 backdrop-blur-sm relative z-10 shadow-sm">
+          <TabsList className="bg-transparent h-auto gap-0.5 sm:gap-1.5 p-0 w-full flex flex-nowrap overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
+                aria-label={tab.label}
+                title={tab.label}
+                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl h-9 w-9 sm:h-auto sm:w-auto p-0 sm:px-4 sm:py-2.5 transition-all inline-flex items-center justify-center sm:justify-start gap-0 sm:gap-2 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
               >
                 <tab.icon className="size-3.5 sm:size-4" />
-                <span className="font-semibold text-[10px] sm:text-xs uppercase tracking-wider">
+                <span className="sr-only">{tab.label}</span>
+                <span className="hidden sm:inline font-semibold text-xs uppercase tracking-wider">
                   {tab.label}
                 </span>
               </TabsTrigger>
@@ -434,7 +437,7 @@ export const ProfileView: React.FC = () => {
           </TabsList>
         </div>
 
-        <TabsContent value="overview">
+        <TabsContent value="overview" className="pt-1 sm:pt-2">
           <ProfileOverviewTab
             profile={profile}
             authUser={authUser}
@@ -443,7 +446,7 @@ export const ProfileView: React.FC = () => {
           />
         </TabsContent>
 
-        <TabsContent value="personal">
+        <TabsContent value="personal" className="pt-1 sm:pt-2">
           <PersonalInfoTab
             personalInfo={personalInfo}
             editingPersonalInfo={editingPersonalInfo}
@@ -463,7 +466,7 @@ export const ProfileView: React.FC = () => {
           />
         </TabsContent>
 
-        <TabsContent value="notifications">
+        <TabsContent value="notifications" className="pt-1 sm:pt-2">
           <NotificationsTab
             preferences={preferences}
             savingPreference={savingPreference}
@@ -475,7 +478,7 @@ export const ProfileView: React.FC = () => {
           />
         </TabsContent>
 
-        <TabsContent value="activity">
+        <TabsContent value="activity" className="pt-1 sm:pt-2">
           <ActivityTab
             activities={activities}
             fetchProfile={fetchProfile}
@@ -483,7 +486,7 @@ export const ProfileView: React.FC = () => {
           />
         </TabsContent>
 
-        <TabsContent value="support">
+        <TabsContent value="support" className="pt-1 sm:pt-2">
           <SupportTab />
         </TabsContent>
       </Tabs>

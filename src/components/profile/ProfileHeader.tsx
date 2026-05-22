@@ -233,7 +233,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   const initialGradient = getInitialColor(displayName);
 
   return (
-    <div className="relative mb-6 sm:mb-8 rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl sm:shadow-2xl border border-gray-200/60 dark:border-white/10 group h-fit flex flex-col">
+    <div className="relative mb-6 sm:mb-8 w-full max-w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl sm:shadow-2xl border border-gray-200/60 dark:border-white/10 group h-fit flex flex-col">
       <div className="absolute inset-0 bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950" />
 
       <div className="absolute inset-0 overflow-hidden">
@@ -381,11 +381,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       <div className="absolute inset-0 bg-linear-to-r from-emerald-500/10 via-transparent to-cyan-500/10" />
       <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/40 to-transparent" />
 
-      <div className="relative w-full px-5 py-6 sm:px-8 sm:py-8 md:px-10 md:py-10 flex flex-col sm:flex-row items-center sm:items-end gap-5 sm:gap-8">
+      <div className="relative w-full min-w-0 px-4 py-5 sm:px-8 sm:py-8 md:px-10 md:py-10 flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-8">
         <div className="relative group/avatar shrink-0">
           <div className="absolute -inset-1 rounded-2xl sm:rounded-3xl bg-linear-to-br from-emerald-400/40 to-cyan-400/40 blur-md opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500" />
           <div
-            className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl overflow-hidden ring-[3px] ring-white/20 dark:ring-white/10 shadow-2xl transition-all duration-300 group-hover/avatar:ring-emerald-400/50 cursor-pointer"
+            className="relative w-20 h-20 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl overflow-hidden ring-[3px] ring-white/20 dark:ring-white/10 shadow-2xl transition-all duration-300 group-hover/avatar:ring-emerald-400/50 cursor-pointer"
             onClick={() => setIsCropperOpen(true)}
           >
             {showAvatarImage ? (
@@ -402,7 +402,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                   initialGradient,
                 )}
               >
-                <span className="text-white font-bold text-3xl sm:text-4xl md:text-5xl select-none">
+                <span className="text-white font-bold text-2xl sm:text-4xl md:text-5xl select-none">
                   {getInitials(displayName)}
                 </span>
               </div>
@@ -433,9 +433,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 min-w-0 text-center sm:text-left space-y-2.5 sm:space-y-3">
+        <div className="flex-1 min-w-0 w-full text-center sm:text-left space-y-2.5 sm:space-y-3">
           <div className="flex flex-col sm:flex-row items-center sm:items-baseline gap-2 sm:gap-3">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md leading-tight truncate max-w-full">
+            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md leading-tight break-words sm:truncate max-w-full">
               {displayName}
             </h1>
             <Badge
@@ -450,15 +450,15 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           </div>
 
           {profile?.email && (
-            <p className="text-white/40 text-xs sm:text-sm font-medium truncate">
+            <p className="text-white/40 text-xs sm:text-sm font-medium break-all sm:break-normal sm:truncate">
               {profile.email}
             </p>
           )}
 
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full">
             <button
               onClick={() => setShowStatusDialog(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all max-w-full"
             >
               <CircleDot
                 className={cn(
@@ -466,7 +466,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                   currentStatus.color.replace("bg-", "text-"),
                 )}
               />
-              <span className="text-white/70 font-medium text-xs truncate max-w-40 sm:max-w-60">
+              <span className="text-white/70 font-medium text-xs truncate max-w-32 sm:max-w-60">
                 {customStatus || "Set your status..."}
               </span>
             </button>
@@ -489,13 +489,13 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           </div>
         </div>
 
-        <div className="shrink-0 flex items-center gap-2">
+        <div className="shrink-0 w-full sm:w-auto flex items-center justify-center sm:justify-end flex-wrap gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 backdrop-blur-sm font-medium"
+                className="bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 backdrop-blur-sm font-medium max-w-full"
               >
                 <Share2 className="size-3.5 mr-1.5" />
                 Share
@@ -534,7 +534,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </div>
       </div>
 
-      <div className="relative w-full border-t border-white/5 bg-white/3 backdrop-blur-md px-5 py-3.5 sm:px-8 sm:py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+      <div className="relative w-full border-t border-white/5 bg-white/3 backdrop-blur-md px-4 py-3.5 sm:px-8 sm:py-4 grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
         {[
           {
             label: "Role",
@@ -565,13 +565,13 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             color: "text-pink-400/80",
           },
         ].map((stat, i) => (
-          <div key={i} className="flex flex-col gap-0.5">
+          <div key={i} className="flex flex-col gap-0.5 min-w-0">
             <span className="text-white/25 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">
               {stat.label}
             </span>
             <div className="flex items-center gap-1.5">
               <stat.icon className={cn("size-3.5 sm:size-4", stat.color)} />
-              <span className="text-white/80 font-bold text-sm sm:text-base capitalize truncate">
+              <span className="text-white/80 font-bold text-sm sm:text-base capitalize truncate min-w-0">
                 {stat.value}
               </span>
             </div>

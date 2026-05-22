@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { TruckIcon, GaugeIcon, MapPinIcon, Phone, Play, CheckCircle2 } from "lucide-react"
 import { Vehicle } from "@/types/inventory"
+import { resolveImageUrl } from "@/lib/utils"
 
 interface PremiumVehicleCardProps {
     vehicle: Vehicle
@@ -28,6 +29,41 @@ export function PremiumVehicleCard({
     onVehicleClick,
     onCreateLoad
 }: PremiumVehicleCardProps) {
+    const FALLBACK_IMAGE =
+        "https://images.unsplash.com/photo-1550355291-bbee04a92027?q=80&w=2636&auto=format&fit=crop"
+
+    const imageCandidates = React.useMemo(() => {
+        const rawCandidates = [vehicle.image, ...(vehicle.images || [])]
+            .map((source) => resolveImageUrl(source)?.trim())
+            .filter((source): source is string => Boolean(source && source.length > 0))
+
+        const uniqueCandidates = Array.from(new Set(rawCandidates))
+        return uniqueCandidates.length > 0 ? uniqueCandidates : [FALLBACK_IMAGE]
+    }, [vehicle.image, vehicle.images])
+
+    const [imageIndex, setImageIndex] = React.useState(0)
+    const [imgLoaded, setImgLoaded] = React.useState(false)
+    const [imgError, setImgError] = React.useState(false)
+
+    React.useEffect(() => {
+        setImageIndex(0)
+        setImgLoaded(false)
+        setImgError(false)
+    }, [vehicle.id, imageCandidates])
+
+    const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE
+
+    const handleImageError = () => {
+        if (imageIndex < imageCandidates.length - 1) {
+            setImageIndex((prev) => prev + 1)
+            setImgLoaded(false)
+            return
+        }
+
+        setImgError(true)
+        setImgLoaded(true)
+    }
+
     // Mocking "Retail Price" vs "One Time Payment" for the UI showcase
     const retailPrice = vehicle.price + 0; // Mock markup
     const memberPrice = vehicle.price;
@@ -39,11 +75,29 @@ export function PremiumVehicleCard({
         >
             {/* Premium Image Header */}
             <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100 dark:bg-zinc-900">
-                <img
-                    src={vehicle.image || "https://images.unsplash.com/photo-1550355291-bbee04a92027?q=80&w=2636&auto=format&fit=crop"}
-                    alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                />
+                {!imgLoaded && !imgError && (
+                    <div className="absolute inset-0 z-10 bg-zinc-200/70 dark:bg-zinc-800/70 animate-pulse flex items-center justify-center">
+                        <TruckIcon className="w-10 h-10 text-zinc-500/40" />
+                    </div>
+                )}
+
+                {!imgError ? (
+                    <img
+                        key={`${vehicle.id}-${imageIndex}`}
+                        src={activeImageSrc}
+                        alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                        loading="lazy"
+                        decoding="async"
+                        onLoad={() => setImgLoaded(true)}
+                        onError={handleImageError}
+                        className={`h-full w-full object-cover transition-all duration-700 group-hover:scale-110 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+                    />
+                ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-200/80 dark:bg-zinc-800/80">
+                        <TruckIcon className="w-10 h-10 text-zinc-500/40" />
+                        <span className="text-xs text-zinc-600 dark:text-zinc-300/70">Image unavailable</span>
+                    </div>
+                )}
 
                 {/* Sleek Overlay Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />

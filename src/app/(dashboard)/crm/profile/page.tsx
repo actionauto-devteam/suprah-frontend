@@ -540,9 +540,9 @@ export default function CrmProfilePage() {
               <div className="space-y-4">
 
                 {/* ── Profile Header Card ─────────────────────────────────── */}
-                <div className="rounded-xl border border-border/30 bg-card px-6 py-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-5">
+                <div className="rounded-xl border border-border/30 bg-card px-4 sm:px-6 py-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex items-start gap-4 sm:gap-5 min-w-0">
                       {/* Avatar */}
                       <div className="relative shrink-0">
                         <Avatar className="h-16 w-16 ring-2 ring-border/30 shadow-lg">
@@ -558,17 +558,17 @@ export default function CrmProfilePage() {
 
                       {/* Name + meta */}
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold leading-tight tracking-tight">
+                        <h2 className="text-lg font-bold leading-tight tracking-tight break-words">
                           {user.fullName}
                         </h2>
                         <p className="text-xs text-muted-foreground/70 mt-0.5">
                           Joined {formatDate(user.createdAt)}
                         </p>
                         <div className="flex items-center flex-wrap gap-2 mt-2.5">
-                          <span className="inline-flex items-center border border-primary/40 text-primary bg-primary/10 capitalize text-[11px] h-5 px-2.5 rounded-sm font-semibold tracking-wide">
+                          <span className="inline-flex items-center border border-primary/40 text-primary bg-primary/10 capitalize text-[11px] min-h-5 px-2.5 rounded-sm font-semibold tracking-wide">
                             {user.role}
                           </span>
-                          <span className="text-xs text-muted-foreground/60 font-mono">
+                          <span className="text-xs text-muted-foreground/60 font-mono break-all">
                             {user.username}
                           </span>
                         </div>
@@ -576,12 +576,12 @@ export default function CrmProfilePage() {
                     </div>
 
                     {/* Action button */}
-                    <div className="shrink-0 pt-0.5">
+                    <div className="shrink-0 pt-0.5 w-full sm:w-auto">
                       {isOwnProfile ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 px-4 text-sm border-primary/40 text-primary bg-transparent hover:bg-primary/10 hover:text-primary/80 rounded-md"
+                          className="h-8 px-4 text-sm border-primary/40 text-primary bg-transparent hover:bg-primary/10 hover:text-primary/80 rounded-md w-full sm:w-auto"
                           onClick={handleOpenEdit}
                         >
                           Edit Profile
@@ -589,7 +589,7 @@ export default function CrmProfilePage() {
                       ) : (
                         <Button
                           size="sm"
-                          className="h-8 px-4 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md gap-1.5"
+                          className="h-8 px-4 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md gap-1.5 w-full sm:w-auto"
                           onClick={() =>
                             router.push(`/crm/supra-space?userId=${user._id}`)
                           }
@@ -606,7 +606,7 @@ export default function CrmProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Contact Details */}
                   <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
-                    <div className="px-5 py-3.5 border-b border-border/30">
+                    <div className="px-4 sm:px-5 py-3.5 border-b border-border/30">
                       <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
                         Contact Details
                       </h3>
@@ -620,20 +620,20 @@ export default function CrmProfilePage() {
 
                   {/* Account Summary */}
                   <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
-                    <div className="px-5 py-3.5 border-b border-border/30">
+                    <div className="px-4 sm:px-5 py-3.5 border-b border-border/30">
                       <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
                         Account Summary
                       </h3>
                     </div>
                     <div className="divide-y divide-border/20">
                       {/* Status */}
-                      <div className="flex items-center justify-between px-5 py-3.5 gap-4">
-                        <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3.5 gap-2 sm:gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
                           <Shield className="h-4 w-4 text-muted-foreground/40" />
                           <span className="text-sm text-muted-foreground">Status</span>
                         </div>
                         <span
-                          className={`inline-flex items-center text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                          className={`inline-flex items-center w-fit text-xs px-2.5 py-0.5 rounded-full font-medium ${
                             viewedIsActive
                               ? "bg-primary/15 text-primary"
                               : "bg-destructive/15 text-destructive"
@@ -799,13 +799,13 @@ function InfoRow({
   capitalize?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 gap-4">
-      <div className="flex items-center gap-3 shrink-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3.5 gap-1.5 sm:gap-4">
+      <div className="flex items-center gap-3 min-w-0">
         <Icon className="h-4 w-4 text-muted-foreground/40" />
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
       <span
-        className={`text-sm font-medium text-right truncate max-w-[55%] ${capitalize ? "capitalize" : ""}`}
+        className={`text-sm font-medium text-left sm:text-right w-full sm:w-auto sm:max-w-[62%] break-words ${capitalize ? "capitalize" : ""}`}
       >
         {value}
       </span>

@@ -230,6 +230,17 @@ body.app-fullscreen .main-content {
   }
 }
 
+/* Prevent visual ghosting while the theme class flips. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after,
+body.theme-switching *,
+body.theme-switching *::before,
+body.theme-switching *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 /* Custom scrollbar styles for light and dark mode */
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar {
@@ -1422,6 +1433,36 @@ body.app-fullscreen .main-content {
 /* Smooth scrollbar behavior */
 .scrollbar-styled {
   scroll-behavior: smooth;
+}
+
+/* Ensure app theme class wins over OS preference for styled scrollbars */
+.light .scrollbar-styled {
+  scrollbar-color: #9ca3af #ffffff;
+  scrollbar-width: thin;
+}
+
+.light .scrollbar-styled::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.light .scrollbar-styled::-webkit-scrollbar-track {
+  background: #ffffff;
+  border-radius: 4px;
+}
+
+.light .scrollbar-styled::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+  border: 2px solid #ffffff;
+}
+
+.light .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+.light .scrollbar-styled::-webkit-scrollbar-corner {
+  background: #ffffff;
 }
 
 /* Bold Light Mode Scrollbar - More Visible Version */

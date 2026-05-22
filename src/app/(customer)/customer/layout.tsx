@@ -14,6 +14,7 @@ import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle"
 import { useRouter } from "next/navigation"
 import { useAuthActions, useUser } from "@/providers/AuthProvider"
 import { useOrg } from "@/hooks/useOrg"
+import { useTheme } from "@/context/ThemeContext"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -29,6 +30,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
     const { user } = useUser()
     const { signOut } = useAuthActions()
     const { userRole, isLoaded } = useOrg()
+    const { theme } = useTheme()
     const router = useRouter()
 
     React.useEffect(() => {
@@ -46,7 +48,11 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
 
     return (
         <SidebarProvider>
-            <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-50 overflow-hidden">
+            <div
+                data-theme={theme}
+                style={{ colorScheme: theme }}
+                className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-50 overflow-hidden"
+            >
                 <CustomerSidebar />
                 <SidebarInset className="flex-1 flex flex-col min-w-0 bg-transparent">
                     <header className="flex h-16 shrink-0 items-center justify-between px-4 lg:px-8 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-xl z-10 sticky top-0">

@@ -126,6 +126,25 @@ const CSS = `
   --d-glass:    rgba(9,18,36,0.92);
 }
 
+/* Class-based light override */
+.light [data-dbn] {
+  --d-bg:       #F0F5FB;
+  --d-bg2:      #E2ECF8;
+  --d-surface:  #FFFFFF;
+  --d-surface2: #F4F8FE;
+  --d-border:   rgba(37,99,235,0.12);
+  --d-border2:  rgba(0,0,0,0.07);
+  --d-accent:   #2563EB;
+  --d-accent2:  #3B82F6;
+  --d-silver:   #6B8BAE;
+  --d-text1:    #081A30;
+  --d-text2:    rgba(10,50,100,0.65);
+  --d-text3:    rgba(10,50,100,0.38);
+  --d-sh:       0 2px 12px rgba(0,0,0,0.08), 0 6px 24px rgba(37,99,235,0.06);
+  --d-shlg:     0 4px 20px rgba(37,99,235,0.14), 0 10px 40px rgba(0,0,0,0.10);
+  --d-glass:    rgba(255,255,255,0.95);
+}
+
 [data-dbn] *, [data-dbn] *::before, [data-dbn] *::after { box-sizing: border-box; }
 [data-dbn] { color: var(--d-text1); }
 

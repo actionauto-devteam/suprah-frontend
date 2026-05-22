@@ -43,6 +43,7 @@ import { DriverAssignLoadModal } from "@/components/driver-tracker/DriverAssignL
 import { DriverTrackerAvailableLoadsCard } from "@/components/driver-tracker/DriverTrackerAvailableLoadsCard";
 import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTrackerRequestsCard";
 import { toast } from "sonner";
+import { useTheme } from "@/context/ThemeContext";
 import {
   initializeSocket,
   getSocket,
@@ -87,6 +88,7 @@ const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 export default function DriverTrackerPage() {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
+  const { theme } = useTheme();
   const isDriver = user?.role === "driver";
   const [drivers, setDrivers] = React.useState<DriverTrackingItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -119,6 +121,7 @@ export default function DriverTrackerPage() {
   const lastSentRef = React.useRef<number>(0);
   const lastCoordsRef = React.useRef<{ lat: number; lng: number } | null>(null);
   const hasFlownRef = React.useRef<boolean>(false);
+  const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const locationNamesRef = React.useRef<Map<string, string>>(new Map());
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -459,9 +462,13 @@ export default function DriverTrackerPage() {
       }
 
       mapboxgl.accessToken = normalizedToken;
+      mapThemeRef.current = theme;
       const map = new mapboxgl.Map({
         container: mapRef.current,
-        style: "mapbox://styles/mapbox/streets-v12",
+        style:
+          theme === "dark"
+            ? "mapbox://styles/mapbox/dark-v11"
+            : "mapbox://styles/mapbox/streets-v12",
         center: [MAP_CENTER.lng, MAP_CENTER.lat],
         zoom: 4,
         attributionControl: false,
@@ -508,6 +515,19 @@ export default function DriverTrackerPage() {
       }
     };
   }, [normalizedToken]);
+
+  React.useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || mapThemeRef.current === theme) return;
+    mapThemeRef.current = theme;
+    setMapNotice("Applying theme...");
+    map.setStyle(
+      theme === "dark"
+        ? "mapbox://styles/mapbox/dark-v11"
+        : "mapbox://styles/mapbox/streets-v12",
+    );
+    map.once("idle", () => setMapNotice(null));
+  }, [theme]);
 
   React.useEffect(() => {
     if (!mapInstanceRef.current) return;

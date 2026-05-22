@@ -19,16 +19,21 @@ interface Props {
 
 function usePrefersDark() {
   const [dark, setDark] = React.useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    typeof document !== 'undefined'
+      ? document.documentElement.classList.contains('dark')
       : true
   )
+
   React.useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const h = (e: MediaQueryListEvent) => setDark(e.matches)
-    mq.addEventListener('change', h)
-    return () => mq.removeEventListener('change', h)
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    const sync = () => setDark(root.classList.contains('dark'))
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
   }, [])
+
   return dark
 }
 

@@ -69,7 +69,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                     </div>
                     <div>
                         <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Notification Preferences</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Control which notifications you receive</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">Control which notifications you receive</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                     <Button
                         size="sm"
                         onClick={() => router.push(getDashboardPath())}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-sm"
                     >
                         <ExternalLink className="size-3.5" />
                         <span className="hidden sm:inline">View Notifications</span>
@@ -94,13 +94,13 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             </div>
             <CardContent className="p-5">
                 <div className="flex flex-wrap items-center gap-3 mb-5 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
-                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Quick Actions:</span>
+                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">Quick Actions:</span>
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={handleEnableAllNotifications}
                         disabled={savingPreference !== null}
-                        className="gap-2 text-xs border-green-200 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-900/30"
+                        className="gap-2 text-sm border-green-200 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-900/30"
                     >
                         <BellRing className="size-3.5 text-green-600 dark:text-green-400" />
                         Enable All
@@ -110,7 +110,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                         size="sm"
                         onClick={handleDisableAllNotifications}
                         disabled={savingPreference !== null}
-                        className="gap-2 text-xs border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/30"
+                        className="gap-2 text-sm border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/30"
                     >
                         <BellOff className="size-3.5 text-red-600 dark:text-red-400" />
                         Disable All
@@ -128,7 +128,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                             });
                         }}
                         disabled={savingPreference !== null}
-                        className="gap-2 text-xs border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-900/30"
+                        className="gap-2 text-sm border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-900/30"
                     >
                         <Zap className="size-3.5 text-amber-600 dark:text-amber-400" />
                         Important Only
@@ -148,7 +148,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                         Push Notifications
                                         {isSupported && (
                                             <Badge variant="outline" className={cn(
-                                                "text-[10px] h-4 px-1.5 font-bold uppercase tracking-tight",
+                                                "text-xs h-5 px-2 font-bold uppercase tracking-tight",
                                                 isSubscribed
                                                     ? "border-emerald-500 text-emerald-600 bg-emerald-50"
                                                     : "border-gray-300 text-gray-500 bg-gray-50 dark:bg-gray-800"
@@ -157,7 +157,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                             </Badge>
                                         )}
                                     </h3>
-                                    <p className="text-xs text-muted-foreground max-w-[400px]">
+                                    <p className="text-sm text-muted-foreground max-w-[440px] leading-relaxed">
                                         {isSupported
                                             ? "Enable real-time alerts on this browser to receive instant updates even when the app is closed."
                                             : "Your browser does not support Web Push notifications. Please use a modern browser like Chrome, Safari, or Edge."}
@@ -182,7 +182,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
                     <div className="h-px bg-gray-100 dark:bg-gray-800 mx-1" />
 
-                    {getNotificationCategoriesByRole(profile?.role).map((category, categoryIndex) => {
+                    {getNotificationCategoriesByRole(profile?.role).map((category) => {
                         const CategoryIcon = category.icon;
                         const categoryEnabled = category.items.filter(
                             item => preferences[item.key as keyof NotificationPreferences]
@@ -205,14 +205,14 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                         </div>
                                         <div>
                                             <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{category.title}</h3>
-                                            <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm text-gray-600 dark:text-gray-300">
                                                 {categoryEnabled}/{category.items.length} active
                                             </p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className={cn(
-                                            "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
+                                            "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
                                             allEnabled && "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
                                             someEnabled && "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
                                             !categoryEnabled && "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
@@ -223,7 +223,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-7 px-2 text-[10px]"
+                                            className="h-8 px-3 text-sm"
                                             onClick={() => {
                                                 const turnOn = categoryEnabled < category.items.length;
                                                 category.items.forEach(item => {
@@ -263,8 +263,8 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                                         {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.label}</p>
-                                                        <p className="text-[10px] text-gray-500 dark:text-gray-400">{item.description}</p>
+                                                        <p className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-200">{item.label}</p>
+                                                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{item.description}</p>
                                                     </div>
                                                 </div>
                                                 <Switch

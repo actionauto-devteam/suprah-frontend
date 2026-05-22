@@ -359,7 +359,7 @@ export default function CrmLoginPage() {
 
   /* ── Login Page ──────────────────────────────────────────────────────────── */
   return (
-    <div className="h-full flex flex-col items-center justify-center px-4 py-6 bg-background overflow-hidden">
+    <div className="h-full w-full flex flex-col items-center justify-center px-4 py-8 sm:py-10 bg-background overflow-y-auto overflow-x-hidden">
       <div className="w-full max-w-100 space-y-5">
         {/* ── Brand ── */}
         <div className="flex flex-col items-center gap-3">
@@ -371,7 +371,7 @@ export default function CrmLoginPage() {
               <span className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
             </span>
           </div>
-          <div className="text-center leading-none">
+          <div className="text-center leading-tight py-0.5">
             <p className="text-base font-bold tracking-tight">Action Auto</p>
             <p className="text-[9px] font-bold uppercase tracking-[0.28em] text-emerald-600 mt-1">
               CRM System

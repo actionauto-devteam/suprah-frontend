@@ -14,6 +14,7 @@ import { UpdateMileageModal } from "@/components/customer/UpdateMileageModal"
 import { AddVehicleModal } from "@/components/customer/AddVehicleModal"
 import { EditVehicleModal } from "@/components/customer/EditVehicleModal"
 import { deleteVehicle } from "@/lib/api/vehicles"
+import { useTheme } from "@/context/ThemeContext"
 
 // Helper to calculate progress bar
 const calculateServiceProgress = (current: number, nextDue: number) => {
@@ -27,6 +28,8 @@ const calculateServiceProgress = (current: number, nextDue: number) => {
 const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1550355291-bbee04a92027?q=80&w=2636&auto=format&fit=crop"
 
 export default function MyGaragePage() {
+    const { theme } = useTheme()
+
     const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
         queryKey: ["vehicles"],
         queryFn: fetchOwnedVehicles
@@ -85,7 +88,11 @@ export default function MyGaragePage() {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div
+            data-theme={theme}
+            style={{ colorScheme: theme }}
+            className="min-h-full bg-background space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700"
+        >
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-6">
@@ -111,7 +118,7 @@ export default function MyGaragePage() {
                     <CarFront className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mb-4" />
                     <h3 className="text-xl font-bold">No Vehicles Found</h3>
                     <p className="text-muted-foreground mt-2 max-w-sm">
-                        It looks like your vehicle hasn't been synced from the dealership yet.
+                        It looks like your vehicle hasn&apos;t been synced from the dealership yet.
                         If you recently purchased a car, please contact Support.
                     </p>
                 </div>

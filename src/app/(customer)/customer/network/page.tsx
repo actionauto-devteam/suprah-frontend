@@ -9,6 +9,7 @@ import mapboxgl from "mapbox-gl"
 
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
+import { useTheme } from "@/context/ThemeContext"
 
 // ---------------------------------------------------------------------------
 // Static fallback: all 79 Utah Jiffy Lube locations from the store list XLS.
@@ -130,6 +131,7 @@ async function geocodeAddress(address: string, city: string, state: string, zip:
 // ---------------------------------------------------------------------------
 export default function ServiceNetworkPage() {
   const { getToken } = useAuth()
+  const { theme } = useTheme()
   const [locations, setLocations] = React.useState<any[]>([])
   const [sortedLocations, setSortedLocations] = React.useState<any[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -141,6 +143,7 @@ export default function ServiceNetworkPage() {
 
   const mapRef = React.useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = React.useRef<mapboxgl.Map | null>(null)
+  const mapThemeRef = React.useRef<"light" | "dark" | null>(null)
   const markersRef = React.useRef<mapboxgl.Marker[]>([])
   const userMarkerRef = React.useRef<mapboxgl.Marker | null>(null)
 
@@ -216,9 +219,10 @@ export default function ServiceNetworkPage() {
     if (!token.startsWith('pk.')) { setMapNotice("Invalid Mapbox token."); return }
 
     mapboxgl.accessToken = token
+    mapThemeRef.current = theme
     const map = new mapboxgl.Map({
       container: mapRef.current,
-      style: "mapbox://styles/mapbox/dark-v11",
+      style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12",
       center: [-111.891, 40.761],
       zoom: 8,
       attributionControl: false,
@@ -233,6 +237,13 @@ export default function ServiceNetworkPage() {
 
     return () => { ro.disconnect(); map.remove(); mapInstanceRef.current = null }
   }, [mapboxToken])
+
+  React.useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map || mapThemeRef.current === theme) return
+    mapThemeRef.current = theme
+    map.setStyle(theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12")
+  }, [theme])
 
   // -------------------------------------------------------------------------
   // 4. Filter + sort

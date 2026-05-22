@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
+import { useTheme } from '@/context/ThemeContext';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
 const trailerLabel = (val?: string) => trailerTypeOptions.find(t => t.value === val)?.label || val || 'Any';
@@ -28,6 +29,7 @@ const extractErr = (e: any, fb: string) => e?.response?.data?.message || e?.mess
 
 export default function AvailableLoadDetailPage() {
     const { getToken } = useAuth();
+    const { theme } = useTheme();
     const params = useParams();
     const router = useRouter();
     const loadId = params.id as string;
@@ -76,7 +78,7 @@ export default function AvailableLoadDetailPage() {
             const center: [number, number] = originCoords || [-98.58, 39.83];
             const map = new mapboxgl.Map({
                 container: mapRef.current!,
-                style: 'mapbox://styles/mapbox/dark-v11',
+                style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12",
                 center,
                 zoom: 5,
                 accessToken: mapboxToken,
@@ -125,7 +127,7 @@ export default function AvailableLoadDetailPage() {
         };
         init();
         return () => { cancelled = true; mapInst.current?.remove(); mapInst.current = null; };
-    }, [data, mapboxToken]);
+    }, [data, mapboxToken, theme]);
 
     const handleRequest = async () => {
         setRequesting(true);

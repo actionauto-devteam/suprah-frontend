@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "@/context/ThemeContext";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -22,8 +23,10 @@ const STATUS_COLORS = {
 };
 
 export function LiveMapDashboard() {
+  const { theme } = useTheme();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const mapThemeRef = useRef<"light" | "dark" | null>(null);
   const markers = useRef<{ [key: string]: mapboxgl.Marker }>({});
   const [selectedDriver, setSelectedDriver] = useState<ActiveDriver | null>(null);
 
@@ -42,10 +45,11 @@ export function LiveMapDashboard() {
       return;
     }
     mapboxgl.accessToken = token;
+    mapThemeRef.current = theme;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v11",
+      style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v11",
       center: [-111.891, 40.7608], // Salt Lake City default
       zoom: 4,
     });
@@ -56,6 +60,14 @@ export function LiveMapDashboard() {
       map.current?.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!map.current || mapThemeRef.current === theme) return;
+    mapThemeRef.current = theme;
+    map.current.setStyle(
+      theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v11",
+    );
+  }, [theme]);
 
   useEffect(() => {
     if (!map.current) return;

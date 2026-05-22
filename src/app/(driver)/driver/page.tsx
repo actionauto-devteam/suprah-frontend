@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { useDriverLocationSharing } from "@/hooks/useDriverLocationSharing";
+import { useTheme } from "@/context/ThemeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +119,10 @@ const OP_STATUS_CONFIG = [
 ];
 
 const MAP_CENTER: [number, number] = [-98.5795, 39.8283];
+const MAP_STYLE_BY_THEME = {
+  dark: "mapbox://styles/mapbox/navigation-night-v1",
+  light: "mapbox://styles/mapbox/streets-v12",
+} as const;
 
 function formatDualTime(date: Date) {
   const mst = date.toLocaleTimeString("en-US", {
@@ -138,6 +143,7 @@ function formatDualTime(date: Date) {
 
 export default function DriverDashboardPage() {
   const { getToken } = useAuth();
+  const { theme } = useTheme();
   const [loads, setLoads] = React.useState<any[]>([]);
   const [dashStats, setDashStats] = React.useState<{
     pendingRequests: number;
@@ -190,6 +196,7 @@ export default function DriverDashboardPage() {
   const mapContainerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<any>(null);
   const markerRef = React.useRef<any>(null);
+  const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
 
@@ -267,12 +274,10 @@ export default function DriverDashboardPage() {
         mapboxgl.accessToken = mapboxToken;
         setMapNotice("Loading map tiles...");
 
-        const isDark = document.documentElement.classList.contains("dark");
+        mapThemeRef.current = theme;
         const map = new mapboxgl.Map({
           container: mapContainerRef.current,
-          style: isDark
-            ? "mapbox://styles/mapbox/navigation-night-v1"
-            : "mapbox://styles/mapbox/streets-v12",
+          style: MAP_STYLE_BY_THEME[theme],
           center: MAP_CENTER,
           zoom: 4,
           attributionControl: false,
@@ -330,6 +335,16 @@ export default function DriverDashboardPage() {
       }
     };
   }, [mapboxToken]);
+
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapThemeRef.current === theme) return;
+    mapThemeRef.current = theme;
+    setMapNotice("Applying theme...");
+    map.setStyle(MAP_STYLE_BY_THEME[theme]);
+    const handleIdle = () => setMapNotice(null);
+    map.once("idle", handleIdle);
+  }, [theme]);
 
   React.useEffect(() => {
     const map = mapRef.current;

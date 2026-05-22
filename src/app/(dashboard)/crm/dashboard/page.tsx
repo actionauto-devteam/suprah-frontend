@@ -5,6 +5,8 @@ import {
   Car,
   LogOut,
   User,
+  Copy,
+  Check,
   Settings,
   Clock,
   ChevronDown,
@@ -46,6 +48,7 @@ import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { DashboardNotifications } from "@/components/crm/DashboardNotifications";
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
 import { cn, resolveImageUrl } from "@/lib/utils";
+import { toast } from "sonner";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface CrmUserData {
@@ -376,13 +379,58 @@ function QuickAction({
 }
 
 // ─── Stat Chip ───────────────────────────────────────────────────────────────
-function StatChip({ label, value }: { label: string; value: string }) {
+function StatChip({
+  label,
+  value,
+  capitalize = false,
+  breakMode = "words",
+  copyable = false,
+}: {
+  label: string;
+  value: string;
+  capitalize?: boolean;
+  breakMode?: "words" | "all";
+  copyable?: boolean;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      toast.success(`${label} copied`);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error(`Failed to copy ${label.toLowerCase()}`);
+    }
+  };
+
   return (
-    <div className="rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-3 hover:border-zinc-300/60 dark:hover:border-zinc-700/60 transition-colors duration-200">
-      <p className="text-[9px] uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 font-bold mb-1.5">
-        {label}
-      </p>
-      <p className="text-sm font-bold text-zinc-700 dark:text-zinc-200 truncate capitalize">
+    <div className="min-w-0 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-3 hover:border-zinc-300/60 dark:hover:border-zinc-700/60 transition-colors duration-200">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[9px] uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 font-bold">
+          {label}
+        </p>
+        {copyable && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/70 bg-white/80 dark:bg-zinc-800/70 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+            aria-label={`Copy ${label}`}
+            title={copied ? "Copied!" : `Copy ${label}`}
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            <span>{copied ? "Copied" : "Copy"}</span>
+          </button>
+        )}
+      </div>
+      <p
+        className={cn(
+          "text-sm font-bold text-zinc-700 dark:text-zinc-200 whitespace-normal leading-snug",
+          breakMode === "all" ? "break-all" : "break-words",
+          capitalize && "capitalize",
+        )}
+      >
         {value}
       </p>
     </div>
@@ -989,10 +1037,15 @@ export default function CrmDashboardPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 pt-4">
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-3 pt-4">
                   <StatChip label="Full Name" value={user.fullName} />
-                  <StatChip label="Employee ID" value={user.username} />
-                  <StatChip label="Role" value={user.role} />
+                  <StatChip
+                    label="Employee ID"
+                    value={user.username}
+                    breakMode="all"
+                    copyable
+                  />
+                  <StatChip label="Role" value={user.role} capitalize />
                 </div>
               </div>
 

@@ -365,8 +365,8 @@ export function SupraLeoAvatar({
   const rafRef = useRef<number>(0)
   const tRef = useRef(0)
   const darkRef = useRef(
-    typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    typeof document !== 'undefined'
+      ? document.documentElement.classList.contains('dark')
       : true
   )
 
@@ -376,11 +376,16 @@ export function SupraLeoAvatar({
   }, [state])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => { darkRef.current = e.matches; render() }
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    const sync = () => {
+      darkRef.current = root.classList.contains('dark')
+      render()
+    }
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
   }, [render])
 
   useEffect(() => {

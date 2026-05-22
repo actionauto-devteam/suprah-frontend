@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveImageUrl } from "@/lib/utils";
 
 interface VehicleDetailViewProps {
   vehicle: Vehicle;
@@ -179,10 +180,29 @@ export function VehicleDetailView({
   shippingQuote,
   isPublic = false,
 }: VehicleDetailViewProps) {
+  const FALLBACK_IMAGE =
+    "https://images.unsplash.com/photo-1550355291-bbee04a92027?q=80&w=2636&auto=format&fit=crop";
   const { userRole, isSuperAdmin } = useOrg();
   const isAdmin =
     userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
-  const [activeImage, setActiveImage] = React.useState<string>(vehicle.image);
+  const allImages = React.useMemo(() => {
+    const rawCandidates = [vehicle.image, ...(vehicle.images || [])]
+      .map((source) => resolveImageUrl(source)?.trim())
+      .filter((source): source is string => Boolean(source && source.length > 0));
+
+    const uniqueCandidates = Array.from(new Set(rawCandidates));
+    return uniqueCandidates.length > 0 ? uniqueCandidates : [FALLBACK_IMAGE];
+  }, [vehicle.image, vehicle.images]);
+
+  const [activeImageIndex, setActiveImageIndex] = React.useState(0);
+  const [mainImageLoaded, setMainImageLoaded] = React.useState(false);
+  const [mainImageError, setMainImageError] = React.useState(false);
+  const [loadedThumbIndexes, setLoadedThumbIndexes] = React.useState<
+    Record<number, boolean>
+  >({});
+  const [failedThumbIndexes, setFailedThumbIndexes] = React.useState<
+    Record<number, boolean>
+  >({});
   const [isCopied, setIsCopied] = React.useState(false);
 
   React.useEffect(() => {
@@ -195,8 +215,31 @@ export function VehicleDetailView({
       allKeys: Object.keys(vehicle),
     });
   }, [vehicle]);
-  1;
-  const allImages = [vehicle.image, ...(vehicle.images || [])].filter(Boolean);
+
+  React.useEffect(() => {
+    setActiveImageIndex(0);
+    setMainImageLoaded(false);
+    setMainImageError(false);
+    setLoadedThumbIndexes({});
+    setFailedThumbIndexes({});
+  }, [vehicle.id, allImages]);
+
+  const activeImage = allImages[activeImageIndex] || FALLBACK_IMAGE;
+
+  const handleMainImageError = () => {
+    if (activeImageIndex < allImages.length - 1) {
+      setActiveImageIndex((prev) => prev + 1);
+      setMainImageLoaded(false);
+      return;
+    }
+
+    setMainImageError(true);
+    setMainImageLoaded(true);
+  };
+
+  const handleThumbnailError = (index: number) => {
+    setFailedThumbIndexes((prev) => ({ ...prev, [index]: true }));
+  };
 
   // Share modal state
   const [shareOpen, setShareOpen] = React.useState(false);
@@ -248,12 +291,25 @@ export function VehicleDetailView({
             {/* Gallery Section */}
             <div className="space-y-3">
               <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg border border-border/50 relative group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={activeImage}
-                  alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                  className="h-full w-full object-contain"
-                />
+                {!mainImageLoaded && !mainImageError && (
+                  <div className="absolute inset-0 z-10 bg-zinc-900/40 animate-pulse" />
+                )}
+                {!mainImageError ? (
+                  <img
+                    key={`${vehicle.id}-${activeImageIndex}`}
+                    src={activeImage}
+                    alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                    loading="eager"
+                    decoding="async"
+                    onLoad={() => setMainImageLoaded(true)}
+                    onError={handleMainImageError}
+                    className={`h-full w-full object-contain transition-opacity duration-300 ${mainImageLoaded ? "opacity-100" : "opacity-0"}`}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-white/80 bg-zinc-900/60">
+                    Main image unavailable
+                  </div>
+                )}
                 <div className="absolute bottom-3 left-3 bg-black/60 text-white text-[10px] px-2 py-1 rounded backdrop-blur-sm">
                   Action Auto Utah
                 </div>
@@ -265,19 +321,40 @@ export function VehicleDetailView({
                   {allImages.map((img, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setActiveImage(img)}
+                      onClick={() => {
+                        setActiveImageIndex(idx);
+                        setMainImageLoaded(false);
+                        setMainImageError(false);
+                      }}
                       className={`relative aspect-[4/3] w-20 shrink-0 overflow-hidden rounded-md border transition-all snap-start ${
-                        activeImage === img
+                        activeImageIndex === idx
                           ? "border-primary ring-2 ring-primary/20 opacity-100"
                           : "border-transparent opacity-60 hover:opacity-100"
                       }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img}
-                        alt={`Thumb ${idx}`}
-                        className="h-full w-full object-cover"
-                      />
+                      {!loadedThumbIndexes[idx] && !failedThumbIndexes[idx] && (
+                        <div className="absolute inset-0 bg-muted animate-pulse" />
+                      )}
+                      {!failedThumbIndexes[idx] ? (
+                        <img
+                          src={img}
+                          alt={`Thumbnail ${idx + 1}`}
+                          loading="lazy"
+                          decoding="async"
+                          onLoad={() =>
+                            setLoadedThumbIndexes((prev) => ({
+                              ...prev,
+                              [idx]: true,
+                            }))
+                          }
+                          onError={() => handleThumbnailError(idx)}
+                          className={`h-full w-full object-cover transition-opacity duration-200 ${loadedThumbIndexes[idx] ? "opacity-100" : "opacity-0"}`}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-muted text-[10px] text-muted-foreground">
+                          No image
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
