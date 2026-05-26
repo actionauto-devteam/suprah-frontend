@@ -1344,7 +1344,7 @@ export default function CrmDashboardPage() {
 
       {/* ── Tray App Required Modal ── */}
       {showTrayModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] flex items-start justify-center pt-12 p-4">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -1402,6 +1402,7 @@ export default function CrmDashboardPage() {
                   href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => setShowTrayModal(false)}
                   className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors"
                 >
                   <Download className="h-4 w-4" />
