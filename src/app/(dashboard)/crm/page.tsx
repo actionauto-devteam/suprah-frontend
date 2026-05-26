@@ -111,6 +111,7 @@ export default function CrmLoginPage() {
       if (data.token && data.user) {
         localStorage.setItem("crm_token", data.token);
         localStorage.setItem("crm_user", JSON.stringify(data.user));
+        localStorage.setItem("pending_tray_auth", data.token);
         router.push("/crm/dashboard");
       } else {
         setError("Login failed. Please try again.");
@@ -148,6 +149,7 @@ export default function CrmLoginPage() {
       if (data.token && data.user) {
         localStorage.setItem("crm_token", data.token);
         localStorage.setItem("crm_user", JSON.stringify(data.user));
+        localStorage.setItem("pending_tray_auth", data.token);
         router.push("/crm/dashboard");
       } else {
         setError("Biometric authentication failed.");
@@ -227,6 +229,7 @@ export default function CrmLoginPage() {
       if (data.token && data.user) {
         localStorage.setItem("crm_token", data.token);
         localStorage.setItem("crm_user", JSON.stringify(data.user));
+        localStorage.setItem("pending_tray_auth", data.token);
         router.push("/crm/dashboard");
       } else {
         setError("SSH authentication failed.");

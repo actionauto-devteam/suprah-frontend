@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Calendar, Clock, Users, Plus, RefreshCw, Mail, ArrowLeft, Contact,
+  Calendar, Clock, Users, Plus, RefreshCw, ArrowLeft, Contact,
   TrendingUp, MapPin, Sparkles, ChevronRight
 } from "lucide-react"
 import { AppointmentCalendar } from "@/components/AppointmentCalendar"
 import { BookedTab } from "@/components/BookedTab"
-import { LeadsTab } from "@/components/LeadsTab"
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal"
 import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal"
 import { CrmCalendarConnect } from "@/components/CrmCalendarConnect"
@@ -37,7 +36,6 @@ import { format, isToday, isTomorrow } from "date-fns";
 // ─── Tab options ──────────────────────────────────────────────────────────────
 
 const TAB_OPTIONS: TabOption[] = [
-  { id: "leads", label: "Leads", icon: <Mail className="h-3.5 w-3.5" /> },
   { id: "calendar", label: "Calendar View", icon: <Calendar className="h-3.5 w-3.5" /> },
   { id: "upcoming", label: "Upcoming", icon: <Clock className="h-3.5 w-3.5" /> },
   { id: "booked", label: "Booked", icon: <Users className="h-3.5 w-3.5" /> },
@@ -181,7 +179,6 @@ interface CustomTabBarProps {
 
 function CustomTabBar({ value, onChange, upcomingCount, bookedCount, customerCount }: CustomTabBarProps) {
   const tabs = [
-    { id: "leads", label: "Leads", icon: <Mail className="h-3.5 w-3.5" />, count: null },
     { id: "calendar", label: "Calendar", icon: <Calendar className="h-3.5 w-3.5" />, count: null },
     { id: "upcoming", label: "Upcoming", icon: <Clock className="h-3.5 w-3.5" />, count: upcomingCount > 0 ? upcomingCount : null },
     { id: "booked", label: "Booked", icon: <Users className="h-3.5 w-3.5" />, count: bookedCount > 0 ? bookedCount : null },
@@ -292,20 +289,23 @@ function AppointmentsPageInner() {
   const queryClient = useQueryClient();
   const { isFullscreen } = useFullscreen();
 
-  const DRAFT_STORAGE_KEY = "crm-appointment-draft";
-
-  const [activeTab, setActiveTab] = React.useState("leads");
+  const [activeTab, setActiveTab] = React.useState("upcoming");
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
   const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null);
   const [preselectedDate, setPreselectedDate] = React.useState<Date | undefined>();
   const [currentMonth, setCurrentMonth] = React.useState(new Date());
-  const [pendingLeadNav, setPendingLeadNav] = React.useState<LeadNavParams | null>(null);
 
+  // When CustomerCredentialsTab wants to open a lead, navigate to the dedicated Leads page
   const handleLeadNavigate = React.useCallback((params: LeadNavParams) => {
-    setActiveTab("leads");
-    setPendingLeadNav(params);
-  }, []);
+    if (params.leadId) {
+      router.push(`/crm/leads?leadId=${params.leadId}`);
+    } else if (params.leadSearch) {
+      router.push(`/crm/leads?leadSearch=${encodeURIComponent(params.leadSearch)}`);
+    } else {
+      router.push("/crm/leads");
+    }
+  }, [router]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -318,20 +318,6 @@ function AppointmentsPageInner() {
     const tabParam = params.get("tab");
     if (tabParam && TAB_OPTIONS.some((t) => t.id === tabParam)) setActiveTab(tabParam);
   }, [queryClient]);
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = sessionStorage.getItem(DRAFT_STORAGE_KEY);
-    if (!stored) return;
-    try {
-      const draft = JSON.parse(stored) as any;
-      const leadId = draft?.meta?.extraPayload?.leadId;
-      if (draft?.resume && !leadId) {
-        setCreateModalOpen(true);
-        sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draft, resume: false }));
-      }
-    } catch { /* ignore */ }
-  }, []);
 
   const getAuthHeaders = async () => {
     const token = await getToken();
@@ -498,12 +484,6 @@ function AppointmentsPageInner() {
   const renderTabContent = React.useCallback(
     (tabId: string) => {
       switch (tabId) {
-        case "leads":
-          return (
-            <div className="h-full">
-              <LeadsTab pendingNav={pendingLeadNav} onNavConsumed={() => setPendingLeadNav(null)} />
-            </div>
-          );
         case "calendar":
           return (
             <div className="p-4">
@@ -558,7 +538,7 @@ function AppointmentsPageInner() {
     },
     [calendarAppointments, isCalendarLoading, upcomingAppointments, isGlobalLoading,
       handleCreateAppointment, handleDateClick, handleAppointmentClick, currentMonth,
-      pendingLeadNav, handleLeadNavigate]
+      handleLeadNavigate]
   );
 
   // ── Normal mode header ──────────────────────────────────────────────────────
@@ -583,7 +563,7 @@ function AppointmentsPageInner() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              Manage leads, events, and customer records
+              Manage events, calendar, and customer records
             </p>
           </div>
         </div>
@@ -715,15 +695,6 @@ function AppointmentsPageInner() {
 
               {/* Tab content */}
               <div className="min-h-0">
-                {activeTab === "leads" && (
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm min-h-162.5 h-[75vh]">
-                    <LeadsTab
-                      pendingNav={pendingLeadNav}
-                      onNavConsumed={() => setPendingLeadNav(null)}
-                    />
-                  </div>
-                )}
-
                 {activeTab === "calendar" && (
                   <>
                     {!isCalendarLoading ? (
@@ -812,7 +783,7 @@ function AppointmentsPageInner() {
 export default function AppointmentsPage() {
   return (
     <TooltipProvider>
-      <FullscreenProvider defaultTab="leads">
+      <FullscreenProvider defaultTab="upcoming">
         <AppointmentsPageInner />
       </FullscreenProvider>
     </TooltipProvider>

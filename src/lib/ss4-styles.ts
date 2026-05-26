@@ -184,10 +184,7 @@ export const SS4_CSS = `
   }
   .ss4-msg-column {
     width: fit-content;
-    max-width: min(82%, 42rem);
-  }
-  @media (min-width: 768px) {
-    .ss4-msg-column { max-width: min(68%, 42rem); }
+    max-width: min(68%, 42rem);
   }
   .ss4-msg-bubble { width: 100%; max-width: 100%; overflow: hidden; }
   .ss4-attachment-item { display: block; width: 100%; max-width: 100%; }
@@ -410,11 +407,6 @@ export const SS4_CSS = `
 
   /* ── Divider ────────────────────────────────────────── */
   .ss4-divider { height: 1px; background: var(--border-1); }
-
-  /* ── Mobile safe area ───────────────────────────────── */
-  @supports (padding-bottom: env(safe-area-inset-bottom)) {
-    .ss4-input-safe { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-  }
 
   /* ── Status dot colors (for leads) ─────────────────── */
   .ss4-dot-new     { background: #34c97d; }

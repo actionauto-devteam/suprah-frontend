@@ -17,22 +17,18 @@ const geistMono = Geist_Mono({
 import type { Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Supra AI",
+  title: "Suprah AI",
   description: "Advanced Car Dealership Management",
   manifest: "/manifest.webmanifest",
-
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
     title: "Action Auto",
-  },
-  icons: {
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    icon: [
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-96x96.png", sizes: "96x96", type: "image/png" },
-      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
-    ],
   },
   formatDetection: {
     telephone: false,
@@ -70,9 +66,6 @@ export default function RootLayout({
     <html lang="en" className="scrollbar-thin" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="96x96" href="/icon-96x96.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.add('light')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,

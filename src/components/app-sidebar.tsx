@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -76,11 +77,6 @@ const data = {
       icon: LayoutDashboard,
     },
     {
-      title: "Supra Space",
-      url: "/crm/conversations",
-      icon: MessageSquare,
-    },
-    {
       title: "Team Pulse",
       url: "/team-pulse",
       icon: Activity,
@@ -105,6 +101,9 @@ const data = {
       url: "/inventory",
       icon: Car,
     },
+  ] satisfies SidebarNavItem[],
+
+  premium: [
     {
       title: "Plugins",
       url: "/plugins",
@@ -194,16 +193,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
-      <SidebarHeader className="h-16 border-b flex items-center px-6">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-            <span className="font-bold text-sm tracking-tight uppercase truncate max-w-35">
-              ACTION AUTO UTAH
-            </span>
-            <span className="text-[9px] font-extrabold text-green-600 uppercase tracking-widest leading-tight">
-              Powered by Supra AI
-            </span>
-          </div>
+      <SidebarHeader className="h-16 border-b flex items-center justify-center px-6">
+        <div className="flex items-center justify-center w-full group-data-[collapsible=icon]:justify-center">
+          <Image
+            src="/favicon.png"
+            alt="Logo"
+            width={300}
+            height={300}
+            className="object-contain group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8 dark:invert-0 invert"
+            priority
+          />
         </div>
       </SidebarHeader>
       <SidebarContent className="p-2">
@@ -259,6 +258,43 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </>
+        )}
+
+        {!isCustomer && (
+          <>
+            <div className="px-4 py-2 mt-4 text-[11px] font-semibold uppercase text-muted-foreground tracking-wider group-data-[collapsible=icon]:hidden">
+              Premium
+            </div>
+            <SidebarMenu>
+              {data.premium.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
+                    className={
+                      item.isNew
+                        ? "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
+                        : ""
+                    }
+                  >
+                    <Link href={item.url}>
+                      <item.icon className={item.isNew ? "animate-pulse" : ""} />
+                      <span className="font-medium">{item.title}</span>
+                      {item.isNew && (
+                        <Badge
+                          variant="secondary"
+                          className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                        >
+                          New
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

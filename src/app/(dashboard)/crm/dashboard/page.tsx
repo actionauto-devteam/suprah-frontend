@@ -21,12 +21,11 @@ import {
   Sparkles,
   Coffee,
   Play,
-  MessageSquare,
-  Rss,
   Trophy,
-
   Users,
   Tag,
+  X,
+  MonitorDot,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,9 +44,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { apiClient } from "@/lib/api-client";
+import { initializeSocket } from "@/lib/socket.client";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { DashboardNotifications } from "@/components/crm/DashboardNotifications";
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
+import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { cn, resolveImageUrl } from "@/lib/utils";
 
 interface CrmUserData {
@@ -60,14 +61,18 @@ interface CrmUserData {
   role: string;
   todayTimeLogs?: Array<{
     _id: string;
-    type: "time-in" | "time-out";
+    type: "time-in" | "time-out" | "break-in" | "break-out";
     timestamp: string;
   }>;
 }
 
+// ─── MDT timezone helpers (company operates on MDT = UTC-6) ─────────────────
+const MDT_OFFSET_MS = -6 * 60 * 60 * 1000;
+const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS);
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getGreeting(name: string) {
-  const h = new Date().getHours();
+  const h = toMDT(new Date()).getUTCHours();
   if (h >= 5 && h < 12)
     return {
       text: `Good Morning, ${name}`,
@@ -95,7 +100,7 @@ function ini(n: string) {
     .slice(0, 2);
 }
 function fmt(d: Date) {
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return toMDT(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" });
 }
 
 type ApiError = {
@@ -148,11 +153,13 @@ function LiveClock() {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  const timeStr = now.toLocaleTimeString("en-US", {
+  const mdtNow = toMDT(now);
+  const timeStr = mdtNow.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
+    timeZone: "UTC",
   });
 
   return (
@@ -174,11 +181,12 @@ function LiveClock() {
         className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
       >
         <p className="text-xs">
-          {now.toLocaleDateString("en-US", {
+          {mdtNow.toLocaleDateString("en-US", {
             weekday: "long",
             month: "long",
             day: "numeric",
             year: "numeric",
+            timeZone: "UTC",
           })}
         </p>
       </TooltipContent>
@@ -186,27 +194,27 @@ function LiveClock() {
   );
 }
 
-interface ShiftTimerProps {
-  startTime: string;
-  breakAccumulatedMs: number;
-  breakStartedAt: number | null;
-}
-
-function ShiftTimer({
-  startTime,
-  breakAccumulatedMs,
-  breakStartedAt,
-}: ShiftTimerProps) {
+function ActivityTimer({
+  todayTotalActiveMs,
+  activityStartAt,
+  isOnShift,
+}: {
+  todayTotalActiveMs: number;
+  activityStartAt: number | null;
+  isOnShift: boolean;
+}) {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const totalElapsedMs = now - new Date(startTime).getTime();
-  const currentBreakMs =
-    breakAccumulatedMs + (breakStartedAt ? now - breakStartedAt : 0);
-  const workedMs = Math.max(0, totalElapsedMs - currentBreakMs);
+  const liveMs = activityStartAt ? Math.max(0, now - activityStartAt) : 0;
+  const totalMs = todayTotalActiveMs + liveMs;
+  // isActive if tray confirmed an active interval, OR if we haven't loaded heartbeat data
+  // yet after clock-in (activityStartAt is set optimistically on time-in socket event so
+  // this null-but-active window is < 2.5s; the fallback covers second-session re-clocks)
+  const isActive = activityStartAt !== null || (isOnShift && todayTotalActiveMs === 0);
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const toHMS = (ms: number) => ({
@@ -215,10 +223,7 @@ function ShiftTimer({
     s: Math.floor((ms % 60000) / 1000),
   });
 
-  const worked = toHMS(workedMs);
-  const breakTime = toHMS(currentBreakMs);
-  const isOnBreak = breakStartedAt !== null;
-
+  const worked = toHMS(totalMs);
   const units = [
     { v: pad(worked.h), l: "HRS" },
     { v: pad(worked.m), l: "MIN" },
@@ -226,7 +231,7 @@ function ShiftTimer({
   ];
 
   const maxShiftMs = 8 * 3600000;
-  const progress = Math.min(workedMs / maxShiftMs, 1);
+  const progress = Math.min(totalMs / maxShiftMs, 1);
   const circumference = 2 * Math.PI * 54;
   const strokeDashoffset = circumference * (1 - progress);
 
@@ -249,14 +254,14 @@ function ShiftTimer({
               cy="70"
               r="54"
               fill="none"
-              stroke={isOnBreak ? "#f59e0b" : "#10b981"}
+              stroke={isActive ? "#10b981" : "#71717a"}
               strokeWidth="3"
               strokeLinecap="round"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               className="transition-all duration-1000"
               style={{
-                filter: `drop-shadow(0 0 6px ${isOnBreak ? "#f59e0b" : "#10b981"})`,
+                filter: `drop-shadow(0 0 6px ${isActive ? "#10b981" : "#71717a"})`,
               }}
             />
           </svg>
@@ -268,7 +273,7 @@ function ShiftTimer({
                     <span
                       className={cn(
                         "text-xl font-thin mb-3 mx-0.5 transition-colors duration-500",
-                        isOnBreak ? "text-amber-500/50" : "text-emerald-500/50",
+                        isActive ? "text-emerald-500/50" : "text-zinc-400/50",
                       )}
                     >
                       :
@@ -278,9 +283,9 @@ function ShiftTimer({
                     <span
                       className={cn(
                         "text-3xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
-                        isOnBreak
-                          ? "text-amber-400/70"
-                          : "text-zinc-900 dark:text-white",
+                        isActive
+                          ? "text-zinc-900 dark:text-white"
+                          : "text-zinc-400 dark:text-zinc-600",
                       )}
                     >
                       <AnimatedDigit value={item.v[0]} />
@@ -296,36 +301,18 @@ function ShiftTimer({
           </div>
         </div>
       </div>
-
-      {isOnBreak && (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 animate-pulse">
-          <Coffee className="h-3.5 w-3.5 text-amber-400" />
-          <span className="text-xs font-bold text-amber-400 tracking-wider uppercase">
-            On Break
-          </span>
-          <span className="font-mono text-xs text-amber-300/60 tabular-nums ml-1">
-            {pad(breakTime.h)}:{pad(breakTime.m)}:{pad(breakTime.s)}
-          </span>
-        </div>
-      )}
-      {!isOnBreak && currentBreakMs > 0 && (
-        <div className="flex items-center justify-center gap-2">
-          <Coffee className="h-3 w-3 text-zinc-400 dark:text-zinc-600" />
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums font-mono">
-            Total break: {pad(breakTime.h)}:{pad(breakTime.m)}:
-            {pad(breakTime.s)}
-          </span>
-        </div>
-      )}
-      {!isOnBreak && currentBreakMs === 0 && (
-        <div className="flex justify-center">
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono">
-            {worked.h > 0
-              ? `${worked.h}h ${worked.m}m worked`
-              : `${worked.m}m ${worked.s}s worked`}
-          </span>
-        </div>
-      )}
+      <div className="flex justify-center">
+        <span
+          className={cn(
+            "text-[10px] font-bold tracking-[0.2em] uppercase",
+            isActive
+              ? "text-emerald-500 dark:text-emerald-400"
+              : "text-zinc-400 dark:text-zinc-600",
+          )}
+        >
+          {isActive ? "● Active — Tracking" : "○ Idle — Paused"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -398,16 +385,132 @@ export default function CrmDashboardPage() {
   const [isClocking, setIsClocking] = React.useState(false);
   const [clockMsg, setClockMsg] = React.useState("");
   const [isOnBreak, setIsOnBreak] = React.useState(false);
-  const [breakStartedAt, setBreakStartedAt] = React.useState<number | null>(
-    null,
-  );
   const [breakAccumulatedMs, setBreakAccumulatedMs] = React.useState(0);
   const [mounted, setMounted] = React.useState(false);
+  const [trayBanner, setTrayBanner] = React.useState(false);
+  const [trayToken, setTrayToken] = React.useState("");
+  const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
+  const [activityStartAt, setActivityStartAt] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(timer);
   }, []);
+
+  React.useEffect(() => {
+    const pending = localStorage.getItem("pending_tray_auth");
+    if (!pending) return;
+
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 2000);
+
+    fetch('http://127.0.0.1:18642/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: pending }),
+      signal: controller.signal,
+    })
+      .then(res => {
+        clearTimeout(tid);
+        if (res.ok) {
+          localStorage.removeItem("pending_tray_auth");
+          // Tray connected silently — no banner needed
+        } else {
+          throw new Error('rejected');
+        }
+      })
+      .catch(() => {
+        clearTimeout(tid);
+        // Tray not running — show banner as fallback
+        setTrayToken(pending);
+        setTrayBanner(true);
+      });
+  }, []);
+
+  const openTrayApp = React.useCallback(() => {
+    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(trayToken)}`; } catch {}
+    localStorage.removeItem("pending_tray_auth");
+    setTrayBanner(false);
+  }, [trayToken]);
+
+  const dismissTrayBanner = React.useCallback(() => {
+    localStorage.removeItem("pending_tray_auth");
+    setTrayBanner(false);
+  }, []);
+
+  // Re-fetch todayTimeLogs from the server to sync state that changed outside
+  // this page (e.g. tray app clocked in/out while the tab was open or in the background)
+  const refreshShiftState = React.useCallback(async () => {
+    const t = localStorage.getItem("crm_token");
+    if (!t) return;
+    try {
+      const res = await apiClient.get("/api/crm/me", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const data = res.data?.data || res.data;
+      setTodayLogs(data.todayTimeLogs || []);
+    } catch {}
+  }, []);
+
+  // Sync whenever the user switches back to this tab
+  React.useEffect(() => {
+    const onVisibility = () => { if (!document.hidden) refreshShiftState(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [refreshShiftState]);
+
+  // Fetch activity state (idle-aware timer data) from getShiftState
+  const fetchActivityState = React.useCallback(async () => {
+    const t = localStorage.getItem("crm_token");
+    if (!t) return;
+    try {
+      const res = await apiClient.get("/api/crm/timeproof/shift-state", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const s = res.data?.data;
+      if (s) {
+        setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000);
+        setActivityStartAt(s.currentIntervalStartAt ? new Date(s.currentIntervalStartAt).getTime() : null);
+      }
+    } catch {}
+  }, []);
+
+  // Poll activity state every 30s so the timer stays in sync with the tray
+  React.useEffect(() => {
+    if (!token) return;
+    fetchActivityState();
+    const id = setInterval(fetchActivityState, 10_000);
+    return () => clearInterval(id);
+  }, [token, fetchActivityState]);
+
+  // Real-time sync: receive time-clock events pushed by the backend (e.g. tray app clocks in/out)
+  React.useEffect(() => {
+    if (!token) return;
+    const sock = initializeSocket(token);
+    const sync = () => { refreshShiftState(); };
+    // For time-in we delay the activity fetch so the tray heartbeat lands first
+    const syncTimeIn = () => {
+      refreshShiftState();
+      // Optimistically mark as active so the timer doesn't flash "Idle" for
+      // the 2.5s before fetchActivityState reads the confirmed heartbeat value.
+      setActivityStartAt(Date.now());
+      setTimeout(() => fetchActivityState(), 2500);
+    };
+    const syncTimeOut = () => {
+      refreshShiftState();
+      fetchActivityState();
+    };
+    sock.on('time-in', syncTimeIn);
+    sock.on('time-out', syncTimeOut);
+    sock.on('break-in', sync);
+    sock.on('break-out', sync);
+    return () => {
+      sock.off('time-in', syncTimeIn);
+      sock.off('time-out', syncTimeOut);
+      sock.off('break-in', sync);
+      sock.off('break-out', sync);
+    };
+  }, [token, refreshShiftState, fetchActivityState]);
 
   React.useEffect(() => {
     const check = async () => {
@@ -467,15 +570,20 @@ export default function CrmDashboardPage() {
       setTodayLogs(data.todayLogs || []);
       if (type === "time-out") {
         setIsOnBreak(false);
-        setBreakStartedAt(null);
         setBreakAccumulatedMs(0);
       }
       setClockMsg(
         `${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`,
       );
+      // Re-fetch activity state after a short delay so the tray's pingHeartbeat
+      // has time to update currentIntervalStartAt on the server before we read it.
+      setTimeout(() => fetchActivityState(), 2500);
     } catch (err: unknown) {
       const apiError = err as ApiError;
       setClockMsg(apiError.response?.data?.message || "Failed");
+      // Re-fetch so the buttons reflect the real server state
+      // (e.g. 400 on time-in means we're already on shift via tray app)
+      refreshShiftState();
     } finally {
       setIsClocking(false);
     }
@@ -484,51 +592,108 @@ export default function CrmDashboardPage() {
   const handleBreak = async () => {
     setClockMsg("");
     if (!isOnBreak) {
-      const now = Date.now();
       setIsOnBreak(true);
-      setBreakStartedAt(now);
       try {
-        await apiClient.post(
+        const res = await apiClient.post(
           "/api/crm/time-clock",
-          { type: "break-start" },
+          { type: "break-in" },
           { headers: { Authorization: `Bearer ${token}` } },
         );
+        const d = res.data?.data || res.data;
+        if (d?.todayLogs) setTodayLogs(d.todayLogs);
       } catch { }
       setClockMsg(`Break started at ${fmt(new Date())}`);
     } else {
-      const now = Date.now();
-      const elapsed = breakStartedAt ? now - breakStartedAt : 0;
-      setBreakAccumulatedMs((prev) => prev + elapsed);
       setIsOnBreak(false);
-      setBreakStartedAt(null);
       try {
-        await apiClient.post(
+        const res = await apiClient.post(
           "/api/crm/time-clock",
-          { type: "break-end" },
+          { type: "break-out" },
           { headers: { Authorization: `Bearer ${token}` } },
         );
+        const d = res.data?.data || res.data;
+        if (d?.todayLogs) setTodayLogs(d.todayLogs);
       } catch { }
       setClockMsg(`Break ended at ${fmt(new Date())}`);
     }
   };
 
-  const timeIn = todayLogs?.find((l) => l.type === "time-in");
-  const timeOut = todayLogs?.find((l) => l.type === "time-out");
+  // Sort ascending so we can find the most recent session pair correctly
+  const sortedLogs = React.useMemo(
+    () => [...(todayLogs || [])].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    ),
+    [todayLogs],
+  );
+
+  // Most recent time-in entry (current or last session)
+  const timeIn = [...sortedLogs].reverse().find(l => l.type === "time-in");
+  // Most recent time-out AFTER that time-in (current session only)
+  const timeOut = timeIn
+    ? [...sortedLogs].reverse().find(
+        l => l.type === "time-out" &&
+          new Date(l.timestamp).getTime() >= new Date(timeIn.timestamp).getTime()
+      )
+    : undefined;
+
   const hasClockedIn = !!timeIn;
   const hasClockedOut = !!timeOut;
   const isActive = hasClockedIn && !hasClockedOut;
   const isComplete = hasClockedOut;
 
+  // Derive break state from server logs so tray ↔ CRM stays in sync
+  React.useEffect(() => {
+    if (!timeIn) return;
+    const sessionStart = new Date(timeIn.timestamp).getTime();
+    const breakLogs = sortedLogs.filter(
+      l => (l.type === "break-in" || l.type === "break-out") &&
+           new Date(l.timestamp).getTime() >= sessionStart
+    );
+    let accumulated = 0;
+    let currentBreakStart: number | null = null;
+    for (const log of breakLogs) {
+      if (log.type === "break-in") {
+        currentBreakStart = new Date(log.timestamp).getTime();
+      } else if (log.type === "break-out" && currentBreakStart !== null) {
+        accumulated += new Date(log.timestamp).getTime() - currentBreakStart;
+        currentBreakStart = null;
+      }
+    }
+    setBreakAccumulatedMs(accumulated);
+    setIsOnBreak(currentBreakStart !== null);
+  }, [sortedLogs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sum all completed sessions BEFORE the current active time-in
+  const previousSessionsMs = React.useMemo(() => {
+    if (!timeIn) return 0;
+    const currentStart = new Date(timeIn.timestamp).getTime();
+    let total = 0;
+    let sessionIn: number | null = null;
+    for (const log of sortedLogs) {
+      const ts = new Date(log.timestamp).getTime();
+      if (ts >= currentStart) break;
+      if (log.type === "time-in") {
+        sessionIn = ts;
+      } else if (log.type === "time-out" && sessionIn !== null) {
+        total += ts - sessionIn;
+        sessionIn = null;
+      }
+    }
+    return total;
+  }, [sortedLogs, timeIn]);
+
   const finalHours = React.useMemo(() => {
     if (!timeIn || !timeOut) return null;
-    const totalMs =
+    // Last session net time
+    const lastSessionMs =
       new Date(timeOut.timestamp).getTime() -
       new Date(timeIn.timestamp).getTime();
-    const workedMs = Math.max(0, totalMs - breakAccumulatedMs);
+    // Total = prior completed sessions + last session net (break-deducted)
+    const workedMs = previousSessionsMs + Math.max(0, lastSessionMs - breakAccumulatedMs);
     const h = Math.floor(workedMs / 3600000);
     const m = Math.floor((workedMs % 3600000) / 60000);
     return `${h}h ${m}m`;
-  }, [timeIn, timeOut, breakAccumulatedMs]);
+  }, [timeIn, timeOut, breakAccumulatedMs, previousSessionsMs]);
 
   if (isLoading) {
     return (
@@ -552,14 +717,25 @@ export default function CrmDashboardPage() {
 
   const userAvatarSrc = resolveImageUrl(user.avatar || user.avatarUrl);
   const greeting = getGreeting(user.fullName.split(" ")[0]);
-  const todayStr = new Date().toLocaleDateString("en-US", {
+  const todayStr = toMDT(new Date()).toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 
   const quickActions = [
+    {
+      icon: <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      label: "Leads",
+      route: "/crm/leads",
+    },
+    {
+      icon: <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      label: "Service Hub",
+      route: "/crm/appointments/dashboard",
+    },
     {
       icon: (
         <CalendarCheck className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
@@ -576,23 +752,10 @@ export default function CrmDashboardPage() {
     },
     {
       icon: (
-
-        <MessageSquare className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
-      ),
-      label: "Supra Space",
-      route: "/crm/supra-space",
-    },
-    {
-      icon: (
         <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
       label: "Aftermarket",
       route: "/crm/aftermarket",
-    },
-    {
-      icon: <Rss className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
-      label: "Feeds",
-      route: "/crm/feeds",
     },
     {
       icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />,
@@ -793,11 +956,11 @@ export default function CrmDashboardPage() {
               </div>
 
               <div className="flex-1 flex items-center justify-center px-8 py-8 min-h-55">
-                {isActive && timeIn && (
-                  <ShiftTimer
-                    startTime={timeIn.timestamp}
-                    breakAccumulatedMs={breakAccumulatedMs}
-                    breakStartedAt={breakStartedAt}
+                {isActive && (
+                  <ActivityTimer
+                    todayTotalActiveMs={todayTotalActiveMs}
+                    activityStartAt={activityStartAt}
+                    isOnShift={isActive}
                   />
                 )}
                 {isComplete && (
@@ -862,7 +1025,7 @@ export default function CrmDashboardPage() {
                   ))}
                 </div>
 
-                {!hasClockedIn && (
+                {!isActive && (
                   <Button
                     onClick={() => handleClock("time-in")}
                     disabled={isClocking}
@@ -1028,6 +1191,48 @@ export default function CrmDashboardPage() {
         userName={user.fullName}
         isReady={!isLoading && !!user}
       />
+      <CrmPushPrompt role={user.role} />
+
+      {/* CRM Tray App connect banner — appears once after login */}
+      {trayBanner && (
+        <div className="fixed bottom-5 right-5 z-50 w-76 rounded-2xl bg-zinc-900 border border-zinc-700/50 shadow-2xl shadow-black/60 overflow-hidden"
+          style={{ animation: "slideUp 0.3s ease-out" }}>
+          <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
+          <div className="px-4 pt-4 pb-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <MonitorDot className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white leading-tight">Connect CRM Tray App</p>
+                <p className="text-xs text-zinc-400 mt-0.5 leading-snug">Open your desktop agent to enable time tracking &amp; screenshots.</p>
+              </div>
+              <button
+                onClick={dismissTrayBanner}
+                className="text-zinc-600 hover:text-zinc-400 transition-colors mt-0.5 flex-shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={openTrayApp}
+                className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+              >
+                <MonitorDot className="h-3.5 w-3.5" />
+                Open CRM Tray-App
+              </button>
+              <button
+                onClick={dismissTrayBanner}
+                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-bold transition-colors"
+              >
+                Later
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-600 text-center mt-2">Check &ldquo;Always allow&rdquo; in the browser dialog to auto-connect next time.</p>
+          </div>
+        </div>
+      )}
     </TooltipProvider>
   );
 }
