@@ -28,6 +28,8 @@ import {
   Tag,
   X,
   MonitorDot,
+  Download,
+  RefreshCw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -434,6 +436,8 @@ export default function CrmDashboardPage() {
   const [mounted, setMounted] = React.useState(false);
   const [trayBanner, setTrayBanner] = React.useState(false);
   const [trayToken, setTrayToken] = React.useState("");
+  const [showTrayModal, setShowTrayModal] = React.useState(false);
+  const [trayChecking, setTrayChecking] = React.useState(false);
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(null);
 
@@ -633,6 +637,29 @@ export default function CrmDashboardPage() {
       setIsClocking(false);
     }
   };
+
+  // Check if the tray app is running before allowing clock-in.
+  // If unreachable, show the download modal instead of starting the shift.
+  const checkTrayAndStartShift = React.useCallback(async () => {
+    setTrayChecking(true);
+    try {
+      const res = await fetch("http://127.0.0.1:18642/", {
+        method: "GET",
+        signal: AbortSignal.timeout(2000),
+      });
+      // Any HTTP response means the server is up
+      if (res.status < 600) {
+        setShowTrayModal(false);
+        handleClock("time-in");
+      } else {
+        setShowTrayModal(true);
+      }
+    } catch {
+      setShowTrayModal(true);
+    } finally {
+      setTrayChecking(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBreak = async () => {
     setClockMsg("");
@@ -1072,11 +1099,11 @@ export default function CrmDashboardPage() {
 
                 {!isActive && (
                   <Button
-                    onClick={() => handleClock("time-in")}
-                    disabled={isClocking}
+                    onClick={checkTrayAndStartShift}
+                    disabled={isClocking || trayChecking}
                     className="w-full h-12 rounded-xl font-black text-sm gap-2 transition-all duration-200 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shadow-lg shadow-emerald-500/20 dark:shadow-emerald-900/40 hover:shadow-emerald-500/30 dark:hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
                   >
-                    {isClocking ? (
+                    {(isClocking || trayChecking) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
@@ -1280,6 +1307,112 @@ export default function CrmDashboardPage() {
               </button>
             </div>
             <p className="text-[10px] text-zinc-600 text-center mt-2">Check &ldquo;Always allow&rdquo; in the browser dialog to auto-connect next time.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tray App Required Modal ── */}
+      {showTrayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowTrayModal(false)}
+          />
+
+          {/* Card */}
+          <div
+            className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl shadow-black/70 overflow-hidden"
+            style={{ animation: "slideUp 0.25s ease-out" }}
+          >
+            <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
+
+            {/* Close */}
+            <button
+              onClick={() => setShowTrayModal(false)}
+              className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="px-6 pt-6 pb-5 space-y-5">
+              {/* Icon + heading */}
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <MonitorDot className="h-8 w-8 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-base font-black text-white">Tray App Required</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    The <span className="text-white font-semibold">Action Auto CRM Tray App</span> must be installed and running to track your shift, capture screenshots, and monitor activity.
+                  </p>
+                </div>
+              </div>
+
+              {/* Steps */}
+              <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 px-4 py-3 space-y-2">
+                {[
+                  "Download and install the tray app below",
+                  "Launch it — it will appear in your system tray",
+                  "Come back here and click Start Shift",
+                ].map((step, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">{step}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2">
+                <a
+                  href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Tray App
+                </a>
+                <button
+                  onClick={async () => {
+                    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}`; } catch {}
+                    // After firing the deep link, re-check after a short delay
+                    await new Promise(r => setTimeout(r, 3000));
+                    setTrayChecking(true);
+                    try {
+                      const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) });
+                      if (res.status < 600) { setShowTrayModal(false); handleClock("time-in"); }
+                    } catch { /* still not running */ } finally { setTrayChecking(false); }
+                  }}
+                  disabled={trayChecking}
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50"
+                >
+                  <MonitorDot className="h-3.5 w-3.5" />
+                  Already Installed — Open It
+                </button>
+                <button
+                  onClick={async () => {
+                    setTrayChecking(true);
+                    try {
+                      const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) });
+                      if (res.status < 600) { setShowTrayModal(false); handleClock("time-in"); }
+                      else toast.error("Tray app not detected. Make sure it is running.");
+                    } catch { toast.error("Tray app not detected. Make sure it is running."); }
+                    finally { setTrayChecking(false); }
+                  }}
+                  disabled={trayChecking}
+                  className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {trayChecking
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Checking…</>
+                    : <><RefreshCw className="h-3 w-3" /> Check Again</>
+                  }
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
