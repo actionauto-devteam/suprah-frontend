@@ -204,11 +204,15 @@ function ActivityTimer({
   activityStartAt,
   isOnShift,
   isOnBreak,
+  breakTotalMs,
+  currentBreakStartAt,
 }: {
   todayTotalActiveMs: number;
   activityStartAt: number | null;
   isOnShift: boolean;
   isOnBreak: boolean;
+  breakTotalMs: number;
+  currentBreakStartAt: number | null;
 }) {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -218,10 +222,11 @@ function ActivityTimer({
 
   const liveMs = activityStartAt ? Math.max(0, now - activityStartAt) : 0;
   const totalMs = todayTotalActiveMs + liveMs;
-  // isActive if tray confirmed an active interval, OR if we haven't loaded heartbeat data
-  // yet after clock-in (activityStartAt is set optimistically on time-in socket event so
-  // this null-but-active window is < 2.5s; the fallback covers second-session re-clocks)
   const isActive = activityStartAt !== null || (isOnShift && todayTotalActiveMs === 0);
+
+  const breakLiveMs = currentBreakStartAt ? Math.max(0, now - currentBreakStartAt) : 0;
+  const totalBreakMs = breakTotalMs + breakLiveMs;
+  const breakExceeded = isOnBreak && totalBreakMs >= 3600000;
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const toHMS = (ms: number) => ({
@@ -230,17 +235,22 @@ function ActivityTimer({
     s: Math.floor((ms % 60000) / 1000),
   });
 
-  const worked = toHMS(totalMs);
+  const displayMs = isOnBreak ? totalBreakMs : totalMs;
+  const worked = toHMS(displayMs);
   const units = [
     { v: pad(worked.h), l: "HRS" },
     { v: pad(worked.m), l: "MIN" },
     { v: pad(worked.s), l: "SEC" },
   ];
 
-  const maxShiftMs = 8 * 3600000;
-  const progress = Math.min(totalMs / maxShiftMs, 1);
+  const maxMs = isOnBreak ? 3600000 : 8 * 3600000;
+  const progress = Math.min(displayMs / maxMs, 1);
   const circumference = 2 * Math.PI * 54;
   const strokeDashoffset = circumference * (1 - progress);
+
+  const ringColor = isOnBreak
+    ? (breakExceeded ? "#ef4444" : "#f59e0b")
+    : isActive ? "#10b981" : "#71717a";
 
   return (
     <div className="w-full space-y-6">
@@ -261,14 +271,14 @@ function ActivityTimer({
               cy="70"
               r="54"
               fill="none"
-              stroke={isActive ? "#10b981" : "#71717a"}
+              stroke={ringColor}
               strokeWidth="3"
               strokeLinecap="round"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               className="transition-all duration-1000"
               style={{
-                filter: `drop-shadow(0 0 6px ${isActive ? "#10b981" : "#71717a"})`,
+                filter: `drop-shadow(0 0 6px ${ringColor})`,
               }}
             />
           </svg>
@@ -280,7 +290,9 @@ function ActivityTimer({
                     <span
                       className={cn(
                         "text-xl font-thin mb-3 mx-0.5 transition-colors duration-500",
-                        isActive ? "text-emerald-500/50" : "text-zinc-400/50",
+                        isOnBreak
+                          ? (breakExceeded ? "text-red-500/50" : "text-amber-500/50")
+                          : isActive ? "text-emerald-500/50" : "text-zinc-400/50",
                       )}
                     >
                       :
@@ -290,9 +302,11 @@ function ActivityTimer({
                     <span
                       className={cn(
                         "text-3xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
-                        isActive
-                          ? "text-zinc-900 dark:text-white"
-                          : "text-zinc-400 dark:text-zinc-600",
+                        isOnBreak
+                          ? (breakExceeded ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400")
+                          : isActive
+                            ? "text-zinc-900 dark:text-white"
+                            : "text-zinc-400 dark:text-zinc-600",
                       )}
                     >
                       <AnimatedDigit value={item.v[0]} />
@@ -308,19 +322,27 @@ function ActivityTimer({
           </div>
         </div>
       </div>
-      <div className="flex justify-center">
+      <div className="flex flex-col items-center gap-2">
         <span
           className={cn(
             "text-[10px] font-bold tracking-[0.2em] uppercase",
             isOnBreak
-              ? "text-amber-500 dark:text-amber-400"
+              ? (breakExceeded ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400")
               : isActive
                 ? "text-emerald-500 dark:text-emerald-400"
                 : "text-zinc-400 dark:text-zinc-600",
           )}
         >
-          {isOnBreak ? "● On Break — Paused" : isActive ? "● Active — Tracking" : "○ Idle — Paused"}
+          {isOnBreak
+            ? (breakExceeded ? "⚠ Break Exceeded" : "● On Break — Paused")
+            : isActive ? "● Active — Tracking" : "○ Idle — Paused"}
         </span>
+        {breakExceeded && (
+          <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-center">
+            <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Break limit reached</p>
+            <p className="text-[9px] text-red-400/60 mt-0.5">Please resume your shift</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -444,6 +466,7 @@ export default function CrmDashboardPage() {
   const [trayChecking, setTrayChecking] = React.useState(false);
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(null);
+  const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -737,6 +760,7 @@ export default function CrmDashboardPage() {
     }
     setBreakAccumulatedMs(accumulated);
     setIsOnBreak(currentBreakStart !== null);
+    setCurrentBreakStartAt(currentBreakStart);
   }, [sortedLogs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sum all completed sessions BEFORE the current active time-in
@@ -1038,6 +1062,8 @@ export default function CrmDashboardPage() {
                     activityStartAt={activityStartAt}
                     isOnShift={isActive}
                     isOnBreak={isOnBreak}
+                    breakTotalMs={breakAccumulatedMs}
+                    currentBreakStartAt={currentBreakStartAt}
                   />
                 )}
                 {isComplete && (
