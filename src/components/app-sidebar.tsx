@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   Activity,
   Car,
@@ -103,6 +103,15 @@ const data = {
     },
   ] satisfies SidebarNavItem[],
 
+  premium: [
+    {
+      title: "Plugins",
+      url: "/plugins",
+      icon: LayoutGrid,
+      isNew: true,
+    },
+  ] satisfies SidebarNavItem[],
+
   services: [
     {
       title: "Transportation",
@@ -125,16 +134,6 @@ const data = {
       icon: CreditCard,
     },
   ] satisfies SidebarNavItem[],
-
-  premium: [
-    {
-      title: "Plugins",
-      url: "/plugins",
-      icon: LayoutGrid,
-      isNew: true,
-    },
-  ] satisfies SidebarNavItem[],
-
   account: [
     {
       title: "Profile",
@@ -193,12 +192,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [router]);
 
   return (
-    <Sidebar
-      variant="inset"
-      collapsible="icon"
-      className="border-r [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:hover:bg-gray-600"
-      {...props}
-    >
+    <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
       <SidebarHeader className="h-16 border-b flex items-center justify-center px-6">
         <div className="flex items-center justify-center w-full group-data-[collapsible=icon]:justify-center">
           <Image
@@ -211,7 +205,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           />
         </div>
       </SidebarHeader>
-      <SidebarContent className="p-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:hover:bg-gray-600">
+      <SidebarContent className="p-2">
         <SidebarMenu>
           {activeNavMain.map((item) => (
             <SidebarMenuItem key={item.title}>
@@ -269,21 +263,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
+          </>
+        )}
 
+        {!isCustomer && (
+          <>
             <div className="px-4 py-2 mt-4 text-[11px] font-semibold uppercase text-muted-foreground tracking-wider group-data-[collapsible=icon]:hidden">
               Premium
             </div>
-
             <SidebarMenu>
               {data.premium.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     tooltip={item.title}
-                    isActive={
-                      pathname === item.url ||
-                      pathname.startsWith(item.url + "/")
-                    }
+                    isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
                     className={
                       item.isNew
                         ? "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
@@ -291,9 +285,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     }
                   >
                     <Link href={item.url}>
-                      <item.icon
-                        className={item.isNew ? "animate-pulse" : ""}
-                      />
+                      <item.icon className={item.isNew ? "animate-pulse" : ""} />
                       <span className="font-medium">{item.title}</span>
                       {item.isNew && (
                         <Badge
@@ -344,7 +336,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
                     <AvatarImage
                       src={resolveImageUrl(
-                        avatarUrl !== null ? avatarUrl : user?.imageUrl
+                        avatarUrl !== null ? avatarUrl : user?.imageUrl,
                       )}
                       alt={user?.fullName || ""}
                     />
@@ -374,7 +366,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Avatar className="h-8 w-8 rounded-lg">
                       <AvatarImage
                         src={resolveImageUrl(
-                          avatarUrl !== null ? avatarUrl : user?.imageUrl
+                          avatarUrl !== null ? avatarUrl : user?.imageUrl,
                         )}
                         alt={user?.fullName || ""}
                       />

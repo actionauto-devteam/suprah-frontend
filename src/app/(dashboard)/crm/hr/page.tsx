@@ -1,3 +1,4 @@
+
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+
 } from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { OffboardModal, type OffboardUser } from "@/components/crm/OffboardModal";
@@ -86,6 +88,7 @@ type Tab = "milestones" | "onboarding" | "offboarding";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ini(n: string) {
+
   return n
     .split(" ")
     .map((w) => w[0])
@@ -99,6 +102,7 @@ function formatDate(iso: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
+
   });
 }
 
@@ -162,6 +166,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
       .get("/api/crm/hr/milestones?window=30", {
         headers: { Authorization: `Bearer ${token}` },
       })
+
       .then((res) => {
         const data = res.data?.data || res.data;
         // API returns { birthdays: [...], anniversaries: [...] } — merge them
@@ -181,6 +186,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
       </div>
+
     );
   }
 
@@ -329,6 +335,7 @@ function OnboardingTab({ token }: { token: string }) {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
+
         const data = res.data?.data || res.data;
         setEmployees(data?.users || []);
       })
@@ -341,6 +348,7 @@ function OnboardingTab({ token }: { token: string }) {
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
       </div>
+
     );
   }
 
@@ -451,11 +459,13 @@ function OffboardingTab({
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
       </div>
+
     );
   }
 
   return (
     <>
+
       {/* Active employees — can be offboarded */}
       <div className="px-5 py-3 border-b border-border/20">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
@@ -481,7 +491,7 @@ function OffboardingTab({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setOffboardTarget({ _id: emp._id, fullName: emp.fullName, role: emp.role })}
+                onClick={() => setOffboardTarget({ _id: emp._id, fullName: emp.fullName, email: emp.email, username: emp.username, role: emp.role, avatar: emp.avatar })}
                 className="h-7 rounded-lg text-[11px] font-semibold border-amber-500/20 text-amber-600 hover:bg-amber-500/10 gap-1.5"
               >
                 <UserMinus className="h-3 w-3" />
@@ -530,6 +540,7 @@ function OffboardingTab({
         token={token}
         user={offboardTarget}
         onOffboarded={() => {
+
           setOffboardTarget(null);
           setRefreshKey((k) => k + 1);
         }}
@@ -539,6 +550,7 @@ function OffboardingTab({
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
 
 export default function TeamEngagementPage() {
   const router = useRouter();
@@ -594,6 +606,7 @@ export default function TeamEngagementPage() {
           <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
           </div>
+
           <p className="text-xs text-muted-foreground/40 tracking-widest uppercase">
             Loading
           </p>
@@ -626,6 +639,7 @@ export default function TeamEngagementPage() {
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -696,6 +710,7 @@ export default function TeamEngagementPage() {
         </div>
       </header>
 
+
       {/* ── Page Content ── */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Page header */}
@@ -721,6 +736,7 @@ export default function TeamEngagementPage() {
             {user.role}
           </Badge>
         </div>
+
 
         {/* Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -772,6 +788,7 @@ export default function TeamEngagementPage() {
 
           {/* ─── Main panel ─── */}
           <div className="lg:col-span-9 space-y-4">
+
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               {/* Card header */}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30">
@@ -832,5 +849,6 @@ export default function TeamEngagementPage() {
         </div>
       </main>
     </div>
+
   );
 }

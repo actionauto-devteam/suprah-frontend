@@ -28,15 +28,18 @@ interface EditUserForm {
   fullName: string
   email: string
   role: string
+
   hireDate: string
   birthday: string
-  gender: string
+  gender: string
 }
 
 interface FormErrors {
   fullName?: string
   email?: string
   role?: string
+  birthday?: string
+  hireDate?: string
 }
 
 interface EditUserModalProps {
@@ -48,9 +51,10 @@ interface EditUserModalProps {
     fullName: string
     email: string
     role: string
+
     hireDate?: string
     birthday?: string
-    gender?: string | null
+    gender?: string | null
   } | null
   onUpdated?: () => void
 }
@@ -80,9 +84,10 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     fullName: "",
     email: "",
     role: "",
+
     hireDate: "",
     birthday: "",
-    gender: "",
+    gender: "",
   })
 
   // Populate form when user changes
@@ -92,9 +97,10 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+
         hireDate: user.hireDate?.split("T")[0] ?? "",
         birthday: user.birthday?.split("T")[0] ?? "",
-        gender: user.gender ?? "",
+        gender: user.gender ?? "",
       })
       setErrors({})
     }
@@ -136,7 +142,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           role: form.role,
           hireDate: form.hireDate || undefined,
           birthday: form.birthday || undefined,
-          gender: form.gender || undefined,
+
+          gender: form.gender || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -248,6 +255,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
               <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
                 Hire Date
               </Label>
+
               <Input
                 type="date"
                 value={form.hireDate}
@@ -266,10 +274,11 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
                 type="date"
                 value={form.birthday}
                 onChange={setField("birthday")}
-                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
+                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
               />
             </div>
           </div>
+
 
           {/* Gender */}
           <div className="space-y-1.5">
@@ -289,7 +298,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
               </SelectContent>
             </Select>
           </div>
-
+
           {/* Role hint */}
           {form.role && (
             <div className={`rounded-xl p-3 text-xs border ${

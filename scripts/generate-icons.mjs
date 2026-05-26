@@ -59,4 +59,6 @@ async function generateIcon(size, filename, paddingPercent = 0.14) {
 
 await generateIcon(512, 'icon-512x512.png', 0.14);
 await generateIcon(192, 'icon-192x192.png', 0.14);
+await generateIcon(96, 'icon-96x96.png', 0.12);
+await generateIcon(32, 'favicon-32x32.png', 0.08);
 await generateIcon(180, 'apple-touch-icon.png', 0.10);

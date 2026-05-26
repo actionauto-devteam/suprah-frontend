@@ -65,8 +65,9 @@ interface CrmUserRow {
   isActive: boolean
   lastLoginAt?: string
   createdAt: string
-  hireDate?: string
+
   birthday?: string
+  hireDate?: string
   isOffboarded?: boolean
 }
 
@@ -455,6 +456,7 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
           {u.isActive && (
             <DropdownMenuItem
               onClick={() => setOffboardTarget(u)}
+
               className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
             >
               <UserMinus className="h-3.5 w-3.5 text-amber-500" />
@@ -920,6 +922,7 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
         user={resetTarget}
         onReset={() => setResetTarget(null)}
       />
+
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null) }}>

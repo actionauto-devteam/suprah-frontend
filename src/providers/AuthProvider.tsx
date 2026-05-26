@@ -67,22 +67,7 @@ const isPublicRoute = (path: string) => {
   return PUBLIC_ROUTES.some((r) => path.startsWith(r));
 };
 
-/**
- * Returns true for ANY error that means "no valid refresh token exists".
- *
- * Previously this only matched specific message strings, which caused the
- * "Global refresh failed" error log on every fresh page load (when the user
- * simply has no session cookie yet). Now we treat ALL 401s from the refresh
- * endpoint as expected / silent failures.
- */
-const isMissingRefreshTokenError = (err: any): boolean => {
-  // A 401 from the refresh-tokens endpoint always means no valid session —
-  // this is expected on first visit or after logout. Treat it silently.
-  if (err?.response?.status === 401) {
-    return true;
-  }
-
-  // Also catch explicit "no refresh token" messages from any status code
+const isMissingRefreshTokenError = (err: any) => {
   const message =
     err?.response?.data?.message ||
     err?.message ||
@@ -91,8 +76,8 @@ const isMissingRefreshTokenError = (err: any): boolean => {
 
   return (
     typeof message === "string" &&
-    /(refresh token missing|no refresh token|missing refresh token|invalid refresh token|refresh token expired|token not found)/i.test(
-      message
+    /(refresh token missing|no refresh token|missing refresh token)/i.test(
+      message,
     )
   );
 };
@@ -107,30 +92,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const setAccessToken = useCallback((token: string | null) => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       (window as any).__AUTH_TOKEN__ = token;
 
       // Sync to IndexedDB for Service Worker access
       try {
-        const request = indexedDB.open("action-auto-auth", 1);
+        const request = indexedDB.open('action-auto-auth', 1);
         request.onupgradeneeded = () => {
           const db = request.result;
-          if (!db.objectStoreNames.contains("tokens")) {
-            db.createObjectStore("tokens");
+          if (!db.objectStoreNames.contains('tokens')) {
+            db.createObjectStore('tokens');
           }
         };
         request.onsuccess = () => {
           const db = request.result;
-          const tx = db.transaction("tokens", "readwrite");
-          const store = tx.objectStore("tokens");
+          const tx = db.transaction('tokens', 'readwrite');
+          const store = tx.objectStore('tokens');
           if (token) {
-            store.put(token, "accessToken");
+            store.put(token, 'accessToken');
           } else {
-            store.delete("accessToken");
+            store.delete('accessToken');
           }
         };
       } catch (e) {
-        console.warn("[Auth] IndexedDB sync failed", e);
+        console.warn('[Auth] IndexedDB sync failed', e);
       }
     }
     setAccessTokenState(token);
@@ -139,9 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 1. Initial Load: Check if we have a valid session (via refresh token cookie)
   const refreshUser = useCallback(async () => {
     try {
-      let currentToken: string | null = null;
+      // Attempt silent refresh if we don't have a token in memory
+      let currentToken = null;
       if (typeof window !== "undefined") {
-        currentToken = (window as any).__AUTH_TOKEN__ ?? null;
+        currentToken = (window as any).__AUTH_TOKEN__;
       }
 
       if (!currentToken) {
@@ -151,23 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           globalRefreshPromise = (async () => {
             try {
-              const tokenRes = await apiClient.post(
-                "/api/auth/refresh-tokens",
-                {},
-                // Skip the response interceptor's own retry/logout logic for
-                // this intentional silent-refresh call.
-                { _skipAuthRefresh: true } as any
-              );
+              const tokenRes = await apiClient.post("/api/auth/refresh-tokens");
               const token =
                 tokenRes.data?.data?.accessToken || tokenRes.data?.accessToken;
               return token || null;
             } catch (err) {
-              // isMissingRefreshTokenError now catches all 401s, so this
-              // branch will be silent for every unauthenticated page load.
               if (!isMissingRefreshTokenError(err)) {
                 console.error(
-                  "[AuthProvider] Unexpected error during silent refresh:",
-                  err
+                  "[AuthProvider] Global refresh failed (Silent Refresh)",
                 );
               }
               return null;
@@ -181,7 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentToken) {
           setAccessToken(currentToken);
         } else {
-          // No session — this is normal for logged-out users.
           setUser(null);
           setAccessToken(null);
           setIsLoaded(true);
@@ -204,10 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAccessToken(null);
       }
     } catch (error) {
-      // Only log unexpected errors (not routine 401s from no-session state)
-      if (!isMissingRefreshTokenError(error)) {
-        console.error("[AuthProvider] Refresh error:", error);
-      }
+      console.error("[AuthProvider] Refresh error:", error);
       setUser(null);
       setAccessToken(null);
     } finally {
@@ -226,6 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // CASE 1: NOT SIGNED IN
     if (!user) {
+      // FORCE REDIRECT for all non-public routes, including the root path
       if (!isPublic) {
         router.push("/sign-in" + search);
       }
@@ -250,10 +224,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/onboarding/role-selection");
         return;
       }
+      // If they are on a public page (like /auth/callback), don't force them yet
+      // This prevents loops during the initial callback dance.
       if (isPublic) return;
     }
 
-    // 3. Prevent Logged-in users from hitting Auth pages
+    // 3. Prevent Logged-in users from hitting Auth pages (Sign-in/Sign-up)
     if (isPublic && (path === "/sign-in" || path === "/sign-up")) {
       const params = new URLSearchParams(search);
       const redirectUrl = params.get("redirect_url");
@@ -263,6 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Default redirects based on role
       if (user.role === "customer") router.push("/customer");
       else if (user.role === "driver") router.push("/driver");
       else if (user.role === "super_admin") router.push("/admin/dashboard");
@@ -294,8 +271,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoaded, user, router]);
 
+  // Redundant useEffect removed.
+
+  // Removed redundant useEffect because setAccessToken handles this now.
+
   // 2. Token Management
   const getToken = useCallback(async () => {
+    // Helper: decode JWT and check if it's expired (with a 30-second buffer)
     const isExpired = (token: string): boolean => {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
@@ -308,19 +290,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Synchronization: Check if background refresh (via api-client interceptor)
+    // has updated the global window variable.
     if (typeof window !== "undefined" && (window as any).__AUTH_TOKEN__) {
       const globalToken = (window as any).__AUTH_TOKEN__;
+      // Only use it if it's still valid
       if (!isExpired(globalToken)) {
         if (globalToken !== accessToken) {
           setAccessTokenState(globalToken);
         }
         return globalToken;
       }
+      // Token is expired — clear it and fall through to refresh
       (window as any).__AUTH_TOKEN__ = null;
     }
 
+    // If in-memory token is still valid, use it
     if (accessToken && !isExpired(accessToken)) return accessToken;
 
+    // Otherwise, proactively refresh before any API call sees a 401
     if (globalRefreshPromise) {
       return globalRefreshPromise;
     }
@@ -328,11 +316,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       globalRefreshPromise = (async () => {
         try {
-          const response = await apiClient.post(
-            "/api/auth/refresh-tokens",
-            {},
-            { _skipAuthRefresh: true } as any
-          );
+          const response = await apiClient.post("/api/auth/refresh-tokens");
           const token =
             response.data?.data?.accessToken || response.data?.accessToken;
           if (token) {
@@ -342,7 +326,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return null;
         } catch (e) {
           if (!isMissingRefreshTokenError(e)) {
-            console.warn("[AuthProvider] Token refresh request failed:", e);
+            console.warn("[AuthProvider] Token refresh request failed");
           }
           return null;
         } finally {
@@ -363,7 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await apiClient.post("/api/auth/logout");
       } catch (e) {
-        // Ignore logout API errors — clear session regardless
+        // Ignore
       } finally {
         setUser(null);
         setAccessToken(null);
@@ -371,7 +355,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.refresh();
       }
     },
-    [router, setAccessToken]
+    [router],
   );
 
   const value = useMemo(
@@ -399,15 +383,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUser,
       signUpState,
       setSignUpState,
-      setAccessToken,
-    ]
+    ],
   );
 
   useEffect(() => {
     refreshUser();
 
-    // Only trigger global logout for 401s on protected endpoints,
-    // NOT for the initial silent refresh failure.
+    // Register API failure listener
     apiClient.setOnAuthFailure(() => {
       signOut();
     });
@@ -438,33 +420,34 @@ export function useUser() {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useUser must be used within an AuthProvider");
 
+  // Standardized User object structure
   const userProxy = context.user
     ? {
-        id: context.user._id,
-        primaryEmailAddress: { emailAddress: context.user.email },
-        emailAddresses: [{ emailAddress: context.user.email }],
-        fullName: context.user.name,
-        firstName:
-          context.user.firstName || context.user.name?.split(" ")[0] || "",
-        lastName:
-          context.user.lastName ||
-          context.user.name?.split(" ").slice(1).join(" ") ||
-          "",
-        imageUrl:
-          context.user.avatar ||
-          context.user.avatarUrl ||
-          "/placeholder-avatar.png",
-        role: context.user.role,
-        onboardingCompleted: context.user.onboardingCompleted,
-        theme: context.user.theme,
-        publicMetadata: {},
-        unsafeMetadata: {},
-        update: async (data: UpdateProfileRequest) => {
-          const res = await apiClient.patch("/api/users/me", data);
-          context.refreshUser();
-          return res.data;
-        },
-      }
+      id: context.user._id,
+      primaryEmailAddress: { emailAddress: context.user.email },
+      emailAddresses: [{ emailAddress: context.user.email }],
+      fullName: context.user.name,
+      firstName:
+        context.user.firstName || context.user.name?.split(" ")[0] || "",
+      lastName:
+        context.user.lastName ||
+        context.user.name?.split(" ").slice(1).join(" ") ||
+        "",
+      imageUrl:
+        context.user.avatar ||
+        context.user.avatarUrl ||
+        "/placeholder-avatar.png",
+      role: context.user.role,
+      onboardingCompleted: context.user.onboardingCompleted,
+      theme: context.user.theme,
+      publicMetadata: {},
+      unsafeMetadata: {},
+      update: async (data: UpdateProfileRequest) => {
+        const res = await apiClient.patch("/api/users/me", data);
+        context.refreshUser();
+        return res.data;
+      },
+    }
     : null;
 
   return {
@@ -534,9 +517,7 @@ export function useSignUp() {
         });
 
         if (!emailSent) {
-          toast.warning(
-            'Account created! We couldn\'t send the verification email — tap "Resend Code" on the next screen.'
-          );
+          toast.warning("Account created! We couldn't send the verification email — tap \"Resend Code\" on the next screen.");
         }
 
         return { status: "needs_verification" };
@@ -550,16 +531,15 @@ export function useSignUp() {
     },
     createDealership: async (data: any) => {
       try {
-        const response = await apiClient.post(
-          "/api/auth/register-dealership",
-          {
-            name: data.name,
-            email: data.email,
-            password: data.password,
-            dealershipName: data.dealershipName,
-            dealershipSlug: data.dealershipSlug,
-          }
-        );
+        const response = await apiClient.post("/api/auth/register-dealership", {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          dealershipName: data.dealershipName,
+          dealershipSlug: data.dealershipSlug,
+        });
+
+        const userObj = response.data?.data?.user || response.data?.user;
 
         setSignUpState({
           emailAddress: data.email,
@@ -598,6 +578,7 @@ export function useSignUp() {
     },
     attemptEmailAddressVerification: async (params: any) => {
       try {
+        // Use provided email or fallback to state
         const emailToVerify = params.email || signUpState.emailAddress;
 
         const response = await apiClient.post("/api/auth/verify-email", {
@@ -629,7 +610,9 @@ export function useSignUp() {
     isLoaded: true,
     signUp,
     signUpState,
-    setActive: async (_params: any) => {
+    setActive: async (params: any) => {
+      // In our case, setActive is handled by setAccessToken and setUser in context
+      // This is just to satisfy the API
       return;
     },
   };
@@ -650,7 +633,7 @@ export function useSignIn() {
             email: data.identifier,
             password: data.password,
           },
-          { _skipAuthRefresh: true } as any
+          { _skipAuthRefresh: true } as any,
         );
 
         const token =
@@ -690,6 +673,6 @@ export function useSignIn() {
   return {
     isLoaded: true,
     signIn,
-    setActive: async () => {},
+    setActive: async () => { },
   };
 }

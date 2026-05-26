@@ -27,8 +27,8 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Suprah AI",
+    statusBarStyle: "black",
+    title: "Action Auto",
   },
   formatDetection: {
     telephone: false,
