@@ -203,10 +203,12 @@ function ActivityTimer({
   todayTotalActiveMs,
   activityStartAt,
   isOnShift,
+  isOnBreak,
 }: {
   todayTotalActiveMs: number;
   activityStartAt: number | null;
   isOnShift: boolean;
+  isOnBreak: boolean;
 }) {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -310,12 +312,14 @@ function ActivityTimer({
         <span
           className={cn(
             "text-[10px] font-bold tracking-[0.2em] uppercase",
-            isActive
-              ? "text-emerald-500 dark:text-emerald-400"
-              : "text-zinc-400 dark:text-zinc-600",
+            isOnBreak
+              ? "text-amber-500 dark:text-amber-400"
+              : isActive
+                ? "text-emerald-500 dark:text-emerald-400"
+                : "text-zinc-400 dark:text-zinc-600",
           )}
         >
-          {isActive ? "● Active — Tracking" : "○ Idle — Paused"}
+          {isOnBreak ? "● On Break — Paused" : isActive ? "● Active — Tracking" : "○ Idle — Paused"}
         </span>
       </div>
     </div>
@@ -1033,6 +1037,7 @@ export default function CrmDashboardPage() {
                     todayTotalActiveMs={todayTotalActiveMs}
                     activityStartAt={activityStartAt}
                     isOnShift={isActive}
+                    isOnBreak={isOnBreak}
                   />
                 )}
                 {isComplete && (
