@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { apiClient } from "@/lib/api-client";
 import type { FilterOptions } from "@/types/inventory";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -44,36 +46,88 @@ export function InventoryFilters({
     React.useState<FilterOptions | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [hasFetched, setHasFetched] = React.useState(false);
+  const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [isOpen, setIsOpen] = React.useState(false);
   const { getToken } = useAuth();
+  const fetchSequenceRef = React.useRef(0);
 
   // Local state for pending filter changes
   const [pendingFilters, setPendingFilters] = React.useState(filters);
 
-  // Lazy-load filter options only on first open — avoids API call on page load
-  React.useEffect(() => {
-    if (!isOpen || hasFetched) return;
+  const buildFilterParams = React.useCallback((sourceFilters: any) => {
+    const params: Record<string, any> = {};
+    const keys = [
+      "make",
+      "model",
+      "status",
+      "year",
+      "location",
+      "bodyStyle",
+      "minPrice",
+      "maxPrice",
+      "minMileage",
+      "maxMileage",
+    ];
 
-    const fetchFilters = async () => {
+    keys.forEach((key) => {
+      const value = sourceFilters?.[key];
+      if (value !== undefined && value !== "" && value !== "all") {
+        params[key] = value;
+      }
+    });
+
+    return params;
+  }, []);
+
+  const fetchFilters = React.useCallback(
+    async (sourceFilters: any) => {
+      const currentSequence = ++fetchSequenceRef.current;
       setIsLoading(true);
+      setFetchError(null);
       try {
         const token = await getToken();
         const response = await apiClient.get(apiPath, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          params: buildFilterParams(sourceFilters),
+          timeout: 10000,
         });
-        setFilterOptions(response.data.data);
+
+        if (currentSequence !== fetchSequenceRef.current) return;
+
+        setFilterOptions(response.data.data ?? null);
         setHasFetched(true);
       } catch (error) {
-        console.error("Failed to fetch filter options:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        if (currentSequence !== fetchSequenceRef.current) return;
 
-    fetchFilters();
-  }, [isOpen, hasFetched]);
+        console.error("Failed to fetch filter options:", error);
+        setFetchError(
+          "Unable to load filter options. You can still use available controls.",
+        );
+      } finally {
+        if (currentSequence === fetchSequenceRef.current) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [apiPath, buildFilterParams, getToken],
+  );
+
+  React.useEffect(() => {
+    if (hasFetched || isLoading) return;
+    fetchFilters(filters);
+  }, [hasFetched, isLoading, fetchFilters, filters]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const timer = setTimeout(() => {
+      fetchFilters(pendingFilters);
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, pendingFilters, fetchFilters]);
 
   // Sync pending filters with prop filters when sheet opens or filters change externally
   React.useEffect(() => {
@@ -116,6 +170,10 @@ export function InventoryFilters({
       maxPrice: undefined,
       minMileage: undefined,
       maxMileage: undefined,
+      bodyStyle: undefined,
+      location: undefined,
+      highDemand: undefined,
+      lowPerforming: undefined,
     };
     setPendingFilters(clearedState);
   };
@@ -166,254 +224,307 @@ export function InventoryFilters({
             </SheetHeader>
 
             <div className="p-6 space-y-6 flex-1 overflow-y-auto pr-2">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center h-40 gap-3 text-muted-foreground">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  <span className="text-sm">Loading filters...</span>
+              {(isLoading || fetchError) && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground flex items-center justify-between gap-3">
+                  <span>{fetchError ?? "Loading filter options..."}</span>
+                  {fetchError && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => fetchFilters(pendingFilters)}
+                    >
+                      Retry
+                    </Button>
+                  )}
                 </div>
-              ) : (
-                <>
-                  {/* Make Filter */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Make</h4>
-                    <Select
-                      value={pendingFilters.make || "all"}
-                      onValueChange={(value: string) =>
-                        handlePendingChange(
-                          "make",
-                          value === "all" ? undefined : value,
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Makes" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Makes</SelectItem>
-                        {(filterOptions?.makes ?? []).map((make) => (
-                          <SelectItem key={make} value={make}>
-                            {make}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Model Filter */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Model</h4>
-                    <Select
-                      value={pendingFilters.model || "all"}
-                      onValueChange={(value: string) =>
-                        handlePendingChange(
-                          "model",
-                          value === "all" ? undefined : value,
-                        )
-                      }
-                      disabled={!pendingFilters.make}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Models" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Models</SelectItem>
-                        {(filterOptions?.models ?? [])
-                          .filter((model) => !pendingFilters.make || true)
-                          .map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Separator />
-
-                  {/* Status Filter */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Status</h4>
-                    <Select
-                      value={pendingFilters.status || "all"}
-                      onValueChange={(value: string) =>
-                        handlePendingChange(
-                          "status",
-                          value === "all" ? undefined : value,
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Statuses" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="Ready for Sale">
-                          Ready for Sale
-                        </SelectItem>
-                        <SelectItem value="In Recon">In Recon</SelectItem>
-                        <SelectItem value="Sold">Sold</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Year Range */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Year</h4>
-                    <Select
-                      value={String(pendingFilters.year || "all")}
-                      onValueChange={(value: string) =>
-                        handlePendingChange(
-                          "year",
-                          value === "all" ? undefined : Number(value),
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Years" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Years</SelectItem>
-                        {(filterOptions?.years ?? []).map((year) => (
-                          <SelectItem key={year} value={String(year)}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Separator />
-
-                  {/* Price Range */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Price Range</h4>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        placeholder="Min"
-                        className="w-full"
-                        value={pendingFilters.minPrice || ""}
-                        onChange={(e) =>
-                          handlePendingChange(
-                            "minPrice",
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                      <span className="text-muted-foreground">-</span>
-                      <Input
-                        type="number"
-                        placeholder="Max"
-                        className="w-full"
-                        value={pendingFilters.maxPrice || ""}
-                        onChange={(e) =>
-                          handlePendingChange(
-                            "maxPrice",
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  {/* Mileage Range */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Mileage</h4>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        placeholder="Min"
-                        className="w-full"
-                        value={pendingFilters.minMileage || ""}
-                        onChange={(e) =>
-                          handlePendingChange(
-                            "minMileage",
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                      <span className="text-muted-foreground">-</span>
-                      <Input
-                        type="number"
-                        placeholder="Max"
-                        className="w-full"
-                        value={pendingFilters.maxMileage || ""}
-                        onChange={(e) =>
-                          handlePendingChange(
-                            "maxMileage",
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Body Style Filter */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Body Style</h4>
-                    <Select
-                      value={pendingFilters.bodyStyle || "all"}
-                      onValueChange={(value: string) =>
-                        handlePendingChange(
-                          "bodyStyle",
-                          value === "all" ? undefined : value,
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Body Styles" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Styles</SelectItem>
-                        {(filterOptions?.bodyStyles ?? []).map((style) => (
-                          <SelectItem key={style} value={style}>
-                            {style}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Location Filter */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Location</h4>
-                    <Select
-                      value={pendingFilters.location || "all"}
-                      onValueChange={(value: string) =>
-                        handlePendingChange(
-                          "location",
-                          value === "all" ? undefined : value,
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Locations" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Locations</SelectItem>
-                        {(filterOptions?.locations ?? []).map((loc) => (
-                          <SelectItem key={loc} value={loc}>
-                            {loc}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
               )}
+
+              <>
+                {/* Make Filter */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Make</h4>
+                  <Select
+                    value={pendingFilters.make || "all"}
+                    onValueChange={(value: string) =>
+                      handlePendingChange(
+                        "make",
+                        value === "all" ? undefined : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Makes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Makes</SelectItem>
+                      {(filterOptions?.makes ?? []).map((make) => (
+                        <SelectItem key={make} value={make}>
+                          {make}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Model Filter */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Model</h4>
+                  <Select
+                    value={pendingFilters.model || "all"}
+                    onValueChange={(value: string) =>
+                      handlePendingChange(
+                        "model",
+                        value === "all" ? undefined : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Models" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Models</SelectItem>
+                      {(filterOptions?.models ?? []).map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                {/* Status Filter */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Status</h4>
+                  <Select
+                    value={pendingFilters.status || "all"}
+                    onValueChange={(value: string) =>
+                      handlePendingChange(
+                        "status",
+                        value === "all" ? undefined : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      {(filterOptions?.statuses?.length
+                        ? filterOptions.statuses
+                        : ["Ready for Sale", "In Recon", "Sold"]
+                      ).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Year Range */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Year</h4>
+                  <Select
+                    value={String(pendingFilters.year || "all")}
+                    onValueChange={(value: string) =>
+                      handlePendingChange(
+                        "year",
+                        value === "all" ? undefined : Number(value),
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Years" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Years</SelectItem>
+                      {(filterOptions?.years ?? []).map((year) => (
+                        <SelectItem key={year} value={String(year)}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                {/* Price Range */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Price Range</h4>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      className="w-full"
+                      value={pendingFilters.minPrice || ""}
+                      onChange={(e) =>
+                        handlePendingChange(
+                          "minPrice",
+                          e.target.value ? Number(e.target.value) : undefined,
+                        )
+                      }
+                    />
+                    <span className="text-muted-foreground">-</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      className="w-full"
+                      value={pendingFilters.maxPrice || ""}
+                      onChange={(e) =>
+                        handlePendingChange(
+                          "maxPrice",
+                          e.target.value ? Number(e.target.value) : undefined,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Mileage Range */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Mileage</h4>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      className="w-full"
+                      value={pendingFilters.minMileage || ""}
+                      onChange={(e) =>
+                        handlePendingChange(
+                          "minMileage",
+                          e.target.value ? Number(e.target.value) : undefined,
+                        )
+                      }
+                    />
+                    <span className="text-muted-foreground">-</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      className="w-full"
+                      value={pendingFilters.maxMileage || ""}
+                      onChange={(e) =>
+                        handlePendingChange(
+                          "maxMileage",
+                          e.target.value ? Number(e.target.value) : undefined,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Body Style Filter */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Body Style</h4>
+                  <Select
+                    value={pendingFilters.bodyStyle || "all"}
+                    onValueChange={(value: string) =>
+                      handlePendingChange(
+                        "bodyStyle",
+                        value === "all" ? undefined : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Body Styles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Styles</SelectItem>
+                      {(filterOptions?.bodyStyles ?? []).map((style) => (
+                        <SelectItem key={style} value={style}>
+                          {style}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Location Filter */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Location</h4>
+                  <Select
+                    value={pendingFilters.location || "all"}
+                    onValueChange={(value: string) =>
+                      handlePendingChange(
+                        "location",
+                        value === "all" ? undefined : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All Locations" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" className="z-[70]">
+                      <SelectItem value="all">All Locations</SelectItem>
+                      {(filterOptions?.locations ?? []).map((loc) => (
+                        <SelectItem key={loc} value={loc}>
+                          {loc}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* High Demand Filter */}
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">
+                      High Demand Only
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Show vehicles with at least one inquiry
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!pendingFilters.highDemand}
+                    onCheckedChange={(checked) =>
+                      handlePendingChange(
+                        "highDemand",
+                        checked ? true : undefined,
+                      )
+                    }
+                  />
+                </div>
+
+                {/* Low Performing Filter */}
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">
+                      Low Performing Only
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      No inquiries &amp; 30+ days on lot
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!pendingFilters.lowPerforming}
+                    onCheckedChange={(checked) =>
+                      handlePendingChange(
+                        "lowPerforming",
+                        checked ? true : undefined,
+                      )
+                    }
+                  />
+                </div>
+              </>
             </div>
 
             <div className="py-2 px-6 border-t mt-auto flex gap-2">
               <Button
+                type="button"
                 variant="outline"
                 className="flex-1"
                 onClick={clearPendingFilters}
               >
                 Reset
               </Button>
-              <Button className="flex-1" onClick={applyFilters}>
+              <Button type="button" className="flex-1" onClick={applyFilters}>
                 Apply Filters
               </Button>
             </div>

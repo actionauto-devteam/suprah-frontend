@@ -51,7 +51,9 @@ type SortOption =
   | "recent-asc"
   | "recent-desc"
   | "cost-asc"
-  | "cost-desc";
+  | "cost-desc"
+  | "demand-desc"
+  | "low-performing-desc";
 
 const INVENTORY_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "make-asc", label: "Make (A-Z)" },
@@ -65,6 +67,8 @@ const INVENTORY_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "age-asc", label: "Newest on Lot" },
   { value: "age-desc", label: "Oldest on Lot" },
   { value: "created-desc", label: "Recently Added" },
+  { value: "demand-desc", label: "Most Inquiries" },
+  { value: "low-performing-desc", label: "Low Performing" },
 ];
 
 function InventoryContent() {
@@ -129,6 +133,9 @@ function InventoryContent() {
       : undefined,
     bodyStyle: searchParams.get("bodyStyle") || undefined,
     location: searchParams.get("location") || undefined,
+    highDemand: searchParams.get("highDemand") === "true" ? true : undefined,
+    lowPerforming:
+      searchParams.get("lowPerforming") === "true" ? true : undefined,
     sortBy: searchParams.get("sortBy") || "make",
     sortOrder: searchParams.get("sortOrder") || "asc",
   });
@@ -172,6 +179,10 @@ function InventoryContent() {
     filters.maxPrice,
     filters.minMileage,
     filters.maxMileage,
+    filters.bodyStyle,
+    filters.location,
+    filters.highDemand,
+    filters.lowPerforming,
     filters.sortBy,
     filters.sortOrder,
   ]);
@@ -190,12 +201,30 @@ function InventoryContent() {
           ...filters,
           search: debouncedSearch,
         },
+        timeout: 15000,
       });
 
-      const responseData = response.data?.data || response.data;
-      setVehicles(responseData.vehicles || []);
-      setTotal(responseData.pagination?.total || 0);
-      setTotalPages(responseData.pagination?.totalPages || 1);
+      const responseData = response.data?.data ?? response.data;
+      const vehiclesFromResponse = Array.isArray(responseData)
+        ? responseData
+        : Array.isArray(responseData?.vehicles)
+          ? responseData.vehicles
+          : Array.isArray(responseData?.data?.vehicles)
+            ? responseData.data.vehicles
+            : [];
+
+      const totalFromResponse =
+        responseData?.pagination?.total ??
+        responseData?.total ??
+        vehiclesFromResponse.length;
+
+      const totalPagesFromResponse =
+        responseData?.pagination?.totalPages ??
+        (limit > 0 ? Math.max(1, Math.ceil(totalFromResponse / limit)) : 1);
+
+      setVehicles(vehiclesFromResponse);
+      setTotal(totalFromResponse);
+      setTotalPages(totalPagesFromResponse);
     } catch (err) {
       console.error("[Inventory] Error fetching vehicles:", err);
       const axiosError = err as AxiosError;
@@ -236,6 +265,8 @@ function InventoryContent() {
       maxMileage: undefined,
       bodyStyle: undefined,
       location: undefined,
+      highDemand: undefined,
+      lowPerforming: undefined,
       sortBy: "make",
       sortOrder: "asc",
     });
@@ -347,6 +378,14 @@ function InventoryContent() {
         sortBy = "cost";
         sortOrder = "desc";
         break;
+      case "demand-desc":
+        sortBy = "demand";
+        sortOrder = "desc";
+        break;
+      case "low-performing-desc":
+        sortBy = "low-performing";
+        sortOrder = "desc";
+        break;
     }
 
     setFilters((prev: any) => ({ ...prev, sortBy, sortOrder }));
@@ -365,6 +404,10 @@ function InventoryContent() {
       return "year-desc";
     if (filters.sortBy === "make" && filters.sortOrder === "asc")
       return "make-asc";
+    if (filters.sortBy === "demand" && filters.sortOrder === "desc")
+      return "demand-desc";
+    if (filters.sortBy === "low-performing" && filters.sortOrder === "desc")
+      return "low-performing-desc";
     return "make-asc";
   }, [filters.sortBy, filters.sortOrder]);
 

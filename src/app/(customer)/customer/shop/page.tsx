@@ -48,13 +48,17 @@ type SortOption =
   | "recent-asc"
   | "recent-desc"
   | "cost-asc"
-  | "cost-desc";
+  | "cost-desc"
+  | "demand-desc"
+  | "low-performing-desc";
 
 const SHOP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "make-asc", label: "Make (A-Z)" },
   { value: "price-asc", label: "Price: Low to High" },
   { value: "price-desc", label: "Price: High to Low" },
   { value: "year-desc", label: "Year: Newest" },
+  { value: "demand-desc", label: "Most Inquiries" },
+  { value: "low-performing-desc", label: "Low Performing" },
 ];
 
 function ShopVehiclesContent() {
@@ -70,6 +74,7 @@ function ShopVehiclesContent() {
     Record<string, number>
   >({});
   const [isSortSheetOpen, setIsSortSheetOpen] = React.useState(false);
+  const fetchSequenceRef = React.useRef(0);
 
   const {
     selectedVehicle,
@@ -117,6 +122,9 @@ function ShopVehiclesContent() {
       : undefined,
     bodyStyle: searchParams.get("bodyStyle") || undefined,
     location: searchParams.get("location") || undefined,
+    highDemand: searchParams.get("highDemand") === "true" ? true : undefined,
+    lowPerforming:
+      searchParams.get("lowPerforming") === "true" ? true : undefined,
     sortBy: searchParams.get("sortBy") || "make",
     sortOrder: searchParams.get("sortOrder") || "asc",
   });
@@ -129,6 +137,66 @@ function ShopVehiclesContent() {
     }, 500);
     return () => clearTimeout(timer);
   }, [filters.search]);
+
+  const fetchVehicles = React.useCallback(async () => {
+    const currentSequence = ++fetchSequenceRef.current;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const token = await getToken();
+      const response = await apiClient.get("/api/vehicles/marketplace", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          page,
+          limit,
+          ...filters,
+          search: debouncedSearch,
+        },
+        timeout: 15000,
+      });
+
+      const responseData = response.data?.data ?? response.data;
+      const vehiclesFromResponse = Array.isArray(responseData)
+        ? responseData
+        : Array.isArray(responseData?.vehicles)
+          ? responseData.vehicles
+          : Array.isArray(responseData?.data?.vehicles)
+            ? responseData.data.vehicles
+            : [];
+
+      const totalFromResponse =
+        responseData?.pagination?.total ??
+        responseData?.total ??
+        vehiclesFromResponse.length;
+
+      const totalPagesFromResponse =
+        responseData?.pagination?.totalPages ??
+        (limit > 0 ? Math.max(1, Math.ceil(totalFromResponse / limit)) : 1);
+
+      if (currentSequence !== fetchSequenceRef.current) return;
+
+      setVehicles(vehiclesFromResponse);
+      setTotal(totalFromResponse);
+      setTotalPages(totalPagesFromResponse);
+    } catch (err) {
+      if (currentSequence !== fetchSequenceRef.current) return;
+
+      console.error("[Inventory] Error fetching vehicles:", err);
+      const axiosError = err as AxiosError;
+      if (axiosError.code !== "ERR_CANCELED") {
+        setError(
+          (axiosError.response?.data as any)?.message ||
+            axiosError.message ||
+            "Failed to load vehicles",
+        );
+      }
+    } finally {
+      if (currentSequence === fetchSequenceRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [debouncedSearch, filters, getToken, limit, page]);
 
   React.useEffect(() => {
     const params = new URLSearchParams();
@@ -159,44 +227,14 @@ function ShopVehiclesContent() {
     filters.maxPrice,
     filters.minMileage,
     filters.maxMileage,
+    filters.bodyStyle,
+    filters.location,
+    filters.highDemand,
+    filters.lowPerforming,
     filters.sortBy,
     filters.sortOrder,
+    fetchVehicles,
   ]);
-
-  const fetchVehicles = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const token = await getToken();
-      const response = await apiClient.get("/api/vehicles/marketplace", {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          page,
-          limit,
-          ...filters,
-          search: debouncedSearch,
-        },
-      });
-
-      const responseData = response.data?.data || response.data;
-      setVehicles(responseData.vehicles || []);
-      setTotal(responseData.pagination?.total || 0);
-      setTotalPages(responseData.pagination?.totalPages || 1);
-    } catch (err) {
-      console.error("[Inventory] Error fetching vehicles:", err);
-      const axiosError = err as AxiosError;
-      if (axiosError.code !== "ERR_CANCELED") {
-        setError(
-          (axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Failed to load vehicles",
-        );
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Auto-modal logic removed as we now use dedicated vehicle pages
 
@@ -223,6 +261,8 @@ function ShopVehiclesContent() {
       maxMileage: undefined,
       bodyStyle: undefined,
       location: undefined,
+      highDemand: undefined,
+      lowPerforming: undefined,
       sortBy: "make",
       sortOrder: "asc",
     });
@@ -287,6 +327,14 @@ function ShopVehiclesContent() {
         sortBy = "make";
         sortOrder = "asc";
         break;
+      case "demand-desc":
+        sortBy = "demand";
+        sortOrder = "desc";
+        break;
+      case "low-performing-desc":
+        sortBy = "low-performing";
+        sortOrder = "desc";
+        break;
       default:
         sortBy = "make";
         sortOrder = "asc";
@@ -308,6 +356,10 @@ function ShopVehiclesContent() {
       return "year-desc";
     if (filters.sortBy === "make" && filters.sortOrder === "asc")
       return "make-asc";
+    if (filters.sortBy === "demand" && filters.sortOrder === "desc")
+      return "demand-desc";
+    if (filters.sortBy === "low-performing" && filters.sortOrder === "desc")
+      return "low-performing-desc";
     return "make-asc";
   }, [filters.sortBy, filters.sortOrder]);
 
@@ -317,6 +369,33 @@ function ShopVehiclesContent() {
         ?.label ?? "Make (A-Z)"
     );
   }, [currentSortValue]);
+
+  const vehicleCards = React.useMemo(
+    () =>
+      vehicles.map((vehicle) => (
+        <PremiumVehicleCard
+          key={vehicle.id}
+          vehicle={vehicle}
+          shippingPrice={shippingRates[vehicle.id]}
+          onCheckAvailability={handleCheckAvailability}
+          onApplyNow={handleApplyNow}
+          onCallUs={handleCallUs}
+          onVideo={handleVideo}
+          onGetQuote={handleGetQuote}
+          onVehicleClick={handleVehicleClick}
+        />
+      )),
+    [
+      vehicles,
+      shippingRates,
+      handleCheckAvailability,
+      handleApplyNow,
+      handleCallUs,
+      handleVideo,
+      handleGetQuote,
+      handleVehicleClick,
+    ],
+  );
 
   if (error) {
     return (
@@ -457,19 +536,7 @@ function ShopVehiclesContent() {
         ) : (
           <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {vehicles.map((vehicle) => (
-                <PremiumVehicleCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  shippingPrice={shippingRates[vehicle.id]}
-                  onCheckAvailability={handleCheckAvailability}
-                  onApplyNow={handleApplyNow}
-                  onCallUs={handleCallUs}
-                  onVideo={handleVideo}
-                  onGetQuote={handleGetQuote}
-                  onVehicleClick={handleVehicleClick}
-                />
-              ))}
+              {vehicleCards}
             </div>
 
             <InventoryPagination

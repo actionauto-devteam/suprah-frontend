@@ -105,7 +105,12 @@ function ini(n: string) {
     .slice(0, 2);
 }
 function fmt(d: Date) {
-  return toMDT(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" });
+  return toMDT(d).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  });
 }
 
 type ApiError = {
@@ -183,7 +188,7 @@ function LiveClock() {
       </TooltipTrigger>
       <TooltipContent
         side="bottom"
-        className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
+        className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
       >
         <p className="text-xs">
           {mdtNow.toLocaleDateString("en-US", {
@@ -222,9 +227,12 @@ function ActivityTimer({
 
   const liveMs = activityStartAt ? Math.max(0, now - activityStartAt) : 0;
   const totalMs = todayTotalActiveMs + liveMs;
-  const isActive = activityStartAt !== null || (isOnShift && todayTotalActiveMs === 0);
+  const isActive =
+    activityStartAt !== null || (isOnShift && todayTotalActiveMs === 0);
 
-  const breakLiveMs = currentBreakStartAt ? Math.max(0, now - currentBreakStartAt) : 0;
+  const breakLiveMs = currentBreakStartAt
+    ? Math.max(0, now - currentBreakStartAt)
+    : 0;
   const totalBreakMs = breakTotalMs + breakLiveMs;
   const breakExceeded = isOnBreak && totalBreakMs >= 3600000;
 
@@ -249,8 +257,12 @@ function ActivityTimer({
   const strokeDashoffset = circumference * (1 - progress);
 
   const ringColor = isOnBreak
-    ? (breakExceeded ? "#ef4444" : "#f59e0b")
-    : isActive ? "#10b981" : "#71717a";
+    ? breakExceeded
+      ? "#ef4444"
+      : "#f59e0b"
+    : isActive
+      ? "#10b981"
+      : "#71717a";
 
   return (
     <div className="w-full space-y-6">
@@ -291,8 +303,12 @@ function ActivityTimer({
                       className={cn(
                         "text-xl font-thin mb-3 mx-0.5 transition-colors duration-500",
                         isOnBreak
-                          ? (breakExceeded ? "text-red-500/50" : "text-amber-500/50")
-                          : isActive ? "text-emerald-500/50" : "text-zinc-400/50",
+                          ? breakExceeded
+                            ? "text-red-500/50"
+                            : "text-amber-500/50"
+                          : isActive
+                            ? "text-emerald-500/50"
+                            : "text-zinc-400/50",
                       )}
                     >
                       :
@@ -303,7 +319,9 @@ function ActivityTimer({
                       className={cn(
                         "text-3xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
                         isOnBreak
-                          ? (breakExceeded ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400")
+                          ? breakExceeded
+                            ? "text-red-500 dark:text-red-400"
+                            : "text-amber-500 dark:text-amber-400"
                           : isActive
                             ? "text-zinc-900 dark:text-white"
                             : "text-zinc-400 dark:text-zinc-600",
@@ -327,20 +345,30 @@ function ActivityTimer({
           className={cn(
             "text-[10px] font-bold tracking-[0.2em] uppercase",
             isOnBreak
-              ? (breakExceeded ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400")
+              ? breakExceeded
+                ? "text-red-500 dark:text-red-400"
+                : "text-amber-500 dark:text-amber-400"
               : isActive
                 ? "text-emerald-500 dark:text-emerald-400"
                 : "text-zinc-400 dark:text-zinc-600",
           )}
         >
           {isOnBreak
-            ? (breakExceeded ? "⚠ Break Exceeded" : "● On Break — Paused")
-            : isActive ? "● Active — Tracking" : "○ Idle — Paused"}
+            ? breakExceeded
+              ? "⚠ Break Exceeded"
+              : "● On Break — Paused"
+            : isActive
+              ? "● Active — Tracking"
+              : "○ Idle — Paused"}
         </span>
         {breakExceeded && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-center">
-            <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Break limit reached</p>
-            <p className="text-[9px] text-red-400/60 mt-0.5">Please resume your shift</p>
+            <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
+              Break limit reached
+            </p>
+            <p className="text-[9px] text-red-400/60 mt-0.5">
+              Please resume your shift
+            </p>
           </div>
         )}
       </div>
@@ -364,7 +392,7 @@ function QuickAction({
       onClick={onClick}
       className={cn(
         "group relative flex flex-col items-center justify-center gap-3 rounded-2xl p-5 w-full min-h-27.5",
-        "border border-zinc-200/80 dark:border-zinc-800/80 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-sm",
+        "border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm",
         "hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-all duration-300 cursor-pointer overflow-hidden",
         "hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]",
         accent === "amber"
@@ -407,11 +435,14 @@ function StatChip({
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = React.useCallback(() => {
-    navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      toast.success(`${label} copied`);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        setCopied(true);
+        toast.success(`${label} copied`);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   }, [value, label]);
 
   return (
@@ -424,11 +455,15 @@ function StatChip({
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/70 bg-white/80 dark:bg-zinc-800/70 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/70 bg-zinc-100/85 dark:bg-zinc-800/70 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
             aria-label={`Copy ${label}`}
             title={copied ? "Copied!" : `Copy ${label}`}
           >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
             <span>{copied ? "Copied" : "Copy"}</span>
           </button>
         )}
@@ -465,8 +500,12 @@ export default function CrmDashboardPage() {
   const [showTrayModal, setShowTrayModal] = React.useState(false);
   const [trayChecking, setTrayChecking] = React.useState(false);
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
-  const [activityStartAt, setActivityStartAt] = React.useState<number | null>(null);
-  const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<number | null>(null);
+  const [activityStartAt, setActivityStartAt] = React.useState<number | null>(
+    null,
+  );
+  const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<
+    number | null
+  >(null);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -480,19 +519,19 @@ export default function CrmDashboardPage() {
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 2000);
 
-    fetch('http://127.0.0.1:18642/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("http://127.0.0.1:18642/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: pending }),
       signal: controller.signal,
     })
-      .then(res => {
+      .then((res) => {
         clearTimeout(tid);
         if (res.ok) {
           localStorage.removeItem("pending_tray_auth");
           // Tray connected silently — no banner needed
         } else {
-          throw new Error('rejected');
+          throw new Error("rejected");
         }
       })
       .catch(() => {
@@ -504,7 +543,9 @@ export default function CrmDashboardPage() {
   }, []);
 
   const openTrayApp = React.useCallback(() => {
-    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(trayToken)}`; } catch {}
+    try {
+      window.location.href = `actionauto://auth?token=${encodeURIComponent(trayToken)}`;
+    } catch {}
     localStorage.removeItem("pending_tray_auth");
     setTrayBanner(false);
   }, [trayToken]);
@@ -530,7 +571,9 @@ export default function CrmDashboardPage() {
 
   // Sync whenever the user switches back to this tab
   React.useEffect(() => {
-    const onVisibility = () => { if (!document.hidden) refreshShiftState(); };
+    const onVisibility = () => {
+      if (!document.hidden) refreshShiftState();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [refreshShiftState]);
@@ -546,7 +589,11 @@ export default function CrmDashboardPage() {
       const s = res.data?.data;
       if (s) {
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000);
-        setActivityStartAt(s.currentIntervalStartAt ? new Date(s.currentIntervalStartAt).getTime() : null);
+        setActivityStartAt(
+          s.currentIntervalStartAt
+            ? new Date(s.currentIntervalStartAt).getTime()
+            : null,
+        );
       }
     } catch {}
   }, []);
@@ -563,7 +610,9 @@ export default function CrmDashboardPage() {
   React.useEffect(() => {
     if (!token) return;
     const sock = initializeSocket(token);
-    const sync = () => { refreshShiftState(); };
+    const sync = () => {
+      refreshShiftState();
+    };
     // For time-in we delay the activity fetch so the tray heartbeat lands first
     const syncTimeIn = () => {
       refreshShiftState();
@@ -576,15 +625,15 @@ export default function CrmDashboardPage() {
       refreshShiftState();
       fetchActivityState();
     };
-    sock.on('time-in', syncTimeIn);
-    sock.on('time-out', syncTimeOut);
-    sock.on('break-in', sync);
-    sock.on('break-out', sync);
+    sock.on("time-in", syncTimeIn);
+    sock.on("time-out", syncTimeOut);
+    sock.on("break-in", sync);
+    sock.on("break-out", sync);
     return () => {
-      sock.off('time-in', syncTimeIn);
-      sock.off('time-out', syncTimeOut);
-      sock.off('break-in', sync);
-      sock.off('break-out', sync);
+      sock.off("time-in", syncTimeIn);
+      sock.off("time-out", syncTimeOut);
+      sock.off("break-in", sync);
+      sock.off("break-out", sync);
     };
   }, [token, refreshShiftState, fetchActivityState]);
 
@@ -600,12 +649,16 @@ export default function CrmDashboardPage() {
           headers: { Authorization: `Bearer ${t}` },
         });
         const data = res.data?.data || res.data;
-        const profileRes = await apiClient.get("/api/profile").catch(() => null);
+        const profileRes = await apiClient
+          .get("/api/profile")
+          .catch(() => null);
         const profile = profileRes?.data?.data || profileRes?.data;
         const profileAvatar = profile?.avatarUrl || profile?.avatar;
         setUser({
           ...data,
-          avatar: withAvatarCacheBust(profileAvatar || data.avatarUrl || data.avatar),
+          avatar: withAvatarCacheBust(
+            profileAvatar || data.avatarUrl || data.avatar,
+          ),
         });
         setToken(t);
         setTodayLogs(data.todayTimeLogs || []);
@@ -627,7 +680,7 @@ export default function CrmDashboardPage() {
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    } catch { }
+    } catch {}
     localStorage.removeItem("crm_token");
     localStorage.removeItem("crm_user");
     router.push("/");
@@ -700,7 +753,7 @@ export default function CrmDashboardPage() {
         );
         const d = res.data?.data || res.data;
         if (d?.todayLogs) setTodayLogs(d.todayLogs);
-      } catch { }
+      } catch {}
       setClockMsg(`Break started at ${fmt(new Date())}`);
     } else {
       setIsOnBreak(false);
@@ -712,27 +765,33 @@ export default function CrmDashboardPage() {
         );
         const d = res.data?.data || res.data;
         if (d?.todayLogs) setTodayLogs(d.todayLogs);
-      } catch { }
+      } catch {}
       setClockMsg(`Break ended at ${fmt(new Date())}`);
     }
   };
 
   // Sort ascending so we can find the most recent session pair correctly
   const sortedLogs = React.useMemo(
-    () => [...(todayLogs || [])].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    ),
+    () =>
+      [...(todayLogs || [])].sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      ),
     [todayLogs],
   );
 
   // Most recent time-in entry (current or last session)
-  const timeIn = [...sortedLogs].reverse().find(l => l.type === "time-in");
+  const timeIn = [...sortedLogs].reverse().find((l) => l.type === "time-in");
   // Most recent time-out AFTER that time-in (current session only)
   const timeOut = timeIn
-    ? [...sortedLogs].reverse().find(
-        l => l.type === "time-out" &&
-          new Date(l.timestamp).getTime() >= new Date(timeIn.timestamp).getTime()
-      )
+    ? [...sortedLogs]
+        .reverse()
+        .find(
+          (l) =>
+            l.type === "time-out" &&
+            new Date(l.timestamp).getTime() >=
+              new Date(timeIn.timestamp).getTime(),
+        )
     : undefined;
 
   const hasClockedIn = !!timeIn;
@@ -745,8 +804,9 @@ export default function CrmDashboardPage() {
     if (!timeIn) return;
     const sessionStart = new Date(timeIn.timestamp).getTime();
     const breakLogs = sortedLogs.filter(
-      l => (l.type === "break-in" || l.type === "break-out") &&
-           new Date(l.timestamp).getTime() >= sessionStart
+      (l) =>
+        (l.type === "break-in" || l.type === "break-out") &&
+        new Date(l.timestamp).getTime() >= sessionStart,
     );
     let accumulated = 0;
     let currentBreakStart: number | null = null;
@@ -789,7 +849,8 @@ export default function CrmDashboardPage() {
       new Date(timeOut.timestamp).getTime() -
       new Date(timeIn.timestamp).getTime();
     // Total = prior completed sessions + last session net (break-deducted)
-    const workedMs = previousSessionsMs + Math.max(0, lastSessionMs - breakAccumulatedMs);
+    const workedMs =
+      previousSessionsMs + Math.max(0, lastSessionMs - breakAccumulatedMs);
     const h = Math.floor(workedMs / 3600000);
     const m = Math.floor((workedMs % 3600000) / 60000);
     return `${h}h ${m}m`;
@@ -797,7 +858,7 @@ export default function CrmDashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-full bg-white dark:bg-zinc-950">
+      <div className="flex items-center justify-center min-h-full bg-zinc-100 dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-4">
           <div className="relative h-14 w-14">
             <div className="absolute inset-0 rounded-2xl bg-emerald-500/10 animate-ping" />
@@ -827,12 +888,16 @@ export default function CrmDashboardPage() {
 
   const quickActions = [
     {
-      icon: <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      icon: (
+        <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+      ),
       label: "Leads",
       route: "/crm/leads",
     },
     {
-      icon: <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      icon: (
+        <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+      ),
       label: "Service Hub",
       route: "/crm/appointments/dashboard",
     },
@@ -851,9 +916,7 @@ export default function CrmDashboardPage() {
       route: "/crm/timeproof",
     },
     {
-      icon: (
-        <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
-      ),
+      icon: <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
       label: "Finance Line",
       route: "/crm/aftermarket",
     },
@@ -867,7 +930,7 @@ export default function CrmDashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-full w-full bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden transition-colors duration-300 flex flex-col">
+      <div className="min-h-full w-full bg-zinc-100 dark:bg-zinc-950 relative overflow-hidden transition-colors duration-300 flex flex-col">
         <div
           className="fixed inset-0 pointer-events-none overflow-hidden"
           aria-hidden
@@ -877,7 +940,7 @@ export default function CrmDashboardPage() {
           <div className="absolute bottom-0 left-1/3 w-100 h-100 rounded-full bg-emerald-400/3 dark:bg-emerald-400/2 blur-3xl" />
         </div>
 
-        <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
+        <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6 max-w-7xl mx-auto">
             <div className="flex items-center gap-3">
               <div className="relative h-9 w-9 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
@@ -901,7 +964,7 @@ export default function CrmDashboardPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-white/80 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:border-zinc-300/60 dark:hover:border-zinc-600/60 backdrop-blur-sm transition-all duration-200"
+                    className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-zinc-100/85 dark:bg-zinc-900/60 hover:bg-zinc-200/80 dark:hover:bg-zinc-800/80 hover:border-zinc-300/60 dark:hover:border-zinc-600/60 backdrop-blur-sm transition-all duration-200"
                   >
                     <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
                       <AvatarImage src={userAvatarSrc} />
@@ -917,7 +980,7 @@ export default function CrmDashboardPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-60 rounded-2xl p-0 overflow-hidden shadow-2xl shadow-black/10 dark:shadow-black/50 border-zinc-200/80 dark:border-zinc-700/60 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl"
+                  className="w-60 rounded-2xl p-0 overflow-hidden shadow-2xl shadow-black/10 dark:shadow-black/50 border-zinc-200/80 dark:border-zinc-700/60 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xl"
                 >
                   <div className="p-4 bg-linear-to-br from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50">
                     <div className="flex items-center gap-3">
@@ -947,12 +1010,12 @@ export default function CrmDashboardPage() {
                       My Profile
                     </DropdownMenuItem>
 
-                      <DropdownMenuItem
+                    <DropdownMenuItem
                       onClick={() => router.push("/crm/biometrics")}
                       className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 focus:bg-zinc-100 dark:focus:bg-zinc-800/60"
                     >
                       <Fingerprint className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                     Biometrics
+                      Biometrics
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => router.push("/crm/settings")}
@@ -985,7 +1048,7 @@ export default function CrmDashboardPage() {
             )}
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center shadow-sm">
                 {greeting.icon}
               </div>
               <div>
@@ -1005,7 +1068,7 @@ export default function CrmDashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <div
               className={cn(
-                "lg:col-span-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm flex flex-col overflow-hidden shadow-sm dark:shadow-none",
+                "lg:col-span-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm flex flex-col overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
                 "transition-all duration-700 delay-100",
                 mounted
                   ? "opacity-100 translate-y-0"
@@ -1116,7 +1179,7 @@ export default function CrmDashboardPage() {
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/40 px-3 py-2.5 shadow-sm dark:shadow-none"
+                      className="rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/70 dark:border-zinc-800/40 px-3 py-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.03)] dark:shadow-none"
                     >
                       <p className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-600 font-bold mb-1">
                         {item.label}
@@ -1134,7 +1197,7 @@ export default function CrmDashboardPage() {
                     disabled={isClocking || trayChecking}
                     className="w-full h-12 rounded-xl font-black text-sm gap-2 transition-all duration-200 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shadow-lg shadow-emerald-500/20 dark:shadow-emerald-900/40 hover:shadow-emerald-500/30 dark:hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
                   >
-                    {(isClocking || trayChecking) ? (
+                    {isClocking || trayChecking ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
@@ -1191,7 +1254,7 @@ export default function CrmDashboardPage() {
             <div className="lg:col-span-8 flex flex-col gap-5">
               <div
                 className={cn(
-                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-6 overflow-hidden relative shadow-sm dark:shadow-none",
+                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-6 overflow-hidden relative shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
                   "transition-all duration-700 delay-200",
                   mounted
                     ? "opacity-100 translate-y-0"
@@ -1251,7 +1314,7 @@ export default function CrmDashboardPage() {
               {/* Quick Actions card */}
               <div
                 className={cn(
-                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-6 flex-1 shadow-sm dark:shadow-none",
+                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-6 flex-1 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
                   "transition-all duration-700 delay-300",
                   mounted
                     ? "opacity-100 translate-y-0"
@@ -1303,8 +1366,10 @@ export default function CrmDashboardPage() {
 
       {/* CRM Tray App connect banner — appears once after login */}
       {trayBanner && (
-        <div className="fixed bottom-5 right-5 z-50 w-76 rounded-2xl bg-zinc-900 border border-zinc-700/50 shadow-2xl shadow-black/60 overflow-hidden"
-          style={{ animation: "slideUp 0.3s ease-out" }}>
+        <div
+          className="fixed bottom-5 right-5 z-50 w-76 rounded-2xl bg-zinc-900 border border-zinc-700/50 shadow-2xl shadow-black/60 overflow-hidden"
+          style={{ animation: "slideUp 0.3s ease-out" }}
+        >
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
           <div className="px-4 pt-4 pb-3">
             <div className="flex items-start gap-3">
@@ -1312,8 +1377,13 @@ export default function CrmDashboardPage() {
                 <MonitorDot className="h-5 w-5 text-emerald-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white leading-tight">Connect CRM Tray App</p>
-                <p className="text-xs text-zinc-400 mt-0.5 leading-snug">Open your desktop agent to enable time tracking &amp; screenshots.</p>
+                <p className="text-sm font-bold text-white leading-tight">
+                  Connect CRM Tray App
+                </p>
+                <p className="text-xs text-zinc-400 mt-0.5 leading-snug">
+                  Open your desktop agent to enable time tracking &amp;
+                  screenshots.
+                </p>
               </div>
               <button
                 onClick={dismissTrayBanner}
@@ -1337,7 +1407,10 @@ export default function CrmDashboardPage() {
                 Later
               </button>
             </div>
-            <p className="text-[10px] text-zinc-600 text-center mt-2">Check &ldquo;Always allow&rdquo; in the browser dialog to auto-connect next time.</p>
+            <p className="text-[10px] text-zinc-600 text-center mt-2">
+              Check &ldquo;Always allow&rdquo; in the browser dialog to
+              auto-connect next time.
+            </p>
           </div>
         </div>
       )}
@@ -1373,9 +1446,16 @@ export default function CrmDashboardPage() {
                   <MonitorDot className="h-8 w-8 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-base font-black text-white">Tray App Required</p>
+                  <p className="text-base font-black text-white">
+                    Tray App Required
+                  </p>
                   <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                    The <span className="text-white font-semibold">Action Auto CRM Tray App</span> must be installed and running to track your shift, capture screenshots, and monitor activity.
+                    The{" "}
+                    <span className="text-white font-semibold">
+                      Action Auto CRM Tray App
+                    </span>{" "}
+                    must be installed and running to track your shift, capture
+                    screenshots, and monitor activity.
                   </p>
                 </div>
               </div>
@@ -1391,7 +1471,9 @@ export default function CrmDashboardPage() {
                     <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
                       {i + 1}
                     </span>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">{step}</p>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">
+                      {step}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1410,14 +1492,26 @@ export default function CrmDashboardPage() {
                 </a>
                 <button
                   onClick={async () => {
-                    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}`; } catch {}
+                    try {
+                      window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}`;
+                    } catch {}
                     // After firing the deep link, re-check after a short delay
-                    await new Promise(r => setTimeout(r, 3000));
+                    await new Promise((r) => setTimeout(r, 3000));
                     setTrayChecking(true);
                     try {
-                      const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) });
-                      if (res.status < 600) { setShowTrayModal(false); handleClock("time-in"); }
-                    } catch { /* still not running */ } finally { setTrayChecking(false); }
+                      const res = await fetch("http://127.0.0.1:18642/", {
+                        method: "GET",
+                        signal: AbortSignal.timeout(2000),
+                      });
+                      if (res.status < 600) {
+                        setShowTrayModal(false);
+                        handleClock("time-in");
+                      }
+                    } catch {
+                      /* still not running */
+                    } finally {
+                      setTrayChecking(false);
+                    }
                   }}
                   disabled={trayChecking}
                   className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50"
@@ -1429,19 +1523,37 @@ export default function CrmDashboardPage() {
                   onClick={async () => {
                     setTrayChecking(true);
                     try {
-                      const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) });
-                      if (res.status < 600) { setShowTrayModal(false); handleClock("time-in"); }
-                      else toast.error("Tray app not detected. Make sure it is running.");
-                    } catch { toast.error("Tray app not detected. Make sure it is running."); }
-                    finally { setTrayChecking(false); }
+                      const res = await fetch("http://127.0.0.1:18642/", {
+                        method: "GET",
+                        signal: AbortSignal.timeout(2000),
+                      });
+                      if (res.status < 600) {
+                        setShowTrayModal(false);
+                        handleClock("time-in");
+                      } else
+                        toast.error(
+                          "Tray app not detected. Make sure it is running.",
+                        );
+                    } catch {
+                      toast.error(
+                        "Tray app not detected. Make sure it is running.",
+                      );
+                    } finally {
+                      setTrayChecking(false);
+                    }
                   }}
                   disabled={trayChecking}
                   className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors disabled:opacity-50"
                 >
-                  {trayChecking
-                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Checking…</>
-                    : <><RefreshCw className="h-3 w-3" /> Check Again</>
-                  }
+                  {trayChecking ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3 w-3" /> Check Again
+                    </>
+                  )}
                 </button>
               </div>
             </div>
