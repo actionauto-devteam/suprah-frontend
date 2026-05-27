@@ -3,24 +3,49 @@
 import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
 
+export interface SSAttachment {
+  url: string;
+  fileKey?: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  thumbnailUrl?: string;
+  duration?: number;        // seconds (voice notes)
+}
+
+export interface SSReaction { emoji: string; users: string[] }
+export interface SSGif { url: string; width?: number; height?: number; title?: string }
+export interface SSPollOption { id: string; text: string; votes: string[] }
+export interface SSPoll { question: string; options: SSPollOption[]; allowMultiple: boolean; closed: boolean }
+export interface SSEvent {
+  title: string; description?: string; location?: string;
+  startTime: string; endTime?: string | null;
+  going: string[]; maybe: string[]; declined: string[];
+}
+
 export interface SSMessage {
   _id: string;
   conversationId: string;
   sender: { _id: string; fullName: string; username: string; avatar?: string };
   content: string;
-  type: 'text' | 'image' | 'file' | 'system';
-  attachments: Array<{
-    url: string;
-    originalName: string;
-    mimeType: string;
-    size: number;
-    thumbnailUrl?: string;
-  }>;
+  type: 'text' | 'image' | 'file' | 'system' | 'voice' | 'gif' | 'poll' | 'event';
+  attachments: SSAttachment[];
+  gif?: SSGif | null;
+  poll?: SSPoll | null;
+  event?: SSEvent | null;
   replyTo?: SSMessage | null;
+  reactions: SSReaction[];
   readBy: string[];
   isEdited: boolean;
   isDeleted: boolean;
   createdAt: string;
+}
+
+export interface SSTheme {
+  accent?: string | null;
+  bubble?: string | null;
+  wallpaper?: string | null;
+  emoji?: string | null;
 }
 
 export interface SSConversation {
@@ -30,25 +55,23 @@ export interface SSConversation {
   avatar?: string;
   members: Array<{ _id: string; fullName: string; username: string; avatar?: string; role: string }>;
   admins: string[];
+  pinnedBy?: string[];
+  archivedBy?: string[];
+  deletedFor?: string[];
+  theme?: SSTheme;
   lastMessage?: SSMessage;
   lastMessageAt?: string;
   createdBy: string;
 }
 
-export interface PresenceMap {
-  [userId: string]: 'online' | 'offline';
-}
-
-export interface TypingMap {
-  [conversationId: string]: Array<{ userId: string; fullName: string }>;
-}
+export interface PresenceMap { [userId: string]: 'online' | 'offline' }
+export interface TypingMap { [conversationId: string]: Array<{ userId: string; fullName: string }> }
 
 interface UseSupraSpaceReturn {
   socket: Socket | null;
   isConnected: boolean;
   presence: PresenceMap;
   typing: TypingMap;
-  // Actions
   joinConversation: (conversationId: string) => void;
   leaveConversation: (conversationId: string) => void;
   sendTypingStart: (conversationId: string) => void;
@@ -66,8 +89,6 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   React.useEffect(() => {
     if (!token) return;
 
-    // Dev tunnels often block raw WebSocket upgrades — polling first lets
-    // Socket.IO connect over HTTP then upgrade to WebSocket automatically.
     const socket = io(process.env.NEXT_PUBLIC_API_URL || '', {
       path: '/socket/supraspace',
       auth: { token },
@@ -85,10 +106,8 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socket.on('connect', () => {
       console.log('[SupraSpace] ✅ Connected via', socket.io.engine.transport.name, '| id:', socket.id);
       setIsConnected(true);
-      // Expose socket as React state so dependent effects re-run reliably.
-      // Using state (not just a ref) ensures the page's message-listener
-      // effect fires the first time and re-runs if the socket instance changes.
       setSocketState(socket);
+      socket.emit('presence:request'); // ask for the current online roster
     });
 
     socket.io.engine.on('upgrade', (transport: any) => {
@@ -98,11 +117,17 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socket.on('disconnect', (reason) => {
       console.log('[SupraSpace] ❌ Disconnected:', reason);
       setIsConnected(false);
-      // Keep socketState set — same instance reconnects, listeners persist.
     });
 
     socket.on('connect_error', (err) => {
       console.error('[SupraSpace] Connection error:', err.message);
+    });
+
+    // NEW: full online roster seeded on connect
+    socket.on('presence:sync', (userIds: string[]) => {
+      const next: PresenceMap = {};
+      (userIds || []).forEach((id) => { next[id] = 'online'; });
+      setPresence(next);
     });
 
     socket.on('presence:update', ({ userId, status }: { userId: string; status: 'online' | 'offline' }) => {
@@ -133,36 +158,21 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     };
   }, [token]);
 
-  // ── Stable action callbacks ────────────────────────────────────────────────
   const joinConversation = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('join:conversation', { conversationId });
   }, []);
-
   const leaveConversation = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('leave:conversation', { conversationId });
   }, []);
-
   const sendTypingStart = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('typing:start', { conversationId });
   }, []);
-
   const sendTypingStop = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('typing:stop', { conversationId });
   }, []);
-
   const markRead = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('mark:read', { conversationId });
   }, []);
 
-  return {
-    socket: socketState,
-    isConnected,
-    presence,
-    typing,
-    joinConversation,
-    leaveConversation,
-    sendTypingStart,
-    sendTypingStop,
-    markRead,
-  };
+  return { socket: socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead };
 }

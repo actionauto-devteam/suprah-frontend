@@ -267,7 +267,7 @@ export default function AftermarketPage() {
                             className="ml-auto text-zinc-400 hover:text-red-500"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </button>8* 
                         </div>
                       </div>
                     </div>

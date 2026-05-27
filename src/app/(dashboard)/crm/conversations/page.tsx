@@ -69,7 +69,7 @@ export default function CommsPage() {
           <LeadsTab />
         </div>
         <div className={cn('absolute inset-0', activeTab === 'team' ? 'flex flex-col' : 'hidden')}>
-          <SupraSpacePage embedded />
+          <SupraSpacePage />
         </div>
       </div>
     </div>

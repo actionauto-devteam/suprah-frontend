@@ -1,15 +1,17 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Search, Plus, Users, MessageSquare, Send, Paperclip,
-  X, ChevronLeft, MoreVertical, Download, FileText,
+  X, ChevronLeft, Download, FileText,
   Loader2, CheckCheck, Hash, Reply, Trash2,
-  ArrowLeft, Radio, Bot, Video, Phone, PhoneOff,
-  Mic, MicOff, VideoOff, Sun, Moon, Sparkles,
-  Bell, Smile, Pin, Info, ImageIcon,
+  ArrowLeft, Radio, Bot, Video, Phone,
+  Sun, Moon, Sparkles, SmilePlus,
+  Bell, Smile, Pin, PinOff, Info, ImageIcon,
   Pencil, Check as CheckIcon,
+  Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
+  UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -27,6 +29,19 @@ const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 40 * 1024 * 1024;
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
 ]);
+const SS4_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '🎉'];
+const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
+
+const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: string | null }[] = [
+  { name: 'Default', accent: null, wallpaper: null },
+  { name: 'Ocean', accent: '#2e7fff', wallpaper: 'linear-gradient(160deg, rgba(46,127,255,0.10), transparent)' },
+  { name: 'Sunset', accent: '#f0683c', wallpaper: 'linear-gradient(160deg, rgba(240,104,60,0.12), transparent)' },
+  { name: 'Forest', accent: '#22b060', wallpaper: 'linear-gradient(160deg, rgba(34,176,96,0.12), transparent)' },
+  { name: 'Berry', accent: '#a855f7', wallpaper: 'linear-gradient(160deg, rgba(168,85,247,0.12), transparent)' },
+  { name: 'Rose', accent: '#f0568a', wallpaper: 'linear-gradient(160deg, rgba(240,86,138,0.12), transparent)' },
+  { name: 'Gold', accent: '#e0a13a', wallpaper: 'linear-gradient(160deg, rgba(224,161,58,0.12), transparent)' },
+  { name: 'Slate', accent: '#64748b', wallpaper: 'linear-gradient(160deg, rgba(100,116,139,0.12), transparent)' },
+];
 
 // ─── Font + Style Injection ──────────────────────────────────────────────────
 if (typeof document !== 'undefined') {
@@ -46,571 +61,129 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(s);
   }
   s.textContent = `
-    /* ── Token System ──────────────────────────────────── */
     .ss4[data-theme="dark"] {
-      --bg-base:       #0e0f11;
-      --bg-elevated:   #141618;
-      --bg-overlay:    #1a1d21;
-      --bg-hover:      rgba(255,255,255,0.04);
-      --bg-active:     rgba(255,255,255,0.07);
-      --bg-subtle:     rgba(255,255,255,0.03);
-
-      --surface-1:     #1e2126;
-      --surface-2:     #252a31;
-      --surface-3:     #2d3340;
-
-      --border-1:      rgba(255,255,255,0.06);
-      --border-2:      rgba(255,255,255,0.10);
-      --border-3:      rgba(255,255,255,0.14);
-
-      --accent:        #5b7cf6;
-      --accent-muted:  rgba(91,124,246,0.15);
-      --accent-hover:  #6b8cf8;
-      --accent-text:   #a5b8ff;
-
-      --positive:      #34c97d;
-      --positive-muted:rgba(52,201,125,0.12);
-      --warning:       #f0a855;
-      --danger:        #f05c5c;
-      --danger-muted:  rgba(240,92,92,0.12);
-
-      --text-primary:  rgba(255,255,255,0.92);
-      --text-secondary:rgba(255,255,255,0.52);
-      --text-tertiary: rgba(255,255,255,0.28);
-      --text-disabled: rgba(255,255,255,0.16);
-
-      --bubble-own-bg: linear-gradient(145deg, #4a6cf0, #5b7cf6);
-      --bubble-own-shadow: 0 4px 20px rgba(91,124,246,0.25);
-      --bubble-other-bg: var(--surface-2);
-      --bubble-other-border: var(--border-2);
-
-      --sidebar-bg:    #111316;
-      --sidebar-border:rgba(255,255,255,0.055);
-
-      --input-bg:      var(--surface-1);
-      --input-border:  var(--border-2);
-      --input-focus:   rgba(91,124,246,0.35);
-
-      --scrollbar:     rgba(255,255,255,0.07);
-      --shadow-sm:     0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
-      --shadow-md:     0 4px 16px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.3);
-      --shadow-lg:     0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4);
+      --bg-base:#0e0f11; --bg-elevated:#141618; --bg-overlay:#1a1d21;
+      --bg-hover:rgba(255,255,255,0.04); --bg-active:rgba(255,255,255,0.07); --bg-subtle:rgba(255,255,255,0.03);
+      --surface-1:#1e2126; --surface-2:#252a31; --surface-3:#2d3340;
+      --border-1:rgba(255,255,255,0.06); --border-2:rgba(255,255,255,0.10); --border-3:rgba(255,255,255,0.14);
+      --accent:#5b7cf6; --accent-muted:rgba(91,124,246,0.15); --accent-hover:#6b8cf8; --accent-text:#a5b8ff;
+      --positive:#34c97d; --positive-muted:rgba(52,201,125,0.12); --warning:#f0a855; --danger:#f05c5c; --danger-muted:rgba(240,92,92,0.12);
+      --text-primary:rgba(255,255,255,0.92); --text-secondary:rgba(255,255,255,0.52); --text-tertiary:rgba(255,255,255,0.28); --text-disabled:rgba(255,255,255,0.16);
+      --bubble-own-bg:linear-gradient(145deg,#4a6cf0,#5b7cf6); --bubble-own-shadow:0 4px 20px rgba(91,124,246,0.25);
+      --bubble-other-bg:var(--surface-2); --bubble-other-border:var(--border-2);
+      --sidebar-bg:#111316; --sidebar-border:rgba(255,255,255,0.055);
+      --input-bg:var(--surface-1); --input-border:var(--border-2); --input-focus:rgba(91,124,246,0.35);
+      --scrollbar:rgba(255,255,255,0.07);
+      --shadow-sm:0 1px 3px rgba(0,0,0,0.4),0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md:0 4px 16px rgba(0,0,0,0.5),0 2px 6px rgba(0,0,0,0.3);
+      --shadow-lg:0 20px 60px rgba(0,0,0,0.7),0 8px 24px rgba(0,0,0,0.4);
+      --wallpaper:none;
     }
-
     .ss4[data-theme="light"] {
-      --bg-base:       #f4f5f7;
-      --bg-elevated:   #ffffff;
-      --bg-overlay:    #f9fafb;
-      --bg-hover:      rgba(0,0,0,0.03);
-      --bg-active:     rgba(91,124,246,0.08);
-      --bg-subtle:     rgba(0,0,0,0.02);
-
-      --surface-1:     #ffffff;
-      --surface-2:     #f4f5f7;
-      --surface-3:     #eaecf0;
-
-      --border-1:      rgba(0,0,0,0.06);
-      --border-2:      rgba(0,0,0,0.09);
-      --border-3:      rgba(0,0,0,0.14);
-
-      --accent:        #4a6cf0;
-      --accent-muted:  rgba(74,108,240,0.1);
-      --accent-hover:  #3a5ce0;
-      --accent-text:   #4a6cf0;
-
-      --positive:      #22b060;
-      --positive-muted:rgba(34,176,96,0.1);
-      --warning:       #e0922a;
-      --danger:        #dc3545;
-      --danger-muted:  rgba(220,53,69,0.08);
-
-      --text-primary:  rgba(0,0,0,0.87);
-      --text-secondary:rgba(0,0,0,0.50);
-      --text-tertiary: rgba(0,0,0,0.32);
-      --text-disabled: rgba(0,0,0,0.20);
-
-      --bubble-own-bg: linear-gradient(145deg, #4a6cf0, #5b7cf6);
-      --bubble-own-shadow: 0 3px 14px rgba(74,108,240,0.22);
-      --bubble-other-bg: #ffffff;
-      --bubble-other-border: rgba(0,0,0,0.09);
-
-      --sidebar-bg:    #ffffff;
-      --sidebar-border:rgba(0,0,0,0.08);
-
-      --input-bg:      #ffffff;
-      --input-border:  rgba(0,0,0,0.1);
-      --input-focus:   rgba(74,108,240,0.3);
-
-      --scrollbar:     rgba(0,0,0,0.1);
-      --shadow-sm:     0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-      --shadow-md:     0 4px 16px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.06);
-      --shadow-lg:     0 20px 60px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.1);
-    }
-
-    /* ── Base ──────────────────────────────────────────── */
-    .ss4 {
-      font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg-base);
-      color: var(--text-primary);
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-    .ss4-display { font-family: 'Cabinet Grotesk', sans-serif; }
-    .ss4-mono { font-family: 'Geist Mono', monospace; }
-
-    /* ── Topbar ────────────────────────────────────────── */
-    .ss4-topbar {
-      background: var(--bg-elevated);
-      border-bottom: 1px solid var(--border-1);
-    }
-
-    /* ── Sidebar ───────────────────────────────────────── */
-    .ss4-sidebar {
-      background: var(--sidebar-bg);
-      border-right: 1px solid var(--sidebar-border);
-    }
-
-    /* ── Conversation Items ─────────────────────────────── */
-    .ss4-conv {
-      border-radius: 10px;
-      cursor: pointer;
-      transition: background 0.15s ease, box-shadow 0.15s ease;
-      position: relative;
-    }
-    .ss4-conv:hover {
-      background: var(--bg-hover);
-    }
-    .ss4-conv-active {
-      background: rgba(91,124,246,0.18) !important;
-    }
-    .ss4-conv-name { color: var(--text-primary); }
-    .ss4-conv-preview { color: var(--text-secondary); }
-    .ss4-conv-active::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      height: 60%;
-      width: 3px;
-      background: var(--accent);
-      border-radius: 0 3px 3px 0;
-    }
-
-    /* ── Search Input ───────────────────────────────────── */
-    .ss4-search-input {
-      background: var(--input-bg);
-      border: 1px solid var(--input-border);
-      color: var(--text-primary);
-      border-radius: 8px;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    .ss4-search-input::placeholder { color: var(--text-tertiary); }
-    .ss4-search-input:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--input-focus);
-    }
-    .ss4-search-icon { color: var(--text-tertiary); }
-
-    /* ── Chat Header ────────────────────────────────────── */
-    .ss4-chat-header {
-      background: var(--bg-elevated);
-      border-bottom: 1px solid var(--border-1);
-    }
-
-    /* ── Message Bubbles ────────────────────────────────── */
-    .ss4-bubble-own {
-      background: var(--bubble-own-bg);
-      box-shadow: var(--bubble-own-shadow);
-      color: #fff;
-      border-radius: 18px 18px 4px 18px;
-    }
-    .ss4-bubble-other {
-      background: var(--bubble-other-bg);
-      border: 1px solid var(--bubble-other-border);
-      color: var(--text-primary);
-      border-radius: 18px 18px 18px 4px;
-      box-shadow: var(--shadow-sm);
-    }
-    .ss4-msg-column {
-      width: fit-content;
-      max-width: min(68%, 42rem);
-    }
-    .ss4-msg-bubble {
-      width: 100%;
-      max-width: 100%;
-      overflow: hidden;
-    }
-    .ss4-attachment-item {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-    }
-    .ss4-attachment-media {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      height: auto;
-      object-fit: cover;
-    }
-    .ss4-attachment-video {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      height: auto;
-    }
-
-    /* ── Input area ─────────────────────────────────────── */
-    .ss4-input-wrap {
-      background: var(--input-bg);
-      border: 1.5px solid var(--input-border);
-      border-radius: 14px;
-      transition: border-color 0.18s ease, box-shadow 0.18s ease;
-    }
-    .ss4-input-wrap:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--input-focus);
-    }
-
-    /* ── Send Button ────────────────────────────────────── */
-    .ss4-send-btn {
-      background: var(--accent);
-      color: #fff;
-      border-radius: 10px;
-      transition: all 0.15s ease;
-      box-shadow: 0 2px 8px rgba(91,124,246,0.3);
-    }
-    .ss4-send-btn:hover:not(:disabled) {
-      background: var(--accent-hover);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(91,124,246,0.4);
-    }
-    .ss4-send-btn:disabled {
-      background: var(--surface-2);
-      box-shadow: none;
-      cursor: not-allowed;
-    }
-
-    /* ── Icon Buttons ───────────────────────────────────── */
-    .ss4-icon-btn {
-      border-radius: 8px;
-      color: var(--text-tertiary);
-      transition: all 0.15s ease;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .ss4-icon-btn:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-    }
-
-    /* ── Pill Buttons ───────────────────────────────────── */
-    .ss4-pill-btn {
-      border-radius: 8px;
-      border: 1px solid var(--border-2);
-      background: var(--bg-hover);
-      color: var(--text-secondary);
-      transition: all 0.15s ease;
-    }
-    .ss4-pill-btn:hover {
-      background: var(--bg-active);
-      border-color: var(--border-3);
-      color: var(--text-primary);
-    }
-
-    /* ── Video Button ───────────────────────────────────── */
-    .ss4-video-btn {
-      background: rgba(91,124,246,0.1);
-      border: 1px solid rgba(91,124,246,0.2);
-      color: var(--accent-text);
-      border-radius: 8px;
-      transition: all 0.15s ease;
-    }
-    .ss4-video-btn:hover {
-      background: rgba(91,124,246,0.18);
-      border-color: rgba(91,124,246,0.35);
-    }
-
-    /* ── AI Button ──────────────────────────────────────── */
-    .ss4-ai-btn {
-      background: linear-gradient(135deg, rgba(120,80,220,0.12), rgba(91,124,246,0.08));
-      border: 1px solid rgba(150,100,240,0.2);
-      color: #b49dff;
-      border-radius: 8px;
-      transition: all 0.15s ease;
-      position: relative;
-      overflow: hidden;
-    }
-    .ss4-ai-btn:hover {
-      border-color: rgba(150,100,240,0.4);
-      box-shadow: 0 0 16px rgba(120,80,220,0.15);
-    }
-    @keyframes ss4-shimmer {
-      0% { background-position: -200% center; }
-      100% { background-position: 200% center; }
-    }
-    .ss4-ai-text {
-      background: linear-gradient(90deg, #b49dff 0%, #a5b8ff 40%, #c4a0ff 70%, #b49dff 100%);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      animation: ss4-shimmer 3s linear infinite;
-    }
-
-    /* ── Reply Bar ──────────────────────────────────────── */
-    .ss4-reply-bar {
-      background: var(--accent-muted);
-      border: 1px solid rgba(91,124,246,0.2);
-      border-left: 3px solid var(--accent);
-      border-radius: 10px;
-    }
-
-    /* ── Modals / Overlays ──────────────────────────────── */
-    .ss4-overlay {
-      background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-    .ss4-modal {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-2);
-      border-radius: 16px;
-      box-shadow: var(--shadow-lg);
-    }
-
-    /* ── Avatar styles ──────────────────────────────────── */
-    .ss4-ava-accent {
-      background: linear-gradient(140deg, #3a5ce0, #5b7cf6);
-    }
-    .ss4-ava-purple {
-      background: linear-gradient(140deg, #7038c0, #9b6fd6);
-    }
-    .ss4-ava-teal {
-      background: linear-gradient(140deg, #0e7c6a, #22b060);
-    }
-
-    /* ── Online Dot ─────────────────────────────────────── */
-    .ss4-online-dot {
-      background: var(--positive);
-      box-shadow: 0 0 0 2px var(--sidebar-bg), 0 0 6px rgba(52,201,125,0.6);
-    }
-
-    /* ── Typing Indicator ───────────────────────────────── */
-    @keyframes ss4-dot-bounce {
-      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-      40% { transform: translateY(-4px); opacity: 1; }
-    }
-    .ss4-typing-dot {
-      animation: ss4-dot-bounce 1.4s ease-in-out infinite;
-    }
-
-    /* ── Status badge ───────────────────────────────────── */
-    .ss4-status-live {
-      background: rgba(91,124,246,0.12);
-      border: 1px solid rgba(91,124,246,0.2);
-      color: var(--accent-text);
-    }
-    .ss4-status-offline {
-      background: var(--bg-subtle);
-      border: 1px solid var(--border-1);
-      color: var(--text-tertiary);
-    }
-
-    /* ── Hover actions ──────────────────────────────────── */
-    .ss4-msg-actions {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-2);
-      border-radius: 10px;
-      box-shadow: var(--shadow-md);
-    }
-
-    /* ── Section label ──────────────────────────────────── */
-    .ss4-section-label {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border-1);
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      font-weight: 700;
-    }
-
-    /* ── Scrollbar ──────────────────────────────────────── */
-    .ss4-scroll::-webkit-scrollbar { width: 4px; }
-    .ss4-scroll::-webkit-scrollbar-track { background: transparent; }
-    .ss4-scroll::-webkit-scrollbar-thumb {
-      background: var(--scrollbar);
-      border-radius: 4px;
-    }
-
-    /* ── Date separator ─────────────────────────────────── */
-    .ss4-date-line {
-      height: 1px;
-      background: var(--border-1);
-    }
-    .ss4-date-chip {
-      background: var(--surface-2);
-      border: 1px solid var(--border-1);
-      border-radius: 20px;
-      color: var(--text-tertiary);
-      font-size: 11px;
-      padding: 3px 12px;
-      white-space: nowrap;
-    }
-
-    /* ── Video Call ─────────────────────────────────────── */
-    .ss4-vcall-modal {
-      background: #0d1117;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 20px;
-      box-shadow: var(--shadow-lg);
-    }
-    .ss4-vcall-screen {
-      background: radial-gradient(ellipse at 50% 30%, #141e3a 0%, #0a0d14 100%);
-      border-radius: 0;
-      position: relative;
-      overflow: hidden;
-    }
-    .ss4-vcall-screen::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse at 50% 20%, rgba(91,124,246,0.06) 0%, transparent 60%);
-      pointer-events: none;
-    }
-    .ss4-vcall-ctrl {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 50%;
-      transition: all 0.2s ease;
-    }
-    .ss4-vcall-ctrl:hover {
-      background: rgba(255,255,255,0.14);
-    }
-    .ss4-vcall-end {
-      background: linear-gradient(145deg, #d93025, #e53e35);
-      border-radius: 50%;
-      box-shadow: 0 4px 20px rgba(217,48,37,0.4);
-      transition: all 0.2s ease;
-    }
-    .ss4-vcall-end:hover {
-      transform: scale(1.06);
-      box-shadow: 0 6px 28px rgba(217,48,37,0.5);
-    }
-    @keyframes ss4-call-ring {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(91,124,246,0.4); }
-      50% { box-shadow: 0 0 0 12px rgba(91,124,246,0); }
-    }
-    .ss4-calling-ring {
-      animation: ss4-call-ring 2s ease-in-out infinite;
-    }
-
-    /* ── Tab Switcher ───────────────────────────────────── */
-    .ss4-tab-bar {
-      background: rgba(255,255,255,0.05);
-      border-radius: 8px;
-      padding: 3px;
-    }
-    .ss4-tab {
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      transition: all 0.15s ease;
-      color: rgba(255,255,255,0.4);
-    }
-    .ss4-tab-active {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(91,124,246,0.35);
-    }
-
-    /* ── Logo Mark ──────────────────────────────────────── */
-    .ss4-logo-mark {
-      background: linear-gradient(140deg, #3a5ce0, #5b7cf6);
-      box-shadow: 0 0 0 1px rgba(91,124,246,0.3), 0 4px 16px rgba(91,124,246,0.2);
-      border-radius: 10px;
-    }
-
-    /* ── New Message FAB ────────────────────────────────── */
-    .ss4-new-btn {
-      background: rgba(91,124,246,0.15);
-      border: 1px solid rgba(91,124,246,0.25);
-      border-radius: 8px;
-      color: var(--accent-text);
-      transition: all 0.15s ease;
-    }
-    .ss4-new-btn:hover {
-      background: rgba(91,124,246,0.25);
-    }
-
-    /* ── Theme Toggle ───────────────────────────────────── */
-    .ss4-theme-btn {
-      background: var(--bg-hover);
-      border: 1px solid var(--border-2);
-      border-radius: 8px;
-      color: var(--text-tertiary);
-      transition: all 0.15s ease;
-    }
-    .ss4-theme-btn:hover {
-      color: var(--text-primary);
-      border-color: var(--border-3);
-    }
-
-    /* ── File attachment ────────────────────────────────── */
-    .ss4-file-own {
-      background: rgba(0,0,0,0.2);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-    }
-    .ss4-file-other {
-      background: var(--surface-2);
-      border: 1px solid var(--border-1);
-      border-radius: 10px;
-    }
-
-    /* ── Unread badge ───────────────────────────────────── */
-    .ss4-badge {
-      background: var(--accent);
-      color: #fff;
-      font-size: 9px;
-      font-weight: 700;
-      border-radius: 10px;
-      min-width: 16px;
-      height: 16px;
-      line-height: 16px;
-      padding: 0 4px;
-      text-align: center;
-    }
-
-    /* ── Message load animation ─────────────────────────── */
-    @keyframes ss4-fade-up {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .ss4-msg-enter {
-      animation: ss4-fade-up 0.2s ease forwards;
-    }
-
-    /* ── Empty state icon ───────────────────────────────── */
-    .ss4-empty-icon {
-      background: var(--accent-muted);
-      border: 1px dashed rgba(91,124,246,0.25);
-      border-radius: 16px;
-    }
-
-    /* ── Divider ────────────────────────────────────────── */
-    .ss4-divider { height: 1px; background: var(--border-1); }
+      --bg-base:#f4f5f7; --bg-elevated:#ffffff; --bg-overlay:#f9fafb;
+      --bg-hover:rgba(0,0,0,0.03); --bg-active:rgba(91,124,246,0.08); --bg-subtle:rgba(0,0,0,0.02);
+      --surface-1:#ffffff; --surface-2:#f4f5f7; --surface-3:#eaecf0;
+      --border-1:rgba(0,0,0,0.06); --border-2:rgba(0,0,0,0.09); --border-3:rgba(0,0,0,0.14);
+      --accent:#4a6cf0; --accent-muted:rgba(74,108,240,0.1); --accent-hover:#3a5ce0; --accent-text:#4a6cf0;
+      --positive:#22b060; --positive-muted:rgba(34,176,96,0.1); --warning:#e0922a; --danger:#dc3545; --danger-muted:rgba(220,53,69,0.08);
+      --text-primary:rgba(0,0,0,0.87); --text-secondary:rgba(0,0,0,0.50); --text-tertiary:rgba(0,0,0,0.32); --text-disabled:rgba(0,0,0,0.20);
+      --bubble-own-bg:linear-gradient(145deg,#4a6cf0,#5b7cf6); --bubble-own-shadow:0 3px 14px rgba(74,108,240,0.22);
+      --bubble-other-bg:#ffffff; --bubble-other-border:rgba(0,0,0,0.09);
+      --sidebar-bg:#ffffff; --sidebar-border:rgba(0,0,0,0.08);
+      --input-bg:#ffffff; --input-border:rgba(0,0,0,0.1); --input-focus:rgba(74,108,240,0.3);
+      --scrollbar:rgba(0,0,0,0.1);
+      --shadow-sm:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);
+      --shadow-md:0 4px 16px rgba(0,0,0,0.1),0 2px 6px rgba(0,0,0,0.06);
+      --shadow-lg:0 20px 60px rgba(0,0,0,0.2),0 8px 24px rgba(0,0,0,0.1);
+      --wallpaper:none;
+    }
+    .ss4 { font-family:'Geist',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg-base); color:var(--text-primary); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .ss4-display { font-family:'Cabinet Grotesk',sans-serif; }
+    .ss4-mono { font-family:'Geist Mono',monospace; }
+    .ss4-topbar { background:var(--bg-elevated); border-bottom:1px solid var(--border-1); }
+    .ss4-sidebar { background:var(--sidebar-bg); border-right:1px solid var(--sidebar-border); }
+    .ss4-conv { border-radius:10px; cursor:pointer; transition:background .15s ease,box-shadow .15s ease; position:relative; }
+    .ss4-conv:hover { background:var(--bg-hover); }
+    .ss4-conv-active { background:rgba(91,124,246,0.18)!important; }
+    .ss4-conv-name { color:var(--text-primary); }
+    .ss4-conv-preview { color:var(--text-secondary); }
+    .ss4-conv-active::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); height:60%; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
+    .ss4-search-input { background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:8px; transition:border-color .15s ease,box-shadow .15s ease; }
+    .ss4-search-input::placeholder { color:var(--text-tertiary); }
+    .ss4-search-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
+    .ss4-search-icon { color:var(--text-tertiary); }
+    .ss4-chat-header { background:var(--bg-elevated); border-bottom:1px solid var(--border-1); }
+    .ss4-bubble-own { background:var(--bubble-own-bg); box-shadow:var(--bubble-own-shadow); color:#fff; border-radius:18px 18px 4px 18px; }
+    .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
+    .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
+    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; }
+    .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; }
+    .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
+    .ss4-send-btn { background:var(--accent); color:#fff; border-radius:10px; transition:all .15s ease; box-shadow:0 2px 8px rgba(91,124,246,0.3); }
+    .ss4-send-btn:hover:not(:disabled) { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 16px rgba(91,124,246,0.4); }
+    .ss4-send-btn:disabled { background:var(--surface-2); box-shadow:none; cursor:not-allowed; }
+    .ss4-icon-btn { border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; display:flex; align-items:center; justify-content:center; }
+    .ss4-icon-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .ss4-pill-btn { border-radius:8px; border:1px solid var(--border-2); background:var(--bg-hover); color:var(--text-secondary); transition:all .15s ease; }
+    .ss4-pill-btn:hover { background:var(--bg-active); border-color:var(--border-3); color:var(--text-primary); }
+    .ss4-video-btn { background:rgba(91,124,246,0.1); border:1px solid rgba(91,124,246,0.2); color:var(--accent-text); border-radius:8px; transition:all .15s ease; }
+    .ss4-video-btn:hover { background:rgba(91,124,246,0.18); border-color:rgba(91,124,246,0.35); }
+    .ss4-ai-btn { background:linear-gradient(135deg,rgba(120,80,220,0.12),rgba(91,124,246,0.08)); border:1px solid rgba(150,100,240,0.2); color:#b49dff; border-radius:8px; transition:all .15s ease; position:relative; overflow:hidden; }
+    .ss4-ai-btn:hover { border-color:rgba(150,100,240,0.4); box-shadow:0 0 16px rgba(120,80,220,0.15); }
+    @keyframes ss4-shimmer { 0%{background-position:-200% center;} 100%{background-position:200% center;} }
+    .ss4-ai-text { background:linear-gradient(90deg,#b49dff 0%,#a5b8ff 40%,#c4a0ff 70%,#b49dff 100%); background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:ss4-shimmer 3s linear infinite; }
+    .ss4-reply-bar { background:var(--accent-muted); border:1px solid rgba(91,124,246,0.2); border-left:3px solid var(--accent); border-radius:10px; }
+    .ss4-overlay { background:rgba(0,0,0,0.6); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+    .ss4-modal { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:16px; box-shadow:var(--shadow-lg); }
+    .ss4-ava-accent { background:linear-gradient(140deg,#3a5ce0,#5b7cf6); }
+    .ss4-ava-purple { background:linear-gradient(140deg,#7038c0,#9b6fd6); }
+    .ss4-ava-teal { background:linear-gradient(140deg,#0e7c6a,#22b060); }
+    .ss4-online-dot { background:var(--positive); box-shadow:0 0 0 2px var(--sidebar-bg),0 0 6px rgba(52,201,125,0.6); }
+    @keyframes ss4-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4;} 40%{transform:translateY(-4px);opacity:1;} }
+    .ss4-typing-dot { animation:ss4-dot-bounce 1.4s ease-in-out infinite; }
+    .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
+    .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
+    .ss4-scroll::-webkit-scrollbar { width:4px; }
+    .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
+    .ss4-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar); border-radius:4px; }
+    .ss4-date-line { height:1px; background:var(--border-1); }
+    .ss4-date-chip { background:var(--surface-2); border:1px solid var(--border-1); border-radius:20px; color:var(--text-tertiary); font-size:11px; padding:3px 12px; white-space:nowrap; }
+    .ss4-vcall-modal { background:#0d1117; border:1px solid rgba(255,255,255,0.08); border-radius:20px; box-shadow:var(--shadow-lg); }
+    .ss4-vcall-screen { background:radial-gradient(ellipse at 50% 30%,#141e3a 0%,#0a0d14 100%); position:relative; overflow:hidden; }
+    @keyframes ss4-call-ring { 0%,100%{box-shadow:0 0 0 0 rgba(91,124,246,0.4);} 50%{box-shadow:0 0 0 12px rgba(91,124,246,0);} }
+    .ss4-calling-ring { animation:ss4-call-ring 2s ease-in-out infinite; }
+    .ss4-tab-bar { background:rgba(127,127,127,0.08); border-radius:8px; padding:3px; }
+    .ss4-tab { border-radius:6px; font-size:11px; font-weight:600; letter-spacing:.03em; transition:all .15s ease; color:var(--text-secondary); }
+    .ss4-tab-active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(91,124,246,0.35); }
+    .ss4-logo-mark { background:linear-gradient(140deg,#3a5ce0,#5b7cf6); box-shadow:0 0 0 1px rgba(91,124,246,0.3),0 4px 16px rgba(91,124,246,0.2); border-radius:10px; }
+    .ss4-new-btn { background:rgba(91,124,246,0.15); border:1px solid rgba(91,124,246,0.25); border-radius:8px; color:var(--accent-text); transition:all .15s ease; }
+    .ss4-new-btn:hover { background:rgba(91,124,246,0.25); }
+    .ss4-theme-btn { background:var(--bg-hover); border:1px solid var(--border-2); border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; }
+    .ss4-theme-btn:hover { color:var(--text-primary); border-color:var(--border-3); }
+    .ss4-file-own { background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.12); border-radius:10px; }
+    .ss4-file-other { background:var(--surface-2); border:1px solid var(--border-1); border-radius:10px; }
+    .ss4-badge { background:var(--accent); color:#fff; font-size:9px; font-weight:700; border-radius:10px; min-width:16px; height:16px; line-height:16px; padding:0 4px; text-align:center; }
+    @keyframes ss4-fade-up { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+    .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; }
+    .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(91,124,246,0.25); border-radius:16px; }
+    .ss4-divider { height:1px; background:var(--border-1); }
+    /* Reactions */
+    .ss4-reaction-chip { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-hover); font-size:11px; cursor:pointer; transition:all .12s ease; }
+    .ss4-reaction-chip:hover { border-color:var(--accent); }
+    .ss4-reaction-mine { border-color:var(--accent); background:var(--accent-muted); color:var(--accent-text); }
+    .ss4-react-pop { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:999px; box-shadow:var(--shadow-md); padding:4px; display:flex; gap:2px; }
+    .ss4-react-pop button { font-size:18px; line-height:1; padding:3px 5px; border-radius:8px; transition:transform .12s ease,background .12s ease; }
+    .ss4-react-pop button:hover { transform:scale(1.25); background:var(--bg-hover); }
+    /* Poll & Event cards */
+    .ss4-card { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); border-radius:14px; box-shadow:var(--shadow-sm); }
+    .ss4-poll-opt { position:relative; overflow:hidden; border:1px solid var(--border-2); border-radius:10px; cursor:pointer; transition:border-color .12s ease; }
+    .ss4-poll-opt:hover { border-color:var(--accent); }
+    .ss4-poll-fill { position:absolute; left:0; top:0; bottom:0; background:var(--accent-muted); transition:width .35s ease; }
+    .ss4-voice-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:14px; }
   `;
 }
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const ini = (n: string) => n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+const ini = (n: string) => (n || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 const fmtTime = (d: string) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 function fmtDate(d: string) {
   const date = new Date(d), now = new Date();
@@ -631,42 +204,36 @@ function fmtRelative(d?: string) {
   } catch { return ''; }
 }
 const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+const fmtDuration = (s: number) => {
+  const m = Math.floor(s / 60); const ss = Math.floor(s % 60);
+  return `${m}:${ss.toString().padStart(2, '0')}`;
+};
 
-// Renders message text with **bold** markdown support and preserved newlines
 function renderMessageContent(content: string): React.ReactNode[] {
   return content.split(/(\*\*[^*\n]+\*\*)/g).map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+      return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
     }
-    return part
-  })
+    return part;
+  });
 }
 function getErrorMessage(error: unknown, fallback: string) {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
+  if (typeof error === 'object' && error !== null && 'response' in error &&
     typeof (error as { response?: unknown }).response === 'object' &&
-    (error as { response?: { data?: unknown } }).response !== null
-  ) {
+    (error as { response?: { data?: unknown } }).response !== null) {
     const response = (error as { response?: { data?: { message?: unknown } } }).response;
     const message = response?.data?.message;
     if (typeof message === 'string' && message.trim()) return message;
   }
-
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
 }
 const isVideoFileLike = (file: Pick<File, 'name' | 'type'>) => {
-  const extension = file.name.includes('.')
-    ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
-    : '';
+  const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : '';
   return file.type.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(extension);
 };
 const isVideoAttachment = (attachment: SSMessage['attachments'][number]) => {
-  const extension = attachment.originalName.includes('.')
-    ? attachment.originalName.slice(attachment.originalName.lastIndexOf('.')).toLowerCase()
-    : '';
+  const extension = attachment.originalName.includes('.') ? attachment.originalName.slice(attachment.originalName.lastIndexOf('.')).toLowerCase() : '';
   return attachment.mimeType.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(extension);
 };
 const getConvName = (c: SSConversation, uid: string) =>
@@ -674,9 +241,22 @@ const getConvName = (c: SSConversation, uid: string) =>
 const getConvAvatar = (c: SSConversation, uid: string) =>
   c.type === 'group' ? c.avatar : c.members.find(m => m._id !== uid)?.avatar;
 
-// Deterministic avatar color per name
 const avaColors = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal'];
-const getAvaColor = (name: string) => avaColors[name.charCodeAt(0) % avaColors.length];
+const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % avaColors.length];
+
+interface CrmUser { _id: string; fullName: string; username: string; avatar?: string; role: string }
+
+// Build CSS variable overrides for a conversation theme
+function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
+  if (!theme?.accent) return {};
+  const a = theme.accent;
+  return {
+    ['--accent' as any]: a,
+    ['--accent-text' as any]: a,
+    ['--accent-muted' as any]: `${a}26`,
+    ['--bubble-own-bg' as any]: `linear-gradient(145deg, ${a}, ${a})`,
+  };
+}
 
 // ─── Date Separator ───────────────────────────────────────────────────────────
 function DateSep({ date }: { date: string }) {
@@ -689,96 +269,204 @@ function DateSep({ date }: { date: string }) {
   );
 }
 
+// ─── Voice note player ────────────────────────────────────────────────────────
+function VoicePlayer({ src, duration, own }: { src: string; duration?: number; own: boolean }) {
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = React.useState(false);
+  const [cur, setCur] = React.useState(0);
+  const total = duration || 0;
+  return (
+    <div className={cn('ss4-voice-bar', own ? 'ss4-file-own' : 'ss4-file-other')} style={{ minWidth: 200, maxWidth: 280 }}>
+      <button
+        onClick={() => { const a = audioRef.current; if (!a) return; if (playing) { a.pause(); } else { a.play(); } }}
+        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+        style={{ background: own ? 'rgba(255,255,255,0.18)' : 'var(--accent-muted)', color: own ? '#fff' : 'var(--accent)' }}>
+        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: own ? 'rgba(255,255,255,0.2)' : 'var(--border-2)' }}>
+          <div style={{ width: total ? `${Math.min(100, (cur / total) * 100)}%` : '0%', height: '100%', background: own ? '#fff' : 'var(--accent)', transition: 'width .1s linear' }} />
+        </div>
+        <p className="ss4-mono mt-1" style={{ fontSize: 10, color: own ? 'rgba(255,255,255,0.8)' : 'var(--text-tertiary)' }}>
+          {fmtDuration(cur)}{total ? ` / ${fmtDuration(total)}` : ''}
+        </p>
+      </div>
+      <audio ref={audioRef} src={src} preload="metadata"
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setCur(0); }}
+        onTimeUpdate={e => setCur((e.target as HTMLAudioElement).currentTime)} />
+    </div>
+  );
+}
+
+// ─── Poll card ────────────────────────────────────────────────────────────────
+function PollCard({ poll, uid, onVote }: { poll: NonNullable<SSMessage['poll']>; uid: string; onVote: (optionId: string) => void }) {
+  const totalVotes = poll.options.reduce((n, o) => n + (o.votes?.length || 0), 0);
+  return (
+    <div className="ss4-card p-3.5" style={{ minWidth: 240, maxWidth: 320 }}>
+      <div className="flex items-center gap-2 mb-2">
+        <BarChart3 className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+        <p className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{poll.question}</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {poll.options.map(o => {
+          const count = o.votes?.length || 0;
+          const pct = totalVotes ? Math.round((count / totalVotes) * 100) : 0;
+          const mine = (o.votes || []).includes(uid);
+          return (
+            <button key={o.id} onClick={() => !poll.closed && onVote(o.id)} className="ss4-poll-opt text-left px-3 py-2"
+              style={{ borderColor: mine ? 'var(--accent)' : 'var(--border-2)' }}>
+              <div className="ss4-poll-fill" style={{ width: `${pct}%` }} />
+              <div className="relative flex items-center justify-between gap-2">
+                <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: mine ? 700 : 500 }}>
+                  {mine && <CheckIcon className="inline h-3 w-3 mr-1" style={{ color: 'var(--accent)' }} />}{o.text}
+                </span>
+                <span className="ss4-mono shrink-0" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{pct}%</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+        {totalVotes} vote{totalVotes === 1 ? '' : 's'}{poll.allowMultiple ? ' · multiple choice' : ''}{poll.closed ? ' · closed' : ''}
+      </p>
+    </div>
+  );
+}
+
+// ─── Event card ───────────────────────────────────────────────────────────────
+function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event']>; uid: string; onRsvp: (r: 'going' | 'maybe' | 'declined') => void }) {
+  const mine: 'going' | 'maybe' | 'declined' | null =
+    (event.going || []).includes(uid) ? 'going' : (event.maybe || []).includes(uid) ? 'maybe' : (event.declined || []).includes(uid) ? 'declined' : null;
+  const start = new Date(event.startTime);
+  return (
+    <div className="ss4-card overflow-hidden" style={{ minWidth: 240, maxWidth: 320 }}>
+      <div className="px-3.5 py-2.5" style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-2">
+          <CalendarPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+          <p className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{event.title}</p>
+        </div>
+      </div>
+      <div className="px-3.5 py-3 flex flex-col gap-1.5">
+        <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          <Clock className="h-3.5 w-3.5 shrink-0" />
+          {start.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </div>
+        {event.location ? (
+          <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            <MapPin className="h-3.5 w-3.5 shrink-0" />{event.location}
+          </div>
+        ) : null}
+        {event.description ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{event.description}</p> : null}
+        <div className="flex items-center gap-1.5 mt-1">
+          {(['going', 'maybe', 'declined'] as const).map(r => (
+            <button key={r} onClick={() => onRsvp(r)}
+              className="flex-1 h-7 rounded-lg capitalize transition-all"
+              style={{ fontSize: 11, fontWeight: 600,
+                background: mine === r ? 'var(--accent)' : 'var(--bg-hover)',
+                color: mine === r ? '#fff' : 'var(--text-secondary)',
+                border: '1px solid var(--border-2)' }}>
+              {r} {(event as any)[r]?.length ? `· ${(event as any)[r].length}` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 // ─── Message Bubble ───────────────────────────────────────────────────────────
-function Bubble({ message, isOwn, showAvatar, onReply, onDelete, onPin, isPinned, onOpenMedia, disableActions }: {
-  message: SSMessage; isOwn: boolean; showAvatar: boolean;
+function Bubble({
+  message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
+  onReact, onVotePoll, onRsvp, nameFor, disableActions,
+}: {
+  message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
   onPin?: (id: string) => void; isPinned?: boolean;
   onOpenMedia?: (v: { src: string; type: 'image' | 'video'; name: string }) => void;
+  onReact: (id: string, emoji: string) => void;
+  onVotePoll: (id: string, optionId: string) => void;
+  onRsvp: (id: string, r: 'going' | 'maybe' | 'declined') => void;
+  nameFor: (id: string) => string;
   disableActions?: boolean;
 }) {
   const [hov, setHov] = React.useState(false);
+  const [reactOpen, setReactOpen] = React.useState(false);
+  const reactRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!reactOpen) return;
+    const h = (e: MouseEvent) => { if (reactRef.current && !reactRef.current.contains(e.target as Node)) setReactOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [reactOpen]);
 
   if (message.isDeleted) {
     return (
       <div className={cn('flex gap-2.5 px-5', isOwn && 'flex-row-reverse')}>
         <div className="w-8 shrink-0" />
-        <p className="text-xs italic py-1" style={{ color: 'var(--text-disabled)' }}>
-          This message was deleted
-        </p>
+        <p className="text-xs italic py-1" style={{ color: 'var(--text-disabled)' }}>This message was deleted</p>
       </div>
     );
   }
 
   const aColor = getAvaColor(message.sender.fullName);
+  const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
 
   return (
-    <div
-      className={cn('flex gap-2.5 px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse')}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
-      {/* Avatar */}
+    <div className={cn('flex gap-2.5 px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse')}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}>
       {showAvatar ? (
-        <div className={cn(
-          'h-8 w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden',
-          aColor
-        )}>
+        <div className={cn('h-8 w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender.avatar
             ? <img src={message.sender.avatar} alt="" className="w-full h-full object-cover" />
             : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(message.sender.fullName)}</span>}
         </div>
-      ) : (
-        <div className="w-8 shrink-0" />
-      )}
+      ) : <div className="w-8 shrink-0" />}
 
       <div className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
-        {/* Sender name */}
         {showAvatar && !isOwn && (
-          <span className="px-1 font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {message.sender.fullName}
-          </span>
+          <span className="px-1 font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender.fullName}</span>
         )}
 
-        {/* Reply preview */}
         {message.replyTo && (
-          <div
-            className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar"
-          >
-            <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>
-              {message.replyTo.sender?.fullName}
-            </p>
-            <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-              {message.replyTo.content || '📎 Attachment'}
-            </p>
+          <div className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar">
+            <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>{message.replyTo.sender?.fullName}</p>
+            <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{message.replyTo.content || '📎 Attachment'}</p>
           </div>
         )}
 
-        {/* Text bubble — only rendered when there is text content */}
         {message.content ? (
-          <div className={cn(
-            'ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed wrap-break-word',
-            isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other'
-          )}>
-            <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {renderMessageContent(message.content)}
-            </p>
+          <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+            <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content)}</p>
           </div>
         ) : null}
 
-        {/* Attachments — rendered below the bubble, not inside it */}
-        {message.attachments.length > 0 && (
+        {/* GIF */}
+        {message.type === 'gif' && message.gif?.url && (
+          <img src={message.gif.url} alt={message.gif.title || 'GIF'} className="rounded-xl" style={{ maxWidth: 240, maxHeight: 240, display: 'block' }} />
+        )}
+
+        {/* Voice */}
+        {voiceAtt && <VoicePlayer src={voiceAtt.url} duration={voiceAtt.duration} own={isOwn} />}
+
+        {/* Poll */}
+        {message.type === 'poll' && message.poll && (
+          <PollCard poll={message.poll} uid={uid} onVote={(optId) => onVotePoll(message._id, optId)} />
+        )}
+
+        {/* Event */}
+        {message.type === 'event' && message.event && (
+          <EventCard event={message.event} uid={uid} onRsvp={(r) => onRsvp(message._id, r)} />
+        )}
+
+        {/* Attachments (images / videos / files) */}
+        {message.type !== 'voice' && message.attachments.length > 0 && (
           <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
-            {/* Images — click opens inline lightbox */}
             {message.attachments.filter(a => a.mimeType.startsWith('image/')).map((att, i) => (
               <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName })}
                 className="block text-left rounded-xl overflow-hidden cursor-zoom-in" style={{ maxWidth: 260 }}>
-                <img src={att.thumbnailUrl || att.url} alt={att.originalName}
-                  className="rounded-xl object-cover hover:opacity-90 transition-opacity"
-                  style={{ maxHeight: 200, maxWidth: 260, display: 'block' }} />
+                <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="rounded-xl object-cover hover:opacity-90 transition-opacity" style={{ maxHeight: 200, maxWidth: 260, display: 'block' }} />
               </button>
             ))}
-            {/* Videos — inline player */}
             {message.attachments.filter(isVideoAttachment).map((att, i) => (
               <div key={`video-${i}`} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
                 <video controls preload="metadata" className="block w-full rounded-xl" style={{ maxHeight: 220 }}>
@@ -786,14 +474,10 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete, onPin, isPinned
                 </video>
               </div>
             ))}
-            {/* Files */}
-            {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !isVideoAttachment(a)).map((att, i) => (
+            {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
               <a key={`file-${i}`} href={att.url} download={att.originalName}
-                className={cn('flex items-center gap-3 rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80 no-underline', isOwn ? 'ss4-file-own' : 'ss4-file-other')}
-                style={{ maxWidth: 280 }}
-              >
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: isOwn ? 'rgba(255,255,255,0.12)' : 'var(--accent-muted)' }}>
+                className={cn('flex items-center gap-3 rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80 no-underline', isOwn ? 'ss4-file-own' : 'ss4-file-other')} style={{ maxWidth: 280 }}>
+                <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: isOwn ? 'rgba(255,255,255,0.12)' : 'var(--accent-muted)' }}>
                   <FileText className="h-4 w-4" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -806,49 +490,59 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete, onPin, isPinned
           </div>
         )}
 
+        {/* Reactions */}
+        {message.reactions && message.reactions.length > 0 && (
+          <div className={cn('flex flex-wrap gap-1 mt-0.5', isOwn && 'justify-end')}>
+            {message.reactions.map(r => {
+              const mine = (r.users || []).includes(uid);
+              const who = (r.users || []).map(nameFor).filter(Boolean).join(', ');
+              return (
+                <button key={r.emoji} title={who} onClick={() => onReact(message._id, r.emoji)}
+                  className={cn('ss4-reaction-chip', mine && 'ss4-reaction-mine')}>
+                  <span>{r.emoji}</span><span className="ss4-mono" style={{ fontSize: 10 }}>{r.users.length}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Meta row */}
         <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
-          <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-            {fmtTime(message.createdAt)}
-          </span>
-          {isOwn && (
-            message.readBy.length > 1
-              ? <CheckCheck className="h-3 w-3" style={{ color: 'var(--positive)' }} />
-              : <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
-          )}
+          <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>
+          {isOwn && (message.readBy.length > 1
+            ? <CheckCheck className="h-3 w-3" style={{ color: 'var(--positive)' }} />
+            : <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />)}
         </div>
       </div>
 
       {/* Hover actions */}
       {hov && !disableActions && (
-        <div className={cn(
-          'ss4-msg-actions absolute top-0 flex items-center gap-0.5 px-1 py-1 z-10',
-          isOwn ? 'right-16' : 'left-16'
-        )}>
-          <button onClick={() => onReply(message)} className="ss4-icon-btn p-1.5" title="Reply">
-            <Reply className="h-3.5 w-3.5" />
-          </button>
+        <div ref={reactRef} className={cn('ss4-msg-actions absolute top-0 flex items-center gap-0.5 px-1 py-1 z-10', isOwn ? 'right-16' : 'left-16')}>
+          <div className="relative">
+            <button onClick={() => setReactOpen(v => !v)} className="ss4-icon-btn p-1.5" title="React"><SmilePlus className="h-3.5 w-3.5" /></button>
+            {reactOpen && (
+              <div className="absolute bottom-full mb-1 left-0 ss4-react-pop z-20">
+                {SS4_REACTIONS.map(e => (
+                  <button key={e} onClick={() => { onReact(message._id, e); setReactOpen(false); }}>{e}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => onReply(message)} className="ss4-icon-btn p-1.5" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
           {onPin && (
-            <button
-              onClick={() => onPin(message._id)}
-              className="p-1.5 rounded-lg transition-all"
+            <button onClick={() => onPin(message._id)} className="p-1.5 rounded-lg transition-all"
               style={{ color: isPinned ? 'var(--accent)' : 'var(--text-tertiary)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-muted)'; e.currentTarget.style.color = 'var(--accent)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = isPinned ? 'var(--accent)' : 'var(--text-tertiary)'; }}
-              title={isPinned ? 'Unpin' : 'Pin'}
-            >
+              title={isPinned ? 'Unpin' : 'Pin'}>
               <Pin className="h-3.5 w-3.5" />
             </button>
           )}
           {isOwn && (
-            <button
-              onClick={() => onDelete(message._id)}
-              className="p-1.5 rounded-lg transition-all"
-              style={{ color: 'var(--text-tertiary)' }}
+            <button onClick={() => onDelete(message._id)} className="p-1.5 rounded-lg transition-all" style={{ color: 'var(--text-tertiary)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-muted)'; e.currentTarget.style.color = 'var(--danger)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-              title="Delete"
-            >
+              title="Delete">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
@@ -859,240 +553,120 @@ function Bubble({ message, isOwn, showAvatar, onReply, onDelete, onPin, isPinned
 }
 
 // ─── Video Call Modal ─────────────────────────────────────────────────────────
-function VideoCallModal({
-  conv,
-  uid,
-  onClose,
-  allUsers,
-  token
-}: {
-  conv: SSConversation;
-  uid: string;
-  onClose: () => void;
-  allUsers: CrmUser[];
-  token: string;
+function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
+  conv: SSConversation; uid: string; onClose: () => void; allUsers: CrmUser[]; token: string;
 }) {
   const [showJitsi, setShowJitsi] = React.useState(false);
-  const [isConnecting, setIsConnecting] = React.useState(true);
-  const [jitsiToken, setJitsiToken] = React.useState<string | null>(null);
-
   const name = getConvName(conv, uid);
-  const currentUser = React.useMemo(() => {
-    return allUsers.find(u => u._id === uid) || { fullName: 'User' };
-  }, [uid, allUsers]);
+  const currentUser = React.useMemo(() => allUsers.find(u => u._id === uid) || { fullName: 'User' }, [uid, allUsers]);
+  const roomName = React.useMemo(() => `supraspace-${conv._id}`, [conv._id]);
 
-  // Generate a unique, consistent room name based on conversation ID
-  const roomName = React.useMemo(() => {
-    return `supraspace-${conv._id}`;
-  }, [conv._id]);
-
-  // Fetch Jitsi token from backend
   React.useEffect(() => {
     const fetchToken = async () => {
       try {
-        const res = await apiClient.post(
-          `/api/supraspace/conversations/${conv._id}/video-token`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const tokenData = res.data?.data?.token;
-        if (tokenData) {
-          setJitsiToken(tokenData);
-        }
-      } catch (err) {
-        console.error('[VideoCall] Failed to fetch Jitsi token:', err);
-        // Continue without token - works with public Jitsi instances
-      }
+        await apiClient.post(`/api/supraspace/conversations/${conv._id}/video-token`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      } catch (err) { console.error('[VideoCall] token:', err); }
     };
-
-    if (token && conv._id) {
-      fetchToken();
-    }
+    if (token && conv._id) fetchToken();
   }, [token, conv._id]);
 
   React.useEffect(() => {
-    // Show Jitsi after connection delay
-    const timer = setTimeout(() => {
-      setIsConnecting(false);
-      setShowJitsi(true);
-    }, 1500);
-
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setShowJitsi(true), 1200);
+    return () => clearTimeout(t);
   }, []);
 
-  // If Jitsi is loaded, render it
   if (showJitsi) {
-    return (
-      <JitsiMeet
-        roomName={roomName}
-        displayName={currentUser.fullName}
-        onClose={onClose}
-        onError={(error) => {
-          console.error('[Jitsi] Error:', error);
-          onClose();
-        }}
-      />
-    );
+    return <JitsiMeet roomName={roomName} displayName={currentUser.fullName} onClose={onClose} onError={(e) => { console.error('[Jitsi]', e); onClose(); }} />;
   }
 
-  // Show connecting screen
   const avatar = getConvAvatar(conv, uid);
-
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4 ss4-vcall-modal w-full max-w-sm overflow-hidden flex flex-col">
-        {/* Header */}
+      <div className="ss4 ss4-vcall-modal w-full max-w-sm overflow-hidden flex flex-col" data-theme="dark">
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="flex items-center gap-2.5">
             <Video className="h-4 w-4" style={{ color: 'var(--accent-text)' }} />
             <span className="font-semibold" style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>Video Call</span>
           </div>
-          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: 'rgba(255,255,255,0.5)' }}>
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: 'rgba(255,255,255,0.5)' }}><X className="h-3.5 w-3.5" /></button>
         </div>
-
-        {/* Connecting screen */}
         <div className="ss4-vcall-screen flex flex-col items-center justify-center" style={{ height: 260 }}>
           <div className="flex flex-col items-center gap-4 relative z-10">
-            <div className={cn(
-              'h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring',
-              getAvaColor(name)
-            )}>
-              {avatar
-                ? <img src={avatar} alt="" className="w-full h-full object-cover" />
-                : conv.type === 'group'
-                  ? <Hash className="h-7 w-7 text-white opacity-70" />
+            <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring', getAvaColor(name))}>
+              {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+                : conv.type === 'group' ? <Hash className="h-7 w-7 text-white opacity-70" />
                   : <span className="text-white font-bold" style={{ fontSize: 24 }}>{ini(name)}</span>}
             </div>
             <div className="flex flex-col items-center gap-1.5">
               <p className="ss4-display font-bold" style={{ fontSize: 17, color: '#fff' }}>{name}</p>
               <div className="flex items-center gap-2">
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Connecting</span>
-                {[0, 1, 2].map(i => (
-                  <span key={i} className="ss4-typing-dot h-1 w-1 rounded-full inline-block"
-                    style={{ background: 'rgba(255,255,255,0.4)', animationDelay: `${i * 0.2}s` }} />
-                ))}
+                {[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1 w-1 rounded-full inline-block" style={{ background: 'rgba(255,255,255,0.4)', animationDelay: `${i * 0.2}s` }} />)}
               </div>
             </div>
           </div>
         </div>
-
-        <div className="pb-4 pt-2 text-center">
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>
-            Powered by Jitsi Meet
-          </p>
-        </div>
+        <div className="pb-4 pt-2 text-center"><p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>Powered by Jitsi Meet</p></div>
       </div>
     </div>
   );
 }
 
 // ─── New Conversation Modal ───────────────────────────────────────────────────
-interface CrmUser { _id: string; fullName: string; username: string; avatar?: string; role: string }
-
 function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = 'dm' }: {
-  users: CrmUser[]; onClose: () => void;
-  onStartDM: (id: string) => void;
-  onCreateGroup: (name: string, ids: string[]) => void;
-  defaultTab?: 'dm' | 'group';
+  users: CrmUser[]; onClose: () => void; onStartDM: (id: string) => void; onCreateGroup: (name: string, ids: string[]) => void; defaultTab?: 'dm' | 'group';
 }) {
   const [tab, setTab] = React.useState<'dm' | 'group'>(defaultTab);
   const [q, setQ] = React.useState('');
   const [groupName, setGroupName] = React.useState('');
   const [sel, setSel] = React.useState<string[]>([]);
-
-  const list = users.filter(u =>
-    u.fullName.toLowerCase().includes(q.toLowerCase()) ||
-    u.username.toLowerCase().includes(q.toLowerCase())
-  );
+  const list = users.filter(u => u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
   const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>
-            New Conversation
-          </h2>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7">
-            <X className="h-4 w-4" />
-          </button>
+          <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>New Conversation</h2>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
-
-        {/* Tab switcher */}
         <div className="px-4 pt-4 pb-3">
           <div className="ss4-tab-bar flex gap-1">
             {(['dm', 'group'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={cn('flex-1 h-7 ss4-tab', t === tab && 'ss4-tab-active')}>
-                {t === 'dm' ? 'Direct Message' : 'New Group'}
-              </button>
+              <button key={t} onClick={() => setTab(t)} className={cn('flex-1 h-7 ss4-tab', t === tab && 'ss4-tab-active')}>{t === 'dm' ? 'Direct Message' : 'New Channel'}</button>
             ))}
           </div>
         </div>
-
         <div className="px-4 pb-4 space-y-3">
           {tab === 'group' && (
-            <input
-              value={groupName}
-              onChange={e => setGroupName(e.target.value)}
-              placeholder="Group name..."
-              className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input"
-              style={{ fontFamily: 'Geist, sans-serif' }}
-            />
+            <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
           )}
           <div className="relative">
-            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)' }} />
-            <input
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder="Search people..."
-              className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input"
-              style={{ fontFamily: 'Geist, sans-serif' }}
-            />
+            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
           </div>
-
           <div className="space-y-0.5 max-h-56 overflow-y-auto ss4-scroll -mx-1 px-1">
             {list.map(u => {
               const active = sel.includes(u._id);
               return (
-                <button key={u._id}
-                  onClick={() => tab === 'dm' ? onStartDM(u._id) : toggle(u._id)}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left',
-                    active ? 'bg-(--accent-muted) border border-[rgba(91,124,246,0.2)]' : 'hover:bg-(--bg-hover)'
-                  )}
-                >
+                <button key={u._id} onClick={() => tab === 'dm' ? onStartDM(u._id) : toggle(u._id)}
+                  className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
+                  style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
                   <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                    {u.avatar
-                      ? <img src={u.avatar} alt="" className="w-full h-full object-cover" />
-                      : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
                     <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
                   </div>
-                  {tab === 'group' && active && (
-                    <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}>
-                      <CheckIcon className="h-3 w-3" style={{ color: '#fff' }} />
-                    </div>
-                  )}
+                  {tab === 'group' && active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
                 </button>
               );
             })}
           </div>
-
           {tab === 'group' && sel.length > 0 && (
-            <button
-              onClick={() => groupName.trim() && onCreateGroup(groupName, sel)}
-              disabled={!groupName.trim()}
-              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2"
-              style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}
-            >
-              <Users className="h-3.5 w-3.5" />
-              Create Group · {sel.length} {sel.length === 1 ? 'member' : 'members'}
+            <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel)} disabled={!groupName.trim()}
+              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
+              <Users className="h-3.5 w-3.5" /> Create Channel · {sel.length} {sel.length === 1 ? 'member' : 'members'}
             </button>
           )}
         </div>
@@ -1101,13 +675,12 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = '
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-// ─── Inline Lightbox Modal ────────────────────────────────────────────────────
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
 function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image' | 'video'; name: string; onClose: () => void }) {
   React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
   }, [onClose]);
   return (
     <div className="ss4-overlay fixed inset-0 z-200 flex flex-col items-center justify-center p-4" onClick={onClose}>
@@ -1115,12 +688,8 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
         <div className="flex items-center justify-between w-full px-1">
           <p className="font-medium truncate" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{name}</p>
           <div className="flex items-center gap-2">
-            <a href={src} download={name} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 no-underline" style={{ fontSize: 11 }}>
-              <Download className="h-3 w-3" /> Download
-            </a>
-            <button onClick={onClose} className="ss4-icon-btn h-8 w-8" style={{ background: 'rgba(255,255,255,0.1)' }}>
-              <X className="h-4 w-4" style={{ color: '#fff' }} />
-            </button>
+            <a href={src} download={name} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 no-underline" style={{ fontSize: 11 }}><Download className="h-3 w-3" /> Download</a>
+            <button onClick={onClose} className="ss4-icon-btn h-8 w-8" style={{ background: 'rgba(255,255,255,0.1)' }}><X className="h-4 w-4" style={{ color: '#fff' }} /></button>
           </div>
         </div>
         {type === 'image'
@@ -1131,41 +700,314 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
   );
 }
 
-// ─── File Attachment Preview (pending files) ──────────────────────────────────
+// ─── Pending file preview ─────────────────────────────────────────────────────
 function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void }) {
   const isImg = file.type.startsWith('image/');
   const isVid = file.type.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(file.name.slice(file.name.lastIndexOf('.')).toLowerCase());
   const [preview, setPreview] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (isImg || isVid) {
-      const url = URL.createObjectURL(file);
-      setPreview(url);
-      return () => URL.revokeObjectURL(url);
-    }
+    if (isImg || isVid) { const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }
   }, [file, isImg, isVid]);
   return (
     <div className="relative flex flex-col rounded-xl overflow-hidden shrink-0" style={{ width: 80, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-      {preview && isImg
-        ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 60 }} />
-        : preview && isVid
-          ? <video src={preview} className="w-full object-cover" style={{ height: 60 }} muted />
-          : <div className="flex items-center justify-center" style={{ height: 60, background: 'var(--accent-muted)' }}>
-            <FileText className="h-6 w-6" style={{ color: 'var(--accent)' }} />
-          </div>}
+      {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 60 }} />
+        : preview && isVid ? <video src={preview} className="w-full object-cover" style={{ height: 60 }} muted />
+          : <div className="flex items-center justify-center" style={{ height: 60, background: 'var(--accent-muted)' }}><FileText className="h-6 w-6" style={{ color: 'var(--accent)' }} /></div>}
       <div className="px-1.5 py-1">
         <p className="truncate" style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600 }}>{file.name}</p>
         <p className="ss4-mono" style={{ fontSize: 8, color: 'var(--text-disabled)' }}>{fmtSize(file.size)}</p>
       </div>
-      <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.6)' }}>
-        <X className="h-2.5 w-2.5" style={{ color: '#fff' }} />
-      </button>
+      <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}><X className="h-2.5 w-2.5" style={{ color: '#fff' }} /></button>
+    </div>
+  );
+}
+// ─── GIF Picker ───────────────────────────────────────────────────────────────
+function GifPicker({ onPick, onClose }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void }) {
+  const [q, setQ] = React.useState('');
+  const [gifs, setGifs] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const run = React.useCallback(async (query: string) => {
+    if (!GIPHY_KEY) return;
+    setLoading(true);
+    try {
+      const endpoint = query.trim()
+        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
+      const r = await fetch(endpoint);
+      const d = await r.json();
+      setGifs(d?.data || []);
+    } catch { setGifs([]); } finally { setLoading(false); }
+  }, []);
+  React.useEffect(() => { run(''); }, [run]);
+  React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
+
+  return (
+    <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden" style={{ width: 300, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+      <div className="p-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="relative">
+          <Search className="ss4-search-icon absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+          <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={GIPHY_KEY ? 'Search GIPHY...' : 'Set NEXT_PUBLIC_GIPHY_API_KEY'} className="w-full h-8 rounded-lg pl-8 pr-3 text-xs ss4-search-input" />
+        </div>
+      </div>
+      <div className="p-2 grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto ss4-scroll">
+        {loading && <div className="col-span-2 flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+        {!loading && gifs.length === 0 && <p className="col-span-2 text-center py-6" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{GIPHY_KEY ? 'No results' : 'GIPHY key not configured'}</p>}
+        {gifs.map((g: any) => {
+          const img = g.images?.fixed_height_small || g.images?.fixed_height;
+          return (
+            <button key={g.id} onClick={() => { onPick({ url: g.images?.original?.url || img?.url, width: Number(img?.width), height: Number(img?.height), title: g.title }); onClose(); }} className="rounded-lg overflow-hidden" style={{ aspectRatio: '1', background: 'var(--bg-hover)' }}>
+              <img src={img?.url} alt={g.title} className="w-full h-full object-cover" />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-export default function SupraSpacePage({ embedded = false }: { embedded?: boolean } = {}) {
+// ─── Poll Modal ───────────────────────────────────────────────────────────────
+function PollModal({ onClose, onCreate }: { onClose: () => void; onCreate: (q: string, opts: string[], multi: boolean) => void }) {
+  const [question, setQuestion] = React.useState('');
+  const [opts, setOpts] = React.useState(['', '']);
+  const [multi, setMulti] = React.useState(false);
+  const valid = question.trim() && opts.filter(o => o.trim()).length >= 2;
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2"><BarChart3 className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Create Poll</h2></div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="Ask a question..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
+          <div className="space-y-2">
+            {opts.map((o, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input value={o} onChange={e => setOpts(p => p.map((x, idx) => idx === i ? e.target.value : x))} placeholder={`Option ${i + 1}`} className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" />
+                {opts.length > 2 && <button onClick={() => setOpts(p => p.filter((_, idx) => idx !== i))} className="ss4-icon-btn h-7 w-7"><X className="h-3.5 w-3.5" /></button>}
+              </div>
+            ))}
+            {opts.length < 6 && <button onClick={() => setOpts(p => [...p, ''])} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 w-full justify-center" style={{ fontSize: 12 }}><Plus className="h-3.5 w-3.5" /> Add option</button>}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            <input type="checkbox" checked={multi} onChange={e => setMulti(e.target.checked)} /> Allow multiple answers
+          </label>
+          <button disabled={!valid} onClick={() => valid && onCreate(question.trim(), opts.map(o => o.trim()).filter(Boolean), multi)} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13, opacity: valid ? 1 : 0.4 }}>Create Poll</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Event Modal ──────────────────────────────────────────────────────────────
+function EventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: { title: string; description: string; location: string; startTime: string; endTime: string }) => void }) {
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [location, setLocation] = React.useState('');
+  const [startTime, setStartTime] = React.useState('');
+  const [endTime, setEndTime] = React.useState('');
+  const valid = title.trim() && startTime;
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2"><CalendarPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Create Event</h2></div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-2.5">
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
+          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location (optional)" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className="w-full rounded-lg px-3 py-2 text-sm ss4-search-input resize-none" />
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Starts</label>
+            <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1" />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ends (optional)</label>
+            <input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1" />
+          </div>
+          <button disabled={!valid} onClick={() => valid && onCreate({ title: title.trim(), description, location, startTime, endTime })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-1" style={{ fontSize: 13, opacity: valid ? 1 : 0.4 }}>Create Event</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Theme Modal ──────────────────────────────────────────────────────────────
+function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['theme']; onClose: () => void; onApply: (t: { accent: string | null; wallpaper: string | null }) => void }) {
+  const [accent, setAccent] = React.useState<string | null>(current?.accent || null);
+  const [wallpaper, setWallpaper] = React.useState<string | null>(current?.wallpaper || null);
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2"><Palette className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Chat Theme</h2></div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-4">
+          <div>
+            <p className="ss4-section-label mb-2">Presets</p>
+            <div className="grid grid-cols-4 gap-2">
+              {SS4_THEME_PRESETS.map(p => (
+                <button key={p.name} onClick={() => { setAccent(p.accent); setWallpaper(p.wallpaper); }}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
+                  style={{ border: `1px solid ${accent === p.accent ? 'var(--accent)' : 'var(--border-2)'}`, background: accent === p.accent ? 'var(--accent-muted)' : 'transparent' }}>
+                  <span className="h-7 w-7 rounded-full" style={{ background: p.accent || 'linear-gradient(140deg,#4a6cf0,#5b7cf6)' }} />
+                  <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{p.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="ss4-section-label mb-2">Custom color</p>
+            <div className="flex items-center gap-3">
+              <input type="color" value={accent || '#5b7cf6'} onChange={e => setAccent(e.target.value)} className="h-9 w-12 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid var(--border-2)' }} />
+              <span className="ss4-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{accent || 'default'}</span>
+            </div>
+          </div>
+          <button onClick={() => onApply({ accent, wallpaper })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13 }}>Apply Theme</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Manage Members Modal ─────────────────────────────────────────────────────
+function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
+  users: CrmUser[]; existingIds: string[]; onClose: () => void; onAdd: (ids: string[]) => void;
+}) {
+  const [q, setQ] = React.useState('');
+  const [sel, setSel] = React.useState<string[]>([]);
+  const list = users.filter(u => !existingIds.includes(u._id) && (u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase())));
+  const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2"><UserPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Add Members</h2></div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <div className="relative">
+            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
+          </div>
+          <div className="space-y-0.5 max-h-56 overflow-y-auto ss4-scroll -mx-1 px-1">
+            {list.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everyone is already a member</p>}
+            {list.map(u => {
+              const active = sel.includes(u._id);
+              return (
+                <button key={u._id} onClick={() => toggle(u._id)} className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')} style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                  <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
+                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                  </div>
+                  <div className="min-w-0 flex-1"><p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p></div>
+                  {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                </button>
+              );
+            })}
+          </div>
+          {sel.length > 0 && <button onClick={() => onAdd(sel)} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><UserPlus className="h-3.5 w-3.5" /> Add {sel.length} {sel.length === 1 ? 'member' : 'members'}</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Active Users Modal ───────────────────────────────────────────────────────
+function ActiveUsersModal({ users, presence, uid, onClose, onMessage }: {
+  users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void; onMessage: (id: string) => void;
+}) {
+  const online = users.filter(u => u._id !== uid && presence[u._id] === 'online');
+  const offline = users.filter(u => u._id !== uid && presence[u._id] !== 'online');
+  const Row = (u: CrmUser, isOn: boolean) => (
+    <button key={u._id} onClick={() => onMessage(u._id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-(--bg-hover)">
+      <div className="relative shrink-0">
+        <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
+          {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+        </div>
+        {isOn && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+        <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? '● Active now' : u.role || 'Offline'}</p>
+      </div>
+      <MessageSquare className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+    </button>
+  );
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ maxHeight: '80vh' }}>
+        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2"><Wifi className="h-4 w-4" style={{ color: 'var(--positive)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Active Now · {online.length}</h2></div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto ss4-scroll">
+          {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>● Online</span></div>}
+          {online.map(u => Row(u, true))}
+          {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
+          {offline.map(u => Row(u, false))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Summarize Modal ──────────────────────────────────────────────────────────
+function SummarizeModal({ token, conversationId, onClose }: { token: string; conversationId: string; onClose: () => void }) {
+  const [from, setFrom] = React.useState('');
+  const [to, setTo] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [summary, setSummary] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const run = async () => {
+    setLoading(true); setSummary(null);
+    try {
+      const body: any = { conversationId };
+      if (from) body.from = new Date(from).toISOString();
+      if (to) { const d = new Date(to); d.setHours(23, 59, 59, 999); body.to = d.toISOString(); }
+      const r = await apiClient.post('/api/supraleo/summarize', body, { headers: { Authorization: `Bearer ${token}` } });
+      setSummary(r.data?.data?.summary || 'No summary returned.');
+    } catch (e) { setSummary(getErrorMessage(e, 'Failed to summarize conversation.')); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-md overflow-hidden flex flex-col" style={{ maxHeight: '85vh' }}>
+        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" style={{ color: '#b49dff' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Summarize with Suprah Autrix</h2></div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3 overflow-y-auto ss4-scroll">
+          <div className="flex gap-2">
+            <div className="flex-1"><label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>From</label><input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1" /></div>
+            <div className="flex-1"><label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>To</label><input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1" /></div>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Leave dates empty to summarize the entire conversation.</p>
+          <button disabled={loading} onClick={run} className="w-full h-9 rounded-lg ss4-ai-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            <span className="ss4-ai-text">{loading ? 'Summarizing…' : 'Generate Summary'}</span>
+          </button>
+          {summary && (
+            <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{summary}</p>
+              <button onClick={() => { navigator.clipboard?.writeText(summary); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="ss4-pill-btn h-7 px-3 mt-3 flex items-center gap-1.5" style={{ fontSize: 11 }}>
+                <CheckIcon className="h-3 w-3" /> {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function SupraSpacePage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const embedded = pathname !== '/crm/supra-space';
   const { theme, setTheme } = useTheme();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [token, setToken] = React.useState('');
@@ -1174,7 +1016,6 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
 
   const [convos, setConvos] = React.useState<SSConversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
-  const [sideOpen, setSideOpen] = React.useState(true);
 
   const [msgs, setMsgs] = React.useState<Record<string, SSMessage[]>>({});
   const [loadingMsgs, setLoadingMsgs] = React.useState(false);
@@ -1192,11 +1033,10 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
   const [q, setQ] = React.useState('');
   const [videoCallConv, setVideoCallConv] = React.useState<SSConversation | null>(null);
 
-  const [supraLeoOpen, setSupraLeoOpen] = React.useState(false);
-  const [supraLeoLoading, setSupraLeoLoading] = React.useState(false);
-  const supraLeoRef = React.useRef<HTMLDivElement>(null);
+  const [autrixOpen, setAutrixOpen] = React.useState(false);
+  const [autrixLoading, setAutrixLoading] = React.useState(false);
+  const autrixRef = React.useRef<HTMLDivElement>(null);
 
-  // Info panel + emoji + pinned messages
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned'>('members');
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
@@ -1204,86 +1044,66 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
   const [gcNameInput, setGcNameInput] = React.useState('');
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const emojiRef = React.useRef<HTMLDivElement>(null);
-  // Lightbox
   const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string } | null>(null);
-  // Pin notification
-  const [pinBanner, setPinBanner] = React.useState<string | null>(null);
-  const pinBannerTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  // System events (pin, channel updates shown in chat stream)
-  const [systemEvents, setSystemEvents] = React.useState<Array<{ id: string; convId: string; text: string; ts: string }>>([]);
-  // Member profile mini-card
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
-  // Channel avatar upload ref
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
+
+  // New-feature state
+  const [showArchived, setShowArchived] = React.useState(false);
+  const [manageOpen, setManageOpen] = React.useState(false);
+  const [themeOpen, setThemeOpen] = React.useState(false);
+  const [pollOpen, setPollOpen] = React.useState(false);
+  const [eventOpen, setEventOpen] = React.useState(false);
+  const [gifOpen, setGifOpen] = React.useState(false);
+  const [activeUsersOpen, setActiveUsersOpen] = React.useState(false);
+  const [summarizeOpen, setSummarizeOpen] = React.useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = React.useState(false);
+  const createMenuRef = React.useRef<HTMLDivElement>(null);
+  const gifRef = React.useRef<HTMLDivElement>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+
+  // Voice recording
+  const [recording, setRecording] = React.useState(false);
+  const [recSeconds, setRecSeconds] = React.useState(0);
+  const recSecondsRef = React.useRef(0);                       // FIX: avoids stale duration in onstop closure
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const recChunksRef = React.useRef<Blob[]>([]);
+  const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const recStreamRef = React.useRef<MediaStream | null>(null);
+
+  // Global message search
+  const [msgResults, setMsgResults] = React.useState<any[]>([]);
+  const [searching, setSearching] = React.useState(false);
 
   const endRef = React.useRef<HTMLDivElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeConv = convos.find(c => c._id === activeId);
-  const activeMsgs = activeId ? (msgs[activeId] || []) : [];
-
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
 
-  React.useEffect(() => {
-    const t = localStorage.getItem('crm_token');
-    if (!t) { router.replace('/crm'); return; }
-    setToken(t);
-    const init = async () => {
-      try {
-        const [me, cv, us] = await Promise.all([
-          apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } }),
-          apiClient.get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } }),
-          apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } }),
-        ]);
-        setUid((me.data?.data || me.data)._id);
-        const fetchedConvos: SSConversation[] = cv.data?.data || [];
-        const fetchedUsers: CrmUser[] = us.data?.data || [];
-        setConvos(fetchedConvos);
-        setAllUsers(fetchedUsers);
+  const activeConv = convos.find(c => c._id === activeId);
+  const activeMsgs = activeId ? (msgs[activeId] || []) : [];
+  const isAdmin = !!(activeConv && (activeConv.admins || []).map(String).includes(uid));
+  const isReportGroup = activeConv?.name === 'Online Team Report';
 
-        // Cache the "Online Team Report" group ID so DayPulse can post there
-        const reportGroup = fetchedConvos.find(c => c.type === 'group' && c.name === 'Online Team Report');
-        if (reportGroup) localStorage.setItem('dp_groupchat_id', reportGroup._id);
-      } catch { router.replace('/crm'); }
-      finally { setLoading(false); }
-    };
-    init();
-  }, [router]);
+  const isPinnedConv = React.useCallback((c: SSConversation) => (c.pinnedBy || []).map(String).includes(uid), [uid]);
+  const isArchivedConv = React.useCallback((c: SSConversation) => (c.archivedBy || []).map(String).includes(uid), [uid]);
 
-  React.useEffect(() => {
-    return () => {
-      if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current);
-    };
+  // name lookup for reactions / who-reacted
+  const nameMap = React.useMemo(() => {
+    const m: Record<string, string> = { [uid]: 'You' };
+    allUsers.forEach(u => { m[u._id] = u.fullName; });
+    convos.forEach(c => c.members.forEach(mem => { if (!m[mem._id]) m[mem._id] = mem.fullName; }));
+    return m;
+  }, [allUsers, convos, uid]);
+  const nameFor = React.useCallback((id: string) => nameMap[id] || 'Someone', [nameMap]);
+
+  const patchConv = React.useCallback((id: string, patch: Partial<SSConversation> | ((c: SSConversation) => SSConversation)) => {
+    setConvos(p => p.map(c => c._id === id ? (typeof patch === 'function' ? patch(c) : { ...c, ...patch }) : c));
   }, []);
-
-  // Auto-open DM when arriving from CRM profile "Message" button (?userId=xxx)
-  const autoOpenHandledRef = React.useRef(false);
-  React.useEffect(() => {
-    if (loading || !token || autoOpenHandledRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const targetUserId = params.get('userId');
-    if (!targetUserId) return;
-    autoOpenHandledRef.current = true;
-    apiClient
-      .post(
-        '/api/supraspace/conversations/direct',
-        { targetUserId },
-        { headers: { Authorization: `Bearer ${token}` } },
-      )
-      .then((r) => {
-        const c = r.data?.data;
-        if (!c) return;
-        setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
-        setActiveId(c._id);
-        setSideOpen(false);
-        // Remove ?userId from URL without a full reload
-        const url = new URL(window.location.href);
-        url.searchParams.delete('userId');
-        window.history.replaceState({}, '', url.toString());
-      })
-      .catch(() => { });
-  }, [loading, token]);
+  const patchMsg = React.useCallback((convId: string, msgId: string, patch: Partial<SSMessage>) => {
+    setMsgs(p => ({ ...p, [convId]: (p[convId] || []).map(m => m._id === msgId ? { ...m, ...patch } : m) }));
+  }, []);
 
   const showUploadNotice = React.useCallback((kind: 'success' | 'error' | 'info', text: string) => {
     if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current);
@@ -1297,74 +1117,155 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
       if (ex.find(m => m._id === message._id)) return p;
       return { ...p, [conversationId]: [...ex, message] };
     });
-    setConvos(p => p.map(c => c._id === conversationId
-      ? { ...c, lastMessage: message, lastMessageAt: message.createdAt } : c
-    ).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+    setConvos(p => p.map(c => c._id === conversationId ? { ...c, lastMessage: message, lastMessageAt: message.createdAt } : c)
+      .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
   }, []);
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-  };
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
+  // ── Init ──
+  React.useEffect(() => {
+    const t = localStorage.getItem('crm_token');
+    if (!t) { router.replace('/crm'); return; }
+    setToken(t);
+    (async () => {
+      try {
+        const [me, cv, us] = await Promise.all([
+          apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } }),
+          apiClient.get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } }),
+          apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } }),
+        ]);
+        setUid((me.data?.data || me.data)._id);
+        const fetchedConvos: SSConversation[] = cv.data?.data || [];
+        setConvos(fetchedConvos);
+        setAllUsers(us.data?.data || []);
+        const reportGroup = fetchedConvos.find(c => c.type === 'group' && c.name === 'Online Team Report');
+        if (reportGroup) localStorage.setItem('dp_groupchat_id', reportGroup._id);
+      } catch { router.replace('/crm'); }
+      finally { setLoading(false); }
+    })();
+  }, [router]);
+
+  React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
+
+  // Auto-open DM from ?userId=
+  const autoOpenHandledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (loading || !token || autoOpenHandledRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get('userId');
+    if (!targetUserId) return;
+    autoOpenHandledRef.current = true;
+    apiClient.post('/api/supraspace/conversations/direct', { targetUserId }, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => {
+        const c = r.data?.data; if (!c) return;
+        setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
+        setActiveId(c._id);
+        const url = new URL(window.location.href); url.searchParams.delete('userId'); window.history.replaceState({}, '', url.toString());
+      }).catch(() => {});
+  }, [loading, token]);
+
+  // ── Socket events ──
   React.useEffect(() => {
     if (!socket) return;
-    const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
-      appendMessageLocal(conversationId, message);
-    };
-    const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
-      setMsgs(p => ({ ...p, [conversationId]: (p[conversationId] || []).map(m => m._id === messageId ? { ...m, isDeleted: true, content: '', attachments: [] } : m) }));
-    };
+    const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => appendMessageLocal(conversationId, message);
+    const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+      patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
     const onNew = (c: SSConversation) => setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
+    const onConvUpdated = (c: any) => {
+      if (c?.members) setConvos(p => p.map(x => x._id === c._id ? { ...x, ...c } : x));
+      else if (c?._id) patchConv(c._id, c);
+    };
+    const onConvDeleted = ({ conversationId }: { conversationId: string }) => {
+      setConvos(p => p.filter(x => x._id !== conversationId));
+      setActiveId(prev => prev === conversationId ? null : prev);
+    };
+    const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
+    const onReaction = ({ conversationId, messageId, reactions }: any) => patchMsg(conversationId, messageId, { reactions });
+    const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
+    const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
+
     socket.on('message:new', onMsg);
     socket.on('message:deleted', onDel);
     socket.on('conversation:new', onNew);
-    return () => { socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('conversation:new', onNew); };
-  }, [socket, appendMessageLocal]);
+    socket.on('conversation:updated', onConvUpdated);
+    socket.on('conversation:deleted', onConvDeleted);
+    socket.on('conversation:theme', onConvTheme);
+    socket.on('message:reaction', onReaction);
+    socket.on('message:poll', onPoll);
+    socket.on('message:event', onEvent);
+    return () => {
+      socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('conversation:new', onNew);
+      socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
+      socket.off('conversation:theme', onConvTheme); socket.off('message:reaction', onReaction);
+      socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
+    };
+  }, [socket, appendMessageLocal, patchMsg, patchConv]);
 
   React.useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeMsgs.length]);
 
-  // Fetch messages and mark read when conversation changes
   React.useEffect(() => {
     if (!activeId || !token) return;
     if (!msgs[activeId]) {
       setLoadingMsgs(true);
       apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 40 } })
-        .then(r => {
-          const d = r.data?.data || [];
-          setMsgs(p => ({ ...p, [activeId]: d }));
-          setHasMore(p => ({ ...p, [activeId]: d.length === 40 }));
-        }).finally(() => setLoadingMsgs(false));
+        .then(r => { const d = r.data?.data || []; setMsgs(p => ({ ...p, [activeId]: d })); setHasMore(p => ({ ...p, [activeId]: d.length === 40 })); })
+        .finally(() => setLoadingMsgs(false));
     }
     markRead(activeId);
   }, [activeId, token]); // eslint-disable-line
 
-  // Join/leave conversation socket room — re-runs on activeId change AND on reconnect
-  // so we always re-join after a socket disconnect/reconnect cycle.
   React.useEffect(() => {
     if (!activeId || !isConnected) return;
     joinConversation(activeId);
     return () => leaveConversation(activeId);
   }, [activeId, isConnected, joinConversation, leaveConversation]);
 
-  React.useEffect(() => {
-    setPendingFiles([]);
-    setUploadNotice(null);
-  }, [activeId]);
+  React.useEffect(() => { setPendingFiles([]); setUploadNotice(null); setShowInfo(false); }, [activeId]);
 
+  // Outside-click closers
+  React.useEffect(() => {
+    const make = (ref: React.RefObject<HTMLDivElement | null>, close: () => void) => (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
+    const hs: Array<[boolean, (e: MouseEvent) => void]> = [
+      [autrixOpen, make(autrixRef, () => setAutrixOpen(false))],
+      [emojiOpen, make(emojiRef, () => setEmojiOpen(false))],
+      [createMenuOpen, make(createMenuRef, () => setCreateMenuOpen(false))],
+      [gifOpen, make(gifRef, () => setGifOpen(false))],
+    ];
+    const active = hs.filter(([on]) => on).map(([, h]) => h);
+    active.forEach(h => document.addEventListener('mousedown', h));
+    return () => active.forEach(h => document.removeEventListener('mousedown', h));
+  }, [autrixOpen, emojiOpen, createMenuOpen, gifOpen]);
+
+  React.useEffect(() => {
+    if (!memberCard) return;
+    const h = (e: MouseEvent) => { const el = document.getElementById('ss4-member-card'); if (el && !el.contains(e.target as Node)) setMemberCard(null); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [memberCard]);
+
+  // Global message search (debounced)
+  React.useEffect(() => {
+    if (!token || q.trim().length < 2) { setMsgResults([]); return; }
+    setSearching(true);
+    const t = setTimeout(() => {
+      apiClient.get('/api/supraspace/search', { headers: { Authorization: `Bearer ${token}` }, params: { q: q.trim() } })
+        .then(r => setMsgResults(r.data?.data || [])).catch(() => setMsgResults([])).finally(() => setSearching(false));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [q, token]);
+
+  // ── Send / upload ──
   const handleSend = async () => {
     if (!activeId || sending) return;
     const hasText = Boolean(input.trim());
     const hasPendingFiles = pendingFiles.length > 0;
     if (!hasText && !hasPendingFiles) return;
-
     const conversationId = activeId;
     const content = input.trim();
     const replyMessageId = replyTo?._id;
-
     setSending(true);
     sendTypingStop(conversationId);
-
     try {
       if (hasPendingFiles) {
         setUploading(true);
@@ -1372,82 +1273,34 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
         pendingFiles.forEach(f => fd.append('files', f));
         if (content) fd.append('content', content);
         if (replyMessageId) fd.append('replyTo', replyMessageId);
-
-        const uploadResponse = await apiClient.post(
-          `/api/supraspace/conversations/${conversationId}/upload`,
-          fd,
-          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
-        );
-        const uploadedMessage = uploadResponse.data?.data as SSMessage | undefined;
-        if (uploadedMessage) appendMessageLocal(conversationId, uploadedMessage);
-
-        setPendingFiles([]);
-        setInput('');
-        setReplyTo(null);
+        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+        if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
+        setPendingFiles([]); setInput(''); setReplyTo(null);
         showUploadNotice('success', pendingFiles.length === 1 ? 'Attachment sent.' : `${pendingFiles.length} attachments sent.`);
       } else {
-        setInput('');
-        setReplyTo(null);
-        const sendResponse = await apiClient.post(
-          `/api/supraspace/conversations/${conversationId}/messages`,
-          { content, replyTo: replyMessageId },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const sentMessage = sendResponse.data?.data as SSMessage | undefined;
-        if (sentMessage) appendMessageLocal(conversationId, sentMessage);
+        setInput(''); setReplyTo(null);
+        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/messages`, { content, replyTo: replyMessageId }, { headers: { Authorization: `Bearer ${token}` } });
+        if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
       }
-    } catch (error: unknown) {
-      if (hasPendingFiles) {
-        const message = getErrorMessage(error, 'Failed to send attachment. Please try again.');
-        showUploadNotice('error', message);
-      } else {
-        setInput(content);
-      }
-    } finally {
-      setSending(false);
-      setUploading(false);
-    }
+    } catch (error) {
+      if (hasPendingFiles) showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
+      else setInput(content);
+    } finally { setSending(false); setUploading(false); }
   };
 
   const handleUpload = async (files: FileList | null) => {
-    if (!files) return;
-    if (!activeId) {
-      showUploadNotice('error', 'Select a conversation before attaching files.');
-      return;
+    if (!files || !activeId) return;
+    const selected = Array.from(files); if (!selected.length) return;
+    if (pendingFiles.length + selected.length > SS4_MAX_UPLOAD_FILES) { showUploadNotice('error', `You can attach up to ${SS4_MAX_UPLOAD_FILES} files.`); return; }
+    for (const f of selected) {
+      if (f.size === 0) { showUploadNotice('error', `${f.name} is empty.`); return; }
+      const vid = isVideoFileLike(f);
+      if (f.size > (vid ? SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES : SS4_MAX_UPLOAD_SIZE_BYTES)) { showUploadNotice('error', `${f.name} exceeds ${vid ? '40 MB' : '25 MB'}.`); return; }
     }
-
-    const selectedFiles = Array.from(files);
-    if (selectedFiles.length === 0) return;
-
-    const totalFiles = pendingFiles.length + selectedFiles.length;
-    if (totalFiles > SS4_MAX_UPLOAD_FILES) {
-      showUploadNotice('error', `You can attach up to ${SS4_MAX_UPLOAD_FILES} files.`);
-      return;
-    }
-
-    for (const file of selectedFiles) {
-      if (file.size === 0) {
-        showUploadNotice('error', `${file.name} is empty and cannot be sent.`);
-        return;
-      }
-
-      const videoFile = isVideoFileLike(file);
-      const maxBytes = videoFile ? SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES : SS4_MAX_UPLOAD_SIZE_BYTES;
-      if (file.size > maxBytes) {
-        showUploadNotice('error', `${file.name} exceeds ${videoFile ? '40 MB (video limit)' : '25 MB'}.`);
-        return;
-      }
-    }
-
-    setPendingFiles(prev => [...prev, ...selectedFiles]);
-    showUploadNotice('info', selectedFiles.length === 1
-      ? `${selectedFiles[0].name} attached. Press Send to deliver.`
-      : `${selectedFiles.length} files attached. Press Send to deliver.`);
+    setPendingFiles(prev => [...prev, ...selected]);
+    showUploadNotice('info', selected.length === 1 ? `${selected[0].name} attached. Press Send.` : `${selected.length} files attached.`);
   };
-
-  const removePendingFile = (index: number) => {
-    setPendingFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  const removePendingFile = (i: number) => setPendingFiles(prev => prev.filter((_, idx) => idx !== i));
 
   const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -1457,130 +1310,189 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
     typingRef.current = setTimeout(() => sendTypingStop(activeId!), 2000);
   };
 
+  // ── Voice ──
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recStreamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      recChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        const blob = new Blob(recChunksRef.current, { type: 'audio/webm' });
+        const seconds = recSecondsRef.current;               // FIX: read live duration from ref
+        recStreamRef.current?.getTracks().forEach(t => t.stop());
+        if (blob.size > 0 && activeId) {
+          const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+          const fd = new FormData(); fd.append('files', file); fd.append('duration', String(seconds));
+          try {
+            const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+            if (r.data?.data) appendMessageLocal(activeId, r.data.data);
+          } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to send voice note.')); }
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true); setRecSeconds(0); recSecondsRef.current = 0;
+      recTimerRef.current = setInterval(() => { recSecondsRef.current += 1; setRecSeconds(recSecondsRef.current); }, 1000);
+    } catch { showUploadNotice('error', 'Microphone permission denied.'); }
+  };
+  const stopRecording = (cancel = false) => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    if (cancel) { recChunksRef.current = []; recStreamRef.current?.getTracks().forEach(t => t.stop()); mediaRecorderRef.current?.stop(); }
+    else mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
+
+  // ── GIF ──
+  const sendGif = async (gif: { url: string; width?: number; height?: number; title?: string }) => {
+    if (!activeId) return;
+    try {
+      const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/messages`, { gif }, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.data?.data) appendMessageLocal(activeId, r.data.data);
+    } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to send GIF.')); }
+  };
+
+  // ── Reactions / poll / event ──
+  const handleReact = async (msgId: string, emoji: string) => {
+    if (!activeId) return;
+    setMsgs(p => ({ ...p, [activeId]: (p[activeId] || []).map(m => {
+      if (m._id !== msgId) return m;
+      const reactions = [...(m.reactions || [])];
+      const idx = reactions.findIndex(r => r.emoji === emoji);
+      if (idx >= 0) {
+        const has = reactions[idx].users.includes(uid);
+        const users = has ? reactions[idx].users.filter(u => u !== uid) : [...reactions[idx].users, uid];
+        if (users.length === 0) reactions.splice(idx, 1); else reactions[idx] = { ...reactions[idx], users };
+      } else reactions.push({ emoji, users: [uid] } as any);
+      return { ...m, reactions };
+    }) }));
+    try { await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+  };
+  const handleVotePoll = async (msgId: string, optionId: string) => {
+    try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/poll/vote`, { optionId }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.poll) patchMsg(activeId, msgId, { poll: r.data.data.poll }); } catch {}
+  };
+  const handleRsvp = async (msgId: string, response: 'going' | 'maybe' | 'declined') => {
+    try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/event/rsvp`, { response }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.event) patchMsg(activeId, msgId, { event: r.data.data.event }); } catch {}
+  };
+  const createPoll = async (question: string, options: string[], allowMultiple: boolean) => {
+    if (!activeId) return; setPollOpen(false);
+    try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/poll`, { question, options, allowMultiple }, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create poll.')); }
+  };
+  const createEvent = async (ev: { title: string; description: string; location: string; startTime: string; endTime: string }) => {
+    if (!activeId) return; setEventOpen(false);
+    try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/event`, ev, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create event.')); }
+  };
+
   const handleDelete = async (msgId: string) => {
     if (!activeId) return;
-    setMsgs(p => ({ ...p, [activeId]: (p[activeId] || []).map(m => m._id === msgId ? { ...m, isDeleted: true, content: '', attachments: [] } : m) }));
-    try {
-      await apiClient.delete(`/api/supraspace/messages/${msgId}`, { headers: { Authorization: `Bearer ${token}` } });
-    } catch {
-      setMsgs(p => ({ ...p, [activeId]: (p[activeId] || []).map(m => m._id === msgId ? { ...m, isDeleted: false } : m) }));
-    }
+    patchMsg(activeId, msgId, { isDeleted: true, content: '', attachments: [] } as any);
+    try { await apiClient.delete(`/api/supraspace/messages/${msgId}`, { headers: { Authorization: `Bearer ${token}` } }); }
+    catch { patchMsg(activeId, msgId, { isDeleted: false } as any); }
   };
-
-  // Close Supra Leo popover on outside click
-  React.useEffect(() => {
-    if (!supraLeoOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (supraLeoRef.current && !supraLeoRef.current.contains(e.target as Node)) {
-        setSupraLeoOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [supraLeoOpen]);
-
-  React.useEffect(() => {
-    if (!emojiOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setEmojiOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [emojiOpen]);
-
-  React.useEffect(() => {
-    if (!memberCard) return;
-    const handler = (e: MouseEvent) => {
-      const el = document.getElementById('ss4-member-card');
-      if (el && !el.contains(e.target as Node)) setMemberCard(null);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [memberCard]);
-
-  const addSystemEvent = React.useCallback((convId: string, text: string) => {
-    setSystemEvents(prev => [...prev, { id: `sys-${Date.now()}-${Math.random()}`, convId, text, ts: new Date().toISOString() }]);
-  }, []);
-
   const handlePinToggle = (msgId: string) => {
-    if (!activeId) return;
-    const wasPin = pinnedMsgIds.has(msgId);
-    const msg = activeMsgs.find(m => m._id === msgId);
-    const previewText = msg?.content ? `"${msg.content.slice(0, 40)}${msg.content.length > 40 ? '…' : ''}"` : 'an attachment';
-    const text = wasPin ? 'Unpinned a message' : `Pinned ${previewText}`;
-    setPinnedMsgIds(prev => {
-      const next = new Set(prev);
-      wasPin ? next.delete(msgId) : next.add(msgId);
-      return next;
-    });
-    setPinBanner(wasPin ? 'Message unpinned' : `📌 Pinned ${previewText}`);
-    addSystemEvent(activeId, text);
-    if (pinBannerTimer.current) clearTimeout(pinBannerTimer.current);
-    pinBannerTimer.current = setTimeout(() => setPinBanner(null), 4000);
+    setPinnedMsgIds(prev => { const n = new Set(prev); n.has(msgId) ? n.delete(msgId) : n.add(msgId); return n; });
   };
 
-  const handleSupraLeoAction = async (action: 'improve' | 'draft' | 'formal' | 'casual') => {
-    setSupraLeoOpen(false);
-    setSupraLeoLoading(true);
-
-    const recentContext = activeMsgs.slice(-10).map(m => `${m.sender?.fullName || 'User'}: ${m.content || '(attachment)'}`).join('\n');
-    const conversationName = activeConv?.name || 'this conversation';
-
-    const prompts: Record<string, string> = {
-      improve: input.trim()
-        ? `Improve this draft message for clarity and professionalism. Return only the improved message text, no explanation:\n\n"${input.trim()}"`
-        : 'No draft provided.',
-      draft: `You are helping compose a team message in Supra Space for conversation "${conversationName}". Based on the recent conversation context below, draft a brief, professional reply that would be appropriate to send next. Return only the message text, no explanation.\n\nRecent messages:\n${recentContext || '(no messages yet)'}`,
-      formal: input.trim()
-        ? `Rewrite this message in a more formal, professional tone. Return only the rewritten message text, no explanation:\n\n"${input.trim()}"`
-        : 'No draft provided.',
-      casual: input.trim()
-        ? `Rewrite this message in a friendly, casual tone suitable for internal team chat. Return only the rewritten message text, no explanation:\n\n"${input.trim()}"`
-        : 'No draft provided.',
-    };
-
-    const prompt = prompts[action];
-    if (prompt === 'No draft provided.') {
-      setSupraLeoLoading(false);
-      return;
-    }
-
+  // ── Conversation actions (pin / archive / delete / members / theme / avatar) ──
+  const togglePinConv = async (c: SSConversation) => {
+    const pinned = !isPinnedConv(c);
+    patchConv(c._id, { pinnedBy: pinned ? [...(c.pinnedBy || []), uid] : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
+    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+  };
+  const toggleArchiveConv = async (c: SSConversation) => {
+    const archived = !isArchivedConv(c);
+    patchConv(c._id, { archivedBy: archived ? [...(c.archivedBy || []), uid] : (c.archivedBy || []).filter(x => String(x) !== uid) } as any);
+    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/archive`, { archived }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+  };
+  const deleteConversation = async (c: SSConversation) => {
+    setConfirmDelete(false); setShowInfo(false);
     try {
-      const res = await apiClient.post(
-        '/api/supraleo/chat',
-        { message: prompt, module: 'supraspace' },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const reply: string = res.data?.data?.message || '';
-      if (reply.trim()) setInput(reply.trim());
-    } catch {
-      // silent fail — button just returns to idle
-    } finally {
-      setSupraLeoLoading(false);
-    }
+      await apiClient.delete(`/api/supraspace/conversations/${c._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setConvos(p => p.filter(x => x._id !== c._id));
+      setActiveId(prev => prev === c._id ? null : prev);
+    } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to delete.')); }
+  };
+  const addMembers = async (ids: string[]) => {
+    if (!activeConv) return; setManageOpen(false);
+    try { const r = await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { addMembers: ids }, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) patchConv(activeConv._id, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to add members.')); }
+  };
+  const removeMember = async (memberId: string) => {
+    if (!activeConv) return;
+    const leaving = memberId === uid;
+    try {
+      const r = await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { removeMembers: [memberId] }, { headers: { Authorization: `Bearer ${token}` } });
+      if (leaving) { setConvos(p => p.filter(x => x._id !== activeConv._id)); setActiveId(null); setShowInfo(false); }
+      else if (r.data?.data) patchConv(activeConv._id, r.data.data);
+    } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to remove member.')); }
+  };
+  const renameChannel = async (name: string) => {
+    if (!activeConv || !name.trim()) return;
+    patchConv(activeConv._id, { name: name.trim() });
+    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { name: name.trim() }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+  };
+  const applyTheme = async (t: { accent: string | null; wallpaper: string | null }) => {
+    if (!activeConv) return; setThemeOpen(false);
+    patchConv(activeConv._id, { theme: { ...(activeConv.theme || {}), ...t } } as any);
+    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}/theme`, { theme: { ...(activeConv.theme || {}), ...t } }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+  };
+  const uploadAvatar = (file: File) => {
+    if (!activeConv) return;
+    const raw = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+      if (ctx) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 400, 400); ctx.drawImage(img, 0, 0, 400, 400); }
+      URL.revokeObjectURL(raw);
+      patchConv(activeConv._id, { avatar: canvas.toDataURL('image/jpeg', 0.9) });
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const fd = new FormData(); fd.append('avatar', blob, 'avatar.jpg');
+        apiClient.post(`/api/supraspace/conversations/${activeConv._id}/avatar`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } })
+          .then(r => { if (r.data?.data?.avatar) patchConv(activeConv._id, { avatar: r.data.data.avatar }); }).catch(() => {});
+      }, 'image/jpeg', 0.9);
+    };
+    img.src = raw;
   };
 
+  // ── Suprah Autrix ──
+  const handleAutrix = async (action: 'improve' | 'draft' | 'formal' | 'casual') => {
+    setAutrixOpen(false); setAutrixLoading(true);
+    try {
+      if (action === 'draft' && !input.trim() && activeId) {
+        const r = await apiClient.post('/api/supraleo/draft', { conversationId: activeId }, { headers: { Authorization: `Bearer ${token}` } });
+        const reply = r.data?.data?.draft || r.data?.data?.message || '';
+        if (reply.trim()) setInput(reply.trim());
+        return;
+      }
+      const recent = activeMsgs.slice(-10).map(m => `${m.sender?.fullName || 'User'}: ${m.content || '(attachment)'}`).join('\n');
+      const cName = activeConv?.name || 'this conversation';
+      const prompts: Record<string, string> = {
+        improve: `Improve this draft for clarity and professionalism. Return only the improved text:\n\n"${input.trim()}"`,
+        formal: `Rewrite this message in a formal, professional tone. Return only the text:\n\n"${input.trim()}"`,
+        casual: `Rewrite this message in a friendly, casual tone. Return only the text:\n\n"${input.trim()}"`,
+        draft: `Draft a brief professional reply for "${cName}". Return only the message text.\n\nRecent:\n${recent || '(none)'}`,
+      };
+      const r = await apiClient.post('/api/supraleo/chat', { message: prompts[action], module: 'supraspace' }, { headers: { Authorization: `Bearer ${token}` } });
+      const reply = r.data?.data?.message || '';
+      if (reply.trim()) setInput(reply.trim());
+    } catch {} finally { setAutrixLoading(false); }
+  };
+
+  // ── DM / group / pagination ──
   const handleDM = async (targetId: string) => {
-    setShowModal({ open: false, tab: 'dm' });
+    setShowModal({ open: false, tab: 'dm' }); setActiveUsersOpen(false);
     try {
       const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: targetId }, { headers: { Authorization: `Bearer ${token}` } });
       const c = r.data?.data;
-      setConvos(p => p.find(x => x._id === c._id) ? p : [c, ...p]);
-      setActiveId(c._id);
-      setSideOpen(false);
-    } catch { }
+      setConvos(p => p.find(x => x._id === c._id) ? p : [c, ...p]); setActiveId(c._id);
+    } catch {}
   };
-
   const handleGroup = async (name: string, ids: string[]) => {
     setShowModal({ open: false, tab: 'dm' });
-    try {
-      const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } });
-      setConvos(p => [r.data?.data, ...p]);
-      setActiveId(r.data?.data._id);
-      setSideOpen(false);
-    } catch { }
+    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); setActiveId(r.data?.data._id); } catch {}
   };
-
   const loadMore = async () => {
     if (!activeId || !hasMore[activeId] || loadingMsgs) return;
     setLoadingMsgs(true);
@@ -1589,43 +1501,83 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
       const d = r.data?.data || [];
       setMsgs(p => ({ ...p, [activeId]: [...d, ...(p[activeId] || [])] }));
       setHasMore(p => ({ ...p, [activeId]: d.length === 40 }));
-    } catch { } finally { setLoadingMsgs(false); }
+    } catch {} finally { setLoadingMsgs(false); }
+  };
+
+  const openSearchResult = (convId: string, messageId: string) => {
+    setActiveId(convId); setQ('');
+    setTimeout(() => document.getElementById(`ss4-msg-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
   };
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
+  const themeStyle = themeVars(activeConv?.theme);
+  const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
-  // Deduplicate "Online Team Report" groups (keep earliest _id), then pin it first
-  const dedupedConvos = React.useMemo(() => {
-    const seen = new Set<string>();
-    const deduped: SSConversation[] = [];
-    let reportGroup: SSConversation | null = null;
-    for (const c of convos) {
-      if (c.type === 'group' && c.name === 'Online Team Report') {
-        if (!reportGroup) reportGroup = c; // keep first encountered
-        continue;
-      }
-      if (!seen.has(c._id)) { seen.add(c._id); deduped.push(c); }
-    }
-    return reportGroup ? [reportGroup, ...deduped] : deduped;
-  }, [convos]);
+  // Sections
+  const visibleConvos = convos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
+  const pinnedList = visibleConvos.filter(c => isPinnedConv(c) && !isArchivedConv(c));
+  const archivedList = convos.filter(c => isArchivedConv(c));
+  const normalList = visibleConvos.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
 
-  const filtered = dedupedConvos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
+  // ── Conversation row ──
+  const ConvRow = ({ conv, compact }: { conv: SSConversation; compact?: boolean }) => {
+    const isAct = conv._id === activeId;
+    const other = conv.members.find(m => m._id !== uid);
+    const online = other ? presence[other._id] === 'online' : false;
+    const cName = getConvName(conv, uid);
+    const cAvatar = getConvAvatar(conv, uid);
+    const pinned = isPinnedConv(conv);
+    const archived = isArchivedConv(conv);
+    const isUnread = !isAct && conv.lastMessage && uid && !conv.lastMessage.readBy?.includes(uid) && conv.lastMessage.sender?._id !== uid;
+    const lastPreview = conv.lastMessage?.isDeleted ? 'Message deleted'
+      : conv.lastMessage?.type === 'voice' ? '🎙️ Voice message'
+      : conv.lastMessage?.type === 'gif' ? 'GIF'
+      : conv.lastMessage?.type === 'poll' ? `📊 ${conv.lastMessage?.poll?.question || 'Poll'}`
+      : conv.lastMessage?.type === 'event' ? `📅 ${conv.lastMessage?.event?.title || 'Event'}`
+      : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
+    const senderPrefix = conv.type === 'group' && conv.lastMessage && conv.lastMessage.sender?._id !== uid ? `${(conv.lastMessage.sender?.fullName || '').split(' ')[0]}: ` : '';
+    return (
+      <div className={cn('ss4-conv group flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active')} onClick={() => setActiveId(conv._id)}>
+        <div className="relative shrink-0">
+          <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
+            {cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : conv.type === 'group' ? <Hash className="h-3.5 w-3.5 text-white opacity-70" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+          </div>
+          {conv.type === 'direct' && online ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
+            : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
+            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold')} style={{ fontSize: 12.5 }}>{cName}</p>
+            <span className="shrink-0" style={{ fontSize: 9.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
+          </div>
+          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11, fontWeight: isUnread ? 500 : 400 }}>{senderPrefix}{lastPreview}</p>
+        </div>
+        {!compact && (
+          <div className={cn('flex items-center shrink-0', isAct ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
+            <button onClick={e => { e.stopPropagation(); togglePinConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: pinned ? 'var(--accent)' : 'var(--text-tertiary)' }} title={pinned ? 'Unpin' : 'Pin'}>
+              {pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+            </button>
+            <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title={archived ? 'Unarchive' : 'Archive'}>
+              {archived ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
+            </button>
+            <button onClick={e => { e.stopPropagation(); setVideoCallConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title="Call"><Phone className="h-3 w-3" /></button>
+          </div>
+        )}
+        {compact && (
+          <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Unarchive"><ArchiveRestore className="h-3 w-3" /></button>
+        )}
+      </div>
+    );
+  };
 
-  // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
     <div className={cn('ss4 flex items-center justify-center h-full min-h-screen')} data-theme={theme}>
       <div className="flex flex-col items-center gap-4">
-        <div className="h-14 w-14 ss4-logo-mark flex items-center justify-center">
-          <Radio className="h-6 w-6" style={{ color: '#fff' }} />
-        </div>
+        <div className="h-14 w-14 ss4-logo-mark flex items-center justify-center"><Radio className="h-6 w-6" style={{ color: '#fff' }} /></div>
         <div className="flex flex-col items-center gap-2">
-          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Supra Space</p>
-          <div className="flex gap-1.5">
-            {[0, 1, 2].map(i => (
-              <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full"
-                style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />
-            ))}
-          </div>
+          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah Space</p>
+          <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
         </div>
       </div>
     </div>
@@ -1633,813 +1585,270 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
 
   return (
     <div className={cn('ss4 flex flex-col h-full overflow-hidden')} data-theme={theme}>
-
-      {/* ── Topbar ── */}
+      {/* Topbar */}
       <header className="ss4-topbar shrink-0 z-40" style={{ minHeight: 52 }}>
         <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
-          {/* Left */}
           <div className="flex items-center gap-3">
-            {!embedded && (
-              <>
-                <button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8">
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <div className="h-5 w-px" style={{ background: 'var(--border-2)' }} />
-              </>
-            )}
+            {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0">
-                <Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} />
-              </div>
+              <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0"><Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} /></div>
               <div>
                 <div className="flex items-center gap-1.5 leading-none">
-                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
-                    Supra Space
-                  </p>
-                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', isConnected ? '' : '')} style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
+                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah Space</p>
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
                   {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
                 </div>
-                <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
-                  Team Messaging
-                </p>
+                <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Team Messaging</p>
               </div>
             </div>
           </div>
-
-          {/* Right */}
           <div className="flex items-center gap-2">
-
-            {/* Theme toggle */}
-            <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">
-              {theme === 'dark'
-                ? <Sun className="h-3.5 w-3.5" />
-                : <Moon className="h-3.5 w-3.5" />}
+            <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
+              <Wifi className="h-3.5 w-3.5" />
+              <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
             </button>
-
-            {/* Notifications */}
-            <button className="ss4-icon-btn h-8 w-8" title="Notifications">
-              <Bell className="h-4 w-4" />
-            </button>
+            <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
+            <button className="ss4-icon-btn h-8 w-8" title="Notifications"><Bell className="h-4 w-4" /></button>
           </div>
         </div>
       </header>
 
-      {/* ── Active Users Bar ── */}
-      {(() => {
-        const onlineUsers = allUsers.filter(u => u._id !== uid && presence[u._id] === 'online');
-        if (!isConnected || onlineUsers.length === 0) return null;
-        return (
-          <div className="hidden lg:flex shrink-0 items-center gap-3 px-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-subtle)', minHeight: 40 }}>
-            <span className="ss4-section-label shrink-0" style={{ fontSize: 9 }}>Active</span>
-            {onlineUsers.map(user => {
-              const existing = convos.find(c => c.type === 'direct' && c.members.some(m => m._id === user._id));
-              return (
-                <button
-                  key={user._id}
-                  onClick={() => { if (existing) { setActiveId(existing._id); setSideOpen(false); } else handleDM(user._id); }}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full transition-all shrink-0"
-                  style={{ fontSize: 11 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = ''; }}
-                  title={`Message ${user.fullName}`}
-                >
-                  <div className="relative">
-                    <div className={cn('h-5 w-5 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(user.fullName))} style={{ fontSize: 8 }}>
-                      {user.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : ini(user.fullName)}
-                    </div>
-                    <span className="ss4-online-dot absolute -bottom-px -right-px h-1.5 w-1.5 rounded-full" />
-                  </div>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{user.fullName.split(' ')[0]}</span>
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
-
       <div className="flex flex-1 overflow-hidden relative">
-
-        {/* ── Sidebar ── */}
-        <aside
-          className={cn(
-            'ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden',
-            // Mobile/tablet: full-screen absolute, slides when chat opens
-            'absolute inset-0 z-20',
-            // Desktop: static side panel always visible
-            'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0',
-            activeId ? '-translate-x-full' : 'translate-x-0'
-          )}
-        >
-          {/* ── Mobile header: title + buttons + avatar strip + search ── */}
-          <div className="lg:hidden shrink-0">
-            {/* Top row */}
-            <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="ss4-display font-bold truncate" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Supra Space</p>
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: isConnected ? '#34c97d' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 5px rgba(52,201,125,0.7)' : 'none' }} />
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={() => setShowModal({ open: true, tab: 'dm' })} className="ss4-new-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 600 }}>
-                  <Plus className="h-3.5 w-3.5" /> Message
-                </button>
-                <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-8 w-8 flex items-center justify-center" title="New channel">
-                  <Hash className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Avatar strip (online first, then rest) */}
-            <div className="px-4 pb-3">
-              <div className="flex gap-3 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ minHeight: 70 }}>
-                {[...allUsers.filter(u => u._id !== uid && presence[u._id] === 'online'), ...allUsers.filter(u => u._id !== uid && presence[u._id] !== 'online')].map(user => {
-                  const isOn = presence[user._id] === 'online';
-                  return (
-                    <button key={user._id}
-                      onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setMemberCard({ member: { _id: user._id, fullName: user.fullName, username: user.username, avatar: user.avatar, role: user.role }, pos: { x: Math.min(r.left, window.innerWidth - 210), y: r.bottom + 8 } }); }}
-                      className="flex flex-col items-center gap-1 shrink-0 transition-opacity hover:opacity-80">
-                      <div className="relative">
-                        <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(user.fullName))} style={{ fontSize: 13 }}>
-                          {user.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : ini(user.fullName)}
-                        </div>
-                        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full flex items-center justify-center" style={{ background: 'var(--sidebar-bg)', boxShadow: '0 0 0 1.5px var(--sidebar-bg)' }}>
-                          <span className="h-2 w-2 rounded-full" style={{ background: isOn ? '#34c97d' : 'var(--text-disabled)' }} />
-                        </span>
-                      </div>
-                      <span className="max-w-[40px] truncate text-center" style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 500 }}>{user.fullName.split(' ')[0]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="px-3 pb-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
-              <div className="relative">
-                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search conversations…" className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Desktop header ── */}
-          <div className="hidden lg:block px-4 pt-5 pb-3 shrink-0 space-y-3">
+        {/* Sidebar */}
+        <aside className={cn('ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden', 'absolute inset-0 z-20', 'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0', activeId ? '-translate-x-full' : 'translate-x-0')}>
+          <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
             <div className="flex items-center justify-between">
               <span className="ss4-section-label">Messages</span>
-              <button onClick={() => setShowModal({ open: true, tab: 'dm' })}
-                className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5"
-                title="New conversation">
-                <Plus className="h-3 w-3" style={{ color: 'var(--accent-text)' }} />
-                <span className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>New</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setShowModal({ open: true, tab: 'dm' })} className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New message"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
+                <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-7 w-7 flex items-center justify-center" title="New channel"><Hash className="h-3.5 w-3.5" /></button>
+              </div>
             </div>
             <div className="relative">
               <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-              <input
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                placeholder="Search conversations..."
-                className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input"
-                style={{ fontFamily: 'Geist, sans-serif' }}
-              />
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
             </div>
           </div>
+          <div className="mx-4 ss4-divider" />
 
-          <div className="hidden lg:block mx-4 ss4-divider" />
-
-          {/* Conversation list */}
           <div className="flex-1 overflow-y-auto ss4-scroll pb-2">
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
-                <div className="h-10 w-10 rounded-xl ss4-empty-icon flex items-center justify-center">
-                  <MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+            {/* Message search results */}
+            {q.trim().length >= 2 && (
+              <div className="pt-2">
+                <div className="px-3 pb-1.5 flex items-center justify-between">
+                  <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No conversations yet</p>
+                {msgResults.map((m: any) => {
+                  const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
+                  return (
+                    <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                      <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
+                      <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{m.content}</span>
+                    </button>
+                  );
+                })}
+                {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
+                <div className="mx-3 my-2 ss4-divider" />
               </div>
-            ) : (['direct', 'group'] as const).map(sectionType => {
-              const sectionConvos = filtered.filter(c => c.type === sectionType);
-              if (sectionConvos.length === 0) return null;
-              const onlineDmCount = sectionType === 'direct'
-                ? sectionConvos.filter(c => { const o = c.members.find(m => m._id !== uid); return o && presence[o._id] === 'online'; }).length
-                : 0;
+            )}
+
+            {/* Pinned */}
+            {pinnedList.length > 0 && (
+              <div className="pt-1">
+                <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
+                <div className="px-2 space-y-0.5">{pinnedList.map(c => <ConvRow key={c._id} conv={c} />)}</div>
+              </div>
+            )}
+
+            {/* Direct + Channels */}
+            {(['direct', 'group'] as const).map(sectionType => {
+              const list = normalList.filter(c => c.type === sectionType);
+              if (list.length === 0) return null;
               return (
                 <div key={sectionType}>
-                  {/* Section header */}
-                  <div className="px-3 pt-3 pb-1.5 flex items-center justify-between">
-                    <span className="ss4-section-label">{sectionType === 'direct' ? 'Direct Messages' : 'Channels'}</span>
-                    {sectionType === 'direct' && onlineDmCount > 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.05em' }}>
-                        ● {onlineDmCount} online
-                      </span>
-                    )}
-                    {sectionType === 'group' && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-tertiary)' }}>
-                        {sectionConvos.length} channels
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="px-2 space-y-0.5">
-                    {sectionConvos.map(conv => {
-                      const isAct = conv._id === activeId;
-                      const other = conv.members.find(m => m._id !== uid);
-                      const online = other ? presence[other._id] === 'online' : false;
-                      const cName = getConvName(conv, uid);
-                      const cAvatar = getConvAvatar(conv, uid);
-                      const isUnread = !isAct && conv.lastMessage && uid && !conv.lastMessage.readBy?.includes(uid) && conv.lastMessage.sender._id !== uid;
-                      const lastPreview = conv.lastMessage?.isDeleted
-                        ? 'Message deleted'
-                        : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
-                      const senderPrefix = sectionType === 'group' && conv.lastMessage && conv.lastMessage.sender._id !== uid
-                        ? `${conv.lastMessage.sender.fullName.split(' ')[0]}: `
-                        : '';
-
-                      return (
-                        <div
-                          key={conv._id}
-                          className={cn('ss4-conv group flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active')}
-                          onClick={() => { setActiveId(conv._id); setSideOpen(false); }}
-                        >
-                          {/* Avatar */}
-                          <div className="relative shrink-0">
-                            <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', sectionType === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                              {cAvatar
-                                ? <img src={cAvatar} alt="" className="w-full h-full object-cover" />
-                                : sectionType === 'group'
-                                  ? <Hash className="h-3.5 w-3.5 text-white opacity-70" />
-                                  : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
-                            </div>
-                            {sectionType === 'direct' && online
-                              ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
-                              : isUnread
-                                ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} />
-                                : null}
-                          </div>
-
-                          {/* Content */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <p className={cn('ss4-conv-name font-semibold truncate', isUnread && 'font-bold')} style={{ fontSize: 12.5 }}>
-                                {cName}
-                              </p>
-                              <span className="shrink-0" style={{ fontSize: 9.5, color: 'var(--text-disabled)' }}>
-                                {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between mt-0.5 gap-1">
-                              <p className="ss4-conv-preview truncate flex-1" style={{ fontSize: 11, fontWeight: isUnread ? 500 : 400 }}>
-                                {senderPrefix}{lastPreview}
-                              </p>
-                              {sectionType === 'direct' && !online && (
-                                <span style={{ fontSize: 9, color: 'var(--text-disabled)', flexShrink: 0 }}>Offline</span>
-                              )}
-                              {sectionType === 'group' && (
-                                <span style={{ fontSize: 9, color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                                  {conv.members.length} members
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Call on hover */}
-                          <button
-                            onClick={e => { e.stopPropagation(); setVideoCallConv(conv); }}
-                            className={cn('shrink-0 h-6 w-6 rounded-lg flex items-center justify-center transition-all hover:bg-[rgba(91,124,246,0.15)]', isAct ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}
-                            style={{ color: 'var(--text-tertiary)' }}
-                            title="Call"
-                          >
-                            <Phone className="h-3 w-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <div className="px-3 pt-3 pb-1.5"><span className="ss4-section-label">{sectionType === 'direct' ? 'Direct Messages' : 'Channels'}</span></div>
+                  <div className="px-2 space-y-0.5">{list.map(c => <ConvRow key={c._id} conv={c} />)}</div>
                 </div>
               );
             })}
+
+            {normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
+              <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
+                <div className="h-10 w-10 rounded-xl ss4-empty-icon flex items-center justify-center"><MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No conversations yet</p>
+              </div>
+            )}
+
+            {/* Archived */}
+            {archivedList.length > 0 && (
+              <div className="pt-3">
+                <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
+                  <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
+                  <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
+                </button>
+                {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact />)}</div>}
+              </div>
+            )}
           </div>
         </aside>
 
-        {/* ── Chat / Welcome area ── */}
-        <main className={cn(
-          'flex flex-col min-h-0 overflow-hidden',
-          // Mobile: full-screen absolute, slides in when chat opens
-          'absolute inset-0 z-10 transition-transform duration-300 ease-in-out',
-          // Desktop: flex-1 always visible
-          'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0',
-          !activeId ? 'translate-x-full' : 'translate-x-0'
-        )}>
+        {/* Chat */}
+        <main className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')} style={themeStyle}>
           <div className="flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
-
-            {/* Welcome / empty state — desktop only; mobile uses sidebar as home screen */}
-            {!activeId && (() => {
-              const onlineMembers = allUsers.filter(u => u._id !== uid && presence[u._id] === 'online');
-              const allTeam = allUsers.filter(u => u._id !== uid);
-              const dmConvos = convos.filter(c => c.type === 'direct');
-              const groupConvos = convos.filter(c => c.type === 'group');
-              const recentConvos = convos.filter(c => c.lastMessage).sort((a, b) => new Date(b.lastMessageAt || b.lastMessage!.createdAt).getTime() - new Date(a.lastMessageAt || a.lastMessage!.createdAt).getTime()).slice(0, 5);
-
-              const ConvRow = ({ conv }: { conv: SSConversation }) => {
-                const cName = getConvName(conv, uid);
-                const cAvatar = getConvAvatar(conv, uid);
-                const other = conv.members.find(m => m._id !== uid);
-                const isOnline = conv.type === 'direct' && other ? presence[other._id] === 'online' : false;
-                const isUnread = !!(conv.lastMessage && uid && !conv.lastMessage.readBy?.includes(uid) && conv.lastMessage.sender._id !== uid);
-                const senderPfx = conv.type === 'group' && conv.lastMessage && conv.lastMessage.sender._id !== uid
-                  ? `${conv.lastMessage.sender.fullName.split(' ')[0]}: ` : '';
-                return (
-                  <button onClick={() => { setActiveId(conv._id); setSideOpen(false); }}
-                    className="ss4-conv w-full flex items-center gap-2.5 px-3 py-2.5 text-left">
-                    <div className="relative shrink-0">
-                      <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                        {cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" />
-                          : conv.type === 'group' ? <Hash className="h-4 w-4 text-white opacity-70" />
-                            : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(cName)}</span>}
-                      </div>
-                      {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
-                      {!isOnline && isUnread && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--bg-base)' }} />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <p className={cn('ss4-conv-name font-semibold truncate', isUnread && 'font-bold')} style={{ fontSize: 13 }}>{cName}</p>
-                        <span style={{ fontSize: 9.5, color: 'var(--text-disabled)', flexShrink: 0 }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
-                      </div>
-                      <p className="ss4-conv-preview truncate" style={{ fontSize: 11 }}>
-                        {conv.lastMessage?.isDeleted ? 'Message deleted' : senderPfx + (conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet'))}
-                      </p>
-                    </div>
-                  </button>
-                );
-              };
-
-              return (
-                <div className="hidden lg:flex flex-1 overflow-y-auto ss4-scroll flex-col">
-
-                  {/* ── Active team members avatars strip ── */}
-                  <div className="px-4 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Supra Space</p>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => setShowModal({ open: true, tab: 'dm' })}
-                          className="ss4-new-btn flex items-center gap-1.5 px-2.5 h-7" style={{ fontSize: 11, fontWeight: 600 }}>
-                          <Plus className="h-3 w-3" /> Message
-                        </button>
-                        <button onClick={() => setShowModal({ open: true, tab: 'group' })}
-                          className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7" style={{ fontSize: 11, fontWeight: 600 }}>
-                          <Hash className="h-3 w-3" /> Channel
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Avatar bubbles: online first, then rest — confirm before opening DM */}
-                    <div className="flex gap-3 overflow-x-auto overflow-y-hidden pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ minHeight: 68 }}>
-                      {[...onlineMembers, ...allTeam.filter(u => !onlineMembers.find(o => o._id === u._id))].map(user => {
-                        const isOn = presence[user._id] === 'online';
-                        return (
-                          <button key={user._id}
-                            onClick={e => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setMemberCard({ member: { _id: user._id, fullName: user.fullName, username: user.username, avatar: user.avatar, role: user.role }, pos: { x: rect.left, y: rect.bottom + 8 } });
-                            }}
-                            className="flex flex-col items-center gap-1.5 shrink-0 min-w-0 transition-opacity hover:opacity-80">
-                            <div className="relative">
-                              <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shadow-sm', getAvaColor(user.fullName))} style={{ fontSize: 13 }}>
-                                {user.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : ini(user.fullName)}
-                              </div>
-                              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-base)', boxShadow: '0 0 0 1.5px var(--bg-base)' }}>
-                                <span className="h-2 w-2 rounded-full" style={{ background: isOn ? '#34c97d' : 'var(--text-disabled)' }} />
-                              </span>
-                            </div>
-                            <span className="truncate w-12 text-center" style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 500 }}>{user.fullName.split(' ')[0]}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Recent */}
-                  {recentConvos.length > 0 && (
-                    <div className="pt-3 pb-1">
-                      <div className="flex items-center justify-between px-4 mb-1.5">
-                        <span className="ss4-section-label">Recent</span>
-                      </div>
-                      <div>
-                        {recentConvos.map(conv => <ConvRow key={conv._id} conv={conv} />)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Direct Messages */}
-                  {dmConvos.length > 0 && (
-                    <div className="pt-3 pb-1" style={{ borderTop: '1px solid var(--border-1)' }}>
-                      <div className="flex items-center justify-between px-4 mb-1.5">
-                        <span className="ss4-section-label">Direct Messages</span>
-                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 700 }}>{dmConvos.length}</span>
-                      </div>
-                      <div>
-                        {dmConvos.map(conv => <ConvRow key={conv._id} conv={conv} />)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Channels */}
-                  {groupConvos.length > 0 && (
-                    <div className="pt-3 pb-6" style={{ borderTop: '1px solid var(--border-1)' }}>
-                      <div className="flex items-center justify-between px-4 mb-1.5">
-                        <span className="ss4-section-label">Channels</span>
-                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 700 }}>{groupConvos.length}</span>
-                      </div>
-                      <div>
-                        {groupConvos.map(conv => <ConvRow key={conv._id} conv={conv} />)}
-                      </div>
-                    </div>
-                  )}
+            {!activeId && (
+              <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
+                <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
+                <div className="text-center">
+                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah Space</p>
+                  <p className="mt-1" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Select a conversation to start messaging</p>
                 </div>
-              );
-            })()}
+              </div>
+            )}
 
             {activeId && activeConv && (
               <>
                 {/* Chat header */}
                 <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-3">
-                  <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); setSideOpen(true); }} title="Back">
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-
-                  <div className="relative">
-                    <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                      {getConvAvatar(activeConv, uid)
-                        ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" />
-                        : activeConv.type === 'group'
-                          ? <Hash className="h-3.5 w-3.5 text-white opacity-70" />
-                          : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                  <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); }}><ChevronLeft className="h-4 w-4" /></button>
+                  <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                    <div className="relative shrink-0">
+                      <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
+                        {getConvAvatar(activeConv, uid) ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" /> : activeConv.type === 'group' ? <Hash className="h-3.5 w-3.5 text-white opacity-70" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                      </div>
                     </div>
-                    {activeConv.type === 'direct' && (() => {
-                      const o = activeConv.members.find(m => m._id !== uid);
-                      return o && presence[o._id] === 'online'
-                        ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ boxShadow: '0 0 0 2px var(--bg-elevated)' }} />
-                        : null;
-                    })()}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="ss4-display font-bold leading-none truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
-                      {getConvName(activeConv, uid)}
-                    </p>
-                    <p className="mt-1 leading-none" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                      {activeConv.type === 'group'
-                        ? `${activeConv.members.length} members`
-                        : (() => {
-                          const o = activeConv.members.find(m => m._id !== uid);
-                          if (!o) return '';
-                          return presence[o._id] === 'online'
-                            ? <span style={{ color: 'var(--positive)' }}>● Active now</span>
-                            : 'Offline';
-                        })()}
-                    </p>
-                  </div>
-
-                  {/* Right actions */}
+                    <div className="min-w-0 flex-1">
+                      <p className="ss4-display font-bold leading-none truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
+                      <p className="mt-1 leading-none" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        {activeConv.type === 'group' ? `${activeConv.members.length} members` : (() => { const o = activeConv.members.find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
+                      </p>
+                    </div>
+                  </button>
                   <div className="flex items-center gap-1">
-                    {pinnedMsgIds.size > 0 && (
-                      <button
-                        onClick={() => { setShowInfo(true); setInfoTab('pinned'); }}
-                        className="flex items-center gap-1 px-2 h-7 rounded-lg transition-all"
-                        style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}
-                        title="View pinned messages"
-                      >
-                        <Pin className="h-3 w-3" />
-                        {pinnedMsgIds.size} pinned
-                      </button>
-                    )}
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call">
-                          <Phone className="h-3.5 w-3.5" />
-                          <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span>
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36 rounded-xl"
-                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
-                        <DropdownMenuItem
-                          className="gap-2 rounded-lg cursor-pointer text-xs"
-                          style={{ color: 'var(--text-secondary)' }}
-                          onClick={() => setVideoCallConv(activeConv)}
-                        >
-                          <Video className="h-3.5 w-3.5" /> Video Call
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="gap-2 rounded-lg cursor-pointer text-xs"
-                          style={{ color: 'var(--text-secondary)' }}
-                          onClick={() => setVideoCallConv(activeConv)}
-                        >
-                          <Phone className="h-3.5 w-3.5" /> Voice Call
-                        </DropdownMenuItem>
+                      <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setVideoCallConv(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setVideoCallConv(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <button
-                      onClick={() => setShowInfo(v => !v)}
-                      className={cn('ss4-icon-btn h-8 w-8', showInfo && 'ss4-video-btn')}
-                      title="Conversation info"
-                    >
-                      <Info className="h-4 w-4" />
-                    </button>
+                    <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-8 w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-4 w-4" /></button>
                   </div>
                 </div>
 
-                {/* Pin notification banner */}
-                {pinBanner && (
-                  <div className="shrink-0 mx-4 mb-1 px-3 py-2 rounded-xl flex items-center gap-2"
-                    style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.25)', fontSize: 12, color: 'var(--accent-text)' }}>
-                    <Pin className="h-3.5 w-3.5 shrink-0" />
-                    <span className="flex-1 truncate">{pinBanner}</span>
-                    <button onClick={() => setPinBanner(null)} className="ss4-icon-btn h-5 w-5 shrink-0">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                )}
-
                 {/* Messages */}
-                <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll">
+                <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll" style={wallpaper ? { backgroundImage: wallpaper } : undefined}>
                   {hasMore[activeId] && (
                     <div className="flex justify-center pb-3">
-                      <button
-                        onClick={loadMore}
-                        className="font-medium transition-all px-4 py-1.5 rounded-full"
-                        style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-text)'; e.currentTarget.style.background = 'var(--accent-muted)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                      >
-                        {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '↑ Load earlier messages'}
-                      </button>
+                      <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>{loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '↑ Load earlier messages'}</button>
                     </div>
                   )}
-
-                  {loadingMsgs && activeMsgs.length === 0 && (
-                    <div className="flex justify-center py-12">
-                      <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} />
-                    </div>
-                  )}
-
-                  {(() => {
-                    const sysForConv = systemEvents.filter(e => e.convId === activeId);
-                    type Item = { kind: 'msg'; data: SSMessage } | { kind: 'sys'; id: string; text: string; ts: string };
-                    const items: Item[] = [
-                      ...activeMsgs.map(m => ({ kind: 'msg' as const, data: m })),
-                      ...sysForConv.map(e => ({ kind: 'sys' as const, id: e.id, text: e.text, ts: e.ts })),
-                    ].sort((a, b) => new Date(a.kind === 'msg' ? a.data.createdAt : a.ts).getTime() - new Date(b.kind === 'msg' ? b.data.createdAt : b.ts).getTime());
-
-                    return items.map((item, i) => {
-                      if (item.kind === 'sys') {
-                        return (
-                          <div key={item.id} className="flex items-center justify-center py-1 px-6">
-                            <span className="px-3 py-1 rounded-full text-center" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-subtle)', border: '1px solid var(--border-1)' }}>
-                              {item.text}
-                            </span>
-                          </div>
-                        );
-                      }
-                      const msg = item.data;
-                      const prevItem = items[i - 1];
-                      const prevMsg = prevItem?.kind === 'msg' ? prevItem.data : null;
-                      const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
-                      const showAvatar = !prevMsg || prevMsg.sender._id !== msg.sender._id || showDate;
-                      return (
-                        <React.Fragment key={msg._id}>
-                          {showDate && <DateSep date={msg.createdAt} />}
-                          <div id={`ss4-msg-${msg._id}`}>
-                            <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} />
-                          </div>
-                        </React.Fragment>
-                      );
-                    });
-                  })()}
-
-                  {/* Typing indicator */}
+                  {loadingMsgs && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+                  {activeMsgs.map((msg, i) => {
+                    const prevMsg = activeMsgs[i - 1] || null;
+                    const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
+                    const showAvatar = !prevMsg || prevMsg.sender._id !== msg.sender._id || showDate;
+                    return (
+                      <React.Fragment key={msg._id}>
+                        {showDate && <DateSep date={msg.createdAt} />}
+                        <div id={`ss4-msg-${msg._id}`}>
+                          <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} />
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
                   {typers.length > 0 && (
                     <div className="flex gap-2.5 px-5 py-1">
                       <div className="w-8" />
                       <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
-                        <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                          {typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing
-                        </span>
-                        <div className="flex gap-1">
-                          {[0, 1, 2].map(i => (
-                            <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full"
-                              style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />
-                          ))}
-                        </div>
+                        <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing</span>
+                        <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
                       </div>
                     </div>
                   )}
-
                   <div ref={endRef} />
                 </div>
 
-                {/* ── Input area ── */}
-                <div className="shrink-0 px-3 sm:px-4 pb-2 pt-2 space-y-1.5 ss4-input-safe">
-                  {/* Reply bar */}
+                {/* Input */}
+                <div className="shrink-0 px-3 sm:px-4 pb-2 pt-2 space-y-1.5">
                   {replyTo && (
                     <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                       <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>
-                          {replyTo.sender.fullName}
-                        </p>
-                        <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                          {replyTo.content || '📎 Attachment'}
-                        </p>
-                      </div>
-                      <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{replyTo.content || '📎 Attachment'}</p></div>
+                      <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6"><X className="h-3.5 w-3.5" /></button>
                     </div>
                   )}
-
                   {pendingFiles.length > 0 && (
                     <div className="ss4-reply-bar flex flex-col gap-2 px-3 py-2.5">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>
-                          {pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready
-                        </p>
-                        <button type="button" onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-                          Clear all
-                        </button>
-                      </div>
-                      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-                        {pendingFiles.map((file, index) => (
-                          <FilePreviewItem key={`${file.name}-${file.size}-${index}`} file={file} onRemove={() => removePendingFile(index)} />
-                        ))}
-                      </div>
+                      <div className="flex items-center justify-between"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready</p><button onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Clear all</button></div>
+                      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} />)}</div>
                     </div>
                   )}
 
-                  {/* Input wrapper */}
-                  {activeConv?.name === 'Online Team Report' ? (
+                  {isReportGroup ? (
                     <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                        Read-only · DayPulse reports are posted here automatically
-                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>Read-only · DayPulse reports are posted here automatically</span>
+                    </div>
+                  ) : recording ? (
+                    <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)', animation: 'ss4-call-ring 1.5s infinite' }} />
+                      <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
+                      <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
+                      <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
                     </div>
                   ) : (
                     <div className="ss4-input-wrap flex flex-col">
                       <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
-                        <textarea
-                          value={input}
-                          onChange={handleTyping}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                          }}
-                          placeholder="Message..."
-                          rows={1}
-                          className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5"
-                          style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }}
-                        />
+                        <textarea value={input} onChange={handleTyping} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
                       </div>
-
-                      {/* Toolbar */}
                       <div className="flex items-center justify-between px-3 pb-2.5 pt-1.5" style={{ borderTop: '1px solid var(--border-1)' }}>
-                        <div className="flex items-center gap-1">
-                          {/* Attach */}
-                          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || sending} className="ss4-icon-btn h-7 w-7" title="Attach files">
-                            {uploading
-                              ? <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} />
-                              : <Paperclip className="h-4 w-4" />}
-                          </button>
-                          <input
-                            id="ss4-file-upload"
-                            ref={fileRef}
-                            type="file"
-                            multiple
-                            accept="*/*"
-                            className="sr-only"
-                            onChange={e => {
-                              const selected = e.target.files;
-                              void handleUpload(selected);
-                              e.currentTarget.value = '';
-                            }}
-                          />
-
-                          {/* Emoji */}
+                        <div className="flex items-center gap-0.5">
+                          <button onClick={() => fileRef.current?.click()} disabled={uploading || sending} className="ss4-icon-btn h-7 w-7" title="Attach">{uploading ? <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /> : <Paperclip className="h-4 w-4" />}</button>
+                          <input ref={fileRef} type="file" multiple accept="*/*" className="sr-only" onChange={e => { void handleUpload(e.target.files); e.currentTarget.value = ''; }} />
+                          <button onClick={startRecording} className="ss4-icon-btn h-7 w-7" title="Voice message"><Mic className="h-4 w-4" /></button>
+                          <div className="relative" ref={gifRef}>
+                            <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="GIF"><Film className="h-4 w-4" /></button>
+                            {gifOpen && <GifPicker onPick={sendGif} onClose={() => setGifOpen(false)} />}
+                          </div>
                           <div className="relative" ref={emojiRef}>
-                            <button
-                              type="button"
-                              onClick={() => setEmojiOpen(v => !v)}
-                              className="ss4-icon-btn h-7 w-7"
-                              title="Emoji"
-                            >
-                              <Smile className="h-4 w-4" />
-                            </button>
-                            {emojiOpen && (
-                              <div className="absolute bottom-full left-0 mb-2 z-50" style={{ boxShadow: 'var(--shadow-lg)' }}>
-                                <EmojiPicker
-                                  theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT}
-                                  onEmojiClick={(data: EmojiClickData) => { setInput(prev => prev + data.emoji); setEmojiOpen(false); }}
-                                  height={380}
-                                  width={320}
-                                  searchPlaceholder="Search emoji..."
-                                  lazyLoadEmojis
-                                />
+                            <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="Emoji"><Smile className="h-4 w-4" /></button>
+                            {emojiOpen && <div className="absolute bottom-full left-0 mb-2 z-50" style={{ boxShadow: 'var(--shadow-lg)' }}><EmojiPicker theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} onEmojiClick={(d: EmojiClickData) => { setInput(p => p + d.emoji); setEmojiOpen(false); }} height={380} width={320} lazyLoadEmojis /></div>}
+                          </div>
+                          <div className="relative" ref={createMenuRef}>
+                            <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="Poll / Event"><BarChart3 className="h-4 w-4" /></button>
+                            {createMenuOpen && (
+                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', minWidth: 150, boxShadow: 'var(--shadow-md)' }}>
+                                <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><BarChart3 className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} /> Create poll</button>
+                                <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><CalendarPlus className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} /> Create event</button>
                               </div>
                             )}
                           </div>
-
-                          {/* Supra Leo AI */}
-                          <div className="relative" ref={supraLeoRef}>
-                            <button
-                              onClick={() => !supraLeoLoading && setSupraLeoOpen(v => !v)}
-                              disabled={supraLeoLoading}
-                              className="ss4-ai-btn h-7 px-2.5 flex items-center gap-1.5"
-                              title="Supra Leo AI"
-                            >
-                              {supraLeoLoading
-                                ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: '#b49dff' }} />
-                                : <Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} />}
-                              <span className="ss4-ai-text font-semibold" style={{ fontSize: 11 }}>Supra Leo</span>
+                          <div className="relative" ref={autrixRef}>
+                            <button onClick={() => !autrixLoading && setAutrixOpen(v => !v)} disabled={autrixLoading} className="ss4-ai-btn h-7 px-2.5 flex items-center gap-1.5" title="Suprah Autrix">
+                              {autrixLoading ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: '#b49dff' }} /> : <Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} />}
+                              <span className="ss4-ai-text font-semibold" style={{ fontSize: 11 }}>Suprah Autrix</span>
                             </button>
-
-                            {supraLeoOpen && (
-                              <div
-                                className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden shadow-lg"
-                                style={{
-                                  background: 'var(--surface-2)',
-                                  border: '1px solid var(--border-2)',
-                                  minWidth: 190,
-                                  boxShadow: 'var(--shadow-md)',
-                                }}
-                              >
-                                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                                  <p className="font-semibold" style={{ fontSize: 10, color: '#b49dff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                    Supra Leo AI
-                                  </p>
-                                </div>
+                            {autrixOpen && (
+                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', minWidth: 200, boxShadow: 'var(--shadow-md)' }}>
+                                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border-1)' }}><p className="font-semibold" style={{ fontSize: 10, color: '#b49dff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Suprah Autrix AI</p></div>
                                 <div className="py-1">
                                   {input.trim() ? (
                                     <>
-                                      <button
-                                        onClick={() => handleSupraLeoAction('improve')}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-(--bg-hover)"
-                                        style={{ fontSize: 12, color: 'var(--text-primary)' }}
-                                      >
-                                        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: '#b49dff' }} />
-                                        Improve draft
-                                      </button>
-                                      <button
-                                        onClick={() => handleSupraLeoAction('formal')}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-(--bg-hover)"
-                                        style={{ fontSize: 12, color: 'var(--text-primary)' }}
-                                      >
-                                        <Bot className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                                        Make formal
-                                      </button>
-                                      <button
-                                        onClick={() => handleSupraLeoAction('casual')}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-(--bg-hover)"
-                                        style={{ fontSize: 12, color: 'var(--text-primary)' }}
-                                      >
-                                        <Bot className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                                        Make casual
-                                      </button>
+                                      <button onClick={() => handleAutrix('improve')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} /> Improve draft</button>
+                                      <button onClick={() => handleAutrix('formal')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Bot className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} /> Make formal</button>
+                                      <button onClick={() => handleAutrix('casual')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Bot className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} /> Make casual</button>
                                     </>
                                   ) : (
-                                    <button
-                                      onClick={() => handleSupraLeoAction('draft')}
-                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-(--bg-hover)"
-                                      style={{ fontSize: 12, color: 'var(--text-primary)' }}
-                                    >
-                                      <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: '#b49dff' }} />
-                                      Draft a reply
-                                    </button>
+                                    <button onClick={() => handleAutrix('draft')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} /> Draft a reply</button>
                                   )}
+                                  <button onClick={() => { setAutrixOpen(false); setSummarizeOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><BarChart3 className="h-3.5 w-3.5" style={{ color: '#b49dff' }} /> Summarize chat</button>
                                 </div>
                               </div>
                             )}
                           </div>
                         </div>
-
                         <div className="flex items-center gap-2">
-                          {uploadNotice && (
-                            <span
-                              className="max-w-50 truncate ss4-mono"
-                              style={{
-                                fontSize: 10,
-                                color: uploadNotice.kind === 'error'
-                                  ? 'var(--danger)'
-                                  : uploadNotice.kind === 'success'
-                                    ? 'var(--positive)'
-                                    : 'var(--text-tertiary)',
-                              }}
-                            >
-                              {uploadNotice.text}
-                            </span>
-                          )}
-                          <span className="ss4-mono" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>⏎ Send</span>
-                          <button onClick={handleSend} disabled={(!input.trim() && pendingFiles.length === 0) || sending || uploading} className="ss4-send-btn h-7 w-7 flex items-center justify-center">
-                            {(sending || uploading)
-                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#fff' }} />
-                              : <Send className="h-3.5 w-3.5" style={{ color: '#fff', opacity: (input.trim() || pendingFiles.length > 0) ? 1 : 0.5 }} />}
-                          </button>
+                          {uploadNotice && <span className="max-w-50 truncate ss4-mono" style={{ fontSize: 10, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</span>}
+                          <button onClick={handleSend} disabled={(!input.trim() && pendingFiles.length === 0) || sending || uploading} className="ss4-send-btn h-7 w-7 flex items-center justify-center">{(sending || uploading) ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#fff' }} /> : <Send className="h-3.5 w-3.5" style={{ color: '#fff', opacity: (input.trim() || pendingFiles.length > 0) ? 1 : 0.5 }} />}</button>
                         </div>
                       </div>
                     </div>
@@ -2447,289 +1856,179 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
                 </div>
               </>
             )}
-          </div>{/* end inner chat column */}
+          </div>
 
-          {/* ── Info Panel ── */}
+          {/* ── Details (full-takeover, hides the chat) ── */}
           {showInfo && activeId && activeConv && (() => {
-            const mediaAttachments = activeMsgs.flatMap(m => m.attachments.filter(a => a.mimeType.startsWith('image/')));
-            const fileAttachments = activeMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/')));
-            const pinnedMessages = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
-            const convName = gcNameInput || getConvName(activeConv, uid);
+            const media = activeMsgs.flatMap(m => m.attachments.filter(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)));
+            const files = activeMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)));
+            const pinned = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
+            const convName = getConvName(activeConv, uid);
             const otherMember = activeConv.type === 'direct' ? activeConv.members.find(m => m._id !== uid) : null;
             const isOtherOnline = otherMember ? presence[otherMember._id] === 'online' : false;
+            const canDeletePermanent = activeConv.type === 'group' && isAdmin;
             return (
-              <div className="ss4-sidebar flex flex-col overflow-hidden absolute inset-0 z-30 lg:relative lg:inset-auto lg:z-auto lg:shrink-0 lg:w-72" style={{ borderLeft: '1px solid var(--sidebar-border)' }}>
+              <div className="ss4-sidebar absolute inset-0 z-30 flex flex-col overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+                <div className="shrink-0 flex items-center gap-2 px-3 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                  <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><ChevronLeft className="h-4 w-4" /></button>
+                  <p className="ss4-display font-bold flex-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Details</p>
+                  <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><X className="h-4 w-4" /></button>
+                </div>
 
-                {/* ── Profile hero ── */}
-                <div className="shrink-0 flex flex-col items-center gap-2 px-4 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <button onClick={() => setShowInfo(false)} className="lg:hidden ss4-icon-btn h-7 w-7 flex items-center gap-1" style={{ fontSize: 12 }}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <div className="flex-1 lg:flex-none" />
-                    <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-6 w-6"><X className="h-3.5 w-3.5" /></button>
-                  </div>
-                  <div className="relative group/ava">
-                    <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(convName))}>
-                      {getConvAvatar(activeConv, uid)
-                        ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" />
-                        : activeConv.type === 'group' ? <Hash className="h-7 w-7 text-white opacity-80" />
-                          : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(convName)}</span>}
-                    </div>
-                    {activeConv.type === 'group' && (
-                      <>
-                        <button onClick={() => avatarFileRef.current?.click()}
-                          className="absolute inset-0 rounded-2xl flex items-center justify-center opacity-0 group-hover/ava:opacity-100 transition-opacity"
-                          style={{ background: 'rgba(0,0,0,0.5)' }} title="Change photo">
-                          <ImageIcon className="h-5 w-5 text-white" />
+                <div className="flex-1 overflow-y-auto ss4-scroll">
+                  <div className="max-w-xl mx-auto w-full">
+                    {/* Hero */}
+                    <div className="flex flex-col items-center gap-2 px-4 pt-6 pb-5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                      <div className="relative group/ava">
+                        <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(convName))}>
+                          {getConvAvatar(activeConv, uid) ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" /> : activeConv.type === 'group' ? <Hash className="h-8 w-8 text-white opacity-80" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(convName)}</span>}
+                        </div>
+                        {activeConv.type === 'group' && !isReportGroup && (
+                          <>
+                            <button onClick={() => avatarFileRef.current?.click()} className="absolute inset-0 rounded-2xl flex items-center justify-center opacity-0 group-hover/ava:opacity-100 transition-opacity" style={{ background: 'rgba(0,0,0,0.5)' }} title="Change photo"><ImageIcon className="h-6 w-6 text-white" /></button>
+                            <input ref={avatarFileRef} type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
+                          </>
+                        )}
+                      </div>
+                      {editingGcName ? (
+                        <div className="flex items-center gap-1.5 w-full max-w-xs mt-1">
+                          <input value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} autoFocus className="ss4-search-input flex-1 px-2 py-1 text-center" style={{ fontSize: 15, fontWeight: 700 }}
+                            onKeyDown={e => { if (e.key === 'Enter') { renameChannel(gcNameInput); setEditingGcName(false); } if (e.key === 'Escape') { setGcNameInput(''); setEditingGcName(false); } }} />
+                          <button onClick={() => { renameChannel(gcNameInput); setEditingGcName(false); }} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0"><CheckIcon className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <p className="ss4-display font-bold" style={{ fontSize: 17, color: 'var(--text-primary)' }}>{convName}</p>
+                          {activeConv.type === 'group' && isAdmin && !isReportGroup && <button onClick={() => { setGcNameInput(convName); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
+                        </div>
+                      )}
+                      <p style={{ fontSize: 12, color: activeConv.type === 'direct' && isOtherOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : isOtherOnline ? '● Active now' : 'Offline'}</p>
+
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 11 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
+                        <button onClick={() => toggleArchiveConv(activeConv)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 11 }}>
+                          {isArchivedConv(activeConv) ? <><ArchiveRestore className="h-3.5 w-3.5" /> Unarchive</> : <><Archive className="h-3.5 w-3.5" /> Archive</>}
                         </button>
-                        <input ref={avatarFileRef} type="file" accept="image/*" className="sr-only"
-                          onChange={e => {
-                            const file = e.target.files?.[0]; if (!file) return;
-                            const rawUrl = URL.createObjectURL(file);
-                            const img = new window.Image();
-                            img.onload = () => {
-                              const canvas = document.createElement('canvas');
-                              canvas.width = 400; canvas.height = 400;
-                              const ctx = canvas.getContext('2d');
-                              if (ctx) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 400, 400); ctx.drawImage(img, 0, 0, 400, 400); }
-                              const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-                              URL.revokeObjectURL(rawUrl);
-                              setConvos(prev => prev.map(c => c._id === activeConv._id ? { ...c, avatar: dataUrl } : c));
-                              addSystemEvent(activeConv._id, '📷 Channel photo updated');
-                              canvas.toBlob(blob => {
-                                if (!blob) return;
-                                const fd = new FormData(); fd.append('avatar', blob, 'avatar.jpg');
-                                apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, fd, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
-                              }, 'image/jpeg', 0.9);
-                            };
-                            img.src = rawUrl;
-                            e.target.value = '';
-                          }}
-                        />
-                      </>
+                        {activeConv.type === 'group' && !isReportGroup && <button onClick={() => setManageOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 11 }}><UserPlus className="h-3.5 w-3.5" /> Add</button>}
+                      </div>
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="flex sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-base)' }}>
+                      {(['members', 'media', 'files', 'pinned'] as const).map(tab => (
+                        <button key={tab} onClick={() => setInfoTab(tab)} className="flex-1 py-2.5 font-semibold capitalize relative" style={{ fontSize: 11, color: infoTab === tab ? 'var(--accent)' : 'var(--text-tertiary)', borderBottom: infoTab === tab ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -1 }}>
+                          {tab}{tab === 'pinned' && pinned.length > 0 && <span className="ml-1 ss4-badge inline-flex items-center" style={{ borderRadius: 8 }}>{pinned.length}</span>}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Members */}
+                    {infoTab === 'members' && (
+                      <div className="py-2">
+                        {activeConv.members.map(member => {
+                          const isOnline = presence[member._id] === 'online';
+                          const isMe = member._id === uid;
+                          const memberIsAdmin = (activeConv.admins || []).map(String).includes(member._id);
+                          return (
+                            <div key={member._id} className="w-full flex items-center gap-3 px-4 py-2.5 group/m">
+                              <div className="relative shrink-0">
+                                <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(member.fullName))} style={{ fontSize: 12 }}>{member.avatar ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : ini(member.fullName)}</div>
+                                {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{member.fullName}{isMe && <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, fontSize: 11 }}> (you)</span>}</p>
+                                <p style={{ fontSize: 10, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : member.role || 'Offline'}</p>
+                              </div>
+                              {memberIsAdmin && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)', borderRadius: 4, padding: '1px 6px' }}>Admin</span>}
+                              {activeConv.type === 'group' && !isReportGroup && (isAdmin || isMe) && (
+                                <button onClick={() => removeMember(member._id)} className="h-7 w-7 rounded-lg flex items-center justify-center opacity-0 group-hover/m:opacity-100 transition-opacity" style={{ color: 'var(--danger)' }} title={isMe ? 'Leave channel' : 'Remove'}>
+                                  {isMe ? <LogOut className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Media */}
+                    {infoTab === 'media' && (
+                      <div className="p-3">
+                        {media.length === 0 ? <div className="flex flex-col items-center justify-center py-14 gap-3"><ImageIcon className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} /><p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No photos or videos</p></div>
+                          : <div className="grid grid-cols-4 gap-1.5">{media.map((att, i) => { const isVid = isVideoAttachment(att); return (
+                            <button key={i} onClick={() => setLightbox({ src: att.url, type: isVid ? 'video' : 'image', name: att.originalName })} className="relative aspect-square rounded-xl overflow-hidden cursor-zoom-in group" style={{ background: 'var(--bg-hover)' }}>
+                              {isVid ? <video src={att.url} className="w-full h-full object-cover" muted /> : <img src={att.thumbnailUrl || att.url} alt="" className="w-full h-full object-cover" />}
+                              {isVid && <div className="absolute inset-0 flex items-center justify-center"><div className="h-7 w-7 rounded-full bg-black/50 flex items-center justify-center"><Video className="h-3.5 w-3.5 text-white" /></div></div>}
+                            </button>); })}</div>}
+                      </div>
+                    )}
+
+                    {/* Files */}
+                    {infoTab === 'files' && (
+                      <div className="py-2">
+                        {files.length === 0 ? <div className="flex flex-col items-center justify-center py-14 gap-3"><FileText className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} /><p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No files shared</p></div>
+                          : files.map((att, i) => (
+                            <a key={i} href={att.url} download={att.originalName} className="flex items-center gap-3 px-4 py-3 no-underline" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                              <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-5 w-5" style={{ color: 'var(--accent)' }} /></div>
+                              <div className="min-w-0 flex-1"><p className="truncate font-semibold" style={{ fontSize: 12, color: 'var(--text-primary)' }}>{att.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtSize(att.size)}</p></div>
+                              <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+                            </a>))}
+                      </div>
+                    )}
+
+                    {/* Pinned */}
+                    {infoTab === 'pinned' && (
+                      <div className="py-2">
+                        {pinned.length === 0 ? <div className="flex flex-col items-center justify-center py-14 gap-3"><Pin className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} /><p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No pinned messages</p></div>
+                          : pinned.map(msg => (
+                            <button key={msg._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${msg._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150); }} className="w-full text-left px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                              <div className="flex items-center justify-between gap-2 mb-1"><span className="font-semibold truncate" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{msg.sender.fullName}</span><button onClick={e => { e.stopPropagation(); handlePinToggle(msg._id); }} className="ss4-icon-btn h-5 w-5"><X className="h-3 w-3" /></button></div>
+                              <p className="line-clamp-3" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{msg.content || '📎 Attachment'}</p>
+                            </button>))}
+                      </div>
+                    )}
+
+                    {/* Danger zone */}
+                    {!isReportGroup && (
+                      <div className="p-4 mt-2" style={{ borderTop: '1px solid var(--border-1)' }}>
+                        <button onClick={() => setConfirmDelete(true)} className="w-full h-10 rounded-xl flex items-center justify-center gap-2 font-semibold" style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.25)' }}>
+                          <Trash2 className="h-4 w-4" />
+                          {canDeletePermanent ? 'Delete channel permanently' : activeConv.type === 'group' ? 'Leave & remove conversation' : 'Delete conversation'}
+                        </button>
+                      </div>
                     )}
                   </div>
-
-                  {editingGcName ? (
-                    <div className="flex items-center gap-1.5 w-full mt-1">
-                      <input value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} autoFocus
-                        className="ss4-search-input flex-1 px-2 py-1 text-center" style={{ fontSize: 14, fontWeight: 700 }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            if (gcNameInput.trim() && activeConv) {
-                              setConvos(prev => prev.map(c => c._id === activeConv._id ? { ...c, name: gcNameInput.trim() } : c));
-                              addSystemEvent(activeConv._id, `✏️ Channel renamed to "${gcNameInput.trim()}"`);
-                              try { apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { name: gcNameInput.trim() }, { headers: { Authorization: `Bearer ${token}` } }); } catch { /* ignore */ }
-                            }
-                            setEditingGcName(false);
-                          }
-                          if (e.key === 'Escape') { setGcNameInput(''); setEditingGcName(false); }
-                        }} />
-                      <button onClick={() => {
-                        if (gcNameInput.trim() && activeConv) {
-                          setConvos(prev => prev.map(c => c._id === activeConv._id ? { ...c, name: gcNameInput.trim() } : c));
-                          addSystemEvent(activeConv._id, `✏️ Channel renamed to "${gcNameInput.trim()}"`);
-                          try { apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { name: gcNameInput.trim() }, { headers: { Authorization: `Bearer ${token}` } }); } catch { /* ignore */ }
-                        }
-                        setEditingGcName(false);
-                      }} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0">
-                        <CheckIcon className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <p className="ss4-display font-bold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{convName}</p>
-                      {activeConv.type === 'group' && (
-                        <button onClick={() => { setGcNameInput(gcNameInput || getConvName(activeConv, uid)); setEditingGcName(true); }} className="ss4-icon-btn h-5 w-5">
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <p style={{ fontSize: 11, color: activeConv.type === 'direct' && isOtherOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>
-                    {activeConv.type === 'group' ? `${activeConv.members.length} members` : isOtherOnline ? '● Active now' : 'Offline'}
-                  </p>
                 </div>
 
-                {/* ── Tabs ── */}
-                <div className="shrink-0 flex" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                  {(['members', 'media', 'files', 'pinned'] as const).map(tab => (
-                    <button key={tab} onClick={() => setInfoTab(tab)}
-                      className="flex-1 py-2.5 font-semibold transition-all capitalize relative"
-                      style={{ fontSize: 10.5, color: infoTab === tab ? 'var(--accent)' : 'var(--text-tertiary)', borderBottom: infoTab === tab ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -1 }}>
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}{tab === 'pinned' && pinnedMessages.length > 0 && <span className="ml-1 ss4-badge inline-flex items-center" style={{ borderRadius: 8, verticalAlign: 'middle' }}>{pinnedMessages.length}</span>}
-                    </button>
-                  ))}
-                </div>
-
-                {/* ── Tab content ── */}
-                <div className="flex-1 overflow-y-auto ss4-scroll">
-
-                  {/* Members */}
-                  {infoTab === 'members' && (
-                    <div className="py-2">
-                      {activeConv.members.map(member => {
-                        const isOnline = presence[member._id] === 'online';
-                        const isMe = member._id === uid;
-                        return (
-                          <button key={member._id}
-                            onClick={e => { if (isMe) return; setMemberCard({ member, pos: { x: e.clientX, y: e.clientY } }); }}
-                            className={cn('w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors', !isMe && 'cursor-pointer')}
-                            style={{ cursor: isMe ? 'default' : 'pointer' }}
-                            onMouseEnter={e => { if (!isMe) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
-                            <div className="relative shrink-0">
-                              <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(member.fullName))} style={{ fontSize: 12 }}>
-                                {member.avatar ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : ini(member.fullName)}
-                              </div>
-                              {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                                {member.fullName}{isMe && <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, fontSize: 11 }}> (you)</span>}
-                              </p>
-                              <p style={{ fontSize: 10, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>
-                                {isOnline ? '● Active now' : member.role || 'Offline'}
-                              </p>
-                            </div>
-                            {activeConv.admins?.includes(member._id) && (
-                              <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>Admin</span>
-                            )}
-                          </button>
-                        );
-                      })}
+                {confirmDelete && (
+                  <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDelete(false)}>
+                    <div className="ss4-modal w-full max-w-xs p-5" onClick={e => e.stopPropagation()}>
+                      <p className="ss4-display font-bold mb-2" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{canDeletePermanent ? 'Delete channel?' : 'Delete conversation?'}</p>
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{canDeletePermanent ? 'This permanently removes the channel for everyone. This cannot be undone.' : 'This removes the conversation from your list.'}</p>
+                      <div className="flex gap-2 mt-4">
+                        <button onClick={() => setConfirmDelete(false)} className="flex-1 h-9 rounded-lg ss4-pill-btn font-semibold" style={{ fontSize: 13 }}>Cancel</button>
+                        <button onClick={() => deleteConversation(activeConv)} className="flex-1 h-9 rounded-lg font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+                      </div>
                     </div>
-                  )}
-
-                  {/* Media */}
-                  {infoTab === 'media' && (
-                    <div className="p-3">
-                      {mediaAttachments.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-14 gap-3">
-                          <ImageIcon className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} />
-                          <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No photos or videos</p>
-                          <p style={{ fontSize: 11, color: 'var(--text-disabled)', textAlign: 'center' }}>Images and videos sent in this conversation will appear here</p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {mediaAttachments.map((att, i) => {
-                            const isVid = isVideoAttachment(att);
-                            return (
-                              <button key={i} onClick={() => setLightbox({ src: att.url, type: isVid ? 'video' : 'image', name: att.originalName })}
-                                className="relative aspect-square rounded-xl overflow-hidden cursor-zoom-in group" style={{ background: 'var(--bg-hover)' }}>
-                                {isVid
-                                  ? <video src={att.url} className="w-full h-full object-cover" muted />
-                                  : <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-cover" />}
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                                  {isVid && <div className="h-7 w-7 rounded-full bg-black/50 flex items-center justify-center"><Video className="h-3.5 w-3.5 text-white" /></div>}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Files */}
-                  {infoTab === 'files' && (
-                    <div className="py-2">
-                      {fileAttachments.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-14 gap-3">
-                          <FileText className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} />
-                          <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No files shared</p>
-                          <p style={{ fontSize: 11, color: 'var(--text-disabled)', textAlign: 'center' }}>Files and documents sent here will appear in this tab</p>
-                        </div>
-                      ) : (
-                        fileAttachments.map((att, i) => (
-                          <a key={i} href={att.url} download={att.originalName}
-                            className="flex items-center gap-3 px-4 py-3 no-underline transition-colors"
-                            style={{ borderBottom: '1px solid var(--border-1)' }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
-                            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
-                              <FileText className="h-5 w-5" style={{ color: 'var(--accent)' }} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-semibold" style={{ fontSize: 12, color: 'var(--text-primary)' }}>{att.originalName}</p>
-                              <p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtSize(att.size)}</p>
-                            </div>
-                            <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
-                          </a>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {/* Pinned */}
-                  {infoTab === 'pinned' && (
-                    <div className="py-2">
-                      {pinnedMessages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-14 gap-3">
-                          <Pin className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} />
-                          <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No pinned messages</p>
-                          <p style={{ fontSize: 11, color: 'var(--text-disabled)', textAlign: 'center' }}>Hover any message and click 📌 to pin it here</p>
-                        </div>
-                      ) : (
-                        pinnedMessages.map(msg => (
-                          <button key={msg._id}
-                            onClick={() => {
-                              setShowInfo(false);
-                              setTimeout(() => {
-                                document.getElementById(`ss4-msg-${msg._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 150);
-                            }}
-                            className="w-full text-left px-4 py-3 transition-colors"
-                            style={{ borderBottom: '1px solid var(--border-1)' }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className={cn('h-5 w-5 rounded-full flex items-center justify-center text-white font-semibold shrink-0', getAvaColor(msg.sender.fullName))} style={{ fontSize: 8 }}>
-                                  {ini(msg.sender.fullName)}
-                                </div>
-                                <span className="font-semibold truncate" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{msg.sender.fullName}</span>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span className="ss4-mono" style={{ fontSize: 9, color: 'var(--text-disabled)' }}>{fmtTime(msg.createdAt)}</span>
-                                <button onClick={e => { e.stopPropagation(); handlePinToggle(msg._id); }} className="ss4-icon-btn h-5 w-5" title="Unpin">
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            </div>
-                            <p className="leading-relaxed line-clamp-3" style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                              {msg.content || (msg.attachments?.length ? '📎 Attachment' : '')}
-                            </p>
-                            <p className="mt-1.5" style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>Click to jump →</p>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })()}
-
         </main>
       </div>
 
       {/* ── Modals ── */}
-      {showModal.open && (
-        <NewConvModal users={allUsers} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} />
-      )}
-      {videoCallConv && (
-        <VideoCallModal
-          conv={videoCallConv}
-          uid={uid}
-          allUsers={allUsers}
-          token={token}
-          onClose={() => setVideoCallConv(null)}
-        />
-      )}
+      {showModal.open && <NewConvModal users={allUsers} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} />}
+      {videoCallConv && <VideoCallModal conv={videoCallConv} uid={uid} allUsers={allUsers} token={token} onClose={() => setVideoCallConv(null)} />}
+      {manageOpen && activeConv && <ManageMembersModal users={allUsers} existingIds={activeConv.members.map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />}
+      {themeOpen && activeConv && <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />}
+      {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
+      {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
+      {activeUsersOpen && <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} onMessage={handleDM} />}
+      {summarizeOpen && activeId && <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />}
 
-      {/* ── Member profile mini-card ── */}
+      {/* Member mini-card */}
       {memberCard && (() => {
         const { member, pos } = memberCard;
         const isOnline = presence[member._id] === 'online';
@@ -2738,32 +2037,16 @@ export default function SupraSpacePage({ embedded = false }: { embedded?: boolea
         const cardY = Math.min(pos.y, window.innerHeight - 200);
         return (
           <div id="ss4-member-card" className="fixed z-150 rounded-2xl overflow-hidden" style={{ left: cardX, top: cardY, width: 200, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-            {/* Banner */}
-            <div className={cn('h-14 w-full', getAvaColor(member.fullName))} style={{ background: 'linear-gradient(135deg, rgba(91,124,246,0.6), rgba(120,80,220,0.4))' }} />
-            {/* Avatar */}
+            <div className="h-14 w-full" style={{ background: 'linear-gradient(135deg, rgba(91,124,246,0.6), rgba(120,80,220,0.4))' }} />
             <div className="relative px-4 -mt-6 pb-3">
-              <div className={cn('h-12 w-12 rounded-full border-4 flex items-center justify-center overflow-hidden text-white font-bold', getAvaColor(member.fullName))} style={{ borderColor: 'var(--bg-elevated)', fontSize: 14 }}>
-                {member.avatar ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : ini(member.fullName)}
-              </div>
-              {isOnline && <span className="absolute top-4 left-10 h-3 w-3 rounded-full ss4-online-dot border-2" style={{ borderColor: 'var(--bg-elevated)' }} />}
-              <div className="mt-2">
-                <p className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{member.fullName}</p>
-                <p style={{ fontSize: 10, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)', marginTop: 2 }}>
-                  {isOnline ? '● Active now' : 'Offline'} {member.role ? `· ${member.role}` : ''}
-                </p>
-              </div>
-              <button
-                onClick={() => { setMemberCard(null); if (existing) { setActiveId(existing._id); setShowInfo(false); } else handleDM(member._id); }}
-                className="ss4-send-btn w-full mt-3 h-8 flex items-center justify-center gap-1.5 font-semibold"
-                style={{ fontSize: 12 }}>
-                <MessageSquare className="h-3.5 w-3.5" /> Message
-              </button>
+              <div className={cn('h-12 w-12 rounded-full border-4 flex items-center justify-center overflow-hidden text-white font-bold', getAvaColor(member.fullName))} style={{ borderColor: 'var(--bg-elevated)', fontSize: 14 }}>{member.avatar ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : ini(member.fullName)}</div>
+              <div className="mt-2"><p className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{member.fullName}</p><p style={{ fontSize: 10, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)', marginTop: 2 }}>{isOnline ? '● Active now' : 'Offline'} {member.role ? `· ${member.role}` : ''}</p></div>
+              <button onClick={() => { setMemberCard(null); if (existing) { setActiveId(existing._id); setShowInfo(false); } else handleDM(member._id); }} className="ss4-send-btn w-full mt-3 h-8 flex items-center justify-center gap-1.5 font-semibold" style={{ fontSize: 12 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>
             </div>
           </div>
         );
       })()}
 
-      {/* ── Lightbox ── */}
       {lightbox && <LightboxModal src={lightbox.src} type={lightbox.type} name={lightbox.name} onClose={() => setLightbox(null)} />}
     </div>
   );

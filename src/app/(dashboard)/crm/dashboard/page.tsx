@@ -841,7 +841,7 @@ export default function CrmDashboardPage() {
         <CalendarCheck className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
       ),
       label: "Appointments",
-      route: "/crm/appointments/dashboard",
+      route: "/crm/appointments",
     },
     {
       icon: (
