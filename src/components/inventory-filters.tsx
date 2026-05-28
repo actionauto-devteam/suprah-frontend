@@ -460,7 +460,7 @@ export function InventoryFilters({
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="All Locations" />
                     </SelectTrigger>
-                    <SelectContent position="popper" className="z-[70]">
+                    <SelectContent position="popper" className="z-70">
                       <SelectItem value="all">All Locations</SelectItem>
                       {(filterOptions?.locations ?? []).map((loc) => (
                         <SelectItem key={loc} value={loc}>

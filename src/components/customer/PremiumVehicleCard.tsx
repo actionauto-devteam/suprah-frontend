@@ -85,7 +85,7 @@ function PremiumVehicleCardComponent({
       onClick={() => onVehicleClick?.(vehicle)}
     >
       {/* Premium Image Header */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+      <div className="relative aspect-16/10 overflow-hidden bg-zinc-100 dark:bg-zinc-900">
         {imgError ? (
           /* ── Unified fallback: single flex layout, no absolute layer conflicts ── */
           <div className="absolute inset-0 flex flex-col bg-zinc-300 dark:bg-zinc-800">
@@ -120,7 +120,7 @@ function PremiumVehicleCardComponent({
                   {vehicle.trim && ` - ${vehicle.trim}`}
                 </p>
               </div>
-              <div className="flex-shrink-0 bg-white/60 dark:bg-black/40 rounded-xl px-3 py-2 border border-zinc-400/30 dark:border-white/10 text-right">
+              <div className="shrink-0 bg-white/60 dark:bg-black/40 rounded-xl px-3 py-2 border border-zinc-400/30 dark:border-white/10 text-right">
                 <p className="text-xs text-zinc-700 dark:text-zinc-400 font-semibold uppercase tracking-wider">
                   Est. Monthly
                 </p>
@@ -154,7 +154,7 @@ function PremiumVehicleCardComponent({
             />
 
             {/* Sleek Overlay Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
 
             {/* Top Badges */}
             <div className="absolute top-4 left-4 flex gap-2 z-10">
@@ -179,7 +179,7 @@ function PremiumVehicleCardComponent({
                   {vehicle.trim && ` - ${vehicle.trim}`}
                 </p>
               </div>
-              <div className="flex-shrink-0 bg-black/40 backdrop-blur-md rounded-xl p-2 border border-white/10 text-right">
+              <div className="shrink-0 bg-black/40 backdrop-blur-md rounded-xl p-2 border border-white/10 text-right">
                 <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
                   Est. Monthly
                 </p>
@@ -194,7 +194,7 @@ function PremiumVehicleCardComponent({
       </div>
 
       {/* Card Body */}
-      <div className="p-5 flex flex-col flex-1 bg-gradient-to-b from-transparent to-zinc-50/50 dark:to-zinc-900/20">
+      <div className="p-5 flex flex-col flex-1 bg-linear-to-b from-transparent to-zinc-50/50 dark:to-zinc-900/20">
         {/* Core Specs Grid */}
         <div className="flex items-center justify-between py-4 border-b border-border/50 mb-4">
           <div className="flex flex-col items-center flex-1 border-r border-border/50">
@@ -207,7 +207,7 @@ function PremiumVehicleCardComponent({
             <div className="text-muted-foreground font-medium text-xs uppercase tracking-wider mb-1">
               Eng
             </div>
-            <span className="text-sm font-semibold text-foreground truncate max-w-[100px]">
+            <span className="text-sm font-semibold text-foreground truncate max-w-25">
               {vehicle.engine || "V6"}
             </span>
           </div>

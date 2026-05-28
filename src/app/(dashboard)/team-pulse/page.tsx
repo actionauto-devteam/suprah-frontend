@@ -432,9 +432,9 @@ function MemberFullProfileDialog({
       label: "Gender",
       value: (profile.personalInfo as any)?.gender
         ? String((profile.personalInfo as any).gender)
-            .charAt(0)
-            .toUpperCase() +
-          String((profile.personalInfo as any).gender).slice(1)
+          .charAt(0)
+          .toUpperCase() +
+        String((profile.personalInfo as any).gender).slice(1)
         : null,
       color: "text-pink-500",
     },
@@ -443,9 +443,9 @@ function MemberFullProfileDialog({
       label: "Birthday",
       value: (profile.personalInfo as any)?.dateOfBirth
         ? format(
-            new Date((profile.personalInfo as any).dateOfBirth),
-            "MMM d, yyyy",
-          )
+          new Date((profile.personalInfo as any).dateOfBirth),
+          "MMM d, yyyy",
+        )
         : null,
       color: "text-rose-500",
     },
@@ -1910,8 +1910,8 @@ export default function TeamPulsePage() {
     : [];
   const myDayAbsence = selectedDay
     ? absences
-        .filter((a) => isSameDay(parseISO(a.date), selectedDay))
-        .find((a) => a.userName === user?.fullName)
+      .filter((a) => isSameDay(parseISO(a.date), selectedDay))
+      .find((a) => a.userName === user?.fullName)
     : undefined;
   const myMonthAbsences = absences.filter((a) => a.userName === user?.fullName);
   const upcomingAbsences = React.useMemo(() => {
@@ -2021,11 +2021,11 @@ export default function TeamPulsePage() {
       } else {
         const durationDays = noteExpiry
           ? Math.max(
-              1,
-              Math.ceil(
-                (new Date(noteExpiry).getTime() - Date.now()) / 86_400_000,
-              ),
-            )
+            1,
+            Math.ceil(
+              (new Date(noteExpiry).getTime() - Date.now()) / 86_400_000,
+            ),
+          )
           : null;
         await createNote.mutateAsync({
           title: noteTitle.trim() || undefined,
@@ -2731,7 +2731,7 @@ export default function TeamPulsePage() {
                                               className={cn(
                                                 "w-full h-full flex items-center justify-center text-[6px] font-black text-white",
                                                 A[a.type as AbsenceType]?.dot ??
-                                                  "bg-gray-400",
+                                                "bg-gray-400",
                                               )}
                                             >
                                               {a.userName[0]}
@@ -3227,9 +3227,9 @@ export default function TeamPulsePage() {
               boardTypeFilter === "all"
                 ? boardNotes
                 : boardNotes.filter(
-                    (n) =>
-                      (n.announcementType ?? "general") === boardTypeFilter,
-                  );
+                  (n) =>
+                    (n.announcementType ?? "general") === boardTypeFilter,
+                );
             const urgentCount = boardNotes.filter(
               (n) => n.announcementType === "urgent",
             ).length;
@@ -3326,8 +3326,8 @@ export default function TeamPulsePage() {
                         key === "all"
                           ? boardNotes.length
                           : boardNotes.filter(
-                              (n) => (n.announcementType ?? "general") === key,
-                            ).length;
+                            (n) => (n.announcementType ?? "general") === key,
+                          ).length;
                       if (count === 0 && key !== "all") return null;
                       const on = boardTypeFilter === key;
                       return (
@@ -3471,7 +3471,7 @@ export default function TeamPulsePage() {
                     className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors cursor-pointer"
                     onClick={() => setOpenMemberId(m._id)}
                   >
-                    <div className="relative flex-shrink-0">
+                    <div className="relative shrink-0">
                       <Avatar className="size-9">
                         <AvatarImage src={m.profileImage} />
                         <AvatarFallback className="text-xs font-bold">
@@ -3664,7 +3664,7 @@ export default function TeamPulsePage() {
                               1,
                               Math.ceil(
                                 (new Date(noteExpiry).getTime() - Date.now()) /
-                                  86_400_000,
+                                86_400_000,
                               ),
                             )}
                             d from now

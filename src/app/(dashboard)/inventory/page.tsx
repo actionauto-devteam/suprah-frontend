@@ -231,8 +231,8 @@ function InventoryContent() {
       if (axiosError.code !== "ERR_CANCELED") {
         setError(
           (axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Failed to load vehicles",
+          axiosError.message ||
+          "Failed to load vehicles",
         );
       }
     } finally {
@@ -535,7 +535,7 @@ function InventoryContent() {
                   type="button"
                   variant="outline"
                   onClick={() => setIsSortSheetOpen(true)}
-                  className="h-9 min-w-[170px] justify-between gap-2"
+                  className="h-9 min-w-42.5 justify-between gap-2"
                 >
                   <span className="truncate">{currentSortLabel}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -584,7 +584,7 @@ function InventoryContent() {
             {[...Array(8)].map((_, i) => (
               <div
                 key={i}
-                className="h-[400px] bg-muted rounded-lg animate-pulse"
+                className="h-100 bg-muted rounded-lg animate-pulse"
               />
             ))}
           </div>
