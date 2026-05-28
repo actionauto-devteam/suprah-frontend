@@ -96,7 +96,7 @@ export default function DriverLoadsPage() {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [tab, setTab] = React.useState<Tab>('active');
   const [search, setSearch] = React.useState('');
-  
+
   // Action States
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [confirmState, setConfirmState] = React.useState<{
@@ -114,10 +114,10 @@ export default function DriverLoadsPage() {
     description: '',
     variant: 'primary',
   });
-  
+
   // Dialog Targets
   const [proofTarget, setProofTarget] = React.useState<Load | null>(null);
-  
+
   const [refreshing, setRefreshing] = React.useState(false);
   const [maxLoadCapacity, setMaxLoadCapacity] = React.useState(12);
 
@@ -128,7 +128,7 @@ export default function DriverLoadsPage() {
         apiClient.get(`/api/driver-tracking/my-loads?page=${pageNum}`, { headers: { Authorization: `Bearer ${token}` } }),
         apiClient.get('/api/driver-tracking/my-requests', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
-      
+
       const loadsData = loadsRes.data?.data;
       const newLoads = loadsData?.loads || loadsData || [];
       const newPagination = loadsData?.pagination || null;
@@ -145,12 +145,12 @@ export default function DriverLoadsPage() {
       else setPage(pageNum);
 
       setRequests(reqRes.data?.data || []);
-    } catch (err: any) { 
-      toast.error(extractErr(err, 'Failed to fetch loads')); 
-    } finally { 
-      setLoading(false); 
-      setRefreshing(false); 
-      setLoadingMore(false); 
+    } catch (err: any) {
+      toast.error(extractErr(err, 'Failed to fetch loads'));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
     }
   }, [getToken]);
 
@@ -203,11 +203,11 @@ export default function DriverLoadsPage() {
       const token = await getToken();
       await apiClient.post(`/api/driver-tracking/${action}`, { loadId: id }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success(
-        action === 'accept-load' ? 'Load accepted' : 
-        action === 'start-route' ? 'Route started' : 
-        action === 'drop-load' ? 'Load dropped' : 
-        action === 'mark-picked-up' ? 'Load picked up' : 
-        'Done'
+        action === 'accept-load' ? 'Load accepted' :
+          action === 'start-route' ? 'Route started' :
+            action === 'drop-load' ? 'Load dropped' :
+              action === 'mark-picked-up' ? 'Load picked up' :
+                'Done'
       );
       await fetchLoads();
       setConfirmState(prev => ({ ...prev, isOpen: false }));
@@ -222,7 +222,7 @@ export default function DriverLoadsPage() {
     let title = '';
     let description = '';
     let variant: ConfirmationVariant = 'primary';
-    
+
     // Safety check: loadOrId might be a string (the ID) or the full Load object
     const actualLoadId = typeof loadOrId === 'string' ? loadOrId : loadOrId._id;
 
@@ -275,7 +275,7 @@ export default function DriverLoadsPage() {
     else if (tab === 'requests') result = [...pending, ...rejected];
     else if (tab === 'completed') result = loads.filter(l => l.status === 'Delivered');
     else result = loads;
-    
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -476,15 +476,15 @@ export default function DriverLoadsPage() {
               <div className="space-y-3">
                 {filtered.map((load, i) => (
                   <motion.div key={load._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: i * 0.03 }}>
-                    <LoadCard 
-                      load={load} 
-                      isRequest={tab === 'requests'} 
+                    <LoadCard
+                      load={load}
+                      isRequest={tab === 'requests'}
                       actionLoading={actionLoading}
-                      onAccept={(l) => handleAction('accept-load', l)} 
-                      onMarkPickedUp={(l) => handleAction('mark-picked-up', l)} 
-                      onDrop={(l) => handleAction('drop-load', l)} 
-                      onStartRoute={(l) => handleAction('start-route', l)} 
-                      onSubmitProof={() => setProofTarget(load)} 
+                      onAccept={(l) => handleAction('accept-load', l)}
+                      onMarkPickedUp={(l) => handleAction('mark-picked-up', l)}
+                      onDrop={(l) => handleAction('drop-load', l)}
+                      onStartRoute={(l) => handleAction('start-route', l)}
+                      onSubmitProof={() => setProofTarget(load)}
                     />
                   </motion.div>
                 ))}
@@ -530,12 +530,12 @@ export default function DriverLoadsPage() {
 
 function StatusTimeline({ load }: { load: Load }) {
   const cur = getStepIdx(load);
-  
+
   const timelineDates = [
     load.assignedAt,
     load.driverAcceptedAt,
     load.pickedUpAt,
-    load.pickedUpAt, 
+    load.pickedUpAt,
     load.deliveredAt
   ];
 
@@ -543,7 +543,7 @@ function StatusTimeline({ load }: { load: Load }) {
     <div className="flex items-center gap-0 w-full mt-2 overflow-x-auto pb-2 scrollbar-hide">
       {STEPS.map((step, i) => (
         <React.Fragment key={step.key}>
-          <div className="flex flex-col items-center gap-1 min-w-[70px] shrink-0">
+          <div className="flex flex-col items-center gap-1 min-w-17.5 shrink-0">
             <div
               className={cn(
                 "size-5.5 sm:size-6 rounded-full flex items-center justify-center border-2 transition-colors",
@@ -582,7 +582,7 @@ function StatusTimeline({ load }: { load: Load }) {
           {i < STEPS.length - 1 && (
             <div
               className={cn(
-                "flex-1 h-0.5 -mt-6 mx-0.5 rounded-full min-w-[20px]",
+                "flex-1 h-0.5 -mt-6 mx-0.5 rounded-full min-w-5",
                 i < cur ? "bg-emerald-500" : "bg-border",
               )}
             />
@@ -604,7 +604,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
   const isDelivered = status === 'Delivered';
   const isPending = load.myRequestStatus === 'pending';
   const isRejected = load.myRequestStatus === 'rejected';
-  
+
   const vehicle = load.vehicles?.[0];
   const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : "Unknown Vehicle";
   const vehicleImg = vehicle?.imageUrl ? resolveImageUrl(vehicle.imageUrl) : null;
@@ -619,8 +619,8 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
         <div className="flex flex-col sm:flex-row">
           {vehicleImg && (
             <div className="w-full sm:w-40 h-32 sm:h-auto relative shrink-0">
-               <img src={vehicleImg} alt={vehicleName} className="absolute inset-0 w-full h-full object-cover" />
-               <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
+              <img src={vehicleImg} alt={vehicleName} className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
             </div>
           )}
           <div className="flex-1 p-4 space-y-3">
@@ -905,15 +905,15 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
       const fd = new FormData();
       fd.append('proof', file);
       if (note.trim()) fd.append('note', note.trim());
-      
+
       const proofEndpoint = `/api/loads/${load._id}/submit-proof`;
-      await apiClient.post(proofEndpoint, fd, { 
-        headers: { 
-          Authorization: `Bearer ${token}`, 
-          'Content-Type': 'multipart/form-data' 
-        } 
+      await apiClient.post(proofEndpoint, fd, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
       });
-      
+
       onSuccess();
     } catch (err: any) {
       setError(extractErr(err, "Failed to submit proof."));

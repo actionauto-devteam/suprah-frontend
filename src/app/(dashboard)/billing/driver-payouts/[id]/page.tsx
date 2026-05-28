@@ -199,6 +199,10 @@ export default function PayoutDetailPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
         @keyframes spin { to{transform:rotate(360deg)} }
+        .dp-main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 32px; max-width: 1200px; margin: 0 auto; padding: 32px 20px; }
+        .dp-load-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .dp-main-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 600px) { .dp-load-overview { grid-template-columns: 1fr; } }
       `}</style>
 
       {/* Header */}
@@ -228,7 +232,7 @@ export default function PayoutDetailPage() {
         </div>
       </div>
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 20px", display: "grid", gridTemplateColumns: "1fr 380px", gap: 32 }}>
+      <main className="dp-main-grid">
         
         {/* Left Content: POD & Details */}
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
@@ -291,7 +295,7 @@ export default function PayoutDetailPage() {
           </section>
 
           {/* Load Overview */}
-          <section style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <section className="dp-load-overview">
             <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 16px", color: "rgba(255,255,255,0.5)" }}>Origin</h3>
               <div style={{ display: "flex", gap: 12 }}>

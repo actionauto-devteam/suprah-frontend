@@ -467,6 +467,7 @@ export default function AwaitingPaymentPage() {
               })}
             </div>
 
+            <div style={{ overflowX: "auto" }}>
             <div
               style={{
                 display: "grid",
@@ -475,6 +476,7 @@ export default function AwaitingPaymentPage() {
                 padding: "10px 16px",
                 borderBottom: `0.5px solid ${T.border}`,
                 background: T.bg,
+                minWidth: 600,
               }}
             >
               {[
@@ -687,6 +689,7 @@ export default function AwaitingPaymentPage() {
                 );
               })
             )}
+            </div>
           </div>
         </div>
       </div>

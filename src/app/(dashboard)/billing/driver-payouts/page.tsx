@@ -758,7 +758,8 @@ export default function DriverPayoutsPage() {
 
           {tab === "history" && (
             <div style={{ background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 12, padding: "11px 16px", borderBottom: `1px solid ${palette.border}` }}>
+              <div style={{ overflowX: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", minWidth: 480, gap: 12, padding: "11px 16px", borderBottom: `1px solid ${palette.border}` }}>
                 {["Driver", "Load", "Amount", "Status"].map(h => (
                   <span key={h} style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{h}</span>
                 ))}
@@ -772,7 +773,7 @@ export default function DriverPayoutsPage() {
                 <p style={{ fontFamily: DISPLAY, fontSize: 14, color: palette.textFaint, textAlign: "center", padding: "40px 0" }}>No payouts yet</p>
               ) : (
                 payouts.map((p) => (
-                  <div key={p._id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 12, alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${palette.border}` }}>
+                  <div key={p._id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", minWidth: 480, gap: 12, alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${palette.border}` }}>
                     <div>
                       <p style={{ fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, color: palette.textSoft, margin: 0 }}>{(p.driverId as any)?.name || "-"}</p>
                       <p style={{ fontFamily: MONO, fontSize: 11, color: palette.textFaint, margin: 0 }}>{new Date(p.createdAt || "").toLocaleDateString()}</p>
@@ -782,6 +783,7 @@ export default function DriverPayoutsPage() {
                     <PayoutStatusBadge status={p.status} />
                   </div>
               )))}
+              </div>
             </div>
           )}
         </div>

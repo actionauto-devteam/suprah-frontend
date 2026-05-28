@@ -822,10 +822,12 @@ export default function MyPaymentsPage() {
               })}
             </div>
 
+            <div style={{ overflowX: "auto" }}>
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.4fr 0.9fr 0.8fr 0.8fr 0.8fr 0.8fr",
+                minWidth: 600,
                 gap: 12,
                 padding: "10px 16px",
                 borderBottom: `0.5px solid ${T.border}`,
@@ -856,6 +858,7 @@ export default function MyPaymentsPage() {
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1.4fr 0.9fr 0.8fr 0.8fr 0.8fr 0.8fr",
+                      minWidth: 600,
                       gap: 12,
                       padding: "13px 0",
                       borderBottom: idx === 5 ? "none" : `0.5px solid ${T.border}`,
@@ -896,6 +899,7 @@ export default function MyPaymentsPage() {
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1.4fr 0.9fr 0.8fr 0.8fr 0.8fr 0.8fr",
+                      minWidth: 600,
                       alignItems: "center",
                       gap: 12,
                       padding: "12px 16px",
@@ -1030,6 +1034,7 @@ export default function MyPaymentsPage() {
                 );
               })
             )}
+            </div>
           </div>
         </div>
       </div>

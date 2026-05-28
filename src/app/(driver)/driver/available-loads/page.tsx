@@ -266,7 +266,7 @@ export default function AvailableLoadsPage() {
             </div>
 
             {!loading && loads.length > 0 && (
-              <div className="grid grid-cols-4 gap-3 mt-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
                 <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
                   <p className="text-lg sm:text-xl font-black text-white tabular-nums">{loads.length}</p>
                   <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Available</p>

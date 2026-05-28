@@ -96,13 +96,13 @@ export default function AdminPayoutsPage() {
 
 
     return (
-        <div className="p-8 space-y-8 container mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 container mx-auto">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
-                    <CreditCard className="w-8 h-8 text-primary" /> Referral Payouts
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2 sm:gap-3">
+                    <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" /> Referral Payouts
                 </h1>
-                <p className="text-muted-foreground mt-2 text-lg">
+                <p className="text-muted-foreground mt-2 text-sm sm:text-lg">
                     Verify and manage withdrawal requests from your referral partners.
                 </p>
             </div>
@@ -135,91 +135,93 @@ export default function AdminPayoutsPage() {
                     </div>
                 </div>
 
-                <Table>
-                    <TableHeader>
-                        <TableRow>,
-                            <TableHead>Partner</TableHead>
-                            <TableHead>Amount</TableHead>
-                            <TableHead>Method</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredWithdrawals.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                                    No pending requests found.
-                                </TableCell>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>,
+                                <TableHead>Partner</TableHead>
+                                <TableHead>Amount</TableHead>
+                                <TableHead>Method</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
-                        ) : (
-                            filteredWithdrawals.map((w) => (
-                                <TableRow key={w._id} className="group hover:bg-muted/50 transition-colors">
-                                    <TableCell>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-foreground">{w.user.name}</span>
-                                            <span className="text-xs text-muted-foreground">{w.user.email}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <span className="font-mono font-bold text-green-600 dark:text-green-400">
-                                            ${w.amount.toFixed(2)}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col">
-                                            <Badge variant="secondary" className="w-fit capitalize">{w.withdrawalMethod?.type.replace('_', ' ')}</Badge>
-                                            <span className="text-xs text-muted-foreground mt-1">{w.withdrawalMethod?.details}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground text-sm">
-                                        {format(new Date(w.createdAt), 'MMM d, yyyy')}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                asChild
-                                                className="h-8 gap-1.5"
-                                            >
-                                                <Link href={`/admin/payouts/${w._id}/audit`}>
-                                                    <History className="w-3.5 h-3.5" /> Audit
-                                                </Link>
-                                            </Button>
-                                            <Button
-                                                variant="default"
-                                                size="sm"
-                                                onClick={() => handleApprove(w._id)}
-                                                className="h-8 bg-green-600 hover:bg-green-500 text-white gap-1.5"
-                                            >
-                                                <CheckCircle2 className="w-3.5 h-3.5" /> Approve
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setSelectedWithdrawalId(w._id);
-                                                    setIsRejectModalOpen(true);
-                                                }}
-                                                className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                            >
-                                                <XCircle className="w-3.5 h-3.5" />
-                                            </Button>
-                                        </div>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredWithdrawals.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                                        No pending requests found.
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                            ) : (
+                                filteredWithdrawals.map((w) => (
+                                    <TableRow key={w._id} className="group hover:bg-muted/50 transition-colors">
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-foreground">{w.user.name}</span>
+                                                <span className="text-xs text-muted-foreground">{w.user.email}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="font-mono font-bold text-green-600 dark:text-green-400">
+                                                ${w.amount.toFixed(2)}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <Badge variant="secondary" className="w-fit capitalize">{w.withdrawalMethod?.type.replace('_', ' ')}</Badge>
+                                                <span className="text-xs text-muted-foreground mt-1">{w.withdrawalMethod?.details}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground text-sm">
+                                            {format(new Date(w.createdAt), 'MMM d, yyyy')}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    asChild
+                                                    className="h-8 gap-1.5"
+                                                >
+                                                    <Link href={`/admin/payouts/${w._id}/audit`}>
+                                                        <History className="w-3.5 h-3.5" /> Audit
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    onClick={() => handleApprove(w._id)}
+                                                    className="h-8 bg-green-600 hover:bg-green-500 text-white gap-1.5"
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedWithdrawalId(w._id);
+                                                        setIsRejectModalOpen(true);
+                                                    }}
+                                                    className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                >
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </Card>
 
 
 
             {/* Reject Modal */}
             <Dialog open={isRejectModalOpen} onOpenChange={setIsRejectModalOpen}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-106.25">
                     <DialogHeader>
                         <DialogTitle>Reject Withdrawal Request</DialogTitle>
                         <DialogDescription>

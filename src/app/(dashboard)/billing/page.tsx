@@ -118,7 +118,7 @@ function TxRow({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+        gridTemplateColumns: "1fr auto auto",
         gap: 12,
         padding: "12px 14px",
         borderRadius: 10,
@@ -435,6 +435,19 @@ export default function BillingDashboard() {
           * { box-sizing: border-box; }
           body { margin: 0; }
 
+          .dashboard-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+          }
+
+          .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+          }
+
           @media (max-width: 768px) {
             .dashboard-header { flex-direction: column; align-items: flex-start; }
             .dashboard-stats { grid-template-columns: 1fr 1fr; }
@@ -554,11 +567,6 @@ export default function BillingDashboard() {
             >
               <div
                 className="dashboard-stats"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                  gap: 12,
-                }}
               >
                 <MiniMetric
                   label="Win Rate"
@@ -599,10 +607,6 @@ export default function BillingDashboard() {
             <div
               className="dashboard-content"
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 20,
-                marginBottom: 24,
                 animation: "fadeUp 0.38s ease 0.12s both",
               }}
             >
@@ -863,7 +867,7 @@ export default function BillingDashboard() {
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "repeat(auto-fit, minmax(200px, 1fr))",
+                    "repeat(auto-fit, minmax(140px, 1fr))",
                   gap: 12,
                 }}
               >

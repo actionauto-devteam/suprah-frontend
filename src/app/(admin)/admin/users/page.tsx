@@ -76,15 +76,15 @@ export default function UsersPage() {
 
     return (
         <div className="space-y-6 container mx-auto">
-            <div className="flex items-center justify-between space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Users</h2>
-                    <p className="text-muted-foreground">
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Users</h2>
+                    <p className="text-muted-foreground text-sm sm:text-base">
                         Manage user accounts, roles, and access permissions.
                     </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                    <Button variant="outline">Invite User</Button>
+                <div className="flex items-center space-x-2 shrink-0">
+                    <Button variant="outline" size="sm">Invite User</Button>
                 </div>
             </div>
 
@@ -103,17 +103,17 @@ export default function UsersPage() {
                             onChange={(event) =>
                                 table.getColumn("name")?.setFilterValue(event.target.value)
                             }
-                            className="max-w-sm"
+                            className="max-w-sm w-full"
                         />
                     </div>
-                    <div className="rounded-md border">
+                    <div className="rounded-md border overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 {table.getHeaderGroups().map((headerGroup) => (
                                     <TableRow key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => {
                                             return (
-                                                <TableHead key={header.id}>
+                                                <TableHead key={header.id} className="whitespace-nowrap">
                                                     {header.isPlaceholder
                                                         ? null
                                                         : flexRender(
@@ -150,23 +150,25 @@ export default function UsersPage() {
                             </TableBody>
                         </Table>
                     </div>
-                    <div className="flex items-center justify-end space-x-2 py-4">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.previousPage()}
-                            disabled={!table.getCanPreviousPage()}
-                        >
-                            Previous
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.nextPage()}
-                            disabled={!table.getCanNextPage()}
-                        >
-                            Next
-                        </Button>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-3 py-4">
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => table.previousPage()}
+                                disabled={!table.getCanPreviousPage()}
+                            >
+                                Previous
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => table.nextPage()}
+                                disabled={!table.getCanNextPage()}
+                            >
+                                Next
+                            </Button>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

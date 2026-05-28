@@ -358,7 +358,7 @@ export default function BiometricSettingsPage() {
 
           {/* Enroll form */}
           {showEnrollForm && (
-            <div className="px-5 py-4 border-b border-border/20 bg-emerald-600/[0.02] space-y-3">
+            <div className="px-5 py-4 border-b border-border/20 bg-emerald-600/2 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
                   Device Name (optional)
@@ -510,7 +510,7 @@ export default function BiometricSettingsPage() {
 
           {/* Add SSH key form */}
           {showSshForm && (
-            <div className="px-5 py-4 border-b border-border/20 bg-emerald-600/[0.02] space-y-3">
+            <div className="px-5 py-4 border-b border-border/20 bg-emerald-600/2 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
                   Key Title
@@ -590,7 +590,7 @@ export default function BiometricSettingsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{key.title}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <code className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-[200px]">
+                      <code className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-50">
                         {key.fingerprint}
                       </code>
                       <button

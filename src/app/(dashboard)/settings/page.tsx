@@ -90,12 +90,12 @@ const SETTINGS_NAV_ITEMS: Array<{
   label: string;
   icon: React.ElementType;
 }> = [
-  { id: "account", label: "Account Details", icon: Users },
-  { id: "locations", label: "Locations & Inventory", icon: MapPin },
-  { id: "security", label: "Security / RBAC", icon: Shield },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "integrations", label: "Integrations", icon: Zap },
-];
+    { id: "account", label: "Account Details", icon: Users },
+    { id: "locations", label: "Locations & Inventory", icon: MapPin },
+    { id: "security", label: "Security / RBAC", icon: Shield },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "integrations", label: "Integrations", icon: Zap },
+  ];
 
 const SYSTEM_SETTINGS_STORAGE_KEY = "action-auto-system-settings";
 
@@ -592,7 +592,7 @@ function SettingsContent() {
 
   const editingSettingsLabel = editingSettingsSection
     ? SETTINGS_NAV_ITEMS.find((item) => item.id === editingSettingsSection)
-        ?.label
+      ?.label
     : null;
 
   return (
@@ -686,7 +686,7 @@ function SettingsContent() {
                   align="start"
                   position="popper"
                   sideOffset={4}
-                  className="z-[70] w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] border-border/70 bg-popover p-1 shadow-xl"
+                  className="z-70 w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] border-border/70 bg-popover p-1 shadow-xl"
                 >
                   <SelectItem
                     value="view"
@@ -1124,7 +1124,7 @@ function SettingsContent() {
               }
             >
               {!!editingSettingsSection &&
-              savingSettingsSection === editingSettingsSection
+                savingSettingsSection === editingSettingsSection
                 ? "Saving..."
                 : "Save Changes"}
             </Button>
@@ -1833,11 +1833,10 @@ function ReportCard({
   return (
     <Card
       onClick={onClick}
-      className={`border shadow-sm transition-all cursor-pointer bg-card p-0 md:p-4 group ${
-        active
+      className={`border shadow-sm transition-all cursor-pointer bg-card p-0 md:p-4 group ${active
           ? "border-primary/50 ring-2 ring-primary/20 bg-primary/5"
           : "border-border/50 hover:border-primary/30 hover:ring-1 hover:ring-primary/20 hover:shadow-md"
-      }`}
+        }`}
     >
       <CardContent className="p-2 md:p-6">
         <div className="flex gap-2 md:items-center justify-between mb-4">
@@ -1958,11 +1957,10 @@ function SettingNavItem({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
-        active
+      className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${active
           ? "bg-primary text-white shadow-sm"
           : "text-muted-foreground hover:bg-secondary"
-      }`}
+        }`}
     >
       <div
         className={`transition-transform duration-200 ${active ? "scale-110" : ""}`}

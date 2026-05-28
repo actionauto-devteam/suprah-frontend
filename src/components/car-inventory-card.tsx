@@ -1,185 +1,285 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Vehicle } from "@/types/inventory"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { TruckIcon, GaugeIcon, MapPinIcon, Phone, Play } from "lucide-react"
+import * as React from "react";
+import { Vehicle } from "@/types/inventory";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  TruckIcon,
+  GaugeIcon,
+  MapPinIcon,
+  Wrench,
+  Eye,
+  Package,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
+} from "lucide-react";
+import { resolveImageUrl, cn } from "@/lib/utils";
+
+const CARD_FALLBACK =
+  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
 
 interface CarInventoryCardProps {
-  vehicle: Vehicle
-  shippingPrice?: number
-  onGetQuote: (vehicle: Vehicle) => void
-  onVehicleClick?: (vehicle: Vehicle) => void
-  onCheckAvailability?: (vehicle: Vehicle) => void
-  onApplyNow?: (vehicle: Vehicle) => void
-  onCallUs?: (vehicle: Vehicle) => void
-  onVideo?: (vehicle: Vehicle) => void
-  onCreateLoad?: (vehicle: Vehicle) => void
+  vehicle: Vehicle;
+  shippingPrice?: number;
+  onGetQuote: (vehicle: Vehicle) => void;
+  onVehicleClick?: (vehicle: Vehicle) => void;
+  onCheckAvailability?: (vehicle: Vehicle) => void;
+  onApplyNow?: (vehicle: Vehicle) => void;
+  onCallUs?: (vehicle: Vehicle) => void;
+  onVideo?: (vehicle: Vehicle) => void;
+  onCreateLoad?: (vehicle: Vehicle) => void;
 }
+
+const STATUS_CONFIG: Record<
+  string,
+  {
+    label: string;
+    accent: string;
+    pill: string;
+    icon: React.FC<{ className?: string }>;
+  }
+> = {
+  "Ready for Sale": {
+    label: "Ready",
+    accent: "sm:border-l-green-500",
+    pill: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/25",
+    icon: CheckCircle2,
+  },
+  "In Recon": {
+    label: "Recon",
+    accent: "sm:border-l-amber-500",
+    pill: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25",
+    icon: Wrench,
+  },
+  Sold: {
+    label: "Sold",
+    accent: "sm:border-l-red-500",
+    pill: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/25",
+    icon: AlertCircle,
+  },
+  "In Transit": {
+    label: "Transit",
+    accent: "sm:border-l-blue-500",
+    pill: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/25",
+    icon: TruckIcon,
+  },
+};
 
 export function CarInventoryCard({
   vehicle,
-  shippingPrice,
   onGetQuote,
   onVehicleClick,
   onCheckAvailability,
-  onApplyNow,
-  onCallUs,
-  onVideo,
-  onCreateLoad
+  onCreateLoad,
 }: CarInventoryCardProps) {
-  const [imgLoaded, setImgLoaded] = React.useState(false)
-  const [imgError, setImgError] = React.useState(false)
+  const imgCandidates = React.useMemo(() => {
+    const raw = [vehicle.image, ...(vehicle.images || []), CARD_FALLBACK]
+      .map((s) => resolveImageUrl(s)?.trim())
+      .filter((s): s is string => Boolean(s));
+    return Array.from(new Set(raw));
+  }, [vehicle.image, vehicle.images]);
+
+  const [imgIdx, setImgIdx] = React.useState(0);
+  const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [imgError, setImgError] = React.useState(false);
+
+  const activeSrc = imgCandidates[imgIdx] || CARD_FALLBACK;
+
+  const handleImgError = () => {
+    if (imgIdx < imgCandidates.length - 1) {
+      setImgIdx((p) => p + 1);
+      setImgLoaded(false);
+    } else {
+      setImgError(true);
+      setImgLoaded(true);
+    }
+  };
+
+  const statusCfg = vehicle.status ? STATUS_CONFIG[vehicle.status] : null;
+  const StatusIcon = statusCfg?.icon ?? Clock;
+  const profit = vehicle.cost && vehicle.price ? vehicle.price - vehicle.cost : null;
+  const profitPct = profit && vehicle.cost ? Math.round((profit / vehicle.cost) * 100) : null;
 
   return (
     <Card
-      className="overflow-hidden transition-all duration-300 p-0 h-full flex flex-col group border border-emerald-500/30 hover:border-emerald-500/70"
-      style={{
-        boxShadow: '0 2px 8px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)',
-      }}
+      className={cn(
+        "group relative overflow-hidden border border-border/50 p-0 transition-all duration-200",
+        "hover:border-primary/40 hover:shadow-md hover:shadow-primary/5",
+        "sm:border-l-4",
+        statusCfg ? statusCfg.accent : "sm:border-l-border/40",
+        "flex flex-row sm:flex-col",
+        "h-28 sm:h-auto",
+      )}
     >
-
-      {/* ── Vehicle Image ─────────────────────────────────────────────────── */}
+      {/* ── Image ── */}
       <div
         onClick={() => onVehicleClick?.(vehicle)}
-        className="relative h-64 w-full overflow-hidden bg-muted cursor-pointer rounded-t-xl shrink-0"
+        className={cn(
+          "relative shrink-0 cursor-pointer overflow-hidden bg-muted dark:bg-zinc-900",
+          "w-[36%] rounded-l-[calc(var(--radius)-1px)] sm:w-full sm:rounded-none",
+          "h-full sm:h-40",
+        )}
       >
-        {/* Skeleton — hidden instantly once image loads */}
         {!imgLoaded && (
-          <div className="absolute inset-0 z-10 bg-muted animate-pulse flex items-center justify-center">
-            <TruckIcon className="w-10 h-10 text-muted-foreground/20" />
+          <div className="absolute inset-0 z-10 flex animate-pulse items-center justify-center bg-muted dark:bg-zinc-800">
+            <TruckIcon className="h-6 w-6 text-muted-foreground/20" />
           </div>
         )}
 
-        {/* Image */}
         {!imgError ? (
-          /* eslint-disable-next-line @next/next/no-img-elements! */
           <img
-            src={vehicle.image}
+            key={`${vehicle.id}-${imgIdx}`}
+            src={activeSrc}
             alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
             loading="lazy"
             decoding="async"
             onLoad={() => setImgLoaded(true)}
-            onError={() => { setImgError(true); setImgLoaded(true) }}
-            className="absolute inset-0 w-full h-full object-cover"
+            onError={handleImgError}
+            className={cn(
+              "absolute inset-0 h-full w-full object-cover transition-all duration-500 group-hover:scale-105",
+              imgLoaded ? "opacity-100" : "opacity-0",
+            )}
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted">
-            <TruckIcon className="w-10 h-10 text-muted-foreground/30" />
-            <span className="text-xs text-muted-foreground/50">No image</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-muted dark:bg-zinc-800">
+            <TruckIcon className="h-6 w-6 text-muted-foreground/25" />
+            <span className="text-[9px] font-medium text-muted-foreground/40">No image</span>
           </div>
         )}
 
-        {/* Shipping badge */}
-        {shippingPrice !== undefined && (
-          <div className="absolute top-3 right-3 z-20 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-in fade-in slide-in-from-top-2 duration-500 shadow-md">
-            <TruckIcon className="w-3.5 h-3.5" />
-            +${shippingPrice.toLocaleString()}
+        {/* Status badge */}
+        {statusCfg && (
+          <div
+            className={cn(
+              "absolute left-1.5 top-1.5 flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold backdrop-blur-sm",
+              statusCfg.pill,
+            )}
+          >
+            <StatusIcon className="h-2.5 w-2.5" />
+            {statusCfg.label}
           </div>
         )}
 
-        {/* Stock badge */}
-        <div className="absolute bottom-3 left-3 z-20">
-          <Badge className="bg-white/95 text-green-700 font-semibold shadow-sm backdrop-blur-sm">
-            Stock #{vehicle.stockNumber}
-          </Badge>
-        </div>
+        {/* Days on lot */}
+        {vehicle.daysOnLot !== undefined && vehicle.daysOnLot > 0 && (
+          <div className="absolute bottom-1 right-1 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white backdrop-blur-sm">
+            {vehicle.daysOnLot}d
+          </div>
+        )}
       </div>
 
-      {/* ── Vehicle Details ───────────────────────────────────────────────── */}
-      <div className="p-3 md:p-5 flex flex-col flex-1 space-y-4">
-        {/* Title */}
-        <div className="text-center">
-          <div
-            onClick={() => onVehicleClick?.(vehicle)}
-            className="inline-block group-hover:text-primary transition-colors cursor-pointer"
-          >
-            <h3 className="font-bold text-lg leading-tight">
-              {vehicle.year} {vehicle.make} {vehicle.model}
-            </h3>
+      {/* ── Content ── */}
+      <div className={cn("flex min-w-0 flex-1 flex-col justify-between p-2.5 sm:p-3")}>
+
+        {/* Title + identifiers */}
+        <div
+          onClick={() => onVehicleClick?.(vehicle)}
+          className="cursor-pointer space-y-0.5"
+        >
+          <h3 className="truncate text-sm font-bold leading-tight text-foreground">
+            {vehicle.year} {vehicle.make} {vehicle.model}
+          </h3>
+          <div className="flex items-center gap-2">
+            {vehicle.trim && (
+              <span className="truncate text-[11px] text-muted-foreground">{vehicle.trim}</span>
+            )}
+            {vehicle.stockNumber && vehicle.stockNumber !== "N/A" && (
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground/50">
+                #{vehicle.stockNumber}
+              </span>
+            )}
           </div>
-          {vehicle.trim && (
-            <p className="text-sm text-muted-foreground mt-1">{vehicle.trim}</p>
-          )}
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 text-sm text-center">
-          <div className="flex items-center justify-center gap-2 text-muted-foreground bg-secondary/30 py-1.5 rounded-md">
-            <GaugeIcon className="w-4 h-4" />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <GaugeIcon className="h-3 w-3 text-primary/60" />
             {vehicle.mileage.toLocaleString()} mi
-          </div>
-          <div className="flex items-center justify-center gap-2 text-muted-foreground bg-secondary/30 py-1.5 rounded-md">
-            <MapPinIcon className="w-4 h-4" />
-            {vehicle.location.split(",")[0].toUpperCase()}
-          </div>
+          </span>
+          <span className="flex items-center gap-1">
+            <MapPinIcon className="h-3 w-3" />
+            {vehicle.location.split(",")[0]}
+          </span>
         </div>
 
-        {/* Tags */}
-        <div className="flex flex-wrap justify-center gap-2">
-          {vehicle.color && <Badge variant="secondary" className="font-normal text-xs">{vehicle.color}</Badge>}
-          {vehicle.transmission && <Badge variant="secondary" className="font-normal text-xs">{vehicle.transmission}</Badge>}
-          {vehicle.fuelType && <Badge variant="secondary" className="font-normal text-xs">{vehicle.fuelType}</Badge>}
-        </div>
-
-        {/* Pricing */}
-        <div className="pt-2 border-t text-center">
-          <div className="text-2xl font-bold text-green-600">${vehicle.price.toLocaleString()}</div>
-          {shippingPrice !== undefined && (
-            <div className="text-xs text-muted-foreground mt-1 font-medium">
-              Total with Shipping: ${(vehicle.price + shippingPrice).toLocaleString()}
-            </div>
+        {/* Desktop: badges */}
+        <div className="hidden flex-wrap gap-1 sm:flex">
+          {vehicle.bodyStyle && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+              {vehicle.bodyStyle}
+            </Badge>
+          )}
+          {vehicle.transmission && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+              {vehicle.transmission.split(" ")[0]}
+            </Badge>
+          )}
+          {vehicle.fuelType && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+              {vehicle.fuelType}
+            </Badge>
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="mt-auto flex flex-col gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-          <div className="grid grid-cols-2 gap-2">
+        {/* Price + profit */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-black text-primary sm:text-base">
+            ${vehicle.price.toLocaleString()}
+          </span>
+          {profit !== null && profit > 0 && (
+            <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              <TrendingUp className="h-2.5 w-2.5" />
+              ${profit.toLocaleString()}
+              {profitPct !== null && <span className="opacity-60"> · {profitPct}%</span>}
+            </span>
+          )}
+        </div>
+
+        {/* Desktop: actions */}
+        <div
+          className="hidden sm:flex flex-col gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="grid grid-cols-2 gap-1.5">
             <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 border-border/60 text-xs font-medium"
+              onClick={() => onVehicleClick?.(vehicle)}
+            >
+              <Eye className="h-3 w-3" /> Details
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 border-border/60 text-xs font-medium"
               onClick={() => onCheckAvailability?.(vehicle)}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200"
             >
-              Check Availability
-            </Button>
-            <Button
-              onClick={() => onApplyNow?.(vehicle)}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200"
-            >
-              Apply Now
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={() => onCallUs?.(vehicle)}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200"
-            >
-              <Phone className="w-3 h-3 mr-1" /> Call Us
-            </Button>
-            <Button
-              onClick={() => onVideo?.(vehicle)}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200"
-            >
-              <Play className="w-3 h-3 mr-1" /> Video
+              <CheckCircle2 className="h-3 w-3 text-blue-500" /> Check
             </Button>
           </div>
           <Button
+            size="sm"
+            className="h-8 w-full gap-1.5 bg-primary text-xs font-bold text-primary-foreground"
             onClick={() => (onCreateLoad || onGetQuote)?.(vehicle)}
-            className="w-full bg-green-600 hover:bg-green-700 text-white shadow-md active:scale-[0.99] transition-all"
           >
-            <TruckIcon className="w-4 h-4 mr-2" /> Create Managed Load
+            <Package className="h-3.5 w-3.5" />
+            {onCreateLoad ? "Create Load" : "Get Quote"}
           </Button>
         </div>
       </div>
+
+      {/* Mobile: full-card tap */}
+      <button
+        className="absolute inset-0 sm:hidden"
+        onClick={() => onVehicleClick?.(vehicle)}
+        aria-label={`View ${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+      />
     </Card>
-  )
+  );
 }

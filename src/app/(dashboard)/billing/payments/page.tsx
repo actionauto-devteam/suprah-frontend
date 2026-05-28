@@ -1333,6 +1333,7 @@ export default function PaymentsPage() {
               ))}
             </div>
 
+            <div style={{ overflowX: "auto" }}>
             <div
               style={{
                 display: "grid",
@@ -1341,6 +1342,7 @@ export default function PaymentsPage() {
                 padding: "10px 16px",
                 borderBottom: `0.5px solid ${T.border}`,
                 background: T.bg,
+                minWidth: 520,
               }}
             >
               {["Customer", "Invoice", "Amount", "Status", "Date"].map(
@@ -1362,7 +1364,7 @@ export default function PaymentsPage() {
             </div>
 
             {isLoading ? (
-              <div style={{ padding: "6px 16px 14px" }}>
+              <div style={{ padding: "6px 16px 14px", minWidth: 520 }}>
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <div
                     key={`skeleton-row-${idx}`}
@@ -1408,6 +1410,7 @@ export default function PaymentsPage() {
                 />
               ))
             )}
+            </div>
 
             {!isLoading && totalRecords > 0 && (
               <div

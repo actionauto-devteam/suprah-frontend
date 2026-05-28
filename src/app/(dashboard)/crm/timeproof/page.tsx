@@ -130,32 +130,29 @@ const StatCard = ({
   amber?: boolean
 }) => (
   <div
-    className={`rounded-xl border px-4 py-3.5 space-y-2 ${
-      accent
+    className={`rounded-xl border px-4 py-3.5 space-y-2 ${accent
         ? "border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20"
         : amber
-        ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
-        : "border-border/40 bg-card"
-    }`}
+          ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
+          : "border-border/40 bg-card"
+      }`}
   >
     <div className="flex items-center justify-between">
       <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">
         {label}
       </p>
       <Icon
-        className={`h-3.5 w-3.5 ${
-          accent ? "text-emerald-600" : amber ? "text-amber-500" : "text-muted-foreground/25"
-        }`}
+        className={`h-3.5 w-3.5 ${accent ? "text-emerald-600" : amber ? "text-amber-500" : "text-muted-foreground/25"
+          }`}
       />
     </div>
     <p
-      className={`text-2xl font-black tracking-tight leading-none ${
-        accent
+      className={`text-2xl font-black tracking-tight leading-none ${accent
           ? "text-emerald-700 dark:text-emerald-300"
           : amber
-          ? "text-amber-700 dark:text-amber-300"
-          : ""
-      }`}
+            ? "text-amber-700 dark:text-amber-300"
+            : ""
+        }`}
     >
       {value}
     </p>
@@ -215,7 +212,7 @@ const MonthCalendar = ({
               return (
                 <div
                   key={di}
-                  className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-[90px] sm:min-h-[100px]"
+                  className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-22.5 sm:min-h-25"
                 />
               )
             }
@@ -233,7 +230,7 @@ const MonthCalendar = ({
                 key={di}
                 onClick={() => !isFuture && onSelectDay(ds)}
                 className={[
-                  "border-r border-border/20 last:border-r-0 min-h-[90px] sm:min-h-[100px] p-2 flex flex-col gap-1 transition-all duration-100",
+                  "border-r border-border/20 last:border-r-0 min-h-22.5 sm:min-h-25 p-2 flex flex-col gap-1 transition-all duration-100",
                   isFuture ? "opacity-30 cursor-default select-none" : "cursor-pointer hover:bg-muted/20",
                   isToday || hasData ? `border ${colors.bg}` : "",
                 ]
@@ -247,8 +244,8 @@ const MonthCalendar = ({
                       isToday
                         ? "h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black"
                         : isFuture
-                        ? "text-[12px] font-bold text-muted-foreground/20"
-                        : "text-[12px] font-bold text-muted-foreground/50"
+                          ? "text-[12px] font-bold text-muted-foreground/20"
+                          : "text-[12px] font-bold text-muted-foreground/50"
                     }
                   >
                     {dayNum}
@@ -439,7 +436,7 @@ export default function TimeprofPage() {
   const calcPayoutDate = payoutPeriod === 1
     ? `${nowMonthLong} 21`
     : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 6))
-        .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
+      .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
 
   /* ── Pay day availability ── */
   const payDayDate = React.useMemo(() => {
@@ -620,7 +617,7 @@ export default function TimeprofPage() {
       a.href = URL.createObjectURL(blob)
       a.download = `timeproof-${viewYear}-${String(viewMonth + 1).padStart(2, "0")}.csv`
       a.click()
-    } catch {}
+    } catch { }
   }
 
   /* ─────────────── Loading ─────────────── */
@@ -695,11 +692,10 @@ export default function TimeprofPage() {
             </button>
             <button
               onClick={copyProof}
-              className={`h-8 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${
-                copied
+              className={`h-8 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied
                   ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
                   : "border-border/40 hover:bg-muted/30 text-muted-foreground"
-              }`}
+                }`}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">{copied ? "Copied!" : "Copy Proof"}</span>
@@ -796,7 +792,7 @@ export default function TimeprofPage() {
                     { label: "2–4h", cls: "bg-sky-700" },
                     { label: "4–6h", cls: "bg-sky-600" },
                     { label: "6–9h", cls: "bg-emerald-600" },
-                    { label: "9h+",  cls: "bg-emerald-500" },
+                    { label: "9h+", cls: "bg-emerald-500" },
                   ].map((c) => (
                     <span key={c.label} className="flex items-center gap-1">
                       <span className={`h-2.5 w-5 rounded-[3px] ${c.cls}`} />
@@ -864,180 +860,178 @@ export default function TimeprofPage() {
                 </div>
               </div>
             ) : (
-            <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-black tracking-tight">Payout Calculator</p>
-                  <p className="text-[10px] text-muted-foreground/40 mt-0.5">
-                    Estimate your earnings for a cut-off period
-                  </p>
-                </div>
-                <DollarSign className="h-4 w-4 text-muted-foreground/20" />
-              </div>
-
-              {/* Period selector */}
-              <div className="space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">
-                  Period
-                </p>
-                <div className="flex gap-2">
-                  {([1, 2] as const).map((p) => {
-                    const label = p === 1
-                      ? `${nowMonthShort} 1–15`
-                      : `${nowMonthShort} 16–${cutoffSummary.lastDay}`
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setPayoutPeriod(p)}
-                        className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${
-                          payoutPeriod === p
-                            ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
-                            : "border-border/40 text-muted-foreground hover:bg-muted/30"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Hourly rate input */}
-              <div className="space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">
-                  Your Hourly Rate
-                </p>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={hourlyRate}
-                    onChange={(e) => setHourlyRate(e.target.value)}
-                    className="w-full h-9 pl-7 pr-12 rounded-xl border border-border/40 bg-muted/10 text-sm font-bold font-mono focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/5 transition-all"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">
-                    / hr
-                  </span>
-                </div>
-              </div>
-
-              {/* Divider + result */}
-              <div className="pt-1 border-t border-border/20 space-y-3">
-
-                {/* Hours rendered row */}
-                <div className="flex items-center justify-between gap-3">
+              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-[11px] text-muted-foreground/50">Hours rendered ({calcPeriodLabel})</span>
-                    {calcRemainderMins > 0 && (
-                      <p className="text-[9px] text-muted-foreground/35 mt-0.5">
-                        {calcRemainderMins}m not counted — whole hours only
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-[11px] font-bold font-mono text-foreground/80">
-                      {fmtHHMM(calcSeconds)}
-                    </span>
-                    <p className="text-[9px] font-bold font-mono text-muted-foreground/40">
-                      {calcWholeHours}h billed
+                    <p className="text-xs font-black tracking-tight">Payout Calculator</p>
+                    <p className="text-[10px] text-muted-foreground/40 mt-0.5">
+                      Estimate your earnings for a cut-off period
                     </p>
+                  </div>
+                  <DollarSign className="h-4 w-4 text-muted-foreground/20" />
+                </div>
+
+                {/* Period selector */}
+                <div className="space-y-1.5">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">
+                    Period
+                  </p>
+                  <div className="flex gap-2">
+                    {([1, 2] as const).map((p) => {
+                      const label = p === 1
+                        ? `${nowMonthShort} 1–15`
+                        : `${nowMonthShort} 16–${cutoffSummary.lastDay}`
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPayoutPeriod(p)}
+                          className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p
+                              ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
+                              : "border-border/40 text-muted-foreground hover:bg-muted/30"
+                            }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
-                {/* Payout amount */}
-                <div className="rounded-xl bg-muted/15 border border-border/20 px-4 py-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">
-                      Estimated Payout
-                    </p>
-                    {/* USD / PHP toggle */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={togglePhp}
-                        disabled={fetchingPhp}
-                        className={`h-6 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${
-                          showPhp
-                            ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                            : "border-border/30 text-muted-foreground/40 hover:border-border/60"
-                        }`}
-                      >
-                        {fetchingPhp ? (
-                          <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                        ) : (
-                          showPhp ? "PHP ✓" : "PHP"
-                        )}
-                      </button>
-                      {showPhp && phpRate && (
-                        <button
-                          onClick={fetchPhpRate}
-                          disabled={fetchingPhp}
-                          title="Refresh rate"
-                          className="h-6 w-6 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-                        >
-                          <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
-                        </button>
-                      )}
-                    </div>
+                {/* Hourly rate input */}
+                <div className="space-y-1.5">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">
+                    Your Hourly Rate
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={hourlyRate}
+                      onChange={(e) => setHourlyRate(e.target.value)}
+                      className="w-full h-9 pl-7 pr-12 rounded-xl border border-border/40 bg-muted/10 text-sm font-bold font-mono focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/5 transition-all"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">
+                      / hr
+                    </span>
                   </div>
+                </div>
 
-                  {rateNum > 0 ? (
-                    <div className="space-y-1">
-                      <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
-                        ${payoutUSD.toFixed(2)}
-                        <span className="text-xs font-bold text-muted-foreground/40 ml-1">USD</span>
-                      </p>
-                      {showPhp && payoutPHP !== null && (
-                        <p className="text-base font-bold text-sky-700 dark:text-sky-400">
-                          ₱{payoutPHP.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          <span className="text-[9px] font-semibold text-muted-foreground/35 ml-1.5">
-                            1 USD = ₱{phpRate?.toFixed(2)}
-                          </span>
+                {/* Divider + result */}
+                <div className="pt-1 border-t border-border/20 space-y-3">
+
+                  {/* Hours rendered row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[11px] text-muted-foreground/50">Hours rendered ({calcPeriodLabel})</span>
+                      {calcRemainderMins > 0 && (
+                        <p className="text-[9px] text-muted-foreground/35 mt-0.5">
+                          {calcRemainderMins}m not counted — whole hours only
                         </p>
                       )}
                     </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[11px] font-bold font-mono text-foreground/80">
+                        {fmtHHMM(calcSeconds)}
+                      </span>
+                      <p className="text-[9px] font-bold font-mono text-muted-foreground/40">
+                        {calcWholeHours}h billed
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Payout amount */}
+                  <div className="rounded-xl bg-muted/15 border border-border/20 px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">
+                        Estimated Payout
+                      </p>
+                      {/* USD / PHP toggle */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={togglePhp}
+                          disabled={fetchingPhp}
+                          className={`h-6 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp
+                              ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                              : "border-border/30 text-muted-foreground/40 hover:border-border/60"
+                            }`}
+                        >
+                          {fetchingPhp ? (
+                            <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                          ) : (
+                            showPhp ? "PHP ✓" : "PHP"
+                          )}
+                        </button>
+                        {showPhp && phpRate && (
+                          <button
+                            onClick={fetchPhpRate}
+                            disabled={fetchingPhp}
+                            title="Refresh rate"
+                            className="h-6 w-6 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                          >
+                            <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {rateNum > 0 ? (
+                      <div className="space-y-1">
+                        <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
+                          ${payoutUSD.toFixed(2)}
+                          <span className="text-xs font-bold text-muted-foreground/40 ml-1">USD</span>
+                        </p>
+                        {showPhp && payoutPHP !== null && (
+                          <p className="text-base font-bold text-sky-700 dark:text-sky-400">
+                            ₱{payoutPHP.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-[9px] font-semibold text-muted-foreground/35 ml-1.5">
+                              1 USD = ₱{phpRate?.toFixed(2)}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground/30 font-medium">
+                        Enter your hourly rate above
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Payout date */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15">
+                    <Scissors className="h-3 w-3 text-amber-500 shrink-0" />
+                    <span className="text-[10px] text-muted-foreground/50 flex-1">
+                      {payoutPeriod === 1 ? "1st–15th" : `16th–${cutoffSummary.lastDay}th`} cut-off
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                      Released {calcPayoutDate}
+                    </span>
+                  </div>
+
+                  {/* Payslip download */}
+                  {isPayDayReached ? (
+                    <button
+                      onClick={printPayslip}
+                      disabled={rateNum <= 0}
+                      className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download Payslip (PDF)
+                    </button>
                   ) : (
-                    <p className="text-sm text-muted-foreground/30 font-medium">
-                      Enter your hourly rate above
-                    </p>
+                    <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Payslip available on {payDayLabel}
+                    </div>
                   )}
                 </div>
-
-                {/* Payout date */}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15">
-                  <Scissors className="h-3 w-3 text-amber-500 shrink-0" />
-                  <span className="text-[10px] text-muted-foreground/50 flex-1">
-                    {payoutPeriod === 1 ? "1st–15th" : `16th–${cutoffSummary.lastDay}th`} cut-off
-                  </span>
-                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                    Released {calcPayoutDate}
-                  </span>
-                </div>
-
-                {/* Payslip download */}
-                {isPayDayReached ? (
-                  <button
-                    onClick={printPayslip}
-                    disabled={rateNum <= 0}
-                    className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download Payslip (PDF)
-                  </button>
-                ) : (
-                  <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    Payslip available on {payDayLabel}
-                  </div>
-                )}
               </div>
-            </div>
             )}
 
             {/* ── Verified footer ── */}

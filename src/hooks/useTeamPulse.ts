@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 export type OnlineStatus = 'online' | 'idle' | 'away' | 'busy' | 'offline' | 'do_not_disturb';
 export type AbsenceType = 'absence' | 'day_off' | 'vacation' | 'sick' | 'other';
@@ -251,6 +251,14 @@ export function useUpdateMyStatus() {
 }
 
 // ── Member profile (click-through) ────────────────────────────────────────────
+
+export function useCurrentMember(fullName: string | undefined | null) {
+    const { data: members = [] } = useTeamMembers();
+    return useMemo(() => {
+        if (!fullName) return undefined;
+        return members.find((m) => m.name.toLowerCase() === fullName.toLowerCase());
+    }, [members, fullName]);
+}
 
 export function useTeamMemberProfile(userId: string | null) {
     const { isLoaded, isSignedIn, getToken } = useAuth();
