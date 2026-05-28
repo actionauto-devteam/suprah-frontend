@@ -492,6 +492,10 @@ export function useSignUp() {
             data.emailAddress.split("@")[0],
           role: data.role || "customer",
           inviteToken: data.inviteToken,
+          // Forward the dealership the customer selected so the backend can
+          // link the new account to it (otherwise org-scoped features 403).
+          organizationId: data.organizationId,
+          dealershipSlug: data.dealershipSlug,
         });
 
         const token =
