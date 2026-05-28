@@ -24,6 +24,8 @@ import {
   Filter,
   Globe,
   LayoutGrid,
+  LayoutList,
+  Activity,
   Mail,
   MapPin,
   MessageCircle,
@@ -102,6 +104,7 @@ import {
   useTogglePinNote,
   useUpdateMyStatus,
   useTeamMemberProfile,
+  useCurrentMember,
   type TeamMember,
   type Absence,
   type AbsenceType,
@@ -111,6 +114,7 @@ import {
   type OnlineStatus,
 } from "@/hooks/useTeamPulse";
 import { useUser } from "@/providers/AuthProvider";
+import { setManualStatus } from "@/hooks/usePresence";
 import { onlineStatusOptions } from "@/components/profile/profile-constants";
 import { DEPARTMENTS, deptLabel } from "@/lib/departments";
 import { cn } from "@/lib/utils";
@@ -1763,7 +1767,7 @@ function OverviewDashboard({
   );
 }
 
-type TabId = "overview" | "team" | "calendar" | "board";
+type TabId = "overview" | "team" | "calendar" | "board" | "feed";
 
 export default function TeamPulsePage() {
   const { user } = useUser();
@@ -1835,7 +1839,7 @@ export default function TeamPulsePage() {
     setAbsType("day_off");
   }, [selectedDay]);
 
-  const myMember = members.find((m) => m.name === user?.fullName);
+  const myMember = useCurrentMember(user?.fullName);
   const isAdmin = ["admin", "super_admin"].includes(myMember?.role ?? "");
 
   const counts = React.useMemo(
@@ -2050,6 +2054,7 @@ export default function TeamPulsePage() {
   async function handleStatusChange(s: OnlineStatus) {
     const prev = myStatus;
     setMyStatus(s);
+    setManualStatus(["away", "busy", "do_not_disturb"].includes(s) ? s as any : null);
     try {
       await updateStatus.mutateAsync({
         status: s,
@@ -2154,6 +2159,12 @@ export default function TeamPulsePage() {
                   Icon: StickyNote,
                   label: "Board",
                   count: boardNotes.length,
+                },
+                {
+                  id: "feed" as TabId,
+                  Icon: Activity,
+                  label: "Activity Feed",
+                  count: members.filter((m) => m.onlineStatus !== "offline").length,
                 },
               ] as const
             ).map(({ id, Icon, label, count }) => (
@@ -3441,6 +3452,67 @@ export default function TeamPulsePage() {
               </div>
             );
           })()}
+
+        {tab === "feed" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="size-5 text-primary" />
+              <h2 className="text-lg font-black tracking-tight">Activity Feed</h2>
+              <Badge variant="secondary" className="ml-auto">
+                {members.filter((m) => m.onlineStatus !== "offline").length} active
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {members
+                .filter((m) => m.onlineStatus !== "offline")
+                .map((m) => (
+                  <div
+                    key={m._id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => setOpenMemberId(m._id)}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="size-9">
+                        <AvatarImage src={m.profileImage} />
+                        <AvatarFallback className="text-xs font-bold">
+                          {m.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span
+                        className={cn(
+                          "absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-background",
+                          S.dot[m.onlineStatus ?? "offline"],
+                        )}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{m.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {m.customStatus || m.personalInfo?.department || m.role}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <LayoutList className="size-3.5 text-muted-foreground/50" />
+                      <Badge
+                        className={cn(
+                          "text-[10px] px-2 py-0.5 capitalize border",
+                          S.badge[m.onlineStatus ?? "offline"],
+                        )}
+                      >
+                        {S.label[m.onlineStatus ?? "offline"]}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              {members.filter((m) => m.onlineStatus !== "offline").length === 0 && (
+                <div className="flex flex-col items-center py-14 text-center border border-dashed border-border/30 rounded-xl">
+                  <Activity className="size-7 text-muted-foreground/20 mb-2" />
+                  <p className="text-sm font-semibold text-muted-foreground">No active members right now</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <MemberProfileSheet

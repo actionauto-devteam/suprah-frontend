@@ -37,10 +37,19 @@ export interface Vehicle {
     date: string;
   }>;
   dateAdded?: string;
+  dateSold?: string;
   featured?: boolean;
+  certified?: boolean;
+  isNewVehicle?: boolean;
   engine?: string;
+  cylinders?: number;
+  doors?: number;
+  vehicleType?: string;
+  options?: string;
   videoUrl?: string;
   comments?: string;
+  dealerName?: string;
+  dealerAddress?: string;
 }
 
 export interface FilterOptions {
