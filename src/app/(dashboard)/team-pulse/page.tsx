@@ -3473,7 +3473,7 @@ export default function TeamPulsePage() {
                   >
                     <div className="relative shrink-0">
                       <Avatar className="size-9">
-                        <AvatarImage src={m.profileImage} />
+                        <AvatarImage src={m.avatar} />
                         <AvatarFallback className="text-xs font-bold">
                           {m.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                         </AvatarFallback>
