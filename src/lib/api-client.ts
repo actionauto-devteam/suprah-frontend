@@ -2,7 +2,6 @@ import axios, { AxiosInstance, AxiosResponse, AxiosRequestConfig } from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// ── Token refresh queue ───────────────────────────────────────────────────────
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -69,7 +68,6 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
-        // ── Silently ignore intentional request cancellations ─────────
         if (
           axios.isCancel(error) ||
           error?.code === "ERR_CANCELED" ||
@@ -81,10 +79,6 @@ class ApiClient {
         const originalRequest = error.config;
         const requestUrl = String(originalRequest?.url || "");
 
-        // _skipAuthRefresh is set on:
-        //   - Login/register calls (public auth endpoints)
-        //   - Silent refresh calls originating from AuthProvider/getToken
-        //     so we never recursively try to refresh the refresh endpoint.
         const skipAuthRefresh = Boolean(
           (originalRequest as any)?._skipAuthRefresh
         );
@@ -98,14 +92,7 @@ class ApiClient {
           );
 
         if (error.response?.status === 401 && typeof window !== "undefined") {
-          // Never attempt a refresh for:
-          //   1. Requests explicitly marked to skip refresh
-          //   2. Public auth endpoints (login/register etc.)
-          //   3. The refresh endpoint itself (prevents infinite loop)
           if (skipAuthRefresh || isPublicAuthEndpoint || isRefreshEndpoint) {
-            // For the refresh endpoint specifically, clear the stale token
-            // but do NOT call onAuthFailure — a 401 here just means the
-            // user has no session, which is normal on first load.
             if (isRefreshEndpoint) {
               (window as any).__AUTH_TOKEN__ = null;
             }
@@ -113,8 +100,6 @@ class ApiClient {
           }
 
           if (originalRequest._retry) {
-            // We already retried once and got another 401 — real auth failure.
-            // Trigger global logout.
             (window as any).__AUTH_TOKEN__ = null;
             if (this.onAuthFailure) {
               this.onAuthFailure();
@@ -161,21 +146,15 @@ class ApiClient {
             console.error(
               "[apiClient] Token refresh failed. User may need to re-login."
             );
-
-            // onAuthFailure fires here because this is a REAL mid-session
-            // refresh failure (i.e. the user had a request in flight and the
-            // refresh to extend their session failed).
             if (this.onAuthFailure) {
               this.onAuthFailure();
             }
-
             return Promise.reject(refreshError);
           } finally {
             isRefreshing = false;
           }
         }
 
-        // Handle org suspension redirect
         if (error.response?.status === 403) {
           const msg = error.response.data?.message || "";
           if (msg.includes("Suspended") && typeof window !== "undefined") {
@@ -450,8 +429,38 @@ class ApiClient {
     return this.patch("/api/profile/online-status", data, config);
   }
 
+  // ── Onboarding Methods ───────────────────────────────────────────────────
+
+  /**
+   * Step 1 — set role.
+   * Returns { skipOrgSelect: true } for dealers (onboarding done),
+   * or { skipOrgSelect: false } for customers (must call selectOnboardingOrg next).
+   */
   async completeOnboarding(role: string, config?: AxiosRequestConfig) {
     return this.post("/api/auth/complete-onboarding", { role }, config);
+  }
+
+  /**
+   * Step 2 — customers only.
+   * Links the customer to a dealership org and flips onboardingCompleted.
+   */
+  async selectOnboardingOrg(
+    organizationId: string,
+    config?: AxiosRequestConfig
+  ) {
+    return this.post(
+      "/api/auth/select-onboarding-org",
+      { organizationId },
+      config
+    );
+  }
+
+  /**
+   * Fetch the public list of dealerships for the onboarding org picker.
+   * No auth token required — this is called before onboarding is complete.
+   */
+  async getPublicOrganizations(config?: AxiosRequestConfig) {
+    return this.get("/api/organizations/public", config);
   }
 
   // ── Vehicle Methods ──────────────────────────────────────────────────────
