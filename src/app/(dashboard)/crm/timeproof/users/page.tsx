@@ -16,6 +16,7 @@ import {
   Apple,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { initializeSocket } from "@/lib/socket.client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn, resolveImageUrl } from "@/lib/utils"
 
@@ -112,15 +113,9 @@ const roleBadgeClass = (role: string) => {
    Status Badge
 ───────────────────────────────────────────────────────────────────────── */
 function StatusBadge({ user }: { user: MergedUser }) {
-  if (!user.isOnline) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700/50">
-        <WifiOff className="h-2.5 w-2.5" />
-        Offline
-      </span>
-    )
-  }
-  if (user.isBreakExceeded) {
+  // Shift state takes priority over connectivity state.
+  // A clocked-in user shows their shift status even when the tray is offline.
+  if (user.isLive && user.isBreakExceeded) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
         <Coffee className="h-2.5 w-2.5" />
@@ -128,7 +123,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
       </span>
     )
   }
-  if (user.isOnBreak) {
+  if (user.isLive && user.isOnBreak) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
         <Coffee className="h-2.5 w-2.5" />
@@ -136,7 +131,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
       </span>
     )
   }
-  if (user.isIdle) {
+  if (user.isLive && user.isIdle) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-700/50 text-zinc-400 border border-zinc-600/30">
         <Clock className="h-2.5 w-2.5" />
@@ -147,15 +142,23 @@ function StatusBadge({ user }: { user: MergedUser }) {
   if (user.isLive) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400", user.isOnline && "animate-pulse")} />
         On Shift
+      </span>
+    )
+  }
+  if (user.isOnline) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700/50">
+        <Wifi className="h-2.5 w-2.5" />
+        Online
       </span>
     )
   }
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700/50">
-      <Wifi className="h-2.5 w-2.5" />
-      Online
+      <WifiOff className="h-2.5 w-2.5" />
+      Offline
     </span>
   )
 }
@@ -190,14 +193,16 @@ function UserCard({ user, now, onClick }: { user: MergedUser; now: number; onCli
       onClick={onClick}
       className={cn(
         "relative rounded-2xl border bg-zinc-900/60 p-4 flex flex-col gap-3 transition-all duration-300 cursor-pointer hover:bg-zinc-800/60 hover:scale-[1.01] active:scale-[0.99]",
-        user.isOnline
-          ? user.isBreakExceeded
-            ? "border-red-500/30 shadow-sm shadow-red-500/5 hover:border-red-500/50"
-            : user.isIdle
-            ? "border-zinc-700/40 hover:border-zinc-600/60"
-            : user.isLive
-            ? "border-emerald-500/25 shadow-sm shadow-emerald-500/5 hover:border-emerald-500/45"
-            : "border-zinc-700/40 hover:border-zinc-600/60"
+        user.isLive && user.isBreakExceeded
+          ? "border-red-500/30 shadow-sm shadow-red-500/5 hover:border-red-500/50"
+          : user.isLive && user.isOnBreak
+          ? "border-amber-500/25 shadow-sm shadow-amber-500/5 hover:border-amber-500/40"
+          : user.isLive && !user.isIdle
+          ? "border-emerald-500/25 shadow-sm shadow-emerald-500/5 hover:border-emerald-500/45"
+          : user.isLive && user.isIdle
+          ? "border-zinc-700/40 hover:border-zinc-600/60"
+          : user.isOnline
+          ? "border-zinc-700/40 hover:border-zinc-600/60"
           : "border-zinc-800/40 opacity-60 hover:opacity-80"
       )}
     >
@@ -301,7 +306,7 @@ export default function AdminShiftBoardPage() {
       const agentMap = new Map(agentStatuses.map((a) => [a.user._id.toString(), a]))
 
       const nowMs = Date.now()
-      const BREAK_LIMIT_MS = 3600_000 // 1 hour
+      const BREAK_LIMIT_MS = 65 * 60 * 1000 // 1 hour 5 minutes — matches dashboard threshold
 
       const merged: MergedUser[] = timeprofUsers.map((u) => {
         const agent = agentMap.get(u.user._id.toString())
@@ -331,15 +336,16 @@ export default function AdminShiftBoardPage() {
         }
       })
 
-      // Sort: on-shift → on break / over break → idle → online-only → offline; then by name
+      // Sort by shift state first, then connectivity, then name
       merged.sort((a, b) => {
         const score = (u: MergedUser) => {
-          if (!u.isOnline) return 0
-          if (u.isLive && !u.isIdle && !u.isOnBreak) return 5
-          if (u.isBreakExceeded) return 4
-          if (u.isOnBreak) return 3
-          if (u.isIdle) return 2
-          return 1
+          if (u.isLive && !u.isIdle && !u.isOnBreak && u.isOnline) return 7  // on shift + online
+          if (u.isLive && !u.isIdle && !u.isOnBreak) return 6               // on shift (tray offline)
+          if (u.isLive && u.isBreakExceeded) return 5
+          if (u.isLive && u.isOnBreak) return 4
+          if (u.isLive && u.isIdle) return 3
+          if (u.isOnline) return 2
+          return 0
         }
         const diff = score(b) - score(a)
         return diff !== 0 ? diff : a.fullName.localeCompare(b.fullName)
@@ -356,11 +362,40 @@ export default function AdminShiftBoardPage() {
     }
   }, [router])
 
-  // Initial fetch + poll every 30 seconds
+  // Poll every 5s for near-real-time accuracy on a live board
   React.useEffect(() => {
     fetchData()
-    const pollId = setInterval(fetchData, 30_000)
+    const pollId = setInterval(fetchData, 5_000)
     return () => clearInterval(pollId)
+  }, [fetchData])
+
+  // Socket: join shift-board room + instantly refresh on any employee state change
+  React.useEffect(() => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    const sock = initializeSocket(token)
+
+    // Join the server-side room so we receive events emitted to crm:shift-board
+    sock.emit("join_shift_board")
+
+    sock.on("crm:presence", fetchData)
+    sock.on("agent:idle", fetchData)
+    sock.on("agent:break-exceeded", fetchData)
+    sock.on("time-in", fetchData)
+    sock.on("time-out", fetchData)
+    sock.on("break-in", fetchData)
+    sock.on("break-out", fetchData)
+
+    return () => {
+      sock.emit("leave_shift_board")
+      sock.off("crm:presence", fetchData)
+      sock.off("agent:idle", fetchData)
+      sock.off("agent:break-exceeded", fetchData)
+      sock.off("time-in", fetchData)
+      sock.off("time-out", fetchData)
+      sock.off("break-in", fetchData)
+      sock.off("break-out", fetchData)
+    }
   }, [fetchData])
 
   // Tick every second for live timer
@@ -369,11 +404,12 @@ export default function AdminShiftBoardPage() {
     return () => clearInterval(id)
   }, [])
 
-  const onlineCount = users.filter((u) => u.isOnline).length
-  const onShiftCount = users.filter((u) => u.isLive && u.isOnline && !u.isOnBreak && !u.isIdle).length
-  const onBreakCount = users.filter((u) => u.isOnBreak && u.isOnline).length
-  const idleCount = users.filter((u) => u.isIdle && u.isOnline).length
-  const overBreakCount = users.filter((u) => u.isBreakExceeded).length
+  // Online = anyone on shift (any state) OR with an active tray/CRM connection
+  const onlineCount = users.filter((u) => u.isLive || u.isOnline).length
+  const onShiftCount = users.filter((u) => u.isLive && !u.isOnBreak && !u.isIdle).length
+  const onBreakCount = users.filter((u) => u.isLive && u.isOnBreak).length
+  const idleCount = users.filter((u) => u.isLive && u.isIdle).length
+  const overBreakCount = users.filter((u) => u.isLive && u.isBreakExceeded).length
 
   return (
     <div className="min-h-screen bg-zinc-950">

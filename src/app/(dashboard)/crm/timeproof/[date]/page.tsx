@@ -399,7 +399,7 @@ export default function ScreenshotGalleryPage() {
       <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
-            onClick={() => router.push("/crm/timeproof")}
+            onClick={() => router.back()}
             className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
