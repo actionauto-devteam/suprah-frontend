@@ -188,7 +188,9 @@ export function VehicleDetailView({
   const allImages = React.useMemo(() => {
     const rawCandidates = [vehicle.image, ...(vehicle.images || [])]
       .map((source) => resolveImageUrl(source)?.trim())
-      .filter((source): source is string => Boolean(source && source.length > 0));
+      .filter((source): source is string =>
+        Boolean(source && source.length > 0),
+      );
 
     const uniqueCandidates = Array.from(new Set(rawCandidates));
     return uniqueCandidates.length > 0 ? uniqueCandidates : [FALLBACK_IMAGE];
@@ -225,6 +227,20 @@ export function VehicleDetailView({
   }, [vehicle.id, allImages]);
 
   const activeImage = allImages[activeImageIndex] || FALLBACK_IMAGE;
+  const locationFromApi = (vehicle.location || "").trim();
+  const dealerCity = ((vehicle as any).dealerCity || "").trim();
+  const dealerState = ((vehicle as any).dealerState || "").trim();
+  const dealerZip = ((vehicle as any).dealerZip || "").trim();
+  const fallbackDealerLocation = [dealerCity, dealerState, dealerZip]
+    .filter(Boolean)
+    .join(", ");
+  const hasKnownLocation =
+    Boolean(locationFromApi) && !/^unknown$/i.test(locationFromApi);
+  const displayLocation =
+    (hasKnownLocation ? locationFromApi : "") ||
+    fallbackDealerLocation ||
+    "Orem, UT";
+  const locationMapQuery = `Action Auto Utah ${displayLocation}`;
 
   const handleMainImageError = () => {
     if (activeImageIndex < allImages.length - 1) {
@@ -273,9 +289,7 @@ export function VehicleDetailView({
   };
 
   const handleDirections = () => {
-    const destination = encodeURIComponent(
-      `Action Auto Utah ${vehicle.location || "Orem, UT"}`,
-    );
+    const destination = encodeURIComponent(locationMapQuery);
     window.open(
       `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
       "_blank",
@@ -430,8 +444,8 @@ export function VehicleDetailView({
                     exterior.
                   </p>
                   <p>
-                    {vehicle.location && vehicle.location !== "Unknown"
-                      ? `Currently located at our ${vehicle.location} dealership, this vehicle `
+                    {hasKnownLocation
+                      ? `Currently located at our ${displayLocation} dealership, this vehicle `
                       : "This vehicle "}
                     is professionally inspected and{" "}
                     {vehicle.status?.toLowerCase() === "ready"
@@ -696,19 +710,19 @@ export function VehicleDetailView({
                     width="100%"
                     height="180"
                     style={{
-                      filter: "grayscale(20%) kontrast(1.2) opacity(0.9)",
+                      filter: "grayscale(20%) contrast(1.2) opacity(0.9)",
                     }}
                     loading="lazy"
                     allowFullScreen
                     referrerPolicy="no-referrer-when-downgrade"
-                    src={`https://maps.google.com/maps?q=${encodeURIComponent("Action Auto Utah " + (vehicle.location || "Orem, UT"))}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(locationMapQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
                     className="w-full h-[180px] object-cover"
                   />
                   <div className="p-3 bg-background flex items-center justify-between border-t border-border/50">
                     <div className="space-y-0.5">
                       <p className="text-xs font-semibold">Action Auto Utah</p>
                       <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
-                        {vehicle.location || "Orem, UT"}
+                        {displayLocation}
                       </p>
                     </div>
                     <Button

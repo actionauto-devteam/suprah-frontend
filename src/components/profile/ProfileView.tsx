@@ -63,6 +63,7 @@ export const ProfileView: React.FC = () => {
 
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [hasFetchedActivities, setHasFetchedActivities] = useState(false);
 
   const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>("online");
   const [customStatus, setCustomStatus] = useState("");
@@ -97,6 +98,7 @@ export const ProfileView: React.FC = () => {
       setSocialLinks(data.personalInfo?.socialLinks || []);
       setPreferences(data.notificationPreferences);
       setActivities(data.recentActivities || data.recentActivity || []);
+      setHasFetchedActivities(false);
       setOnlineStatus(data.onlineStatus || "online");
       setCustomStatus(data.customStatus || "");
 
@@ -106,9 +108,24 @@ export const ProfileView: React.FC = () => {
           ? `${resolvedAvatar}${resolvedAvatar.includes("?") ? "&" : "?"}v=${Date.now()}`
           : "",
       );
+    } catch {
+      if (!toastShownRef.current) {
+        toastShownRef.current = true;
+        toast.error("Failed to load profile data");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getToken, setAvatarUrl]);
+
+  const fetchActivities = useCallback(
+    async (force = false) => {
+      if (activitiesLoading) return;
+      if (!force && hasFetchedActivities) return;
 
       try {
         setActivitiesLoading(true);
+        const token = await getToken();
         const activityRes = await apiClient.get("/api/profile/activities", {
           headers: { Authorization: `Bearer ${token}` },
           params: { limit: 30 },
@@ -119,22 +136,22 @@ export const ProfileView: React.FC = () => {
         }
       } catch {
       } finally {
+        setHasFetchedActivities(true);
         setActivitiesLoading(false);
       }
-    } catch {
-      if (!toastShownRef.current) {
-        toastShownRef.current = true;
-        toast.error("Failed to load profile data");
-      }
-      setActivitiesLoading(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getToken, setAvatarUrl]);
+    },
+    [activitiesLoading, getToken, hasFetchedActivities],
+  );
 
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile, refreshKey]);
+
+  useEffect(() => {
+    if (activeTab === "activity" && profile) {
+      fetchActivities();
+    }
+  }, [activeTab, fetchActivities, profile]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -481,7 +498,7 @@ export const ProfileView: React.FC = () => {
         <TabsContent value="activity" className="pt-1 sm:pt-2">
           <ActivityTab
             activities={activities}
-            fetchProfile={fetchProfile}
+            fetchProfile={() => fetchActivities(true)}
             isLoading={activitiesLoading}
           />
         </TabsContent>
