@@ -22,6 +22,9 @@ import {
   Pencil,
   Share2,
   Copy,
+  Facebook,
+  Linkedin,
+  MessageCircle,
 } from "lucide-react";
 import { UserProfile, OnlineStatus } from "@/types/user";
 import { cn, resolveImageUrl, getInitials } from "@/lib/utils";
@@ -184,29 +187,43 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   };
 
   const handleShareExternally = async () => {
-    const url = getProfileShareUrl();
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        await navigator.share({
-          title: `${displayName} • Action Auto`,
-          text: `View ${displayName}'s profile on Action Auto`,
-          url,
-        });
-        return;
-      } catch (error) {
-        if (
-          error &&
-          typeof error === "object" &&
-          "name" in error &&
-          (error as { name?: string }).name === "AbortError"
-        ) {
-          return;
-        }
-      }
-    }
-
     await handleCopyProfileLink();
-    toast.info("Native sharing unavailable, copied profile link instead.");
+    toast.info("Use the social share options in this menu.");
+  };
+
+  const openShareWindow = (targetUrl: string) => {
+    if (typeof window === "undefined") return false;
+    const popup = window.open(
+      targetUrl,
+      "_blank",
+      "noopener,noreferrer,width=620,height=700",
+    );
+    return Boolean(popup);
+  };
+
+  const handleShareToPlatform = async (
+    platform: "facebook" | "x" | "linkedin" | "whatsapp" | "email",
+  ) => {
+    const url = getProfileShareUrl();
+    const title = `${displayName} • Action Auto`;
+    const text = `View ${displayName}'s profile on Action Auto`;
+    const encodedUrl = encodeURIComponent(url);
+    const encodedTitle = encodeURIComponent(title);
+    const encodedText = encodeURIComponent(text);
+
+    const shareUrlByPlatform: Record<typeof platform, string> = {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      x: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+      whatsapp: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
+      email: `mailto:?subject=${encodedTitle}&body=${encodedText}%0A%0A${encodedUrl}`,
+    };
+
+    const opened = openShareWindow(shareUrlByPlatform[platform]);
+    if (!opened) {
+      await handleCopyProfileLink();
+      toast.info("Popup blocked. Profile link copied instead.");
+    }
   };
 
   const displayName =
@@ -503,7 +520,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-52 bg-gray-900 border-white/10 text-white"
+              className="w-64 bg-gray-900 border-white/10 text-white"
             >
               <DropdownMenuItem
                 className="focus:bg-white/10 focus:text-white"
@@ -517,7 +534,45 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 onClick={handleShareExternally}
               >
                 <Share2 className="size-4 mr-2" />
-                Share externally
+                Copy & share manually
+              </DropdownMenuItem>
+              <div className="my-1 mx-2 h-px bg-white/10" />
+              <p className="px-3 py-1 text-[11px] uppercase tracking-wide text-white/50">
+                Share using
+              </p>
+              <DropdownMenuItem
+                className="focus:bg-white/10 focus:text-white"
+                onClick={() => handleShareToPlatform("facebook")}
+              >
+                <Facebook className="size-4 mr-2" />
+                Facebook
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="focus:bg-white/10 focus:text-white"
+                onClick={() => handleShareToPlatform("x")}
+              >
+                <Share2 className="size-4 mr-2" />X (Twitter)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="focus:bg-white/10 focus:text-white"
+                onClick={() => handleShareToPlatform("linkedin")}
+              >
+                <Linkedin className="size-4 mr-2" />
+                LinkedIn
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="focus:bg-white/10 focus:text-white"
+                onClick={() => handleShareToPlatform("whatsapp")}
+              >
+                <MessageCircle className="size-4 mr-2" />
+                WhatsApp
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="focus:bg-white/10 focus:text-white"
+                onClick={() => handleShareToPlatform("email")}
+              >
+                <Mail className="size-4 mr-2" />
+                Email
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { DriverSidebar } from "@/components/driver-sidebar";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
@@ -21,10 +25,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProfileProvider } from "@/context/ProfileContext";
+import { useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { driverNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
+import { resolveImageUrl } from "@/lib/utils";
 
 function DriverLayoutContent({
   children,
@@ -32,6 +38,7 @@ function DriverLayoutContent({
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { getToken } = useAuth();
+  const { avatarUrl } = useProfileContext();
   const { isLoaded, isDriver, userRole } = useOrg();
   const router = useRouter();
   const [guardPassed, setGuardPassed] = React.useState(false);
@@ -53,12 +60,12 @@ function DriverLayoutContent({
         const token = await getToken();
         // The backend now creates the DriverRequest automatically in authService.completeOnboarding
         // or during Google Sign-Up. We just need to check the status here.
-        const response = await apiClient.get('/api/driver-requests/my-status', {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.get("/api/driver-requests/my-status", {
+          headers: { Authorization: `Bearer ${token}` },
         });
         const requestData = response.data?.data;
 
-        if (!requestData || requestData.status !== 'approved') {
+        if (!requestData || requestData.status !== "approved") {
           router.push("/driver/pending");
           return;
         }
@@ -104,19 +111,33 @@ function DriverLayoutContent({
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
+                <Button
+                  variant="ghost"
+                  className="relative h-10 w-10 rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                >
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.imageUrl} alt={user?.fullName || ""} />
+                    <AvatarImage
+                      src={resolveImageUrl(
+                        avatarUrl !== null ? avatarUrl : user?.imageUrl,
+                      )}
+                      alt={user?.fullName || ""}
+                    />
                     <AvatarFallback className="bg-emerald-500/10 text-emerald-500 font-bold">
                       {user?.firstName?.substring(0, 1).toUpperCase() || "DR"}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 mt-2 bg-white dark:bg-[#0a0a0a] border-gray-200 dark:border-white/5 shadow-2xl rounded-2xl" align="end" forceMount>
+              <DropdownMenuContent
+                className="w-64 mt-2 bg-white dark:bg-[#0a0a0a] border-gray-200 dark:border-white/5 shadow-2xl rounded-2xl"
+                align="end"
+                forceMount
+              >
                 <DropdownMenuLabel className="font-normal p-4">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">{user?.fullName}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">
+                      {user?.fullName}
+                    </p>
                     <p className="text-xs leading-none text-zinc-500">
                       {user?.primaryEmailAddress?.emailAddress}
                     </p>
@@ -146,7 +167,9 @@ function DriverLayoutContent({
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[#020202] p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[#020202] p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
+          {children}
+        </main>
         <MobileBottomNav items={driverNav} />
       </SidebarInset>
     </SidebarProvider>

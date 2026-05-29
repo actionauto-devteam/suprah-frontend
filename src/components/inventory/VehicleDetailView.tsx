@@ -57,22 +57,40 @@ function cleanDescription(text: string, v?: Vehicle): string {
   if (!text) return "";
   let t = text
     .replace(/\{Equipment Bulleted\}/gi, "")
-    .replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
     .replace(/([.!?])\s+([A-Z][a-z])/g, "$1\n\n$2")
     .replace(/(^|\s)([A-Z]{2,}(?:\s[A-Z]{2,})*:)/g, "\n\n$2")
-    .replace(/(Disclaimer:|Pre-owned vehicle pricing|ALL PRICES ARE FINAL|PLEASE CALL TO SCHEDULE)/gi, "\n\n$1")
-    .replace(/^\s*[-•*]\s*/gm, "\n- ").replace(/\n{3,}/g, "\n\n").trim();
+    .replace(
+      /(Disclaimer:|Pre-owned vehicle pricing|ALL PRICES ARE FINAL|PLEASE CALL TO SCHEDULE)/gi,
+      "\n\n$1",
+    )
+    .replace(/^\s*[-•*]\s*/gm, "\n- ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   if (v?.year && v?.make && v?.model) {
-    const p = new RegExp(`^${v.year}\\s+${v.make}\\s+${v.model}(\\s+with)?$`, "i");
+    const p = new RegExp(
+      `^${v.year}\\s+${v.make}\\s+${v.model}(\\s+with)?$`,
+      "i",
+    );
     if (p.test(t)) return "";
   }
   return t.length < 5 ? "" : t;
 }
 
-function ExpandableText({ text, vehicle }: { text: string; vehicle?: Vehicle }) {
+function ExpandableText({
+  text,
+  vehicle,
+}: {
+  text: string;
+  vehicle?: Vehicle;
+}) {
   const [exp, setExp] = React.useState(false);
   const LIMIT = 480;
-  const cleaned = React.useMemo(() => cleanDescription(text, vehicle), [text, vehicle]);
+  const cleaned = React.useMemo(
+    () => cleanDescription(text, vehicle),
+    [text, vehicle],
+  );
   if (!cleaned) return null;
   const needs = cleaned.length > LIMIT;
   const display = exp ? cleaned : cleaned.slice(0, LIMIT);
@@ -96,7 +114,8 @@ function ExpandableText({ text, vehicle }: { text: string; vehicle?: Vehicle }) 
           }
           return (
             <p key={i} className="whitespace-pre-wrap">
-              {block.trim()}{i === blocks.length - 1 && !exp && needs && "…"}
+              {block.trim()}
+              {i === blocks.length - 1 && !exp && needs && "…"}
             </p>
           );
         })}
@@ -126,10 +145,14 @@ function SpecRow({
   return (
     <div className="flex items-center justify-between border-b border-border/25 py-2.5 last:border-0">
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
-        {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
+        {Icon && (
+          <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+        )}
         {label}
       </span>
-      <span className="max-w-[55%] text-right text-xs font-semibold text-foreground">{value}</span>
+      <span className="max-w-[55%] text-right text-xs font-semibold text-foreground">
+        {value}
+      </span>
     </div>
   );
 }
@@ -147,11 +170,14 @@ function Lightbox({
   const [loaded, setLoaded] = React.useState(false);
   const touchStart = React.useRef<number | null>(null);
 
-  React.useEffect(() => { setLoaded(false); }, [idx]);
+  React.useEffect(() => {
+    setLoaded(false);
+  }, [idx]);
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") setIdx((p) => Math.max(0, p - 1));
-      if (e.key === "ArrowRight") setIdx((p) => Math.min(images.length - 1, p + 1));
+      if (e.key === "ArrowRight")
+        setIdx((p) => Math.min(images.length - 1, p + 1));
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", h);
@@ -159,8 +185,14 @@ function Lightbox({
   }, [images.length, onClose]);
 
   return (
-    <div className="fixed inset-0 z-100 flex flex-col bg-black/97 backdrop-blur-xl" onClick={onClose}>
-      <div className="flex shrink-0 items-center justify-between px-4 py-3" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-100 flex flex-col bg-black/97 backdrop-blur-xl"
+      onClick={onClose}
+    >
+      <div
+        className="flex shrink-0 items-center justify-between px-4 py-3"
+        onClick={(e) => e.stopPropagation()}
+      >
         <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/70">
           {idx + 1} / {images.length}
         </span>
@@ -175,7 +207,9 @@ function Lightbox({
       <div
         className="relative flex flex-1 items-center justify-center px-14"
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => { touchStart.current = e.touches[0].clientX; }}
+        onTouchStart={(e) => {
+          touchStart.current = e.touches[0].clientX;
+        }}
         onTouchEnd={(e) => {
           if (touchStart.current === null) return;
           const diff = touchStart.current - e.changedTouches[0].clientX;
@@ -220,7 +254,10 @@ function Lightbox({
         )}
       </div>
 
-      <div className="shrink-0 overflow-x-auto p-3 no-scrollbar" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="shrink-0 overflow-x-auto p-3 no-scrollbar"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex gap-2">
           {images.map((img, i) => (
             <button
@@ -258,18 +295,27 @@ function Gallery({
   const touchStart = React.useRef<number | null>(null);
   const dragStart = React.useRef<number | null>(null);
 
-  React.useEffect(() => { setLoaded(false); }, [idx]);
+  React.useEffect(() => {
+    setLoaded(false);
+  }, [idx]);
 
   React.useEffect(() => {
     if (spinMode) {
-      spinRef.current = setInterval(() => setIdx((p) => (p + 1) % images.length), 90);
+      spinRef.current = setInterval(
+        () => setIdx((p) => (p + 1) % images.length),
+        90,
+      );
     } else {
       if (spinRef.current) clearInterval(spinRef.current);
     }
-    return () => { if (spinRef.current) clearInterval(spinRef.current); };
+    return () => {
+      if (spinRef.current) clearInterval(spinRef.current);
+    };
   }, [spinMode, images.length]);
 
-  const onTouchStart = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX; };
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = e.touches[0].clientX;
+  };
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchStart.current === null) return;
     const diff = touchStart.current - e.changedTouches[0].clientX;
@@ -281,7 +327,9 @@ function Gallery({
     touchStart.current = null;
   };
 
-  const onMouseDown = (e: React.MouseEvent) => { if (spinMode) dragStart.current = e.clientX; };
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (spinMode) dragStart.current = e.clientX;
+  };
   const onMouseMove = (e: React.MouseEvent) => {
     if (!spinMode || dragStart.current === null) return;
     const diff = e.clientX - dragStart.current;
@@ -293,7 +341,9 @@ function Gallery({
       dragStart.current = e.clientX;
     }
   };
-  const onMouseUp = () => { dragStart.current = null; };
+  const onMouseUp = () => {
+    dragStart.current = null;
+  };
 
   const realImageCount = images.filter((s) => s !== FALLBACK).length;
   const canSpin = images.length >= 6;
@@ -356,7 +406,9 @@ function Gallery({
                   : "bg-black/50 text-white hover:bg-black/70",
               )}
             >
-              <RotateCcw className={cn("h-3.5 w-3.5", spinMode && "animate-spin")} />
+              <RotateCcw
+                className={cn("h-3.5 w-3.5", spinMode && "animate-spin")}
+              />
               360°
             </button>
           )}
@@ -369,7 +421,9 @@ function Gallery({
               {vehicle.year} {vehicle.make} {vehicle.model}
             </p>
             {vehicle.trim && (
-              <p className="text-sm font-medium text-white/75">{vehicle.trim}</p>
+              <p className="text-sm font-medium text-white/75">
+                {vehicle.trim}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-1.5">
@@ -410,7 +464,10 @@ function Gallery({
         {/* Nav arrows */}
         {idx > 0 && (
           <button
-            onClick={(e) => { e.stopPropagation(); setIdx((p) => p - 1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIdx((p) => p - 1);
+            }}
             className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-all hover:bg-black/75 sm:opacity-0 sm:group-hover:opacity-100"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -418,7 +475,11 @@ function Gallery({
         )}
         {idx < images.length - 1 && (
           <button
-            onClick={(e) => { e.stopPropagation(); setIdx((p) => p + 1); setLoaded(false); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIdx((p) => p + 1);
+              setLoaded(false);
+            }}
             className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-all hover:bg-black/75 sm:opacity-0 sm:group-hover:opacity-100"
           >
             <ChevronRight className="h-5 w-5" />
@@ -432,7 +493,10 @@ function Gallery({
           {images.map((img, i) => (
             <button
               key={i}
-              onClick={() => { setIdx(i); setLoaded(false); }}
+              onClick={() => {
+                setIdx(i);
+                setLoaded(false);
+              }}
               className={cn(
                 "relative h-14 w-20 shrink-0 overflow-hidden rounded-sm border-2 transition-all",
                 i === idx
@@ -440,7 +504,12 @@ function Gallery({
                   : "border-transparent opacity-40 hover:opacity-70",
               )}
             >
-              <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
+              <img
+                src={img}
+                alt=""
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
             </button>
           ))}
         </div>
@@ -457,7 +526,8 @@ export function VehicleDetailView({
   shippingQuote,
 }: VehicleDetailViewProps) {
   const { userRole, isSuperAdmin } = useOrg();
-  const isAdmin = userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
+  const isAdmin =
+    userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
 
   const allImages = React.useMemo(() => {
     const raw = [vehicle.image, ...(vehicle.images || []), FALLBACK]
@@ -471,25 +541,46 @@ export function VehicleDetailView({
   const [tab, setTab] = React.useState<Tab>("overview");
   const [copied, setCopied] = React.useState(false);
 
-  React.useEffect(() => { setTab("overview"); }, [vehicle.id]);
+  const locationFromApi = (vehicle.location || "").trim();
+  const dealerCity = ((vehicle as any).dealerCity || "").trim();
+  const dealerState = ((vehicle as any).dealerState || "").trim();
+  const dealerZip = ((vehicle as any).dealerZip || "").trim();
+  const fallbackDealerLocation = [dealerCity, dealerState, dealerZip]
+    .filter(Boolean)
+    .join(", ");
+  const hasKnownLocation =
+    Boolean(locationFromApi) && !/^unknown$/i.test(locationFromApi);
+  const displayLocation =
+    (hasKnownLocation ? locationFromApi : "") ||
+    fallbackDealerLocation ||
+    "Orem, UT";
+  const locationMapQuery = `Action Auto Utah ${displayLocation}`;
+
+  React.useEffect(() => {
+    setTab("overview");
+  }, [vehicle.id]);
 
   const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(`${window.location.origin}/vehicle/${vehicle.id}`);
+    await navigator.clipboard.writeText(
+      `${window.location.origin}/vehicle/${vehicle.id}`,
+    );
     setCopied(true);
     toast.success("Link copied!");
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDirections = () => {
-    const dest = encodeURIComponent(
-      `${vehicle.dealerName || "Action Auto Utah"} ${vehicle.location || "Orem, UT"}`,
+    const dest = encodeURIComponent(locationMapQuery);
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${dest}`,
+      "_blank",
     );
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`, "_blank");
   };
 
   const monthly = Math.floor(vehicle.price / 60);
   const profit = isAdmin && vehicle.cost ? vehicle.price - vehicle.cost : null;
-  const profitPct = profit && vehicle.cost ? Math.round((profit / vehicle.cost) * 100) : null;
+  const profitPct =
+    profit && vehicle.cost ? Math.round((profit / vehicle.cost) * 100) : null;
 
   const TABS: Array<{ id: Tab; label: string }> = [
     { id: "overview", label: "Overview" },
@@ -499,15 +590,22 @@ export function VehicleDetailView({
   ];
 
   const options = vehicle.options
-    ? vehicle.options.split(/[,\n;]+/).map((o) => o.trim()).filter(Boolean)
+    ? vehicle.options
+        .split(/[,\n;]+/)
+        .map((o) => o.trim())
+        .filter(Boolean)
     : [];
 
-  const statusColor = {
-    "Ready for Sale": "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
-    "In Recon": "bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-500/30",
-    "Sold": "bg-red-500/12 text-red-700 dark:text-red-400 border-red-500/30",
-    "In Transit": "bg-sky-500/12 text-sky-700 dark:text-sky-400 border-sky-500/30",
-  }[vehicle.status || ""] ?? "bg-muted text-muted-foreground border-border";
+  const statusColor =
+    {
+      "Ready for Sale":
+        "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+      "In Recon":
+        "bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-500/30",
+      Sold: "bg-red-500/12 text-red-700 dark:text-red-400 border-red-500/30",
+      "In Transit":
+        "bg-sky-500/12 text-sky-700 dark:text-sky-400 border-sky-500/30",
+    }[vehicle.status || ""] ?? "bg-muted text-muted-foreground border-border";
 
   const QUICK_STATS = [
     {
@@ -547,13 +645,14 @@ export function VehicleDetailView({
       )}
 
       <div className="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden group">
-
         {/* ══ LEFT / MAIN ══════════════════════════════════════════ */}
         <div className="flex flex-col lg:flex-1 lg:overflow-y-auto">
-
           <Gallery
             images={allImages}
-            onOpenLightbox={(i) => { setLightboxStart(i); setLightboxOpen(true); }}
+            onOpenLightbox={(i) => {
+              setLightboxStart(i);
+              setLightboxOpen(true);
+            }}
             vehicle={vehicle}
           />
 
@@ -571,7 +670,13 @@ export function VehicleDetailView({
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {vehicle.status && (
-                    <Badge variant="outline" className={cn("h-5 text-[10px] font-semibold", statusColor)}>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-5 text-[10px] font-semibold",
+                        statusColor,
+                      )}
+                    >
                       {vehicle.status}
                     </Badge>
                   )}
@@ -594,7 +699,9 @@ export function VehicleDetailView({
                 <p className="text-3xl font-black text-primary">
                   ${vehicle.price?.toLocaleString()}
                 </p>
-                <p className="text-sm text-muted-foreground">~${monthly.toLocaleString()}/mo</p>
+                <p className="text-sm text-muted-foreground">
+                  ~${monthly.toLocaleString()}/mo
+                </p>
               </div>
             </div>
           </div>
@@ -607,12 +714,17 @@ export function VehicleDetailView({
                   {vehicle.year} {vehicle.make} {vehicle.model}
                 </h1>
                 {vehicle.trim && (
-                  <p className="text-xs text-muted-foreground">{vehicle.trim}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {vehicle.trim}
+                  </p>
                 )}
                 {vehicle.status && (
                   <Badge
                     variant="outline"
-                    className={cn("mt-1.5 h-5 text-[10px] font-semibold", statusColor)}
+                    className={cn(
+                      "mt-1.5 h-5 text-[10px] font-semibold",
+                      statusColor,
+                    )}
                   >
                     {vehicle.status}
                   </Badge>
@@ -630,8 +742,16 @@ export function VehicleDetailView({
           {/* Quick stats strip */}
           <div className="grid grid-cols-4 divide-x divide-border/40 border-b bg-muted/15 dark:bg-zinc-900/30">
             {QUICK_STATS.map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="flex flex-col items-center gap-1.5 px-2 py-3 text-center">
-                <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", color)}>
+              <div
+                key={label}
+                className="flex flex-col items-center gap-1.5 px-2 py-3 text-center"
+              >
+                <div
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-full",
+                    color,
+                  )}
+                >
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <div>
@@ -666,23 +786,24 @@ export function VehicleDetailView({
 
           {/* Tab content */}
           <div className="flex-1 p-4 sm:p-5 lg:p-6">
-
             {tab === "overview" && (
               <div className="space-y-6">
                 <div>
                   <h3 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                     <Car className="h-3.5 w-3.5" /> Description
                   </h3>
-                  {vehicle.comments && cleanDescription(vehicle.comments, vehicle) ? (
+                  {vehicle.comments &&
+                  cleanDescription(vehicle.comments, vehicle) ? (
                     <ExpandableText text={vehicle.comments} vehicle={vehicle} />
                   ) : (
                     <p className="text-sm leading-relaxed text-muted-foreground">
                       This {vehicle.year} {vehicle.make} {vehicle.model}
                       {vehicle.trim ? ` ${vehicle.trim}` : ""} comes in a{" "}
-                      {vehicle.exteriorColor || vehicle.color || "stylish"} exterior
-                      with {vehicle.interiorColor || "premium"} interior.{" "}
-                      {vehicle.location && vehicle.location !== "Unknown"
-                        ? `Located at our ${vehicle.location} location.`
+                      {vehicle.exteriorColor || vehicle.color || "stylish"}{" "}
+                      exterior with {vehicle.interiorColor || "premium"}{" "}
+                      interior.{" "}
+                      {hasKnownLocation
+                        ? `Located at our ${displayLocation} location.`
                         : ""}
                     </p>
                   )}
@@ -693,18 +814,58 @@ export function VehicleDetailView({
                     Quick Facts
                   </h3>
                   <div className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
-                    <SpecRow icon={Calendar} label="Year" value={vehicle.year} />
+                    <SpecRow
+                      icon={Calendar}
+                      label="Year"
+                      value={vehicle.year}
+                    />
                     <SpecRow icon={Car} label="Make" value={vehicle.make} />
                     <SpecRow icon={Car} label="Model" value={vehicle.model} />
                     <SpecRow icon={Car} label="Trim" value={vehicle.trim} />
                     <SpecRow icon={Hash} label="VIN" value={vehicle.vin} />
-                    <SpecRow icon={Hash} label="Stock #" value={vehicle.stockNumber} />
-                    <SpecRow icon={Gauge} label="Mileage" value={vehicle.mileage ? `${vehicle.mileage.toLocaleString()} mi` : undefined} />
-                    <SpecRow icon={Car} label="Body Style" value={vehicle.bodyStyle} />
-                    <SpecRow icon={Palette} label="Exterior" value={vehicle.exteriorColor || vehicle.color} />
-                    <SpecRow icon={Palette} label="Interior" value={vehicle.interiorColor} />
-                    <SpecRow icon={Layers} label="Drivetrain" value={vehicle.driveTrain} />
-                    <SpecRow icon={Calendar} label="Days on Lot" value={vehicle.daysOnLot ? `${vehicle.daysOnLot} days` : undefined} />
+                    <SpecRow
+                      icon={Hash}
+                      label="Stock #"
+                      value={vehicle.stockNumber}
+                    />
+                    <SpecRow
+                      icon={Gauge}
+                      label="Mileage"
+                      value={
+                        vehicle.mileage
+                          ? `${vehicle.mileage.toLocaleString()} mi`
+                          : undefined
+                      }
+                    />
+                    <SpecRow
+                      icon={Car}
+                      label="Body Style"
+                      value={vehicle.bodyStyle}
+                    />
+                    <SpecRow
+                      icon={Palette}
+                      label="Exterior"
+                      value={vehicle.exteriorColor || vehicle.color}
+                    />
+                    <SpecRow
+                      icon={Palette}
+                      label="Interior"
+                      value={vehicle.interiorColor}
+                    />
+                    <SpecRow
+                      icon={Layers}
+                      label="Drivetrain"
+                      value={vehicle.driveTrain}
+                    />
+                    <SpecRow
+                      icon={Calendar}
+                      label="Days on Lot"
+                      value={
+                        vehicle.daysOnLot
+                          ? `${vehicle.daysOnLot} days`
+                          : undefined
+                      }
+                    />
                   </div>
                 </div>
               </div>
@@ -721,10 +882,18 @@ export function VehicleDetailView({
                       { icon: Car, label: "Make", value: vehicle.make },
                       { icon: Car, label: "Model", value: vehicle.model },
                       { icon: Car, label: "Trim", value: vehicle.trim },
-                      { icon: Car, label: "Body Style", value: vehicle.bodyStyle },
+                      {
+                        icon: Car,
+                        label: "Body Style",
+                        value: vehicle.bodyStyle,
+                      },
                       { icon: Car, label: "Type", value: vehicle.vehicleType },
                       { icon: Hash, label: "VIN", value: vehicle.vin },
-                      { icon: Hash, label: "Stock Number", value: vehicle.stockNumber },
+                      {
+                        icon: Hash,
+                        label: "Stock Number",
+                        value: vehicle.stockNumber,
+                      },
                     ],
                   },
                   {
@@ -732,28 +901,78 @@ export function VehicleDetailView({
                     title: "Performance",
                     rows: [
                       { icon: Fuel, label: "Engine", value: vehicle.engine },
-                      { icon: Fuel, label: "Cylinders", value: vehicle.cylinders ? `${vehicle.cylinders} cyl` : undefined },
-                      { icon: Fuel, label: "Fuel Type", value: vehicle.fuelType },
-                      { icon: Settings2, label: "Transmission", value: vehicle.transmission },
-                      { icon: Layers, label: "Drivetrain", value: vehicle.driveTrain },
-                      { icon: Car, label: "Doors", value: vehicle.doors ? `${vehicle.doors} doors` : undefined },
+                      {
+                        icon: Fuel,
+                        label: "Cylinders",
+                        value: vehicle.cylinders
+                          ? `${vehicle.cylinders} cyl`
+                          : undefined,
+                      },
+                      {
+                        icon: Fuel,
+                        label: "Fuel Type",
+                        value: vehicle.fuelType,
+                      },
+                      {
+                        icon: Settings2,
+                        label: "Transmission",
+                        value: vehicle.transmission,
+                      },
+                      {
+                        icon: Layers,
+                        label: "Drivetrain",
+                        value: vehicle.driveTrain,
+                      },
+                      {
+                        icon: Car,
+                        label: "Doors",
+                        value: vehicle.doors
+                          ? `${vehicle.doors} doors`
+                          : undefined,
+                      },
                     ],
                   },
                   {
                     icon: Palette,
                     title: "Appearance",
                     rows: [
-                      { icon: Palette, label: "Exterior Color", value: vehicle.exteriorColor || vehicle.color },
-                      { icon: Palette, label: "Interior Color", value: vehicle.interiorColor },
+                      {
+                        icon: Palette,
+                        label: "Exterior Color",
+                        value: vehicle.exteriorColor || vehicle.color,
+                      },
+                      {
+                        icon: Palette,
+                        label: "Interior Color",
+                        value: vehicle.interiorColor,
+                      },
                     ],
                   },
                   {
                     icon: Calendar,
                     title: "History",
                     rows: [
-                      { icon: Gauge, label: "Mileage", value: vehicle.mileage ? `${vehicle.mileage.toLocaleString()} mi` : undefined },
-                      { icon: Calendar, label: "Days on Lot", value: vehicle.daysOnLot ? `${vehicle.daysOnLot} days` : undefined },
-                      { icon: Calendar, label: "Date Added", value: vehicle.dateAdded ? new Date(vehicle.dateAdded).toLocaleDateString() : undefined },
+                      {
+                        icon: Gauge,
+                        label: "Mileage",
+                        value: vehicle.mileage
+                          ? `${vehicle.mileage.toLocaleString()} mi`
+                          : undefined,
+                      },
+                      {
+                        icon: Calendar,
+                        label: "Days on Lot",
+                        value: vehicle.daysOnLot
+                          ? `${vehicle.daysOnLot} days`
+                          : undefined,
+                      },
+                      {
+                        icon: Calendar,
+                        label: "Date Added",
+                        value: vehicle.dateAdded
+                          ? new Date(vehicle.dateAdded).toLocaleDateString()
+                          : undefined,
+                      },
                       { icon: Car, label: "Status", value: vehicle.status },
                     ],
                   },
@@ -765,7 +984,12 @@ export function VehicleDetailView({
                       {section.title}
                     </h4>
                     {section.rows.map((row) => (
-                      <SpecRow key={row.label} icon={row.icon} label={row.label} value={row.value} />
+                      <SpecRow
+                        key={row.label}
+                        icon={row.icon}
+                        label={row.label}
+                        value={row.value}
+                      />
                     ))}
                   </div>
                 ))}
@@ -799,8 +1023,12 @@ export function VehicleDetailView({
                       <Settings2 className="h-7 w-7 text-muted-foreground/40" />
                     </div>
                     <div>
-                      <p className="font-semibold text-foreground">Feature list unavailable</p>
-                      <p className="mt-1 text-sm">Contact our team for a full options rundown.</p>
+                      <p className="font-semibold text-foreground">
+                        Feature list unavailable
+                      </p>
+                      <p className="mt-1 text-sm">
+                        Contact our team for a full options rundown.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -814,14 +1042,25 @@ export function VehicleDetailView({
                     <h3 className="flex items-center gap-2 text-sm font-black text-primary">
                       <Lock className="h-4 w-4" /> Staff Financials
                     </h3>
-                    <Badge variant="outline" className="border-primary/25 text-[10px] font-bold text-primary">
+                    <Badge
+                      variant="outline"
+                      className="border-primary/25 text-[10px] font-bold text-primary"
+                    >
                       Admin Only
                     </Badge>
                   </div>
                   <div className="grid grid-cols-3 gap-3 p-4">
                     {[
-                      { label: "Cost", value: vehicle.cost, color: "text-foreground" },
-                      { label: "Sale Price", value: vehicle.price, color: "text-foreground" },
+                      {
+                        label: "Cost",
+                        value: vehicle.cost,
+                        color: "text-foreground",
+                      },
+                      {
+                        label: "Sale Price",
+                        value: vehicle.price,
+                        color: "text-foreground",
+                      },
                       {
                         label: "Profit",
                         value: profit ?? undefined,
@@ -865,11 +1104,18 @@ export function VehicleDetailView({
                       <Cog className="h-4 w-4 text-amber-500" /> Recon Pipeline
                     </h3>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Current Stage</span>
-                      <span className="font-semibold text-primary">{vehicle.currentStep}</span>
+                      <span className="text-muted-foreground">
+                        Current Stage
+                      </span>
+                      <span className="font-semibold text-primary">
+                        {vehicle.currentStep}
+                      </span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: "75%" }} />
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-700"
+                        style={{ width: "75%" }}
+                      />
                     </div>
                   </div>
                 )}
@@ -877,7 +1123,8 @@ export function VehicleDetailView({
                 {vehicle.notes && vehicle.notes.length > 0 && (
                   <div className="space-y-2.5">
                     <h3 className="flex items-center gap-2 text-sm font-bold">
-                      <ClipboardList className="h-4 w-4 text-primary" /> Staff Notes
+                      <ClipboardList className="h-4 w-4 text-primary" /> Staff
+                      Notes
                     </h3>
                     {vehicle.notes.map((note: any, i: number) => (
                       <div
@@ -885,10 +1132,18 @@ export function VehicleDetailView({
                         className="rounded-xl border bg-muted/20 p-4 text-xs space-y-1.5 dark:bg-zinc-900/40"
                       >
                         <div className="flex items-center justify-between text-muted-foreground">
-                          <span className="font-bold">{note.author?.name || "Staff"}</span>
-                          <span>{note.date ? new Date(note.date).toLocaleDateString() : "—"}</span>
+                          <span className="font-bold">
+                            {note.author?.name || "Staff"}
+                          </span>
+                          <span>
+                            {note.date
+                              ? new Date(note.date).toLocaleDateString()
+                              : "—"}
+                          </span>
                         </div>
-                        <p className="leading-relaxed text-foreground/80 italic">"{note.text}"</p>
+                        <p className="leading-relaxed text-foreground/80 italic">
+                          "{note.text}"
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -927,7 +1182,6 @@ export function VehicleDetailView({
         {/* ══ RIGHT SIDEBAR (desktop) ══════════════════════════════ */}
         <div className="hidden border-l border-border/50 bg-background lg:flex lg:w-80 lg:flex-col xl:w-96">
           <div className="flex-1 space-y-4 overflow-y-auto p-5 xl:p-6">
-
             {/* Price block */}
             <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20 dark:bg-zinc-900/40">
               <div className="px-5 pt-5 pb-4">
@@ -938,8 +1192,11 @@ export function VehicleDetailView({
                   ${vehicle.price?.toLocaleString()}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  ~<span className="font-semibold text-foreground">${monthly.toLocaleString()}/mo</span>
-                  {" "}over 60 months
+                  ~
+                  <span className="font-semibold text-foreground">
+                    ${monthly.toLocaleString()}/mo
+                  </span>{" "}
+                  over 60 months
                 </p>
               </div>
               {shippingQuote && (
@@ -968,7 +1225,8 @@ export function VehicleDetailView({
                   className="h-11 w-full gap-2 border-border/60 font-semibold"
                   onClick={() => onInquiryClick(vehicle)}
                 >
-                  <CheckCircle2 className="h-4 w-4 text-blue-500" /> Check Availability
+                  <CheckCircle2 className="h-4 w-4 text-blue-500" /> Check
+                  Availability
                 </Button>
               )}
               {onQuoteClick && (
@@ -978,7 +1236,8 @@ export function VehicleDetailView({
                   className="h-11 w-full gap-2 border-border/60 font-semibold"
                   onClick={onQuoteClick}
                 >
-                  <TruckIcon className="h-4 w-4 text-emerald-500" /> Shipping Quote
+                  <TruckIcon className="h-4 w-4 text-emerald-500" /> Shipping
+                  Quote
                 </Button>
               )}
               <Button
@@ -988,7 +1247,8 @@ export function VehicleDetailView({
                 asChild
               >
                 <a href="tel:8017661736">
-                  <Phone className="h-4 w-4 text-emerald-500" /> Call (801) 766-1736
+                  <Phone className="h-4 w-4 text-emerald-500" /> Call (801)
+                  766-1736
                 </a>
               </Button>
               <div className="grid grid-cols-2 gap-2">
@@ -1004,9 +1264,16 @@ export function VehicleDetailView({
                   className="h-9 border border-border/50 text-xs font-medium text-muted-foreground hover:text-foreground"
                   onClick={handleCopyLink}
                 >
-                  {copied
-                    ? <><Check className="mr-1.5 h-3.5 w-3.5 text-emerald-500" /> Copied</>
-                    : <><Copy className="mr-1.5 h-3.5 w-3.5" /> Share</>}
+                  {copied ? (
+                    <>
+                      <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />{" "}
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-1.5 h-3.5 w-3.5" /> Share
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -1021,18 +1288,29 @@ export function VehicleDetailView({
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { label: vehicle.bodyStyle || "Vehicle", icon: Car },
-                  { label: vehicle.transmission?.split(" ")[0] || "Auto", icon: Settings2 },
+                  {
+                    label: vehicle.transmission?.split(" ")[0] || "Auto",
+                    icon: Settings2,
+                  },
                   { label: vehicle.fuelType || "Gasoline", icon: Fuel },
-                  { label: vehicle.driveTrain?.split(" ")[0] || "Standard", icon: Layers },
+                  {
+                    label: vehicle.driveTrain?.split(" ")[0] || "Standard",
+                    icon: Layers,
+                  },
                   { label: vehicle.engine || "Engine", icon: Cog },
-                  { label: vehicle.exteriorColor || vehicle.color || "Color", icon: Palette },
+                  {
+                    label: vehicle.exteriorColor || vehicle.color || "Color",
+                    icon: Palette,
+                  },
                 ].map(({ label, icon: Icon }) => (
                   <div
                     key={label}
                     className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2.5 dark:bg-zinc-900/50"
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0 text-primary/60" />
-                    <span className="truncate text-xs font-medium text-foreground">{label}</span>
+                    <span className="truncate text-xs font-medium text-foreground">
+                      {label}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1053,15 +1331,17 @@ export function VehicleDetailView({
                   loading="lazy"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                    `${vehicle.dealerName || "Action Auto Utah"} ${vehicle.location || "Orem, UT"}`,
-                  )}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(locationMapQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
                   className="w-full"
                 />
                 <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-3.5 py-3 dark:bg-zinc-900/40">
                   <div>
-                    <p className="text-xs font-semibold">{vehicle.dealerName || "Action Auto Utah"}</p>
-                    <p className="text-[10px] text-muted-foreground">{vehicle.location || "Orem, UT"}</p>
+                    <p className="text-xs font-semibold">
+                      {vehicle.dealerName || "Action Auto Utah"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {displayLocation}
+                    </p>
                   </div>
                   <Button
                     variant="outline"

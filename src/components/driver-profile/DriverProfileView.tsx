@@ -79,6 +79,9 @@ export const DriverProfileView: React.FC = () => {
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
 
   const [activities, setActivities] = useState<RecentActivity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [hasFetchedActivities, setHasFetchedActivities] = useState(false);
+  const [hasFetchedDriverExtras, setHasFetchedDriverExtras] = useState(false);
 
   const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>("online");
   const [customStatus, setCustomStatus] = useState("");
@@ -124,6 +127,8 @@ export const DriverProfileView: React.FC = () => {
       setSocialLinks(data.personalInfo?.socialLinks || []);
       setPreferences(data.notificationPreferences);
       setActivities(data.recentActivity || data.recentActivities || []);
+      setHasFetchedActivities(false);
+      setHasFetchedDriverExtras(false);
       setOnlineStatus(data.onlineStatus || "online");
       setCustomStatus(data.customStatus || "");
       const resolvedAvatar = data.avatarUrl || data.avatar || "";
@@ -132,19 +137,6 @@ export const DriverProfileView: React.FC = () => {
           ? `${resolvedAvatar}${resolvedAvatar.includes("?") ? "&" : "?"}v=${Date.now()}`
           : "",
       );
-
-      try {
-        const statsRes = await apiClient.get("/api/profile/driver-stats", {
-          headers,
-        });
-        if (statsRes.data?.data)
-          setDriverStats((prev) => ({ ...prev, ...statsRes.data.data }));
-      } catch {}
-
-      try {
-        const dpRes = await apiClient.get("/api/driver-profile", { headers });
-        if (dpRes.data?.data) setDriverProfile(dpRes.data.data);
-      } catch {}
     } catch {
       if (!toastShownRef.current) {
         toastShownRef.current = true;
@@ -155,9 +147,73 @@ export const DriverProfileView: React.FC = () => {
     }
   }, [getToken, setAvatarUrl]);
 
+  const fetchActivities = useCallback(
+    async (force = false) => {
+      if (activitiesLoading) return;
+      if (!force && hasFetchedActivities) return;
+
+      try {
+        setActivitiesLoading(true);
+        const token = await getToken();
+        const activityRes = await apiClient.get("/api/profile/activities", {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { limit: 30 },
+        });
+        const latestActivities = activityRes?.data?.data;
+        if (Array.isArray(latestActivities)) {
+          setActivities(latestActivities);
+        }
+      } catch {
+      } finally {
+        setHasFetchedActivities(true);
+        setActivitiesLoading(false);
+      }
+    },
+    [activitiesLoading, getToken, hasFetchedActivities],
+  );
+
+  const fetchDriverExtras = useCallback(
+    async (force = false) => {
+      if (!force && hasFetchedDriverExtras) return;
+
+      try {
+        const token = await getToken();
+        const headers = { Authorization: `Bearer ${token}` };
+        const [statsRes, dpRes] = await Promise.allSettled([
+          apiClient.get("/api/profile/driver-stats", { headers }),
+          apiClient.get("/api/driver-profile", { headers }),
+        ]);
+
+        if (statsRes.status === "fulfilled" && statsRes.value.data?.data) {
+          setDriverStats((prev) => ({ ...prev, ...statsRes.value.data.data }));
+        }
+
+        if (dpRes.status === "fulfilled" && dpRes.value.data?.data) {
+          setDriverProfile(dpRes.value.data.data);
+        }
+      } catch {
+      } finally {
+        setHasFetchedDriverExtras(true);
+      }
+    },
+    [getToken, hasFetchedDriverExtras],
+  );
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile, refreshKey]);
+
+  useEffect(() => {
+    if (activeTab === "activity" && profile) {
+      fetchActivities();
+    }
+  }, [activeTab, fetchActivities, profile]);
+
+  useEffect(() => {
+    if (activeTab === "overview" && profile) {
+      fetchDriverExtras();
+    }
+  }, [activeTab, fetchDriverExtras, profile]);
 
   const handleTabChange = (value: string) => setActiveTab(value);
 
@@ -470,7 +526,11 @@ export const DriverProfileView: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="activity">
-          <ActivityTab activities={activities} fetchProfile={fetchProfile} />
+          <ActivityTab
+            activities={activities}
+            fetchProfile={() => fetchActivities(true)}
+            isLoading={activitiesLoading}
+          />
         </TabsContent>
 
         <TabsContent value="support">
