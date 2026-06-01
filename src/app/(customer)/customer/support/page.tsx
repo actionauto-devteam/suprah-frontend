@@ -1,5 +1,17 @@
 "use client";
 
+/**
+ * CustomerConcernChat.tsx
+ *
+ * Customer-facing chat widget.
+ *
+ * Auth strategy: identical to the Aftermarket page — relies on the
+ * AuthProvider's useAuth() hook (Clerk / your provider) to get a fresh
+ * token. Never reads localStorage directly. The same token is used for
+ * every API call, so logging in once on the customer account is sufficient
+ * for every feature including this chat.
+ */
+
 import * as React from "react";
 import {
   MessageCircle,
@@ -12,11 +24,9 @@ import {
   ChevronDown,
   FileText,
   Download,
-  Mic,
-  StopCircle,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { useUser } from "@/providers/AuthProvider";
+import { useAuth, useUser } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,12 +64,11 @@ interface ConcernConversation {
     customerUserId: string;
     resolved?: boolean;
   };
-  lastMessageAt?: string;
 }
 
 type Mode = "page" | "float";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -70,33 +79,56 @@ function fmtTime(d: string) {
 function fmtSize(b: number) {
   return b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 }
+function fmtDate(d: string) {
+  const date = new Date(d);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - date.getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 function ini(name: string) {
-  return (name || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  return (name || "?").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
+// ─── Date separator ───────────────────────────────────────────────────────────
+
+function DateSep({ date }: { date: string }) {
+  return (
+    <div className="flex items-center gap-3 my-4 px-4">
+      <div className="flex-1 h-px bg-border/40" />
+      <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full border border-border/30">
+        {fmtDate(date)}
+      </span>
+      <div className="flex-1 h-px bg-border/40" />
+    </div>
+  );
+}
+
+function fmtDateKey(d: string) {
+  return new Date(d).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({
   message,
-  customerUserId,
+  currentUserId,
 }: {
   message: ConcernMessage;
-  customerUserId: string;
+  currentUserId: string;
 }) {
-  const isOwn = message.metadata?.isCustomerMessage === true ||
-    message.sender?._id === customerUserId;
+  const isOwn =
+    message.metadata?.isCustomerMessage === true ||
+    message.sender?.isCustomer === true ||
+    message.sender?._id === currentUserId;
+
   const senderName = isOwn
     ? "You"
     : message.metadata?.crmUserName || message.sender?.fullName || "Support";
 
   return (
     <div className={cn("flex gap-2.5 px-4 py-1", isOwn && "flex-row-reverse")}>
-      {/* Avatar */}
       <div
         className={cn(
           "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white",
@@ -106,16 +138,15 @@ function MessageBubble({
         {ini(senderName)}
       </div>
 
-      <div className={cn("flex flex-col gap-1 max-w-[75%]", isOwn && "items-end")}>
-        <span className="px-0.5 text-[11px] font-medium text-muted-foreground">
+      <div className={cn("flex flex-col gap-0.5 max-w-[75%]", isOwn && "items-end")}>
+        <span className="text-[11px] font-medium text-muted-foreground px-0.5">
           {senderName}
           {!isOwn && message.metadata?.crmUserRole && (
             <span className="ml-1 opacity-60">· {message.metadata.crmUserRole}</span>
           )}
         </span>
 
-        {/* Text content */}
-        {message.content && (
+        {message.content ? (
           <div
             className={cn(
               "rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words",
@@ -126,57 +157,54 @@ function MessageBubble({
           >
             {message.content}
           </div>
-        )}
+        ) : null}
 
-        {/* Attachments */}
-        {message.attachments?.length > 0 && (
-          <div className="flex flex-col gap-1.5 mt-0.5">
-            {message.attachments
-              .filter((a) => a.mimeType?.startsWith("image/"))
-              .map((att, i) => (
-                <a
-                  key={i}
-                  href={att.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl overflow-hidden"
-                  style={{ maxWidth: 220 }}
-                >
-                  <img
-                    src={att.url}
-                    alt={att.originalName}
-                    className="rounded-xl object-cover hover:opacity-90 transition-opacity"
-                    style={{ maxHeight: 180, maxWidth: 220, display: "block" }}
-                  />
-                </a>
-              ))}
-            {message.attachments
-              .filter((a) => !a.mimeType?.startsWith("image/"))
-              .map((att, i) => (
-                <a
-                  key={i}
-                  href={att.url}
-                  download={att.originalName}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80",
-                    isOwn
-                      ? "bg-emerald-700/50 border border-white/10"
-                      : "bg-muted border border-border/40"
-                  )}
-                  style={{ maxWidth: 220 }}
-                >
-                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium truncate">{att.originalName}</p>
-                    <p className="text-[10px] opacity-50">{fmtSize(att.size)}</p>
-                  </div>
-                  <Download className="h-3 w-3 shrink-0 opacity-50" />
-                </a>
-              ))}
-          </div>
-        )}
+        {/* Image attachments */}
+        {message.attachments
+          ?.filter((a) => a.mimeType?.startsWith("image/"))
+          .map((att, i) => (
+            <a
+              key={i}
+              href={att.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-xl overflow-hidden"
+              style={{ maxWidth: 220 }}
+            >
+              <img
+                src={att.url}
+                alt={att.originalName}
+                className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                style={{ maxHeight: 180, maxWidth: 220, display: "block" }}
+              />
+            </a>
+          ))}
 
-        {/* Meta */}
+        {/* File attachments */}
+        {message.attachments
+          ?.filter((a) => !a.mimeType?.startsWith("image/"))
+          .map((att, i) => (
+            <a
+              key={i}
+              href={att.url}
+              download={att.originalName}
+              className={cn(
+                "flex items-center gap-2.5 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80",
+                isOwn
+                  ? "bg-emerald-700/50 border border-white/10"
+                  : "bg-muted border border-border/40"
+              )}
+              style={{ maxWidth: 220 }}
+            >
+              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate">{att.originalName}</p>
+                <p className="text-[10px] opacity-50">{fmtSize(att.size)}</p>
+              </div>
+              <Download className="h-3 w-3 shrink-0 opacity-50" />
+            </a>
+          ))}
+
         <div className={cn("flex items-center gap-1 px-0.5", isOwn && "flex-row-reverse")}>
           <span className="text-[10px] text-muted-foreground/60 tabular-nums">
             {fmtTime(message.createdAt)}
@@ -193,29 +221,6 @@ function MessageBubble({
   );
 }
 
-// ─── Date separator ───────────────────────────────────────────────────────────
-
-function DateSep({ date }: { date: string }) {
-  const d = new Date(date);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
-  const label =
-    diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString([], { month: "short", day: "numeric" });
-  return (
-    <div className="flex items-center gap-3 my-4 px-4">
-      <div className="flex-1 h-px bg-border/40" />
-      <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full border border-border/30">
-        {label}
-      </span>
-      <div className="flex-1 h-px bg-border/40" />
-    </div>
-  );
-}
-
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-}
-
 // ─── Pending file preview ─────────────────────────────────────────────────────
 
 function PendingFileItem({ file, onRemove }: { file: File; onRemove: () => void }) {
@@ -230,8 +235,8 @@ function PendingFileItem({ file, onRemove }: { file: File; onRemove: () => void 
   }, [file, isImg]);
   return (
     <div
-      className="relative flex flex-col rounded-lg overflow-hidden shrink-0 border border-border/40"
-      style={{ width: 64, background: "var(--muted)" }}
+      className="relative flex flex-col rounded-lg overflow-hidden shrink-0 border border-border/40 bg-muted"
+      style={{ width: 64 }}
     >
       {preview ? (
         <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 48 }} />
@@ -240,9 +245,7 @@ function PendingFileItem({ file, onRemove }: { file: File; onRemove: () => void 
           <FileText className="h-5 w-5 text-muted-foreground" />
         </div>
       )}
-      <div className="px-1 py-0.5">
-        <p className="truncate text-[9px] text-muted-foreground font-medium">{file.name}</p>
-      </div>
+      <p className="px-1 py-0.5 text-[9px] text-muted-foreground truncate">{file.name}</p>
       <button
         onClick={onRemove}
         className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 border border-border/50 flex items-center justify-center"
@@ -253,10 +256,51 @@ function PendingFileItem({ file, onRemove }: { file: File; onRemove: () => void 
   );
 }
 
+// ─── Chat header ──────────────────────────────────────────────────────────────
+
+function ChatHeader({
+  onClose,
+  isResolved,
+}: {
+  onClose?: () => void;
+  isResolved: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card shrink-0">
+      <div className="h-8 w-8 rounded-full bg-emerald-600/10 border border-emerald-600/20 flex items-center justify-center">
+        <MessageCircle className="h-4 w-4 text-emerald-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm leading-none">Support Chat</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {isResolved ? (
+            <span className="text-emerald-600">✓ Resolved</span>
+          ) : (
+            "Our team typically replies within a few hours"
+          )}
+        </p>
+      </div>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
+        >
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
+  // ── Auth — identical pattern to the Aftermarket page ──────────────────────
+  // useAuth() gives us getToken(); useUser() gives us the current user id.
+  // No localStorage, no manual token management.
+  const { getToken } = useAuth();
   const { user } = useUser();
+
   const [open, setOpen] = React.useState(mode === "page");
   const [conversation, setConversation] = React.useState<ConcernConversation | null>(null);
   const [messages, setMessages] = React.useState<ConcernMessage[]>([]);
@@ -279,36 +323,35 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
     noticeTimer.current = setTimeout(() => setNotice(null), 3500);
   };
 
-  // Get auth token (adjust to your token storage approach)
-  const getToken = () =>
-    typeof window !== "undefined" ? localStorage.getItem("customer_token") || "" : "";
+  // Build auth headers — same pattern as aftermarket page's fetchAftermarketProducts
+  const authHeaders = React.useCallback(async () => {
+    const token = await getToken();
+    return { Authorization: `Bearer ${token}` };
+  }, [getToken]);
 
-  // ── Init conversation ──
+  // ── Init conversation ──────────────────────────────────────────────────────
+
   const init = React.useCallback(async () => {
     setLoading(true);
     try {
-      const token = getToken();
-      const r = await apiClient.get("/api/customer-concern/init", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers = await authHeaders();
+      const r = await apiClient.get("/api/customer-concern/init", { headers });
       setConversation(r.data?.data || null);
     } catch {
       showNotice("error", "Could not connect to support. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authHeaders]);
 
-  // ── Fetch messages ──
+  // ── Fetch messages ─────────────────────────────────────────────────────────
+
   const fetchMessages = React.useCallback(
     async (before?: string) => {
-      const token = getToken();
+      const headers = await authHeaders();
       const params: any = { limit: 40 };
       if (before) params.before = before;
-      const r = await apiClient.get("/api/customer-concern/messages", {
-        headers: { Authorization: `Bearer ${token}` },
-        params,
-      });
+      const r = await apiClient.get("/api/customer-concern/messages", { headers, params });
       const data: ConcernMessage[] = r.data?.data || [];
       if (before) {
         setMessages((p) => [...data, ...p]);
@@ -318,72 +361,74 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         setHasMore(data.length === 40);
       }
     },
-    []
+    [authHeaders]
   );
 
-  // ── Open handler ──
-  React.useEffect(() => {
-    if (open && !conversation) {
-      init().then(() => fetchMessages());
-    } else if (open && conversation) {
-      fetchMessages();
-    }
-  }, [open]); // eslint-disable-line
+  // ── Open: init + load messages ─────────────────────────────────────────────
 
-  // ── Scroll to bottom ──
+  React.useEffect(() => {
+    if (!open) return;
+    if (!conversation) {
+      init().then(() => fetchMessages()).catch(() => {});
+    } else {
+      fetchMessages().catch(() => {});
+    }
+    setUnread(0);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Scroll to bottom ───────────────────────────────────────────────────────
+
   React.useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // ── Socket: real-time updates ──
+  // ── Real-time: listen for CRM replies ─────────────────────────────────────
+
   React.useEffect(() => {
-    // Attach to the socket exposed globally by the customer app if available.
-    // Adjust to your actual socket setup.
-    const socketCandidates = ["__customerSocket", "__socket", "_socket"];
+    const candidates = ["__socket", "_socket", "socket", "__io"];
     let socket: any = null;
-    for (const key of socketCandidates) {
+    for (const key of candidates) {
       if ((window as any)[key]?.on) { socket = (window as any)[key]; break; }
     }
     if (!socket) return;
 
     const onReply = ({ message }: { conversationId: string; message: ConcernMessage }) => {
-      setMessages((p) => {
-        if (p.find((m) => m._id === message._id)) return p;
-        return [...p, message];
-      });
+      setMessages((p) => (p.find((m) => m._id === message._id) ? p : [...p, message]));
       if (!open) setUnread((n) => n + 1);
     };
+    const onNew = ({ message }: any) => {
+      setMessages((p) => (p.find((m) => m._id === message._id) ? p : [...p, message]));
+    };
+
     socket.on("concern:reply", onReply);
-    socket.on("message:new", ({ message }: any) => {
-      setMessages((p) => {
-        if (p.find((m) => m._id === message._id)) return p;
-        return [...p, message];
-      });
-    });
+    socket.on("message:new", onNew);
     return () => {
       socket.off("concern:reply", onReply);
+      socket.off("message:new", onNew);
     };
   }, [open]);
 
-  // ── Send message ──
+  // ── Send message ───────────────────────────────────────────────────────────
+
   const handleSend = async () => {
     if (sending) return;
     const hasText = Boolean(input.trim());
     const hasFiles = pendingFiles.length > 0;
     if (!hasText && !hasFiles) return;
 
-    const token = getToken();
     setSending(true);
     const content = input.trim();
     setInput("");
 
     try {
+      const headers = await authHeaders();
+
       if (hasFiles) {
         const fd = new FormData();
         pendingFiles.forEach((f) => fd.append("files", f));
         if (content) fd.append("content", content);
         const r = await apiClient.post("/api/customer-concern/upload", fd, {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+          headers: { ...headers, "Content-Type": "multipart/form-data" },
         });
         if (r.data?.data) {
           setMessages((p) =>
@@ -395,7 +440,7 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         const r = await apiClient.post(
           "/api/customer-concern/messages",
           { content },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers }
         );
         if (r.data?.data) {
           setMessages((p) =>
@@ -434,171 +479,17 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
     setLoadingMore(false);
   };
 
-  // ── Resolved state banner ──
-  const isResolved = conversation?.metadata?.resolved;
+  const isResolved = !!conversation?.metadata?.resolved;
+  const currentUserId = user?.id || (user as any)?._id?.toString() || "";
 
-  // ─────────────────── Floating trigger (mode="float") ───────────────────────
-  if (mode === "float") {
-    return (
-      <>
-        {/* Floating button */}
-        {!open && (
-          <button
-            onClick={() => { setOpen(true); setUnread(0); }}
-            className={cn(
-              "fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg flex items-center justify-center",
-              "bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
-            )}
-            aria-label="Open support chat"
-          >
-            <MessageCircle className="h-6 w-6" />
-            {unread > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            )}
-          </button>
-        )}
+  // ── Chat body ──────────────────────────────────────────────────────────────
 
-        {/* Floating panel */}
-        {open && (
-          <div
-            className={cn(
-              "fixed bottom-6 right-6 z-50 w-[360px] rounded-2xl shadow-2xl border border-border/50",
-              "bg-background flex flex-col overflow-hidden"
-            )}
-            style={{ height: 520 }}
-          >
-            <ChatHeader
-              onClose={() => setOpen(false)}
-              isResolved={!!isResolved}
-            />
-            <ChatBody
-              messages={messages}
-              loading={loading}
-              loadingMore={loadingMore}
-              hasMore={hasMore}
-              onLoadMore={loadMore}
-              customerUserId={user?.id || ""}
-              endRef={endRef}
-            />
-            <ChatInput
-              input={input}
-              onInput={setInput}
-              onSend={handleSend}
-              sending={sending}
-              pendingFiles={pendingFiles}
-              onFileSelect={handleFileSelect}
-              onRemoveFile={(i) => setPendingFiles((p) => p.filter((_, idx) => idx !== i))}
-              fileRef={fileRef}
-              notice={notice}
-              disabled={!!isResolved}
-            />
-          </div>
-        )}
-      </>
-    );
-  }
-
-  // ─────────────────── Full page (mode="page") ───────────────────────────────
-  return (
-    <div className="flex flex-col h-full min-h-0 rounded-2xl border border-border/50 bg-background overflow-hidden">
-      <ChatHeader isResolved={!!isResolved} />
-      <ChatBody
-        messages={messages}
-        loading={loading}
-        loadingMore={loadingMore}
-        hasMore={hasMore}
-        onLoadMore={loadMore}
-        customerUserId={user?.id || ""}
-        endRef={endRef}
-      />
-      <ChatInput
-        input={input}
-        onInput={setInput}
-        onSend={handleSend}
-        sending={sending}
-        pendingFiles={pendingFiles}
-        onFileSelect={handleFileSelect}
-        onRemoveFile={(i) => setPendingFiles((p) => p.filter((_, idx) => idx !== i))}
-        fileRef={fileRef}
-        notice={notice}
-        disabled={!!isResolved}
-      />
-    </div>
-  );
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function ChatHeader({
-  onClose,
-  isResolved,
-}: {
-  onClose?: () => void;
-  isResolved: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card shrink-0">
-      <div className="h-8 w-8 rounded-full bg-emerald-600/10 border border-emerald-600/20 flex items-center justify-center">
-        <MessageCircle className="h-4 w-4 text-emerald-600" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm leading-none">Support Chat</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          {isResolved ? (
-            <span className="text-emerald-600">✓ Resolved</span>
-          ) : (
-            "Our team typically replies within a few hours"
-          )}
-        </p>
-      </div>
-      {onClose && (
-        <button
-          onClick={onClose}
-          className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
-        >
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function ChatBody({
-  messages,
-  loading,
-  loadingMore,
-  hasMore,
-  onLoadMore,
-  customerUserId,
-  endRef,
-}: {
-  messages: ConcernMessage[];
-  loading: boolean;
-  loadingMore: boolean;
-  hasMore: boolean;
-  onLoadMore: () => void;
-  customerUserId: string;
-  endRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="flex-1 overflow-y-auto py-3 space-y-0.5"
-      style={{ scrollbarWidth: "thin" }}
-    >
+  const chatBody = (
+    <div className="flex-1 overflow-y-auto py-3 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
       {hasMore && (
         <div className="flex justify-center pb-2">
           <button
-            onClick={onLoadMore}
+            onClick={loadMore}
             className="text-[11px] text-muted-foreground px-3 py-1 rounded-full bg-muted/50 hover:bg-muted transition-colors"
           >
             {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "↑ Load earlier"}
@@ -606,8 +497,12 @@ function ChatBody({
         </div>
       )}
 
-      {messages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full gap-3 py-12 px-6 text-center">
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
           <div className="h-12 w-12 rounded-2xl bg-emerald-600/10 border border-emerald-600/20 flex items-center justify-center">
             <MessageCircle className="h-5 w-5 text-emerald-600" />
           </div>
@@ -619,69 +514,42 @@ function ChatBody({
           </div>
         </div>
       ) : (
-        <>
-          {messages.map((msg, i) => {
-            const prev = messages[i - 1];
-            const showDate = !prev || fmtDate(msg.createdAt) !== fmtDate(prev.createdAt);
-            return (
-              <React.Fragment key={msg._id}>
-                {showDate && <DateSep date={msg.createdAt} />}
-                <MessageBubble message={msg} customerUserId={customerUserId} />
-              </React.Fragment>
-            );
-          })}
-        </>
+        messages.map((msg, i) => {
+          const prev = messages[i - 1];
+          const showDate = !prev || fmtDateKey(msg.createdAt) !== fmtDateKey(prev.createdAt);
+          return (
+            <React.Fragment key={msg._id}>
+              {showDate && <DateSep date={msg.createdAt} />}
+              <MessageBubble message={msg} currentUserId={currentUserId} />
+            </React.Fragment>
+          );
+        })
       )}
       <div ref={endRef} />
     </div>
   );
-}
 
-function ChatInput({
-  input,
-  onInput,
-  onSend,
-  sending,
-  pendingFiles,
-  onFileSelect,
-  onRemoveFile,
-  fileRef,
-  notice,
-  disabled,
-}: {
-  input: string;
-  onInput: (v: string) => void;
-  onSend: () => void;
-  sending: boolean;
-  pendingFiles: File[];
-  onFileSelect: (f: FileList | null) => void;
-  onRemoveFile: (i: number) => void;
-  fileRef: React.RefObject<HTMLInputElement | null>;
-  notice: { kind: "error" | "info"; text: string } | null;
-  disabled?: boolean;
-}) {
-  if (disabled) {
-    return (
-      <div className="shrink-0 px-4 py-3 border-t border-border/50 text-center">
-        <p className="text-xs text-muted-foreground">
-          This concern has been resolved. Contact support to reopen.
-        </p>
-      </div>
-    );
-  }
+  // ── Input bar ──────────────────────────────────────────────────────────────
 
-  return (
+  const inputBar = isResolved ? (
+    <div className="shrink-0 px-4 py-3 border-t border-border/50 text-center">
+      <p className="text-xs text-muted-foreground">
+        This concern has been resolved. Contact support to reopen.
+      </p>
+    </div>
+  ) : (
     <div className="shrink-0 px-3 pb-3 pt-2 space-y-1.5 border-t border-border/50">
-      {/* Pending files */}
       {pendingFiles.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto pb-0.5">
           {pendingFiles.map((f, i) => (
-            <PendingFileItem key={i} file={f} onRemove={() => onRemoveFile(i)} />
+            <PendingFileItem
+              key={i}
+              file={f}
+              onRemove={() => setPendingFiles((p) => p.filter((_, idx) => idx !== i))}
+            />
           ))}
         </div>
       )}
-
-      {/* Notice */}
       {notice && (
         <p
           className={cn(
@@ -692,13 +560,15 @@ function ChatInput({
           {notice.text}
         </p>
       )}
-
       <div className="flex items-end gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
         <textarea
           value={input}
-          onChange={(e) => onInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
           }}
           placeholder="Type a message…"
           rows={1}
@@ -719,10 +589,13 @@ function ChatInput({
             multiple
             accept="*/*"
             className="sr-only"
-            onChange={(e) => { onFileSelect(e.target.files); e.currentTarget.value = ""; }}
+            onChange={(e) => {
+              handleFileSelect(e.target.files);
+              e.currentTarget.value = "";
+            }}
           />
           <button
-            onClick={onSend}
+            onClick={handleSend}
             disabled={(!input.trim() && pendingFiles.length === 0) || sending}
             className={cn(
               "h-7 w-7 rounded-lg flex items-center justify-center transition-all",
@@ -742,9 +615,53 @@ function ChatInput({
       </div>
     </div>
   );
+
+  // ── Float mode ─────────────────────────────────────────────────────────────
+
+  if (mode === "float") {
+    return (
+      <>
+        {!open && (
+          <button
+            onClick={() => { setOpen(true); setUnread(0); }}
+            className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
+            aria-label="Open support chat"
+          >
+            <MessageCircle className="h-6 w-6" />
+            {unread > 0 && (
+              <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </button>
+        )}
+
+        {open && (
+          <div
+            className="fixed bottom-6 right-6 z-50 w-[360px] rounded-2xl shadow-2xl border border-border/50 bg-background flex flex-col overflow-hidden"
+            style={{ height: 520 }}
+          >
+            <ChatHeader onClose={() => setOpen(false)} isResolved={isResolved} />
+            {chatBody}
+            {inputBar}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ── Page mode ──────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex flex-col h-full min-h-0 rounded-2xl border border-border/50 bg-background overflow-hidden">
+      <ChatHeader isResolved={isResolved} />
+      {chatBody}
+      {inputBar}
+    </div>
+  );
 }
 
-// ─── Default export: full page wrapper ───────────────────────────────────────
+// ─── Default export: full-page wrapper ────────────────────────────────────────
 
 export default function CustomerSupportPage() {
   return (
