@@ -523,7 +523,7 @@ class ApiClient {
    * or { skipOrgSelect: false } for customers (must call selectOnboardingOrg next).
    */
   async completeOnboarding(role: string, config?: AxiosRequestConfig) {
-    return this.post("/api/auth/complete-onboarding", { role }, config);
+    return this.post("/api/users/me/complete-onboarding", { role }, config); // ← fixed: was /api/auth/complete-onboarding
   }
 
   /**
@@ -534,11 +534,7 @@ class ApiClient {
     organizationId: string,
     config?: AxiosRequestConfig
   ) {
-    return this.post(
-      "/api/auth/select-onboarding-org",
-      { organizationId },
-      config
-    );
+    return this.post("/api/users/me/join-org", { organizationId }, config); // ← onboarding join: no prior membership required
   }
 
   /**
