@@ -768,6 +768,35 @@ export default function CrmDashboardPage() {
     }
   }, [todayTotalActiveMs, activityStartAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fire-and-forget: post early-end details to Supra Space General channel
+  const notifyEarlyEndToGeneral = React.useCallback((reason: string, details: string) => {
+    const t = localStorage.getItem("crm_token");
+    if (!t || !user) return;
+    const workedMs = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0);
+    const h = Math.floor(workedMs / 3600000);
+    const m = Math.floor((workedMs % 3600000) / 60000);
+    const parts = [
+      `⚡ Early Shift End — ${user.fullName}`,
+      `Reason: ${reason}`,
+      `Time worked: ${h}h ${m}m`,
+    ];
+    if (details) parts.push(`Details: ${details}`);
+    const content = parts.join("\n");
+    apiClient
+      .get("/api/supraspace/conversations", { headers: { Authorization: `Bearer ${t}` } })
+      .then(({ data }) => {
+        const convs: Array<{ _id: string; type: string; name?: string }> = data?.data || [];
+        const general = convs.find((c) => c.type === "group" && c.name?.toLowerCase() === "general");
+        if (!general) return;
+        return apiClient.post(
+          `/api/supraspace/conversations/${general._id}/messages`,
+          { content },
+          { headers: { Authorization: `Bearer ${t}` } }
+        );
+      })
+      .catch(() => {}); // silently ignore — shift already ended
+  }, [user, todayTotalActiveMs, activityStartAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleEarlyEndSubmit = async () => {
     if (!earlyEndReason) return;
     setEarlyEndSubmitting(true);
@@ -776,6 +805,7 @@ export default function CrmDashboardPage() {
         ? `${earlyEndReason} — ${earlyEndDetails.trim()}`
         : earlyEndReason;
       await handleClock("time-out", note);
+      notifyEarlyEndToGeneral(earlyEndReason, earlyEndDetails.trim());
       setShowEarlyEndModal(false);
       setEarlyEndReason("");
       setEarlyEndDetails("");

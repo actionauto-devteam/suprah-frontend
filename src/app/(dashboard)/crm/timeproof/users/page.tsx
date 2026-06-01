@@ -16,6 +16,7 @@ import {
   Apple,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { LiveClock } from "@/components/crm/LiveClock"
 import { initializeSocket } from "@/lib/socket.client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn, resolveImageUrl } from "@/lib/utils"
@@ -42,6 +43,7 @@ interface UserTimeproof {
   thisWeek: HoursSummary
   isLive: boolean
   shiftStartedAt: string | null
+  shiftEndedAt?: string | null
   todayTotalWorkedSeconds: number
   totalBreakSeconds: number
 }
@@ -79,6 +81,7 @@ interface MergedUser {
   platform: string | null
   lastSeenAt: string | null
   shiftStartedAt: string | null
+  shiftEndedAt: string | null
   todayTotalWorkedSeconds: number
   totalBreakSeconds: number
 }
@@ -86,13 +89,16 @@ interface MergedUser {
 /* ─────────────────────────────────────────────────────────────────────────
    Utilities
 ───────────────────────────────────────────────────────────────────────── */
-const pad = (n: number) => String(Math.floor(n)).padStart(2, "0")
+const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 
-const fmtDuration = (totalSeconds: number) => {
-  const h = Math.floor(totalSeconds / 3600)
-  const m = Math.floor((totalSeconds % 3600) / 60)
-  const s = Math.floor(totalSeconds % 60)
-  return `${pad(h)}:${pad(m)}:${pad(s)}`
+const fmtTimeMDT = (iso: string | null | undefined) => {
+  if (!iso) return "——"
+  return new Date(new Date(iso).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  })
 }
 
 const fmtLastSeen = (lastSeenAt: string | null) => {
@@ -166,21 +172,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
 /* ─────────────────────────────────────────────────────────────────────────
    User Card
 ───────────────────────────────────────────────────────────────────────── */
-function UserCard({ user, now, onClick }: { user: MergedUser; now: number; onClick: () => void }) {
-  // Compute live display using same formula as tray/CRM dashboard
-  let displaySeconds = user.today.totalSeconds
-  if (user.isLive && user.isOnline && user.shiftStartedAt) {
-    const sessionMs = now - new Date(user.shiftStartedAt).getTime()
-    const completedBreakMs = user.totalBreakSeconds * 1000
-    // If currently on break, add break time elapsed since break started
-    const currentBreakMs = user.isOnBreak && user.breakStartedAt
-      ? now - new Date(user.breakStartedAt).getTime()
-      : 0
-    const totalBreakMs = completedBreakMs + currentBreakMs
-    const sessionWorkedMs = Math.max(0, sessionMs - totalBreakMs)
-    displaySeconds = Math.floor((user.todayTotalWorkedSeconds * 1000 + sessionWorkedMs) / 1000)
-  }
-
+function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) {
   const initials = user.fullName
     .split(" ")
     .map((n) => n[0])
@@ -250,22 +242,26 @@ function UserCard({ user, now, onClick }: { user: MergedUser; now: number; onCli
         )}
       </div>
 
-      {/* Hours */}
+      {/* Shift times */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-3 py-2">
-          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">Today</p>
-          <p className={cn(
-            "font-mono text-sm font-bold tabular-nums",
-            user.isLive && user.isOnline && !user.isOnBreak ? "text-emerald-400" : "text-zinc-300"
-          )}>
-            {fmtDuration(displaySeconds)}
+          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">Time In</p>
+          <p className="font-mono text-sm font-bold tabular-nums text-emerald-400">
+            {fmtTimeMDT(user.shiftStartedAt)}
           </p>
         </div>
         <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-3 py-2">
-          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">This Week</p>
-          <p className="font-mono text-sm font-bold tabular-nums text-zinc-300">
-            {fmtDuration(user.thisWeek.totalSeconds)}
-          </p>
+          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">Time Out</p>
+          {user.isLive ? (
+            <p className="flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums text-zinc-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              Active
+            </p>
+          ) : (
+            <p className="font-mono text-sm font-bold tabular-nums text-zinc-300">
+              {fmtTimeMDT(user.shiftEndedAt)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -288,7 +284,6 @@ export default function AdminShiftBoardPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null)
-  const [now, setNow] = React.useState(() => Date.now())
 
   const fetchData = React.useCallback(async () => {
     const token = localStorage.getItem("crm_token")
@@ -331,6 +326,7 @@ export default function AdminShiftBoardPage() {
           platform: agent?.platform ?? null,
           lastSeenAt: agent?.lastSeenAt ?? null,
           shiftStartedAt: u.shiftStartedAt,
+          shiftEndedAt: u.shiftEndedAt ?? null,
           todayTotalWorkedSeconds: u.todayTotalWorkedSeconds,
           totalBreakSeconds: u.totalBreakSeconds,
         }
@@ -398,11 +394,6 @@ export default function AdminShiftBoardPage() {
     }
   }, [fetchData])
 
-  // Tick every second for live timer
-  React.useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(id)
-  }, [])
 
   // Online = anyone on shift (any state) OR with an active tray/CRM connection
   const onlineCount = users.filter((u) => u.isLive || u.isOnline).length
@@ -437,6 +428,7 @@ export default function AdminShiftBoardPage() {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
+            <LiveClock />
             {lastRefreshed && (
               <span className="hidden sm:block text-[10px] text-zinc-600 font-mono">
                 Updated {fmtLastSeen(lastRefreshed.toISOString())}
@@ -502,7 +494,6 @@ export default function AdminShiftBoardPage() {
               <UserCard
                 key={u._id}
                 user={u}
-                now={now}
                 onClick={() => router.push(`/crm/timeproof/users/${u._id}`)}
               />
             ))}
