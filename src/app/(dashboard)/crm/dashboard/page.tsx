@@ -30,6 +30,8 @@ import {
   MonitorDot,
   Download,
   RefreshCw,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -234,7 +236,9 @@ function ActivityTimer({
     ? Math.max(0, now - currentBreakStartAt)
     : 0;
   const totalBreakMs = breakTotalMs + breakLiveMs;
-  const breakExceeded = isOnBreak && totalBreakMs >= 3600000;
+  // 5-minute grace period: orange up to 1h04:59, red at 1h05:00+
+  const BREAK_LIMIT_MS = 65 * 60 * 1000;
+  const breakExceeded = isOnBreak && totalBreakMs >= BREAK_LIMIT_MS;
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const toHMS = (ms: number) => ({
@@ -251,93 +255,51 @@ function ActivityTimer({
     { v: pad(worked.s), l: "SEC" },
   ];
 
-  const maxMs = isOnBreak ? 3600000 : 8 * 3600000;
-  const progress = Math.min(displayMs / maxMs, 1);
-  const circumference = 2 * Math.PI * 54;
-  const strokeDashoffset = circumference * (1 - progress);
-
-  const ringColor = isOnBreak
-    ? breakExceeded
-      ? "#ef4444"
-      : "#f59e0b"
-    : isActive
-      ? "#10b981"
-      : "#71717a";
 
   return (
-    <div className="w-full space-y-6">
-      <div className="flex items-center justify-center">
-        <div className="relative">
-          <svg width="140" height="140" className="absolute inset-0 -rotate-90">
-            <circle
-              cx="70"
-              cy="70"
-              r="54"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              className="text-zinc-200 dark:text-zinc-800"
-            />
-            <circle
-              cx="70"
-              cy="70"
-              r="54"
-              fill="none"
-              stroke={ringColor}
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className="transition-all duration-1000"
-              style={{
-                filter: `drop-shadow(0 0 6px ${ringColor})`,
-              }}
-            />
-          </svg>
-          <div className="w-35 h-35 flex flex-col items-center justify-center">
-            <div className="flex items-end gap-0.5">
-              {units.map((item, i) => (
-                <React.Fragment key={item.l}>
-                  {i > 0 && (
-                    <span
-                      className={cn(
-                        "text-xl font-thin mb-3 mx-0.5 transition-colors duration-500",
-                        isOnBreak
-                          ? breakExceeded
-                            ? "text-red-500/50"
-                            : "text-amber-500/50"
-                          : isActive
-                            ? "text-emerald-500/50"
-                            : "text-zinc-400/50",
-                      )}
-                    >
-                      :
-                    </span>
+    <div className="w-full space-y-4">
+      <div className="flex items-center justify-center py-2">
+        <div className="flex items-end gap-0.5">
+          {units.map((item, i) => (
+            <React.Fragment key={item.l}>
+              {i > 0 && (
+                <span
+                  className={cn(
+                    "text-2xl font-thin mb-3 mx-0.5 transition-colors duration-500",
+                    isOnBreak
+                      ? breakExceeded
+                        ? "text-red-500/50"
+                        : "text-amber-500/50"
+                      : isActive
+                        ? "text-emerald-500/50"
+                        : "text-zinc-400/50",
                   )}
-                  <div className="flex flex-col items-center">
-                    <span
-                      className={cn(
-                        "text-3xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
-                        isOnBreak
-                          ? breakExceeded
-                            ? "text-red-500 dark:text-red-400"
-                            : "text-amber-500 dark:text-amber-400"
-                          : isActive
-                            ? "text-zinc-900 dark:text-white"
-                            : "text-zinc-400 dark:text-zinc-600",
-                      )}
-                    >
-                      <AnimatedDigit value={item.v[0]} />
-                      <AnimatedDigit value={item.v[1]} />
-                    </span>
-                    <span className="text-[8px] tracking-widest text-zinc-400 dark:text-zinc-600 font-bold mt-0.5">
-                      {item.l}
-                    </span>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
+                >
+                  :
+                </span>
+              )}
+              <div className="flex flex-col items-center">
+                <span
+                  className={cn(
+                    "text-4xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
+                    isOnBreak
+                      ? breakExceeded
+                        ? "text-red-500 dark:text-red-400"
+                        : "text-amber-500 dark:text-amber-400"
+                      : isActive
+                        ? "text-zinc-900 dark:text-white"
+                        : "text-zinc-400 dark:text-zinc-600",
+                  )}
+                >
+                  <AnimatedDigit value={item.v[0]} />
+                  <AnimatedDigit value={item.v[1]} />
+                </span>
+                <span className="text-[8px] tracking-widest text-zinc-400 dark:text-zinc-600 font-bold mt-1">
+                  {item.l}
+                </span>
+              </div>
+            </React.Fragment>
+          ))}
         </div>
       </div>
       <div className="flex flex-col items-center gap-2">
@@ -364,10 +326,10 @@ function ActivityTimer({
         {breakExceeded && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-center">
             <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
-              Break limit reached
+              Break limit exceeded
             </p>
             <p className="text-[9px] text-red-400/60 mt-0.5">
-              Please resume your shift
+              Over 1h 5m — please resume your shift
             </p>
           </div>
         )}
@@ -442,7 +404,7 @@ function StatChip({
         toast.success(`${label} copied`);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [value, label]);
 
   return (
@@ -471,7 +433,7 @@ function StatChip({
       <p
         className={cn(
           "text-sm font-bold text-zinc-700 dark:text-zinc-200 whitespace-normal leading-snug",
-          breakMode === "all" ? "break-all" : "wrap-break-word",
+          breakMode === "all" ? "break-all" : "break-words",
           capitalize && "capitalize",
         )}
       >
@@ -506,6 +468,13 @@ export default function CrmDashboardPage() {
   const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<
     number | null
   >(null);
+  const [resumeModal, setResumeModal] = React.useState(false);
+  const [resumeOriginalClockIn, setResumeOriginalClockIn] = React.useState<string | null>(null);
+  const [showEarlyEndModal, setShowEarlyEndModal] = React.useState(false);
+  const [showConfirmEndModal, setShowConfirmEndModal] = React.useState(false);
+  const [earlyEndReason, setEarlyEndReason] = React.useState("");
+  const [earlyEndDetails, setEarlyEndDetails] = React.useState("");
+  const [earlyEndSubmitting, setEarlyEndSubmitting] = React.useState(false);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -545,7 +514,7 @@ export default function CrmDashboardPage() {
   const openTrayApp = React.useCallback(() => {
     try {
       window.location.href = `actionauto://auth?token=${encodeURIComponent(trayToken)}`;
-    } catch { }
+    } catch {}
     localStorage.removeItem("pending_tray_auth");
     setTrayBanner(false);
   }, [trayToken]);
@@ -566,7 +535,7 @@ export default function CrmDashboardPage() {
       });
       const data = res.data?.data || res.data;
       setTodayLogs(data.todayTimeLogs || []);
-    } catch { }
+    } catch {}
   }, []);
 
   // Sync whenever the user switches back to this tab
@@ -578,7 +547,9 @@ export default function CrmDashboardPage() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [refreshShiftState]);
 
-  // Fetch activity state (idle-aware timer data) from getShiftState
+  // Fetch activity state (idle-aware timer data) from getShiftState.
+  // Also syncs break state directly from server so break color updates reliably
+  // even when socket events are delayed or missed.
   const fetchActivityState = React.useCallback(async () => {
     const t = localStorage.getItem("crm_token");
     if (!t) return;
@@ -598,30 +569,36 @@ export default function CrmDashboardPage() {
               ? Date.now()
               : null,
         );
+        // Break state (isOnBreak, currentBreakStartAt) is derived from todayLogs
+        // via the break state effect — do NOT override here to avoid stale-server
+        // data freezing the work timer at 00:00:00.
+        // currentBreakStartAt is kept accurate via optimistic updates in handleBreak
+        // and the syncBreakIn/syncBreakOut socket handlers.
       }
-    } catch { }
+    } catch {}
   }, []);
 
-  // Poll activity state every 30s so the timer stays in sync with the tray
+  // Poll shift state every 5s — keeps timer, break state, and on-shift status in sync
+  // with the tray even when socket events are delayed or dropped.
   React.useEffect(() => {
     if (!token) return;
     fetchActivityState();
-    const id = setInterval(fetchActivityState, 10_000);
-    return () => clearInterval(id);
-  }, [token, fetchActivityState]);
+    refreshShiftState();
+    const actId = setInterval(fetchActivityState, 10_000);
+    const shiftId = setInterval(refreshShiftState, 5_000);
+    return () => {
+      clearInterval(actId);
+      clearInterval(shiftId);
+    };
+  }, [token, fetchActivityState, refreshShiftState]);
 
   // Real-time sync: receive time-clock events pushed by the backend (e.g. tray app clocks in/out)
   React.useEffect(() => {
     if (!token) return;
     const sock = initializeSocket(token);
-    const sync = () => {
-      refreshShiftState();
-    };
     // For time-in we delay the activity fetch so the tray heartbeat lands first
     const syncTimeIn = () => {
       refreshShiftState();
-      // Optimistically mark as active so the timer doesn't flash "Idle" for
-      // the 2.5s before fetchActivityState reads the confirmed heartbeat value.
       setActivityStartAt(Date.now());
       setTimeout(() => fetchActivityState(), 2500);
     };
@@ -629,15 +606,39 @@ export default function CrmDashboardPage() {
       refreshShiftState();
       fetchActivityState();
     };
+    // Optimistic break-in: stop work timer immediately, then confirm from server
+    const syncBreakIn = () => {
+      setActivityStartAt(null);
+      refreshShiftState();
+      fetchActivityState();
+    };
+    // Optimistic break-out: restart work timer immediately, then confirm from server
+    const syncBreakOut = () => {
+      setActivityStartAt(Date.now());
+      refreshShiftState();
+      setTimeout(() => fetchActivityState(), 2500);
+    };
     sock.on("time-in", syncTimeIn);
     sock.on("time-out", syncTimeOut);
-    sock.on("break-in", sync);
-    sock.on("break-out", sync);
+    sock.on("break-in", syncBreakIn);
+    sock.on("break-out", syncBreakOut);
+    // Early-end reason — notify admin/manager with a toast
+    const onEarlyEnd = (data: { fullName: string; reason: string }) => {
+      if (user && ["admin", "manager"].includes(user.role)) {
+        toast.warning("Early End Shift", {
+          description: `${data.fullName}: "${data.reason}"`,
+          duration: 10000,
+        });
+      }
+    };
+    sock.on("crm:early-end", onEarlyEnd);
+
     return () => {
       sock.off("time-in", syncTimeIn);
       sock.off("time-out", syncTimeOut);
-      sock.off("break-in", sync);
-      sock.off("break-out", sync);
+      sock.off("break-in", syncBreakIn);
+      sock.off("break-out", syncBreakOut);
+      sock.off("crm:early-end", onEarlyEnd);
     };
   }, [token, refreshShiftState, fetchActivityState]);
 
@@ -684,19 +685,19 @@ export default function CrmDashboardPage() {
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    } catch { }
+    } catch {}
     localStorage.removeItem("crm_token");
     localStorage.removeItem("crm_user");
     router.push("/");
   };
 
-  const handleClock = async (type: "time-in" | "time-out") => {
+  const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     setIsClocking(true);
     setClockMsg("");
     try {
       const res = await apiClient.post(
         "/api/crm/time-clock",
-        { type },
+        { type, ...(note && { note }) },
         { headers: { Authorization: `Bearer ${token}` } },
       );
       const data = res.data?.data || res.data;
@@ -704,6 +705,7 @@ export default function CrmDashboardPage() {
       if (type === "time-out") {
         setIsOnBreak(false);
         setBreakAccumulatedMs(0);
+        setResumeOriginalClockIn(null);
       }
       setClockMsg(
         `${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`,
@@ -731,9 +733,23 @@ export default function CrmDashboardPage() {
         method: "GET",
         signal: AbortSignal.timeout(2000),
       });
-      // Any HTTP response means the server is up
       if (res.status < 600) {
         setShowTrayModal(false);
+        // Before clocking in, check if there's a resumable session from today
+        try {
+          const t = localStorage.getItem("crm_token");
+          if (t) {
+            const resumeRes = await apiClient.get("/api/crm/timeproof/resumable-shift", {
+              headers: { Authorization: `Bearer ${t}` },
+            });
+            const d = resumeRes.data?.data;
+            if (d?.resumable && d?.originalClockIn) {
+              setResumeOriginalClockIn(d.originalClockIn);
+              setResumeModal(true);
+              return;
+            }
+          }
+        } catch {}
         handleClock("time-in");
       } else {
         setShowTrayModal(true);
@@ -745,10 +761,69 @@ export default function CrmDashboardPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+
+  const handleEndShiftClick = React.useCallback(() => {
+    const currentTotalMs = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0);
+    if (currentTotalMs < EIGHT_HOURS_MS) {
+      setShowEarlyEndModal(true);
+    } else {
+      setShowConfirmEndModal(true);
+    }
+  }, [todayTotalActiveMs, activityStartAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fire-and-forget: post early-end details to Supra Space General channel
+  const notifyEarlyEndToGeneral = React.useCallback((reason: string, details: string) => {
+    const t = localStorage.getItem("crm_token");
+    if (!t || !user) return;
+    const workedMs = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0);
+    const h = Math.floor(workedMs / 3600000);
+    const m = Math.floor((workedMs % 3600000) / 60000);
+    const parts = [
+      `⚡ Early Shift End — ${user.fullName}`,
+      `Reason: ${reason}`,
+      `Time worked: ${h}h ${m}m`,
+    ];
+    if (details) parts.push(`Details: ${details}`);
+    const content = parts.join("\n");
+    apiClient
+      .get("/api/supraspace/conversations", { headers: { Authorization: `Bearer ${t}` } })
+      .then(({ data }) => {
+        const convs: Array<{ _id: string; type: string; name?: string }> = data?.data || [];
+        const general = convs.find((c) => c.type === "group" && c.name?.toLowerCase() === "general");
+        if (!general) return;
+        return apiClient.post(
+          `/api/supraspace/conversations/${general._id}/messages`,
+          { content },
+          { headers: { Authorization: `Bearer ${t}` } }
+        );
+      })
+      .catch(() => {}); // silently ignore — shift already ended
+  }, [user, todayTotalActiveMs, activityStartAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleEarlyEndSubmit = async () => {
+    if (!earlyEndReason) return;
+    setEarlyEndSubmitting(true);
+    try {
+      const note = earlyEndDetails.trim()
+        ? `${earlyEndReason} — ${earlyEndDetails.trim()}`
+        : earlyEndReason;
+      await handleClock("time-out", note);
+      notifyEarlyEndToGeneral(earlyEndReason, earlyEndDetails.trim());
+      setShowEarlyEndModal(false);
+      setEarlyEndReason("");
+      setEarlyEndDetails("");
+    } finally {
+      setEarlyEndSubmitting(false);
+    }
+  };
+
   const handleBreak = async () => {
     setClockMsg("");
     if (!isOnBreak) {
       setIsOnBreak(true);
+      setCurrentBreakStartAt(Date.now());
+      setActivityStartAt(null);
       try {
         const res = await apiClient.post(
           "/api/crm/time-clock",
@@ -757,10 +832,13 @@ export default function CrmDashboardPage() {
         );
         const d = res.data?.data || res.data;
         if (d?.todayLogs) setTodayLogs(d.todayLogs);
-      } catch { }
+      } catch {}
+      refreshShiftState();
       setClockMsg(`Break started at ${fmt(new Date())}`);
     } else {
       setIsOnBreak(false);
+      setCurrentBreakStartAt(null);
+      setActivityStartAt(Date.now());
       try {
         const res = await apiClient.post(
           "/api/crm/time-clock",
@@ -769,7 +847,9 @@ export default function CrmDashboardPage() {
         );
         const d = res.data?.data || res.data;
         if (d?.todayLogs) setTodayLogs(d.todayLogs);
-      } catch { }
+      } catch {}
+      refreshShiftState();
+      setTimeout(() => fetchActivityState(), 2500);
       setClockMsg(`Break ended at ${fmt(new Date())}`);
     }
   };
@@ -789,13 +869,13 @@ export default function CrmDashboardPage() {
   // Most recent time-out AFTER that time-in (current session only)
   const timeOut = timeIn
     ? [...sortedLogs]
-      .reverse()
-      .find(
-        (l) =>
-          l.type === "time-out" &&
-          new Date(l.timestamp).getTime() >=
-          new Date(timeIn.timestamp).getTime(),
-      )
+        .reverse()
+        .find(
+          (l) =>
+            l.type === "time-out" &&
+            new Date(l.timestamp).getTime() >=
+              new Date(timeIn.timestamp).getTime(),
+        )
     : undefined;
 
   const hasClockedIn = !!timeIn;
@@ -1174,7 +1254,9 @@ export default function CrmDashboardPage() {
                   {[
                     {
                       label: "Time In",
-                      value: timeIn ? fmt(new Date(timeIn.timestamp)) : "——",
+                      value: resumeOriginalClockIn
+                        ? fmt(new Date(resumeOriginalClockIn))
+                        : timeIn ? fmt(new Date(timeIn.timestamp)) : "——",
                     },
                     {
                       label: "Time Out",
@@ -1233,7 +1315,7 @@ export default function CrmDashboardPage() {
                       )}
                     </Button>
                     <Button
-                      onClick={() => handleClock("time-out")}
+                      onClick={handleEndShiftClick}
                       disabled={isClocking || isOnBreak}
                       className="h-11 rounded-xl font-bold gap-2 transition-all duration-200 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 hover:border-red-300 dark:hover:border-red-400/40 disabled:opacity-30 text-sm"
                     >
@@ -1377,7 +1459,7 @@ export default function CrmDashboardPage() {
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
           <div className="px-4 pt-4 pb-3">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <MonitorDot className="h-5 w-5 text-emerald-400" />
               </div>
               <div className="flex-1 min-w-0">
@@ -1391,7 +1473,7 @@ export default function CrmDashboardPage() {
               </div>
               <button
                 onClick={dismissTrayBanner}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors mt-0.5 shrink-0"
+                className="text-zinc-600 hover:text-zinc-400 transition-colors mt-0.5 flex-shrink-0"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1419,9 +1501,195 @@ export default function CrmDashboardPage() {
         </div>
       )}
 
+      {/* ── Early End Shift Modal (< 8 hours worked) ── */}
+      {showEarlyEndModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEarlyEndModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
+            <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            {/* Banner */}
+            <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-3 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+              <div>
+                <p className="text-xs font-black text-amber-300 uppercase tracking-wider">Minimum shift not yet completed</p>
+                <p className="text-[11px] text-amber-400/60 mt-0.5">
+                  You need to render <span className="font-bold text-amber-400">8 hours</span> per shift.
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-4 py-3 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Time Worked</span>
+                <span className="font-mono text-sm font-black text-zinc-200">
+                  {(() => {
+                    const ms = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0);
+                    const h = Math.floor(ms / 3600000);
+                    const m = Math.floor((ms % 3600000) / 60000);
+                    return `${h}h ${m}m`;
+                  })()}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Reason for early end <span className="text-red-400">*</span></label>
+                <select
+                  value={earlyEndReason}
+                  onChange={(e) => setEarlyEndReason(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-amber-500/50 transition-colors"
+                >
+                  <option value="">Select a reason…</option>
+                  <option value="Emergency">Emergency</option>
+                  <option value="Medical / Illness">Medical / Illness</option>
+                  <option value="Family Emergency">Family Emergency</option>
+                  <option value="Personal Matters">Personal Matters</option>
+                  <option value="Work Completed Early">Work Completed Early</option>
+                  <option value="Technical Issues">Technical Issues</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Additional details (optional)</label>
+                <textarea
+                  value={earlyEndDetails}
+                  onChange={(e) => setEarlyEndDetails(e.target.value)}
+                  placeholder="Add more context here…"
+                  rows={3}
+                  className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-amber-500/50 transition-colors resize-none"
+                />
+              </div>
+              <div className="space-y-2 pt-1">
+                <button
+                  onClick={handleEarlyEndSubmit}
+                  disabled={!earlyEndReason || earlyEndSubmitting}
+                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-red-500/90 hover:bg-red-500 text-white text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {earlyEndSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> Submit & End Shift</>}
+                </button>
+                <button
+                  onClick={() => setShowEarlyEndModal(false)}
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors"
+                >
+                  <Play className="h-3.5 w-3.5" /> Resume Shift
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm End Shift Modal (≥ 8 hours worked) ── */}
+      {showConfirmEndModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmEndModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
+            <button onClick={() => setShowConfirmEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <div className="px-6 pt-6 pb-5 space-y-4">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                  <ShieldAlert className="h-7 w-7 text-red-400" />
+                </div>
+                <div>
+                  <p className="text-base font-black text-white">End your shift?</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    You have worked{" "}
+                    <span className="text-white font-semibold">
+                      {(() => {
+                        const ms = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0);
+                        const h = Math.floor(ms / 3600000);
+                        const m = Math.floor((ms % 3600000) / 60000);
+                        return `${h}h ${m}m`;
+                      })()}
+                    </span>{" "}
+                    today. Are you sure you want to clock out?
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setShowConfirmEndModal(false); handleClock("time-out"); }}
+                  disabled={isClocking}
+                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-red-500/90 hover:bg-red-500 text-white text-sm font-bold transition-colors disabled:opacity-40"
+                >
+                  {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> Yes, End Shift</>}
+                </button>
+                <button
+                  onClick={() => setShowConfirmEndModal(false)}
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors"
+                >
+                  <Play className="h-3.5 w-3.5" /> Resume Shift
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Resume Shift Modal ── */}
+      {resumeModal && (
+        <div className="fixed inset-0 z-[200] flex items-start justify-center pt-12 p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setResumeModal(false)}
+          />
+          <div
+            className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl shadow-black/70 overflow-hidden"
+            style={{ animation: "slideUp 0.25s ease-out" }}
+          >
+            <button
+              onClick={() => setResumeModal(false)}
+              className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <div className="px-6 pt-6 pb-5 space-y-4">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                  <Clock className="h-7 w-7 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-base font-black text-white">Resume Your Shift?</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    You have an unfinished shift from today that started at{" "}
+                    <span className="text-white font-semibold">
+                      {resumeOriginalClockIn ? fmt(new Date(resumeOriginalClockIn)) : "—"}
+                    </span>
+                    . Would you like to continue from where you left off?
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setResumeModal(false);
+                    handleClock("time-in");
+                  }}
+                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors"
+                >
+                  <Play className="h-4 w-4" />
+                  Yes, Resume Shift
+                </button>
+                <button
+                  onClick={() => {
+                    setResumeModal(false);
+                    setResumeOriginalClockIn(null);
+                    handleClock("time-in");
+                  }}
+                  className="flex w-full items-center justify-center h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors"
+                >
+                  No, Start a New Shift
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Tray App Required Modal ── */}
       {showTrayModal && (
-        <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
+        <div className="fixed inset-0 z-[200] flex items-start justify-center pt-12 p-4">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -1498,7 +1766,7 @@ export default function CrmDashboardPage() {
                   onClick={async () => {
                     try {
                       window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}`;
-                    } catch { }
+                    } catch {}
                     // After firing the deep link, re-check after a short delay
                     await new Promise((r) => setTimeout(r, 3000));
                     setTrayChecking(true);
