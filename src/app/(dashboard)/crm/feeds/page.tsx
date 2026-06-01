@@ -173,10 +173,10 @@ function topReactionEmojis(summary: ReactionSummary): string[] {
 function SpeedStripe({ className = "" }: { className?: string }) {
   return (
     <div className={`flex items-center ${className}`}>
-      <div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-border/40 to-border/40" />
-      <div className="h-[2px] w-8 bg-emerald-500 mx-0.5" />
-      <div className="h-[2px] w-4 bg-emerald-400/60 mx-0.5" />
-      <div className="h-[2px] w-2 bg-emerald-300/30" />
+      <div className="h-0.5lex-1 bg-linear-to-r from-transparent via-border/40 to-border/40" />
+      <div className="h-0.5 w-8 bg-emerald-500 mx-0.5" />
+      <div className="h-0.5 w-4 bg-emerald-400/60 mx-0.5" />
+      <div className="h-0.5 w-2 bg-emerald-300/30" />
     </div>
   )
 }
@@ -312,7 +312,7 @@ function DeleteModal({ label = "post", onConfirm, onCancel, loading }: {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative z-10 w-full max-w-sm rounded-xl border border-red-500/20 bg-card shadow-2xl shadow-black/40 overflow-hidden">
         {/* Top accent stripe */}
-        <div className="h-1 w-full bg-gradient-to-r from-red-600 via-red-500 to-red-400" />
+        <div className="h-1 w-full bg-linear-to-r from-red-600 via-red-500 to-red-400" />
         <div className="p-6 space-y-5">
           <div className="flex items-start gap-3">
             <div className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
@@ -368,7 +368,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
           <div className="inline-block rounded-lg rounded-tl-sm bg-muted/30 border border-border/20 px-3.5 py-2.5 max-w-full">
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
               <span className="text-[11px] font-black tracking-tight leading-none">{comment.authorName}</span>
-              <Badge variant="outline" className={`text-[8px] h-3.5 px-1.5 rounded-sm capitalize font-black leading-none border tracking-widest uppercase ${ROLE_COLORS[comment.authorRole] ?? ROLE_COLORS.employee}`}>
+              <Badge variant="outline" className={`text-[8px] h-3.5 px-1.5 rounded-sm font-black leading-none border tracking-widest uppercase ${ROLE_COLORS[comment.authorRole] ?? ROLE_COLORS.employee}`}>
                 {comment.authorRole}
               </Badge>
             </div>
@@ -457,7 +457,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   return (
     <div className="rounded-lg border border-border/20 bg-muted/10 mt-3 p-4 space-y-3">
       {/* Top thread line accent */}
-      <div className="h-px w-full bg-gradient-to-r from-emerald-500/20 via-border/20 to-transparent" />
+      <div className="h-px w-full bg-linear-to-r from-emerald-500/20 via-border/20 to-transparent" />
 
       {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-emerald-500/40" /></div>}
       {!loading && shouldCollapse && (
@@ -599,7 +599,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
       {showDeleteModal && <DeleteModal label="post" onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
       <article className="group relative rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-200 hover:border-emerald-500/25 hover:shadow-md hover:shadow-emerald-500/5">
         {/* Role-colored top accent stripe */}
-        <div className={`h-[3px] w-full bg-gradient-to-r ${roleStripe} to-transparent opacity-80`} />
+        <div className={`h-0.75 w-full bg-linear-to-r ${roleStripe} to-transparent opacity-80`} />
 
         <div className="p-5 space-y-4">
           {/* Header row */}
@@ -616,7 +616,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-black tracking-tight truncate leading-none">{post.authorName}</p>
-                  <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-sm capitalize font-black leading-none border tracking-widest uppercase ${ROLE_COLORS[post.authorRole] ?? ROLE_COLORS.employee}`}>
+                  <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-sm font-black leading-none border tracking-widest uppercase ${ROLE_COLORS[post.authorRole] ?? ROLE_COLORS.employee}`}>
                     {post.authorRole}
                   </Badge>
                 </div>
@@ -756,7 +756,7 @@ function Composer({ currentUser, token, onPosted }: {
   return (
     <div className={`relative rounded-xl border overflow-hidden bg-card shadow-sm transition-all duration-200 ${isFocused ? "border-emerald-500/35 shadow-emerald-500/10 shadow-md" : "border-border/35"}`}>
       {/* Top accent stripe */}
-      <div className="h-[3px] w-full bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400/40" />
+      <div className="h-0.75 w-full bg-linear-to-r from-emerald-600 via-emerald-500 to-emerald-400/40" />
 
       {/* Panel label */}
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
@@ -848,8 +848,8 @@ function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) 
           {label}
           {active === key && (
             <>
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-600" />
-              <span className="absolute bottom-0 left-0 w-4 h-[2px] bg-emerald-400/50" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
+              <span className="absolute bottom-0 left-0 w-4 h-0.5 bg-emerald-400/50" />
             </>
           )}
         </button>
@@ -1012,7 +1012,7 @@ export default function FeedsPage() {
           <div className="relative h-16 w-16">
             <div className="absolute inset-0 rounded-full border-4 border-border/10" />
             <div className="absolute inset-0 rounded-full border-4 border-t-emerald-500 border-r-emerald-500/50 border-b-transparent border-l-transparent animate-spin" />
-            <div className="absolute inset-[6px] rounded-full bg-emerald-500/5 flex items-center justify-center">
+            <div className="absolute inset-1.5 rounded-full bg-emerald-500/5 flex items-center justify-center">
               <Gauge className="h-5 w-5 text-emerald-500/60" />
             </div>
           </div>
@@ -1031,7 +1031,7 @@ export default function FeedsPage() {
       {/* ── Sticky header ── */}
       <header className="sticky top-0 z-40 w-full border-b border-border/30 bg-background/95 backdrop-blur-xl">
         {/* Top micro-stripe */}
-        <div className="h-[2px] w-full bg-gradient-to-r from-emerald-600 via-emerald-500/60 to-transparent" />
+        <div className="h-0.5 w-full bg-linear-to-r from-emerald-600 via-emerald-500/60 to-transparent" />
 
         <div className="flex items-center gap-4 h-14 px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
           <Button
@@ -1048,7 +1048,7 @@ export default function FeedsPage() {
             <div className="relative h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 shrink-0">
               <Car className="h-4 w-4 text-white" />
               {/* Speed stripe on logo */}
-              <div className="absolute right-0 top-1 bottom-1 w-[2px] bg-white/20 rounded-full" />
+              <div className="absolute right-0 top-1 bottom-1 w-0.5 bg-white/20 rounded-full" />
             </div>
             <div>
               <p className="text-sm font-black tracking-tight leading-none">
@@ -1109,10 +1109,10 @@ export default function FeedsPage() {
                 <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/40">Latest</p>
               </div>
               <div className="flex items-center flex-1">
-                <div className="h-[2px] w-2 bg-emerald-300/30 mr-0.5" />
-                <div className="h-[2px] w-4 bg-emerald-400/60 mr-0.5" />
-                <div className="h-[2px] w-8 bg-emerald-500 mr-0.5" />
-                <div className="h-[2px] flex-1 bg-gradient-to-r from-border/40 via-border/20 to-transparent" />
+                <div className="h-0.5 w-2 bg-emerald-300/30 mr-0.5" />
+                <div className="h-0.5 w-4 bg-emerald-400/60 mr-0.5" />
+                <div className="h-0.5 w-8 bg-emerald-500 mr-0.5" />
+                <div className="h-0.5 flex-1 bg-linear-to-r from-border/40 via-border/20 to-transparent" />
               </div>
             </div>
 
@@ -1160,10 +1160,10 @@ export default function FeedsPage() {
                 <SpeedStripe className="flex-1" />
                 <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/20 shrink-0">All caught up</p>
                 <div className="flex items-center flex-1">
-                  <div className="h-[2px] w-2 bg-emerald-300/30 mr-0.5" />
-                  <div className="h-[2px] w-4 bg-emerald-400/60 mr-0.5" />
-                  <div className="h-[2px] w-8 bg-emerald-500 mr-0.5" />
-                  <div className="h-[2px] flex-1 bg-gradient-to-r from-border/40 via-border/20 to-transparent" />
+                  <div className="h-0.5 w-2 bg-emerald-300/30 mr-0.5" />
+                  <div className="h-0.5 w-4 bg-emerald-400/60 mr-0.5" />
+                  <div className="h-0.5 w-8 bg-emerald-500 mr-0.5" />
+                  <div className="h-0.5 flex-1 bg-linear-to-r from-border/40 via-border/20 to-transparent" />
                 </div>
               </div>
             )}

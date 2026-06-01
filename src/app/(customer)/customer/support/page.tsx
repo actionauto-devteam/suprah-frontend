@@ -149,7 +149,7 @@ function MessageBubble({
         {message.content ? (
           <div
             className={cn(
-              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words",
+              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word",
               isOwn
                 ? "bg-emerald-600 text-white rounded-tr-sm"
                 : "bg-muted text-foreground rounded-tl-sm border border-border/40"
@@ -294,7 +294,7 @@ function ChatHeader({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
+function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   // ── Auth — identical pattern to the Aftermarket page ──────────────────────
   // useAuth() gives us getToken(); useUser() gives us the current user id.
   // No localStorage, no manual token management.
@@ -369,9 +369,9 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   React.useEffect(() => {
     if (!open) return;
     if (!conversation) {
-      init().then(() => fetchMessages()).catch(() => {});
+      init().then(() => fetchMessages()).catch(() => { });
     } else {
-      fetchMessages().catch(() => {});
+      fetchMessages().catch(() => { });
     }
     setUnread(0);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -475,7 +475,7 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   const loadMore = async () => {
     if (loadingMore || !hasMore || messages.length === 0) return;
     setLoadingMore(true);
-    await fetchMessages(messages[0].createdAt).catch(() => {});
+    await fetchMessages(messages[0].createdAt).catch(() => { });
     setLoadingMore(false);
   };
 
@@ -572,7 +572,7 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
           }}
           placeholder="Type a message…"
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-[28px] max-h-28 py-0.5 placeholder:text-muted-foreground/50"
+          className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-7 max-h-28 py-0.5 placeholder:text-muted-foreground/50"
           style={{ lineHeight: "1.55" }}
         />
         <div className="flex items-center gap-1 shrink-0">
@@ -638,7 +638,7 @@ export function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
         {open && (
           <div
-            className="fixed bottom-6 right-6 z-50 w-[360px] rounded-2xl shadow-2xl border border-border/50 bg-background flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 z-50 w-90 rounded-2xl shadow-2xl border border-border/50 bg-background flex flex-col overflow-hidden"
             style={{ height: 520 }}
           >
             <ChatHeader onClose={() => setOpen(false)} isResolved={isResolved} />

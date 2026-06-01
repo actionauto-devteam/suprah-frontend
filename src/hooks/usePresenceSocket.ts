@@ -8,9 +8,11 @@ import type { TeamMember } from "./useTeamPulse";
 
 interface PresenceUpdatePayload {
   userId: string;
-  onlineStatus: string;
+  onlineStatus?: string;
   customStatus?: string | null;
   lastActive?: string;
+  breakStatus?: { isOnBreak: boolean; startedAt?: string } | null;
+  statusExpiresAt?: string | null;
 }
 
 export function usePresenceSocket() {
@@ -39,9 +41,15 @@ export function usePresenceSocket() {
                 m._id === payload.userId
                   ? {
                       ...m,
-                      onlineStatus: payload.onlineStatus as TeamMember["onlineStatus"],
+                      ...(payload.onlineStatus && { onlineStatus: payload.onlineStatus as TeamMember["onlineStatus"] }),
                       ...(payload.customStatus !== undefined && { customStatus: payload.customStatus ?? undefined }),
                       ...(payload.lastActive && { lastActive: payload.lastActive }),
+                      ...(payload.breakStatus !== undefined && {
+                        breakStatus: payload.breakStatus ?? undefined,
+                      }),
+                      ...(payload.statusExpiresAt !== undefined && {
+                        statusExpiresAt: payload.statusExpiresAt,
+                      }),
                     }
                   : m
               );

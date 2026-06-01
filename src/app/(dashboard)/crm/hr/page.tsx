@@ -205,10 +205,10 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
                 ${triggerStatus === "ok"
                   ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   : triggerStatus === "none"
-                  ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                  : triggerStatus === "err"
-                  ? "bg-red-500/10 text-red-500 border-red-500/20"
-                  : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
+                    ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                    : triggerStatus === "err"
+                      ? "bg-red-500/10 text-red-500 border-red-500/20"
+                      : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {triggering ? (
@@ -221,12 +221,12 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
               {triggering
                 ? "Running…"
                 : triggerStatus === "ok"
-                ? `${triggerCount} announcement${triggerCount !== 1 ? "s" : ""} sent!`
-                : triggerStatus === "none"
-                ? "No milestones today"
-                : triggerStatus === "err"
-                ? "Failed — try again"
-                : "Run Announcements Now"}
+                  ? `${triggerCount} announcement${triggerCount !== 1 ? "s" : ""} sent!`
+                  : triggerStatus === "none"
+                    ? "No milestones today"
+                    : triggerStatus === "err"
+                      ? "Failed — try again"
+                      : "Run Announcements Now"}
             </button>
           </div>
         )}
@@ -259,8 +259,8 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
               ${triggerStatus === "ok"
                 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                 : triggerStatus === "err"
-                ? "bg-red-500/10 text-red-500 border-red-500/20"
-                : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
+                  ? "bg-red-500/10 text-red-500 border-red-500/20"
+                  : "bg-muted/30 text-muted-foreground/60 border-border/30 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/20"
               } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {triggering ? (
@@ -274,51 +274,49 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
           </button>
         </div>
       )}
-    <div className="divide-y divide-border/20">
-      {entries.map((entry) => (
-        <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 py-4">
-          <Avatar className="h-9 w-9 shrink-0">
-            <AvatarImage src={entry.avatar} />
-            <AvatarFallback className={`text-[10px] font-bold text-white ${roleColor(entry.role)}`}>
-              {ini(entry.fullName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground/40 truncate">{entry.fullName}</p>
-            {entry.daysUntil === 0 ? (
-              <p className={`text-sm font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
-                {greeting(entry)}
+      <div className="divide-y divide-border/20">
+        {entries.map((entry) => (
+          <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 py-4">
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarImage src={entry.avatar} />
+              <AvatarFallback className={`text-[10px] font-bold text-white ${roleColor(entry.role)}`}>
+                {ini(entry.fullName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground/40 truncate">{entry.fullName}</p>
+              {entry.daysUntil === 0 ? (
+                <p className={`text-sm font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
+                  {greeting(entry)}
+                </p>
+              ) : (
+                <p className={`text-sm font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-400/80" : "text-amber-400/80"}`}>
+                  {`In ${entry.daysUntil} day${entry.daysUntil !== 1 ? "s" : ""}, ${entry.fullName.split(" ")[0]} will celebrate ${entry.type === "birthday"
+                      ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
+                      : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
+                    }`}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground/30 mt-0.5">
+                {entry.type === "birthday" ? "Birthday" : `${entry.yearsCount ? `${entry.yearsCount}-year ` : ""}Work Anniversary`}
+                {" · "}{formatDate(entry.date)}
               </p>
-            ) : (
-              <p className={`text-sm font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-400/80" : "text-amber-400/80"}`}>
-                {`In ${entry.daysUntil} day${entry.daysUntil !== 1 ? "s" : ""}, ${entry.fullName.split(" ")[0]} will celebrate ${
-                  entry.type === "birthday"
-                    ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
-                    : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
-                }`}
-              </p>
-            )}
-            <p className="text-[11px] text-muted-foreground/30 mt-0.5">
-              {entry.type === "birthday" ? "Birthday" : `${entry.yearsCount ? `${entry.yearsCount}-year ` : ""}Work Anniversary`}
-              {" · "}{formatDate(entry.date)}
-            </p>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={`text-sm h-8 px-4 rounded-full font-bold ${entry.type === "birthday"
+                    ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                  }`}
+              >
+                {entry.type === "birthday" ? "🎂" : "🎉"}{" "}
+                {entry.daysUntil === 0 ? "Today!" : `in ${entry.daysUntil}d`}
+              </Badge>
+            </div>
           </div>
-          <div className="shrink-0 flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={`text-sm h-8 px-4 rounded-full font-bold ${
-                entry.type === "birthday"
-                  ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
-                  : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-              }`}
-            >
-              {entry.type === "birthday" ? "🎂" : "🎉"}{" "}
-              {entry.daysUntil === 0 ? "Today!" : `in ${entry.daysUntil}d`}
-            </Badge>
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -591,7 +589,7 @@ export default function TeamEngagementPage() {
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    } catch {}
+    } catch { }
     localStorage.removeItem("crm_token");
     localStorage.removeItem("crm_user");
     router.push("/");
@@ -654,7 +652,7 @@ export default function TeamEngagementPage() {
                       {ini(user.fullName)}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
+                  <span className="hidden sm:inline text-xs font-medium max-w-25 truncate">
                     {user.fullName}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
@@ -809,11 +807,10 @@ export default function TeamEngagementPage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${
-                      activeTab === tab.id
+                    className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${activeTab === tab.id
                         ? "border-emerald-500 text-emerald-600"
                         : "border-transparent text-muted-foreground/50 hover:text-foreground/70"
-                    }`}
+                      }`}
                   >
                     <tab.icon className="h-3.5 w-3.5" />
                     {tab.label}

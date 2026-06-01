@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   Search, Plus, Users, MessageSquare, Send, Paperclip,
   X, ChevronLeft, Download, FileText,
@@ -17,7 +17,9 @@ import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-r
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/providers/AuthProvider';
 import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupraSpaceSocket';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
@@ -1007,8 +1009,10 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
 export default function SupraSpacePage() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const embedded = pathname !== '/crm/supra-space';
   const { theme, setTheme } = useTheme();
+  const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [token, setToken] = React.useState('');
   const [uid, setUid] = React.useState('');
@@ -1125,10 +1129,34 @@ export default function SupraSpacePage() {
 
   // ── Init ──
   React.useEffect(() => {
-    const t = localStorage.getItem('crm_token');
-    if (!t) { router.replace('/crm'); return; }
-    setToken(t);
     (async () => {
+      let t = localStorage.getItem('crm_token');
+
+      if (!t) {
+        try {
+          const mainToken = await getMainToken();
+          if (mainToken) {
+            const sso = await apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` } });
+            t = sso.data?.data?.token ?? null;
+            if (t) localStorage.setItem('crm_token', t);
+          }
+        } catch { /* no main app token, fall through */ }
+      }
+
+      if (!t) {
+        try {
+          const mainToken = await getMainToken();
+          if (mainToken) {
+            const sso = await apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` } });
+            t = sso.data?.data?.token ?? null;
+            if (t) localStorage.setItem('crm_token', t);
+          }
+        } catch {}
+      }
+
+      if (!t) { router.replace('/crm'); return; }
+      setToken(t);
+
       try {
         const [me, cv, us] = await Promise.all([
           apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } }),
@@ -1141,29 +1169,64 @@ export default function SupraSpacePage() {
         setAllUsers(us.data?.data || []);
         const reportGroup = fetchedConvos.find(c => c.type === 'group' && c.name === 'Online Team Report');
         if (reportGroup) localStorage.setItem('dp_groupchat_id', reportGroup._id);
-      } catch { router.replace('/crm'); }
+
+        const pendingUserId = new URLSearchParams(window.location.search).get('userId');
+        if (pendingUserId) {
+          try {
+            const dmRes = await apiClient.post(
+              '/api/supraspace/conversations/direct',
+              { targetUserId: pendingUserId },
+              { headers: { Authorization: `Bearer ${t}` } }
+            );
+            const c = dmRes.data?.data;
+            if (c) {
+              setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
+              setActiveId(c._id);
+              router.replace('/crm/supra-space', { scroll: false });
+            }
+          } catch (dmErr: any) {
+            console.error('[SupraSpace] Auto-open DM failed during init:', dmErr);
+            toast.error(dmErr?.response?.data?.message || 'Could not open conversation');
+          }
+        }
+      } catch (err: any) {
+        if (err?.response?.status === 401) {
+          localStorage.removeItem('crm_token');
+        }
+        router.replace('/crm');
+      }
       finally { setLoading(false); }
     })();
-  }, [router]);
+  }, [router, getMainToken]);
 
   React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
 
-  // Auto-open DM from ?userId=
-  const autoOpenHandledRef = React.useRef(false);
+  // Reactive auto-open via convId (from TeamPulse useOpenDm hook)
+  const targetConvId = searchParams.get('convId');
   React.useEffect(() => {
-    if (loading || !token || autoOpenHandledRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const targetUserId = params.get('userId');
-    if (!targetUserId) return;
-    autoOpenHandledRef.current = true;
-    apiClient.post('/api/supraspace/conversations/direct', { targetUserId }, { headers: { Authorization: `Bearer ${token}` } })
+    if (loading || !targetConvId) return;
+    setActiveId(targetConvId);
+    router.replace('/crm/supra-space', { scroll: false });
+  }, [loading, targetConvId, router]);
+
+  // Reactive auto-open: handles ?userId= navigations while page is already mounted
+  const targetUserId = searchParams.get('userId');
+  React.useEffect(() => {
+    if (loading || !token || !targetUserId) return;
+    apiClient
+      .post('/api/supraspace/conversations/direct', { targetUserId }, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
-        const c = r.data?.data; if (!c) return;
+        const c = r.data?.data;
+        if (!c) return;
         setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
         setActiveId(c._id);
-        const url = new URL(window.location.href); url.searchParams.delete('userId'); window.history.replaceState({}, '', url.toString());
-      }).catch(() => {});
-  }, [loading, token]);
+        router.replace('/crm/supra-space', { scroll: false });
+      })
+      .catch((err) => {
+        console.error('[SupraSpace] Auto-open DM failed:', err);
+        toast.error('Could not open conversation');
+      });
+  }, [loading, token, targetUserId, router]);
 
   // ── Socket events ──
   React.useEffect(() => {

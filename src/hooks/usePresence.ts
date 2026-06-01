@@ -11,22 +11,23 @@ const AWAY_TIMEOUT_MS = 8 * 60 * 1000;
 const MANUAL_STATUS_KEY = "suprah_manual_status";
 const MANUAL_STATUSES = ["away", "busy", "do_not_disturb"];
 
-type PresenceStatus = "online" | "idle" | "away" | "busy" | "offline" | "do_not_disturb";
-
-export function setManualStatus(status: PresenceStatus | null) {
+export function setManualStatus(status: string | null) {
+  if (typeof window === "undefined") return;
   if (status === null) {
-    sessionStorage.removeItem(MANUAL_STATUS_KEY);
+    localStorage.removeItem(MANUAL_STATUS_KEY);
   } else if (MANUAL_STATUSES.includes(status)) {
-    sessionStorage.setItem(MANUAL_STATUS_KEY, status);
+    localStorage.setItem(MANUAL_STATUS_KEY, status);
   } else {
-    sessionStorage.removeItem(MANUAL_STATUS_KEY);
+    localStorage.removeItem(MANUAL_STATUS_KEY);
   }
 }
 
 export function getManualStatus(): string | null {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(MANUAL_STATUS_KEY);
+  return localStorage.getItem(MANUAL_STATUS_KEY);
 }
+
+type PresenceStatus = "online" | "idle" | "away" | "busy" | "offline" | "do_not_disturb";
 
 export function usePresence() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -54,9 +55,16 @@ export function usePresence() {
     async function beat() {
       try {
         const token = await getToken();
-        await apiClient.patch("/api/profile/heartbeat", {}, {
+        const res = await apiClient.patch("/api/profile/heartbeat", {}, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        const returned = res?.data?.data?.onlineStatus;
+        if (returned === 'online') {
+          const manual = getManualStatus();
+          if (!manual) {
+            autoStatusRef.current = "online";
+          }
+        }
       } catch {
         // silent
       }
@@ -108,7 +116,12 @@ export function usePresence() {
 
     if (!isInitialized.current) {
       isInitialized.current = true;
-      callStatus("online");
+      const savedManual = getManualStatus();
+      if (savedManual) {
+        callStatus(savedManual as PresenceStatus);
+      } else {
+        callStatus("online");
+      }
       beat();
     }
 

@@ -343,7 +343,7 @@ class ApiClient {
   }
 
   async getTeamAbsences(
-    params: { year?: number; month?: number },
+    params: { year?: number; month?: number; status?: string },
     config?: AxiosRequestConfig
   ) {
     return this.get("/api/team-pulse/absences", { ...config, params });
@@ -418,12 +418,98 @@ class ApiClient {
     );
   }
 
+  async ackBoardNote(id: string, config?: AxiosRequestConfig) {
+    return this.patch(`/api/team-pulse/board/${id}/ack`, {}, config);
+  }
+
+  async getBoardNoteReactions(id: string, config?: AxiosRequestConfig) {
+    return this.get(`/api/team-pulse/board/${id}/reactions`, config);
+  }
+
+  async toggleBoardNoteReaction(id: string, reaction: string, config?: AxiosRequestConfig) {
+    return this.post(`/api/team-pulse/board/${id}/reactions`, { reaction }, config);
+  }
+
+  async uploadBoardNoteAttachments(id: string, formData: FormData, config?: AxiosRequestConfig) {
+    return this.post(`/api/team-pulse/board/${id}/attachments`, formData, {
+      ...config,
+      headers: { ...(config?.headers || {}), 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  async approveAbsence(id: string, config?: AxiosRequestConfig) {
+    return this.patch(`/api/team-pulse/absences/${id}/approve`, {}, config);
+  }
+
+  async rejectAbsence(id: string, data: { reason?: string }, config?: AxiosRequestConfig) {
+    return this.patch(`/api/team-pulse/absences/${id}/reject`, data, config);
+  }
+
+  async uploadAbsenceProof(id: string, formData: FormData, config?: AxiosRequestConfig) {
+    return this.post(`/api/team-pulse/absences/${id}/proof`, formData, {
+      ...config,
+      headers: { ...(config?.headers || {}), 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  async pingMember(userId: string, message: string | undefined, config?: AxiosRequestConfig) {
+    return this.post(`/api/team-pulse/ping/${userId}`, { message }, config);
+  }
+
+  async getPendingAbsences(config?: AxiosRequestConfig) {
+    return this.get('/api/team-pulse/absences?status=pending', config);
+  }
+
+  async getTeamLeaderboard(period: string, config?: AxiosRequestConfig) {
+    return this.get('/api/team-pulse/leaderboard', { ...config, params: { period } });
+  }
+
+  async getTeamPerformance(period: string, config?: AxiosRequestConfig) {
+    return this.get('/api/team-pulse/performance', { ...config, params: { period } });
+  }
+
+  async getDeals(config?: AxiosRequestConfig) {
+    return this.get('/api/deal-board', config);
+  }
+
+  async createDeal(data: Record<string, any>, config?: AxiosRequestConfig) {
+    return this.post('/api/deal-board', data, config);
+  }
+
+  async updateDeal(id: string, data: Record<string, any>, config?: AxiosRequestConfig) {
+    return this.patch(`/api/deal-board/${id}`, data, config);
+  }
+
+  async moveDeal(id: string, data: { stage: string; sortOrder?: number }, config?: AxiosRequestConfig) {
+    return this.patch(`/api/deal-board/${id}/move`, data, config);
+  }
+
+  async deleteDeal(id: string, config?: AxiosRequestConfig) {
+    return this.delete(`/api/deal-board/${id}`, config);
+  }
+
+  async getShifts(params: { year?: number; month?: number; week?: string }, config?: AxiosRequestConfig) {
+    return this.get('/api/schedules', { ...config, params });
+  }
+
+  async createShift(data: Record<string, any>, config?: AxiosRequestConfig) {
+    return this.post('/api/schedules', data, config);
+  }
+
+  async updateShift(id: string, data: Record<string, any>, config?: AxiosRequestConfig) {
+    return this.patch(`/api/schedules/${id}`, data, config);
+  }
+
+  async deleteShift(id: string, config?: AxiosRequestConfig) {
+    return this.delete(`/api/schedules/${id}`, config);
+  }
+
   async getTeamMemberProfile(userId: string, config?: AxiosRequestConfig) {
     return this.get(`/api/users/profile/${userId}`, config);
   }
 
   async updateOnlineStatus(
-    data: { status: string; customStatus?: string },
+    data: { status: string; customStatus?: string; expiresIn?: number | null },
     config?: AxiosRequestConfig
   ) {
     return this.patch("/api/profile/online-status", data, config);
