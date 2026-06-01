@@ -19,6 +19,7 @@ import {
   Scissors,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { LiveClock } from "@/components/crm/LiveClock"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { resolveImageUrl } from "@/lib/utils"
 
@@ -257,6 +258,11 @@ export default function AdminUserTimeprofPage() {
   const [phpRate, setPhpRate] = React.useState<number | null>(null)
   const [fetchingPhp, setFetchingPhp] = React.useState(false)
 
+  // Payout calculator follows the calendar month navigation — no separate nav needed
+  const calcMonthDate = new Date(Date.UTC(viewYear, viewMonth, 1))
+  const calcMonthShort = calcMonthDate.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
+  const calcMonthLong = calcMonthDate.toLocaleString("en-US", { month: "long", timeZone: "UTC" })
+
   React.useEffect(() => {
     localStorage.setItem(`tp_hourly_rate_${userId}`, hourlyRate)
   }, [hourlyRate, userId])
@@ -310,7 +316,7 @@ export default function AdminUserTimeprofPage() {
     return { seconds, days }
   }, [data, viewYear, viewMonth])
 
-  /* ── Cut-off period totals ── */
+  /* ── Cut-off period totals for the STAT CARD (always current real month) ── */
   const cutoffSummary = React.useMemo(() => {
     if (!data) return { p1Seconds: 0, p2Seconds: 0, lastDay: 31 }
     const y = now.getUTCFullYear()
@@ -326,6 +332,21 @@ export default function AdminUserTimeprofPage() {
     return { p1Seconds: p1, p2Seconds: p2, lastDay }
   }, [data])
 
+  /* ── Cut-off period totals for the CALCULATOR (follows calendar viewYear/viewMonth) ── */
+  const calcCutoffSummary = React.useMemo(() => {
+    if (!data) return { p1Seconds: 0, p2Seconds: 0, lastDay: 31 }
+    const mStr = String(viewMonth + 1).padStart(2, "0")
+    const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate()
+    let p1 = 0, p2 = 0
+    for (let d = 1; d <= 15; d++) {
+      p1 += data.calendar[`${viewYear}-${mStr}-${String(d).padStart(2, "0")}`]?.totalSeconds ?? 0
+    }
+    for (let d = 16; d <= lastDay; d++) {
+      p2 += data.calendar[`${viewYear}-${mStr}-${String(d).padStart(2, "0")}`]?.totalSeconds ?? 0
+    }
+    return { p1Seconds: p1, p2Seconds: p2, lastDay }
+  }, [data, viewYear, viewMonth])
+
   /* ── Derived cut-off values ── */
   const nowMonthShort = now.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
   const nowMonthLong = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" })
@@ -339,24 +360,24 @@ export default function AdminUserTimeprofPage() {
     : `Due ${new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 6)).toLocaleString("en-US", { month: "short", timeZone: "UTC" })} 6`
 
   /* ── Payout calculator ── */
-  const calcSeconds = payoutPeriod === 1 ? cutoffSummary.p1Seconds : cutoffSummary.p2Seconds
+  const calcSeconds = payoutPeriod === 1 ? calcCutoffSummary.p1Seconds : calcCutoffSummary.p2Seconds
   const calcWholeHours = Math.floor(calcSeconds / 3600)
   const calcRemainderMins = Math.floor((calcSeconds % 3600) / 60)
   const rateNum = parseFloat(hourlyRate) || 0
   const payoutUSD = calcWholeHours * rateNum
   const payoutPHP = phpRate !== null ? payoutUSD * phpRate : null
   const calcPeriodLabel = payoutPeriod === 1
-    ? `${nowMonthShort} 1–15`
-    : `${nowMonthShort} 16–${cutoffSummary.lastDay}`
+    ? `${calcMonthShort} 1–15`
+    : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
   const calcPayoutDate = payoutPeriod === 1
-    ? `${nowMonthLong} 21`
-    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 6))
+    ? `${calcMonthLong} 21`
+    : new Date(Date.UTC(viewYear, viewMonth + 1, 6))
         .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
 
   const payDayDate = React.useMemo(() => {
-    if (payoutPeriod === 1) return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 21))
-    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 6))
-  }, [payoutPeriod])
+    if (payoutPeriod === 1) return new Date(Date.UTC(viewYear, viewMonth, 21))
+    return new Date(Date.UTC(viewYear, viewMonth + 1, 6))
+  }, [payoutPeriod, viewYear, viewMonth])
   const isPayDayReached = new Date() >= payDayDate
   const payDayLabel = payDayDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
 
@@ -548,6 +569,7 @@ export default function AdminUserTimeprofPage() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <LiveClock />
             <button
               onClick={copyProof}
               disabled={!data}
@@ -673,7 +695,7 @@ export default function AdminUserTimeprofPage() {
                 <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Period</p>
                 <div className="flex gap-2">
                   {([1, 2] as const).map((p) => {
-                    const label = p === 1 ? `${nowMonthShort} 1–15` : `${nowMonthShort} 16–${cutoffSummary.lastDay}`
+                    const label = p === 1 ? `${calcMonthShort} 1–15` : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
                     return (
                       <button
                         key={p}
