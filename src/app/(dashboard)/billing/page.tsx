@@ -429,7 +429,7 @@ export default function BillingDashboard() {
           }
           @keyframes fadeUp {
             from { opacity:0; transform:translateY(8px); }
-            to   { opacity:1; transform:translateY(0); }
+            to   { opacity:1; transform:none; }
           }
 
           * { box-sizing: border-box; }
@@ -440,6 +440,11 @@ export default function BillingDashboard() {
             grid-template-columns: 1fr 1fr;
             gap: 20px;
             margin-bottom: 24px;
+            align-items: start;
+          }
+
+          .dashboard-recent {
+            min-height: 320px;
           }
 
           .dashboard-stats {
@@ -452,7 +457,7 @@ export default function BillingDashboard() {
             .dashboard-header { flex-direction: column; align-items: flex-start; }
             .dashboard-stats { grid-template-columns: 1fr 1fr; }
             .dashboard-content { grid-template-columns: 1fr; }
-            .dashboard-recent { min-height: auto; }
+            .dashboard-recent { min-height: 0; }
           }
 
           @media (max-width: 480px) {
@@ -748,7 +753,6 @@ export default function BillingDashboard() {
                   overflow: "hidden",
                   display: "flex",
                   flexDirection: "column",
-                  minHeight: 320,
                 }}
               >
                 <div
