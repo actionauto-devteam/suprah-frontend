@@ -4,27 +4,19 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  BarChart3,
   Car,
   ChevronRight,
-  ClipboardList,
-  DollarSign,
-  Home,
-  LayoutDashboard,
-  Search,
-  Settings,
   Tag,
   Truck,
-  AlertCircle,
   User,
   Calendar,
-  Inbox,
   CreditCard,
   Wrench,
   MapPin,
   Gift,
-  Wallet
-} from "lucide-react"
+  Wallet,
+  MessageCircle,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -34,9 +26,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
 } from "@/components/ui/sidebar";
@@ -58,6 +47,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 
+// ─── Nav definition ───────────────────────────────────────────────────────────
 
 const customerData = {
   navMain: [
@@ -67,8 +57,8 @@ const customerData = {
       icon: Wrench,
     },
     {
-      title: "Aftermarket",        
-      url: "/dashboard/aftermarket", 
+      title: "Aftermarket",
+      url: "/dashboard/aftermarket",
       icon: Tag,
     },
     {
@@ -86,8 +76,16 @@ const customerData = {
       url: "/dashboard/wallet",
       icon: Wallet,
     },
+    // ── Customer Concern / Support Chat ──────────────────────────────────────
+    {
+      title: "Support Chat",
+      url: "/dashboard/support",
+      icon: MessageCircle,
+    },
   ],
 };
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -98,6 +96,7 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
 
   return (
     <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <SidebarHeader className="h-16 border-b flex items-center px-6">
         <div className="flex items-center gap-2">
           <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground overflow-hidden">
@@ -121,6 +120,8 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
           </div>
         </div>
       </SidebarHeader>
+
+      {/* ── Nav items ───────────────────────────────────────────────────────── */}
       <SidebarContent className="p-2">
         <SidebarMenu>
           {customerData.navMain.map((item) => (
@@ -128,7 +129,7 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
               <SidebarMenuButton
                 asChild
                 tooltip={item.title}
-                isActive={pathname === item.url}
+                isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
               >
                 <Link href={item.url}>
                   <item.icon />
@@ -139,6 +140,8 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
           ))}
         </SidebarMenu>
       </SidebarContent>
+
+      {/* ── Footer / user menu ──────────────────────────────────────────────── */}
       <SidebarFooter className="p-4 border-t">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -149,18 +152,13 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
                   className="w-full data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
                 >
                   <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
-                    <AvatarImage
-                      src={user?.imageUrl}
-                      alt={user?.fullName || ""}
-                    />
+                    <AvatarImage src={user?.imageUrl} alt={user?.fullName || ""} />
                     <AvatarFallback className="rounded-lg">
                       {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-semibold">
-                      {user?.fullName}
-                    </span>
+                    <span className="truncate font-semibold">{user?.fullName}</span>
                     <span className="truncate text-xs">
                       {user?.primaryEmailAddress?.emailAddress}
                     </span>
@@ -168,6 +166,7 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
                   <ChevronRight className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
+
               <DropdownMenuContent
                 className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
                 side="bottom"
@@ -177,25 +176,22 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage
-                        src={user?.imageUrl}
-                        alt={user?.fullName || ""}
-                      />
+                      <AvatarImage src={user?.imageUrl} alt={user?.fullName || ""} />
                       <AvatarFallback className="rounded-lg">
                         {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
-                        {user?.fullName}
-                      </span>
+                      <span className="truncate font-semibold">{user?.fullName}</span>
                       <span className="truncate text-xs">
                         {user?.primaryEmailAddress?.emailAddress}
                       </span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
+
                 <DropdownMenuSeparator />
+
                 <DropdownMenuItem onClick={() => router.push("/profile")}>
                   <UserIcon className="mr-2 size-4" />
                   Profile
@@ -204,7 +200,9 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
                   <SettingsIcon className="mr-2 size-4" />
                   Settings
                 </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
+
                 <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut className="mr-2 size-4" />
                   Log out
@@ -214,6 +212,7 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
       <SidebarRail />
     </Sidebar>
   );
