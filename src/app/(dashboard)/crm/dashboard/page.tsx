@@ -592,7 +592,11 @@ export default function CrmDashboardPage() {
         setActivityStartAt(
           s.currentIntervalStartAt
             ? new Date(s.currentIntervalStartAt).getTime()
-            : null,
+            : (s.isOnShift && !s.isOnBreak)
+              // Heartbeat hasn't sent currentIntervalStartAt yet — use Date.now()
+              // as fallback so the timer keeps counting instead of freezing at 0.
+              ? Date.now()
+              : null,
         );
       }
     } catch { }
