@@ -36,14 +36,14 @@ export const Pagination = React.memo(({
   
   return (
     <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/40 shrink-0">
-      <span className="text-[10px] text-muted-foreground/80 tabular-nums">{start}–{end} of {totalItems}</span>
+      <span className="text-[11px] text-muted-foreground/80 tabular-nums">{start}–{end} of {totalItems}</span>
       <div className="flex items-center gap-0.5">
         <button onClick={() => onPageChange(1)} disabled={currentPage === 1} className={btn}><ChevronsLeft className="h-3 w-3" /></button>
         <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className={btn}><ChevronLeft className="h-3 w-3" /></button>
         {pages.map((p, i) => p === '…'
-          ? <span key={`el${i}`} className="px-1 text-[10px] text-muted-foreground/80">…</span>
+          ? <span key={`el${i}`} className="px-1 text-[11px] text-muted-foreground/80">…</span>
           : <button key={p} onClick={() => onPageChange(p as number)}
-              className={`h-6 min-w-6 px-1.5 rounded-md text-[10px] font-medium transition-colors ${currentPage === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}>{p}</button>
+              className={`h-6 min-w-6 px-1.5 rounded-md text-[11px] font-medium transition-colors ${currentPage === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}>{p}</button>
         )}
         <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className={btn}><ChevronRight className="h-3 w-3" /></button>
         <button onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages} className={btn}><ChevronsRight className="h-3 w-3" /></button>

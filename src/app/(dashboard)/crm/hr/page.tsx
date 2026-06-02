@@ -194,14 +194,14 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
     return (
       <div>
         {isAdmin && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+          <div className="flex items-center justify-between px-5 xl:px-8 py-3 xl:py-4 border-b border-border/20 bg-muted/5">
+            <p className="text-[10px] xl:text-xs font-bold uppercase tracking-widest text-muted-foreground/65">
               Upcoming Milestones
             </p>
             <button
               onClick={handleTrigger}
               disabled={triggering}
-              className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors border
+              className={`flex items-center gap-1.5 h-7 xl:h-8 px-3 xl:px-4 rounded-lg text-[11px] xl:text-xs font-semibold transition-colors border
                 ${triggerStatus === "ok"
                   ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   : triggerStatus === "none"
@@ -232,12 +232,12 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
         )}
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
-            <Gift className="h-6 w-6 text-muted-foreground/20" />
+            <Gift className="h-6 w-6 text-muted-foreground/40" />
           </div>
-          <p className="text-sm font-semibold text-muted-foreground/40">
+          <p className="text-sm font-semibold text-muted-foreground/70">
             No upcoming milestones
           </p>
-          <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+          <p className="text-xs text-muted-foreground/55 mt-1 max-w-xs">
             Birthdays and work anniversaries in the next 30 days will appear here.
           </p>
         </div>
@@ -248,14 +248,14 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
   return (
     <div>
       {isAdmin && (
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+        <div className="flex items-center justify-between px-5 xl:px-8 py-3 xl:py-4 border-b border-border/20 bg-muted/5">
+          <p className="text-[10px] xl:text-xs font-bold uppercase tracking-widest text-muted-foreground/40">
             Upcoming Milestones
           </p>
           <button
             onClick={handleTrigger}
             disabled={triggering}
-            className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors border
+            className={`flex items-center gap-1.5 h-7 xl:h-8 px-3 xl:px-4 rounded-lg text-[11px] xl:text-xs font-semibold transition-colors border
               ${triggerStatus === "ok"
                 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                 : triggerStatus === "err"
@@ -276,28 +276,28 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
       )}
       <div className="divide-y divide-border/20">
         {entries.map((entry) => (
-          <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 py-4">
-            <Avatar className="h-9 w-9 shrink-0">
+          <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5">
+            <Avatar className="h-9 w-9 xl:h-11 xl:w-11 shrink-0">
               <AvatarImage src={entry.avatar} />
-              <AvatarFallback className={`text-[10px] font-bold text-white ${roleColor(entry.role)}`}>
+              <AvatarFallback className={`text-[10px] xl:text-xs font-bold text-white ${roleColor(entry.role)}`}>
                 {ini(entry.fullName)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground/40 truncate">{entry.fullName}</p>
+              <p className="text-xs xl:text-sm text-muted-foreground/65 truncate">{entry.fullName}</p>
               {entry.daysUntil === 0 ? (
-                <p className={`text-sm font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
+                <p className={`text-sm xl:text-base font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
                   {greeting(entry)}
                 </p>
               ) : (
-                <p className={`text-sm font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-400/80" : "text-amber-400/80"}`}>
+                <p className={`text-sm xl:text-base font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
                   {`In ${entry.daysUntil} day${entry.daysUntil !== 1 ? "s" : ""}, ${entry.fullName.split(" ")[0]} will celebrate ${entry.type === "birthday"
-                      ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
-                      : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
+                    ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
+                    : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
                     }`}
                 </p>
               )}
-              <p className="text-[11px] text-muted-foreground/30 mt-0.5">
+              <p className="text-[11px] xl:text-xs text-muted-foreground/55 mt-0.5">
                 {entry.type === "birthday" ? "Birthday" : `${entry.yearsCount ? `${entry.yearsCount}-year ` : ""}Work Anniversary`}
                 {" · "}{formatDate(entry.date)}
               </p>
@@ -305,9 +305,9 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
             <div className="shrink-0 flex items-center gap-2">
               <Badge
                 variant="outline"
-                className={`text-sm h-8 px-4 rounded-full font-bold ${entry.type === "birthday"
-                    ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
-                    : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                className={`text-sm xl:text-base h-8 xl:h-9 px-4 xl:px-5 rounded-full font-bold ${entry.type === "birthday"
+                  ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
+                  : "bg-amber-500/10 text-amber-600 border-amber-500/20"
                   }`}
               >
                 {entry.type === "birthday" ? "🎂" : "🎉"}{" "}
@@ -354,9 +354,9 @@ function OnboardingTab({ token }: { token: string }) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
-          <UserCheck className="h-6 w-6 text-muted-foreground/20" />
+          <UserCheck className="h-6 w-6 text-muted-foreground/40" />
         </div>
-        <p className="text-sm font-semibold text-muted-foreground/40">No active employees</p>
+        <p className="text-sm font-semibold text-muted-foreground/65">No active employees</p>
       </div>
     );
   }
@@ -364,27 +364,27 @@ function OnboardingTab({ token }: { token: string }) {
   return (
     <div className="divide-y divide-border/20">
       {employees.map((emp) => (
-        <div key={emp._id} className="flex items-center gap-4 px-5 py-4">
-          <Avatar className="h-9 w-9 shrink-0">
+        <div key={emp._id} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5">
+          <Avatar className="h-9 w-9 xl:h-11 xl:w-11 shrink-0">
             <AvatarImage src={emp.avatar} />
-            <AvatarFallback className={`text-[10px] font-bold text-white ${roleColor(emp.role)}`}>
+            <AvatarFallback className={`text-[10px] xl:text-xs font-bold text-white ${roleColor(emp.role)}`}>
               {ini(emp.fullName)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate">{emp.fullName}</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-0.5 truncate">{emp.email}</p>
+            <p className="text-sm xl:text-base font-semibold truncate">{emp.fullName}</p>
+            <p className="text-[11px] xl:text-xs text-muted-foreground/60 mt-0.5 truncate">{emp.email}</p>
           </div>
           <div className="shrink-0 text-right space-y-1">
             {emp.hireDate ? (
-              <p className="text-[11px] text-muted-foreground/50">
+              <p className="text-[11px] xl:text-xs text-muted-foreground/65">
                 Hired {formatDate(emp.hireDate)}
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground/25 italic">No hire date set</p>
+              <p className="text-[11px] xl:text-xs text-muted-foreground/50 italic">No hire date set</p>
             )}
             {emp.birthday && (
-              <p className="text-[10px] text-pink-500/60">
+              <p className="text-[10px] xl:text-[11px] text-pink-500/80">
                 🎂 {formatDate(emp.birthday)}
               </p>
             )}
@@ -442,10 +442,10 @@ function OffboardingTab({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-6">
         <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
-          <Lock className="h-6 w-6 text-muted-foreground/20" />
+          <Lock className="h-6 w-6 text-muted-foreground/40" />
         </div>
-        <p className="text-sm font-semibold text-muted-foreground/40">Restricted</p>
-        <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+        <p className="text-sm font-semibold text-muted-foreground/70">Restricted</p>
+        <p className="text-xs text-muted-foreground/55 mt-1 max-w-xs">
           Only admins can manage offboarding.
         </p>
       </div>
@@ -465,32 +465,32 @@ function OffboardingTab({
     <>
 
       {/* Active employees — can be offboarded */}
-      <div className="px-5 py-3 border-b border-border/20">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+      <div className="px-5 xl:px-8 py-3 xl:py-4 border-b border-border/20">
+        <p className="text-[10px] xl:text-xs font-bold uppercase tracking-widest text-muted-foreground/65">
           Active Employees ({active.length})
         </p>
       </div>
       {active.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-muted-foreground/30 text-center">No active employees.</div>
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No active employees.</div>
       ) : (
         <div className="divide-y divide-border/20">
           {active.map((emp) => (
-            <div key={emp._id} className="flex items-center gap-4 px-5 py-4">
-              <Avatar className="h-8 w-8 shrink-0">
+            <div key={emp._id} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5">
+              <Avatar className="h-8 w-8 xl:h-10 xl:w-10 shrink-0">
                 <AvatarImage src={emp.avatar} />
-                <AvatarFallback className={`text-[9px] font-bold text-white ${roleColor(emp.role)}`}>
+                <AvatarFallback className={`text-[9px] xl:text-[10px] font-bold text-white ${roleColor(emp.role)}`}>
                   {ini(emp.fullName)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate">{emp.fullName}</p>
-                <p className="text-[11px] text-muted-foreground/40 truncate">{emp.email}</p>
+                <p className="text-xs xl:text-sm font-semibold truncate">{emp.fullName}</p>
+                <p className="text-[11px] xl:text-xs text-muted-foreground/60 truncate">{emp.email}</p>
               </div>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setOffboardTarget({ _id: emp._id, fullName: emp.fullName, email: emp.email, username: emp.username, role: emp.role, avatar: emp.avatar })}
-                className="h-7 rounded-lg text-[11px] font-semibold border-amber-500/20 text-amber-600 hover:bg-amber-500/10 gap-1.5"
+                className="h-7 xl:h-8 rounded-lg text-[11px] xl:text-xs font-semibold border-amber-500/20 text-amber-600 hover:bg-amber-500/10 gap-1.5"
               >
                 <UserMinus className="h-3 w-3" />
                 Offboard
@@ -501,29 +501,29 @@ function OffboardingTab({
       )}
 
       {/* Already offboarded */}
-      <div className="px-5 py-3 border-y border-border/20 mt-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+      <div className="px-5 xl:px-8 py-3 xl:py-4 border-y border-border/20 mt-2">
+        <p className="text-[10px] xl:text-xs font-bold uppercase tracking-widest text-muted-foreground/65">
           Offboarded ({offboarded.length})
         </p>
       </div>
       {offboarded.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-muted-foreground/30 text-center">No offboarded employees.</div>
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No offboarded employees.</div>
       ) : (
         <div className="divide-y divide-border/20">
           {offboarded.map((emp) => (
-            <div key={emp._id} className="flex items-center gap-4 px-5 py-4 opacity-60">
-              <Avatar className="h-8 w-8 shrink-0">
+            <div key={emp._id} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5 opacity-60">
+              <Avatar className="h-8 w-8 xl:h-10 xl:w-10 shrink-0">
                 <AvatarImage src={emp.avatar} />
-                <AvatarFallback className="text-[9px] font-bold text-white bg-muted-foreground/40">
+                <AvatarFallback className="text-[9px] xl:text-[10px] font-bold text-white bg-muted-foreground/40">
                   {ini(emp.fullName)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate">{emp.fullName}</p>
-                <p className="text-[11px] text-muted-foreground/40 truncate">{emp.email}</p>
+                <p className="text-xs xl:text-sm font-semibold truncate">{emp.fullName}</p>
+                <p className="text-[11px] xl:text-xs text-muted-foreground/60 truncate">{emp.email}</p>
               </div>
               {emp.offboardedAt && (
-                <p className="text-[11px] text-muted-foreground/40 shrink-0">
+                <p className="text-[11px] xl:text-xs text-muted-foreground/60 shrink-0">
                   {formatDate(emp.offboardedAt)}
                 </p>
               )}
@@ -605,7 +605,7 @@ export default function TeamEngagementPage() {
             <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
           </div>
 
-          <p className="text-xs text-muted-foreground/40 tracking-widest uppercase">
+          <p className="text-xs text-muted-foreground/60 tracking-widest uppercase">
             Loading
           </p>
         </div>
@@ -710,7 +710,7 @@ export default function TeamEngagementPage() {
 
 
       {/* ── Page Content ── */}
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <main className="w-full max-w-450 mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-8 xl:py-10 space-y-6 xl:space-y-8">
         {/* Page header */}
         <div className="flex items-center gap-4">
           <Button
@@ -722,8 +722,8 @@ export default function TeamEngagementPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-            <p className="text-xs text-muted-foreground/40 mt-0.5">
+            <h1 className="text-xl xl:text-2xl font-bold tracking-tight">Settings</h1>
+            <p className="text-xs xl:text-sm text-muted-foreground/60 mt-0.5">
               Manage your CRM workspace
             </p>
           </div>
@@ -737,42 +737,42 @@ export default function TeamEngagementPage() {
 
 
         {/* Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8">
           {/* ─── Sidebar nav ─── */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 xl:col-span-3">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+              <div className="px-4 xl:px-5 py-3 xl:py-4 border-b border-border/30">
+                <p className="text-[10px] xl:text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
                   Navigation
                 </p>
               </div>
-              <div className="p-2 space-y-1">
+              <div className="p-2 xl:p-3 space-y-1">
                 <button
                   onClick={() => router.push("/crm/settings")}
-                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 xl:px-4 h-9 xl:h-10 text-xs xl:text-sm font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Users className="h-3.5 w-3.5" />
+                    <Users className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
                     User Management
                   </div>
                   <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                 </button>
                 <button
                   onClick={() => router.push("/crm/settings/integrations")}
-                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 xl:px-4 h-9 xl:h-10 text-xs xl:text-sm font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Lock className="h-3.5 w-3.5" />
+                    <Lock className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
                     Lead Integrations
                   </div>
                   <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                 </button>
                 <button
                   onClick={() => router.push("/crm/hr")}
-                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold bg-emerald-500/10 text-emerald-600"
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 xl:px-4 h-9 xl:h-10 text-xs xl:text-sm font-semibold bg-emerald-500/10 text-emerald-600"
                 >
                   <div className="flex items-center gap-2.5">
-                    <HeartHandshake className="h-3.5 w-3.5" />
+                    <HeartHandshake className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
                     Team Engagement
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -785,34 +785,34 @@ export default function TeamEngagementPage() {
           </div>
 
           {/* ─── Main panel ─── */}
-          <div className="lg:col-span-9 space-y-4">
+          <div className="lg:col-span-9 space-y-4 xl:space-y-6">
 
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               {/* Card header */}
-              <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30">
-                <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                  <HeartHandshake className="h-4 w-4 text-emerald-500" />
+              <div className="flex items-center gap-3 xl:gap-4 px-5 xl:px-8 py-4 xl:py-5 border-b border-border/30">
+                <div className="h-8 w-8 xl:h-10 xl:w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                  <HeartHandshake className="h-4 w-4 xl:h-5 xl:w-5 text-emerald-500" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Team Engagement</p>
-                  <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                  <p className="text-sm xl:text-base font-bold">Team Engagement</p>
+                  <p className="text-[11px] xl:text-xs text-muted-foreground/60 mt-0.5">
                     Milestones, onboarding, and offboarding for your team.
                   </p>
                 </div>
               </div>
 
               {/* Tab switcher */}
-              <div className="flex border-b border-border/30 px-4">
+              <div className="flex border-b border-border/30 px-3 xl:px-5">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${activeTab === tab.id
-                        ? "border-emerald-500 text-emerald-600"
-                        : "border-transparent text-muted-foreground/50 hover:text-foreground/70"
+                    className={`flex items-center gap-2 px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm font-semibold border-b-2 transition-colors ${activeTab === tab.id
+                      ? "border-emerald-500 text-emerald-600"
+                      : "border-transparent text-muted-foreground/70 hover:text-foreground"
                       }`}
                   >
-                    <tab.icon className="h-3.5 w-3.5" />
+                    <tab.icon className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
                     {tab.label}
                   </button>
                 ))}
@@ -827,14 +827,14 @@ export default function TeamEngagementPage() {
             </div>
 
             {/* Info note */}
-            <div className="rounded-2xl border border-border/30 bg-muted/1.5 px-6 py-4">
-              <div className="flex items-start gap-3">
-                <HeartHandshake className="h-4 w-4 text-emerald-500/60 mt-0.5 shrink-0" />
+            <div className="rounded-2xl border border-border/30 bg-muted/1.5 px-5 xl:px-8 py-4 xl:py-5">
+              <div className="flex items-start gap-3 xl:gap-4">
+                <HeartHandshake className="h-4 w-4 xl:h-5 xl:w-5 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground/50">
+                  <p className="text-xs xl:text-sm font-semibold text-muted-foreground/75">
                     Automated announcements
                   </p>
-                  <p className="text-[11px] text-muted-foreground/30 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] xl:text-xs text-muted-foreground/60 mt-0.5 xl:mt-1 leading-relaxed">
                     Birthdays and work anniversaries are automatically announced
                     in the team Feed and the General channel in Suprah Space
                     every morning at 8:00 AM.

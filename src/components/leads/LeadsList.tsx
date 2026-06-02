@@ -133,7 +133,7 @@ export const LeadsList = React.memo(
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <p className="ss4-conv-name font-semibold truncate leading-tight" style={{ fontSize: 13, opacity: lead.isRead ? 0.6 : 1 }}>
+                      <p className="ss4-conv-name font-semibold truncate leading-tight" style={{ fontSize: 14, opacity: lead.isRead ? 0.65 : 1 }}>
                         {lead.firstName} {lead.lastName}
                       </p>
                       <span className="shrink-0 tabular-nums ml-1" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
@@ -141,11 +141,11 @@ export const LeadsList = React.memo(
                       </span>
                     </div>
 
-                    <p className="truncate mb-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                    <p className="truncate mb-1" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
                       {lead.email}
                     </p>
 
-                    <p className="ss4-conv-preview truncate leading-snug" style={{ fontSize: 11.5, opacity: lead.isRead ? 0.5 : 0.8 }}>
+                    <p className="ss4-conv-preview truncate leading-snug" style={{ fontSize: 13, opacity: lead.isRead ? 0.55 : 0.85 }}>
                       {lead.subject || '(No subject)'}
                     </p>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from "@/providers/AuthProvider"
 
@@ -51,7 +51,7 @@ interface CustomerHistory {
 }
 
 export const useCustomerBookings = () => {
-  const { getToken } = useAuth()
+  const { getToken, isLoaded, isSignedIn } = useAuth()
   const [bookings, setBookings] = useState<CustomerBooking[]>([])
   const [customerHistory, setCustomerHistory] = useState<CustomerHistory | null>(null)
   const [dateStatistics, setDateStatistics] = useState<any>(null)
@@ -59,59 +59,170 @@ export const useCustomerBookings = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isMountedRef = useRef(true)
+  const pendingRequestsRef = useRef(0)
+  const requestIdRef = useRef(0)
 
-  const fetchCustomerBookings = async (filters: any = {}) => {
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const getTokenWithTimeout = useCallback(async (timeoutMs: number): Promise<string | null> => {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null
     try {
-      setIsLoading(true)
+      return await Promise.race([
+        getToken(),
+        new Promise<string | null>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(new Error('Customer bookings authentication timed out'))
+          }, timeoutMs)
+        }),
+      ])
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }, [getToken])
+
+  const normalizeHistory = useCallback((data: any) => {
+    const bookings = Array.isArray(data?.bookings) ? data.bookings : []
+    const customer = data?.customer || bookings[0]?.customerBooking || null
+
+    const statistics = data?.statistics || {}
+    const total = statistics.total ?? statistics.totalBookings ?? bookings.length
+    const upcoming = statistics.upcoming ?? statistics.upcomingBookings ?? 0
+    const completed = statistics.completed ?? statistics.completedBookings ?? 0
+    const cancelled = statistics.cancelled ?? statistics.cancelledBookings ?? 0
+
+    const bookedBy = Array.isArray(data?.bookedBy)
+      ? data.bookedBy
+      : bookings.reduce((acc: Array<{ organizerId: string; organizerName: string; count: number }>, booking: any) => {
+          const organizerId = booking.createdBy?._id?.toString?.() || booking.createdBy?.email || booking.createdBy?.name || 'unknown'
+          const organizerName = booking.createdBy?.name || booking.createdBy?.email || 'Unknown'
+          const existing = acc.find((item) => item.organizerId === organizerId)
+          if (existing) {
+            existing.count += 1
+          } else {
+            acc.push({ organizerId, organizerName, count: 1 })
+          }
+          return acc
+        }, [])
+
+    return {
+      customer,
+      bookings,
+      statistics: {
+        total,
+        totalBookings: statistics.totalBookings ?? total,
+        upcoming,
+        upcomingBookings: statistics.upcomingBookings ?? upcoming,
+        completed,
+        completedBookings: statistics.completedBookings ?? completed,
+        cancelled,
+        cancelledBookings: statistics.cancelledBookings ?? cancelled,
+        firstBooking: statistics.firstBooking,
+        lastBooking: statistics.lastBooking,
+      },
+      bookedBy,
+    }
+  }, [])
+
+  const fetchCustomerBookings = useCallback(async (filters: any = {}) => {
+    if (!isLoaded) return
+
+    if (!isSignedIn) {
+      setBookings([])
       setError(null)
-      
-      const token = await getToken()
+      setIsLoading(false)
+      return
+    }
+
+    const requestId = ++requestIdRef.current
+    pendingRequestsRef.current += 1
+    if (isMountedRef.current) setIsLoading(true)
+    setError(null)
+
+    const params = new URLSearchParams()
+
+    if (filters.status && filters.status !== 'all') {
+      params.append('status', filters.status)
+    }
+    if (filters.startDate) {
+      params.append('startDate', new Date(filters.startDate).toISOString())
+    }
+    if (filters.endDate) {
+      params.append('endDate', new Date(filters.endDate).toISOString())
+    }
+
+    const queryString = params.toString()
+    const url = queryString
+      ? `/api/appointments/customer-bookings/list?${queryString}`
+      : '/api/appointments/customer-bookings/list'
+
+    const controller = new AbortController()
+    let requestTimeoutMs: ReturnType<typeof setTimeout> | null = null
+
+    try {
+      const token = await getTokenWithTimeout(15000)
       if (!token) {
         throw new Error('No authentication token')
       }
 
-      const params = new URLSearchParams()
-      
-      if (filters.status && filters.status !== 'all') {
-        params.append('status', filters.status)
-      }
-      if (filters.startDate) {
-        params.append('startDate', new Date(filters.startDate).toISOString())
-      }
-      if (filters.endDate) {
-        params.append('endDate', new Date(filters.endDate).toISOString())
-      }
-      
-      const queryString = params.toString()
-      const url = queryString 
-        ? `/api/appointments/customer-bookings/list?${queryString}`
-        : '/api/appointments/customer-bookings/list'
+      if (!isMountedRef.current || requestId !== requestIdRef.current) return
+
+      requestTimeoutMs = setTimeout(() => {
+        controller.abort()
+      }, 20000)
 
       console.log('Fetching customer bookings from:', url)
-      
+
       const response = await apiClient.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       })
-      
+
+      if (!isMountedRef.current || requestId !== requestIdRef.current) return
+
       console.log('Customer bookings response:', response.data)
-      
+
       const data = response.data?.data || response.data
-      const appointments = data.appointments || []
-      
+      const appointments = Array.isArray(data?.appointments)
+        ? data.appointments
+        : Array.isArray(data)
+          ? data
+          : []
+
       console.log(`Loaded ${appointments.length} customer bookings`)
       setBookings(appointments)
-      
     } catch (error: any) {
+      if (!isMountedRef.current || requestId !== requestIdRef.current) return
+
       console.error('Failed to fetch customer bookings:', error)
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to load customer bookings'
+
+      const isTimeout =
+        error?.name === 'CanceledError' ||
+        error?.code === 'ERR_CANCELED' ||
+        error?.message?.toLowerCase?.().includes('timeout') ||
+        controller.signal.aborted
+
+      const errorMessage = isTimeout
+        ? 'Customer bookings are taking too long to load. Please try again.'
+        : error.response?.data?.message || error.message || 'Failed to load customer bookings'
+
       setError(errorMessage)
       setBookings([])
     } finally {
-      setIsLoading(false)
-    }
-  }
+      if (requestTimeoutMs) clearTimeout(requestTimeoutMs)
 
-  const fetchCustomerHistory = async (
+      pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1)
+      if (isMountedRef.current) {
+        setIsLoading(pendingRequestsRef.current > 0)
+      }
+    }
+  }, [getTokenWithTimeout, isLoaded, isSignedIn])
+
+  const fetchCustomerHistory = useCallback(async (
     email?: string,
     phone?: string,
     firstName?: string,
@@ -141,7 +252,7 @@ export const useCustomerBookings = () => {
       console.log('Customer history response:', response.data)
       
       const data = response.data?.data || response.data
-      setCustomerHistory(data)
+      setCustomerHistory(normalizeHistory(data))
       
     } catch (error: any) {
       console.error('Failed to fetch customer history:', error)
@@ -149,9 +260,9 @@ export const useCustomerBookings = () => {
     } finally {
       setIsLoadingHistory(false)
     }
-  }
+  }, [getToken, normalizeHistory])
 
-  const fetchDateStatistics = async (date: Date) => {
+  const fetchDateStatistics = useCallback(async (date: Date) => {
     try {
       setIsLoadingStats(true)
       const token = await getToken()
@@ -174,12 +285,7 @@ export const useCustomerBookings = () => {
     } finally {
       setIsLoadingStats(false)
     }
-  }
-
-  // Fetch bookings on mount
-  useEffect(() => {
-    fetchCustomerBookings()
-  }, [])
+  }, [getToken])
 
   return {
     bookings,

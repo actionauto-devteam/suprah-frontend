@@ -105,9 +105,9 @@ export default function MemberProfilePage() {
   ].filter((i) => i.value);
 
   return (
-    <div className="p-4 sm:p-8 container mx-auto max-w-3xl pb-16 animate-in fade-in duration-500">
+    <div className="p-4 sm:p-5 container mx-auto max-w-3xl pb-8 animate-in fade-in duration-500">
       {/* Back button */}
-      <div className="mb-6">
+      <div className="mb-3">
         <Button
           variant="ghost"
           size="sm"
@@ -140,9 +140,9 @@ export default function MemberProfilePage() {
       )}
 
       {!isLoading && profile && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Hero banner */}
-          <div className="relative bg-linear-to-br from-primary/80 via-primary/60 to-primary/40 rounded-2xl px-5 sm:px-8 pt-6 sm:pt-10 pb-6 sm:pb-8 overflow-hidden">
+          <div className="relative bg-linear-to-br from-primary/80 via-primary/60 to-primary/40 rounded-2xl px-5 sm:px-7 pt-5 sm:pt-7 pb-5 sm:pb-6 overflow-hidden">
             <div
               className="absolute inset-0 opacity-10"
               style={{
@@ -151,7 +151,7 @@ export default function MemberProfilePage() {
                 backgroundSize: "40px 40px",
               }}
             />
-            <div className="relative flex items-start gap-4 sm:gap-6">
+            <div className="relative flex items-start gap-4 sm:gap-5">
               <div className="relative shrink-0">
                 <Avatar className="size-20 sm:size-24 ring-4 ring-white/60 ring-offset-2 ring-offset-primary/50 shadow-xl">
                   <AvatarImage src={profile.avatar} />
@@ -221,7 +221,7 @@ export default function MemberProfilePage() {
             </div>
 
             {/* Action buttons */}
-            <div className="relative mt-5 flex gap-2 flex-wrap">
+            <div className="relative mt-4 flex gap-2 flex-wrap">
               {profile.email && (
                 <Button
                   size="sm"
@@ -268,7 +268,7 @@ export default function MemberProfilePage() {
           {/* Bio */}
           {profile.personalInfo?.bio && (
             <div className="px-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-1.5">
                 About
               </p>
               <p className="text-sm leading-relaxed text-muted-foreground">
@@ -280,14 +280,14 @@ export default function MemberProfilePage() {
           {/* Info grid */}
           {infoItems.length > 0 && (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-3 px-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">
                 Details
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {infoItems.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center gap-3 p-4 rounded-xl bg-card border border-border/40 hover:bg-accent/10 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/40 hover:bg-accent/10 transition-colors"
                   >
                     <item.icon className={cn("size-4 shrink-0", item.color)} />
                     <div className="min-w-0">
@@ -313,7 +313,7 @@ export default function MemberProfilePage() {
 
           {/* Account status */}
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-3 px-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">
               Account
             </p>
             <div className="flex flex-wrap gap-2">

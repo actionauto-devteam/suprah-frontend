@@ -13,7 +13,7 @@ export const ChannelBadge = React.memo(({ channel }: { channel?: string }) => {
   const c = CHANNEL_CONFIG[channel || 'email'] || CHANNEL_CONFIG.email
   
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-semibold tracking-wide ${c.cls}`}>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold tracking-wide ${c.cls}`}>
       {c.icon}{c.label}
     </span>
   )

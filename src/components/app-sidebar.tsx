@@ -344,11 +344,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-semibold">
+                  <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-[13px] font-semibold text-sidebar-foreground">
                       {user?.fullName}
                     </span>
-                    <span className="truncate text-xs">
+                    <span className="truncate text-[12px] font-medium text-sidebar-foreground/80">
                       {user?.primaryEmailAddress?.emailAddress}
                     </span>
                   </div>
@@ -374,11 +374,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
+                    <div className="grid flex-1 text-left leading-tight">
+                      <span className="truncate text-[13px] font-semibold text-sidebar-foreground">
                         {user?.fullName}
                       </span>
-                      <span className="truncate text-xs">
+                      <span className="truncate text-[12px] font-medium text-sidebar-foreground/80">
                         {user?.primaryEmailAddress?.emailAddress}
                       </span>
                     </div>

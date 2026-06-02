@@ -404,7 +404,7 @@ function StatChip({
         toast.success(`${label} copied`);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [value, label]);
 
   return (
@@ -433,7 +433,7 @@ function StatChip({
       <p
         className={cn(
           "text-sm font-bold text-zinc-700 dark:text-zinc-200 whitespace-normal leading-snug",
-          breakMode === "all" ? "break-all" : "break-words",
+          breakMode === "all" ? "break-all" : "wrap-break-word",
           capitalize && "capitalize",
         )}
       >
@@ -514,7 +514,7 @@ export default function CrmDashboardPage() {
   const openTrayApp = React.useCallback(() => {
     try {
       window.location.href = `actionauto://auth?token=${encodeURIComponent(trayToken)}`;
-    } catch {}
+    } catch { }
     localStorage.removeItem("pending_tray_auth");
     setTrayBanner(false);
   }, [trayToken]);
@@ -535,7 +535,7 @@ export default function CrmDashboardPage() {
       });
       const data = res.data?.data || res.data;
       setTodayLogs(data.todayTimeLogs || []);
-    } catch {}
+    } catch { }
   }, []);
 
   // Sync whenever the user switches back to this tab
@@ -575,7 +575,7 @@ export default function CrmDashboardPage() {
         // currentBreakStartAt is kept accurate via optimistic updates in handleBreak
         // and the syncBreakIn/syncBreakOut socket handlers.
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // Poll shift state every 5s — keeps timer, break state, and on-shift status in sync
@@ -685,7 +685,7 @@ export default function CrmDashboardPage() {
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    } catch {}
+    } catch { }
     localStorage.removeItem("crm_token");
     localStorage.removeItem("crm_user");
     router.push("/");
@@ -749,7 +749,7 @@ export default function CrmDashboardPage() {
               return;
             }
           }
-        } catch {}
+        } catch { }
         handleClock("time-in");
       } else {
         setShowTrayModal(true);
@@ -802,7 +802,7 @@ export default function CrmDashboardPage() {
         );
         const d = res.data?.data || res.data;
         if (d?.todayLogs) setTodayLogs(d.todayLogs);
-      } catch {}
+      } catch { }
       refreshShiftState();
       setClockMsg(`Break started at ${fmt(new Date())}`);
     } else {
@@ -817,7 +817,7 @@ export default function CrmDashboardPage() {
         );
         const d = res.data?.data || res.data;
         if (d?.todayLogs) setTodayLogs(d.todayLogs);
-      } catch {}
+      } catch { }
       refreshShiftState();
       setTimeout(() => fetchActivityState(), 2500);
       setClockMsg(`Break ended at ${fmt(new Date())}`);
@@ -839,13 +839,13 @@ export default function CrmDashboardPage() {
   // Most recent time-out AFTER that time-in (current session only)
   const timeOut = timeIn
     ? [...sortedLogs]
-        .reverse()
-        .find(
-          (l) =>
-            l.type === "time-out" &&
-            new Date(l.timestamp).getTime() >=
-              new Date(timeIn.timestamp).getTime(),
-        )
+      .reverse()
+      .find(
+        (l) =>
+          l.type === "time-out" &&
+          new Date(l.timestamp).getTime() >=
+          new Date(timeIn.timestamp).getTime(),
+      )
     : undefined;
 
   const hasClockedIn = !!timeIn;
@@ -1429,7 +1429,7 @@ export default function CrmDashboardPage() {
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
           <div className="px-4 pt-4 pb-3">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
                 <MonitorDot className="h-5 w-5 text-emerald-400" />
               </div>
               <div className="flex-1 min-w-0">
@@ -1443,7 +1443,7 @@ export default function CrmDashboardPage() {
               </div>
               <button
                 onClick={dismissTrayBanner}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors mt-0.5 flex-shrink-0"
+                className="text-zinc-600 hover:text-zinc-400 transition-colors mt-0.5 shrink-0"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1473,7 +1473,7 @@ export default function CrmDashboardPage() {
 
       {/* ── Early End Shift Modal (< 8 hours worked) ── */}
       {showEarlyEndModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEarlyEndModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
             <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
@@ -1550,7 +1550,7 @@ export default function CrmDashboardPage() {
 
       {/* ── Confirm End Shift Modal (≥ 8 hours worked) ── */}
       {showConfirmEndModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmEndModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
             <button onClick={() => setShowConfirmEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
@@ -1599,7 +1599,7 @@ export default function CrmDashboardPage() {
 
       {/* ── Resume Shift Modal ── */}
       {resumeModal && (
-        <div className="fixed inset-0 z-[200] flex items-start justify-center pt-12 p-4">
+        <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setResumeModal(false)}
@@ -1659,7 +1659,7 @@ export default function CrmDashboardPage() {
 
       {/* ── Tray App Required Modal ── */}
       {showTrayModal && (
-        <div className="fixed inset-0 z-[200] flex items-start justify-center pt-12 p-4">
+        <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -1736,7 +1736,7 @@ export default function CrmDashboardPage() {
                   onClick={async () => {
                     try {
                       window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}`;
-                    } catch {}
+                    } catch { }
                     // After firing the deep link, re-check after a short delay
                     await new Promise((r) => setTimeout(r, 3000));
                     setTrayChecking(true);

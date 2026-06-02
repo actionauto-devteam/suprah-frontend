@@ -16,17 +16,24 @@ export function sanitizeInput(input: string): string {
 
 export function resolveImageUrl(url?: string | null): string | undefined {
   if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
 
   // If it's already an absolute URL (Cloudflare R2, Google, Data URI, or local blob), return as is
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
-    return url;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  // Protocol-relative URLs occasionally show up in imported inventory feeds.
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
   }
 
   // If it's a relative path (Legacy local uploads), prepend the Backend API URL
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   // Ensure we don't double slash
-  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   return `${API_BASE_URL}${cleanPath}`;
 }
 

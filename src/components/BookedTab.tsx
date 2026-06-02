@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
-  Search, Calendar, User, Mail, Phone, Clock, Filter,
+  Search, Calendar, User, Mail, Phone, Clock,
   Loader2, AlertCircle, X, CheckCircle2, XCircle,
-  TrendingUp, ChevronRight, MapPin, History,
+  ChevronRight, MapPin, History,
 } from "lucide-react"
 import { format, isToday } from "date-fns"
 import { useCustomerBookings } from "@/hooks/useCustomerBookings"
+import { useAuth } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -187,6 +188,10 @@ function HistoryModal({
   isLoading: boolean
 }) {
   const name = `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim()
+  const total = history?.statistics?.total ?? history?.statistics?.totalBookings ?? 0
+  const upcoming = history?.statistics?.upcoming ?? history?.statistics?.upcomingBookings ?? 0
+  const completed = history?.statistics?.completed ?? history?.statistics?.completedBookings ?? 0
+  const cancelled = history?.statistics?.cancelled ?? history?.statistics?.cancelledBookings ?? 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -215,10 +220,10 @@ function HistoryModal({
               {/* Stats strip */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: "Total",     value: history.statistics?.total     ?? 0, color: "bg-blue-500"    },
-                  { label: "Upcoming",  value: history.statistics?.upcoming  ?? 0, color: "bg-violet-500"  },
-                  { label: "Completed", value: history.statistics?.completed ?? 0, color: "bg-emerald-500" },
-                  { label: "Cancelled", value: history.statistics?.cancelled ?? 0, color: "bg-red-500"     },
+                  { label: "Total",     value: total,     color: "bg-blue-500"    },
+                  { label: "Upcoming",  value: upcoming,  color: "bg-violet-500"  },
+                  { label: "Completed", value: completed, color: "bg-emerald-500" },
+                  { label: "Cancelled", value: cancelled, color: "bg-red-500"     },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="relative overflow-hidden rounded-xl border bg-card px-4 py-3 shadow-sm">
                     <div className={cn("absolute top-0 left-0 right-0 h-0.75 rounded-t-xl", color)} />
@@ -334,6 +339,7 @@ export function BookedTab() {
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null)
   const [selectedCustomer, setSelectedCustomer] = React.useState<any>(null)
   const [historyModalOpen, setHistoryModalOpen] = React.useState(false)
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth()
 
   const {
     bookings,
@@ -345,7 +351,7 @@ export function BookedTab() {
     isLoadingHistory,
   } = useCustomerBookings()
 
-  React.useEffect(() => {
+  const activeFilters = React.useMemo(() => {
     const filters: any = {}
     if (statusFilter !== "all") filters.status = statusFilter
     if (selectedDate) {
@@ -354,8 +360,13 @@ export function BookedTab() {
       endDate.setHours(23, 59, 59, 999)
       filters.endDate = endDate.toISOString()
     }
-    fetchCustomerBookings(filters)
+    return filters
   }, [statusFilter, selectedDate])
+
+  React.useEffect(() => {
+    if (!isAuthLoaded || !isSignedIn) return
+    void fetchCustomerBookings(activeFilters)
+  }, [activeFilters, fetchCustomerBookings, isAuthLoaded, isSignedIn])
 
   const filteredBookings = React.useMemo(() => {
     if (!bookings) return []
@@ -398,14 +409,24 @@ export function BookedTab() {
 
   const hasFilters = !!searchQuery || statusFilter !== "all" || !!selectedDate
   const clearFilters = () => { setSearchQuery(""); setStatusFilter("all"); setSelectedDate(null) }
+  const showLoading = !isAuthLoaded || isLoading
+  const handleRetry = () => {
+    if (!isAuthLoaded || !isSignedIn) return
+    void fetchCustomerBookings(activeFilters)
+  }
 
   if (error) {
     return (
       <Alert variant="destructive" className="border-destructive/30 bg-destructive/8">
         <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
+        <AlertDescription className="flex items-center justify-between gap-3">
+          <span>
           Failed to load customer bookings.{" "}
           <span className="text-xs opacity-70">{error}</span>
+          </span>
+          <Button type="button" variant="secondary" size="sm" onClick={handleRetry}>
+            Retry
+          </Button>
         </AlertDescription>
       </Alert>
     )
@@ -423,7 +444,7 @@ export function BookedTab() {
           accentClass="bg-primary"
           iconBgClass="bg-primary/10"
           iconColorClass="text-primary"
-          loading={isLoading}
+          loading={showLoading}
         />
         <StatCard
           label="Today"
@@ -432,7 +453,7 @@ export function BookedTab() {
           accentClass="bg-blue-500"
           iconBgClass="bg-blue-500/10"
           iconColorClass="text-blue-600 dark:text-blue-400"
-          loading={isLoading}
+          loading={showLoading}
         />
         <StatCard
           label="Confirmed"
@@ -441,7 +462,7 @@ export function BookedTab() {
           accentClass="bg-emerald-500"
           iconBgClass="bg-emerald-500/10"
           iconColorClass="text-emerald-600 dark:text-emerald-400"
-          loading={isLoading}
+          loading={showLoading}
         />
         <StatCard
           label="Cancelled"
@@ -450,7 +471,7 @@ export function BookedTab() {
           accentClass="bg-red-500"
           iconBgClass="bg-red-500/10"
           iconColorClass="text-red-600 dark:text-red-400"
-          loading={isLoading}
+          loading={showLoading}
         />
       </div>
 
@@ -502,14 +523,14 @@ export function BookedTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold">Customer Bookings</p>
-          {!isLoading && (
+          {!showLoading && (
             <Badge variant="secondary" className="h-5 rounded-full px-2 text-xs tabular-nums">
               {filteredBookings.length}
               {bookings && filteredBookings.length < bookings.length && ` of ${bookings.length}`}
             </Badge>
           )}
         </div>
-        {isLoading && (
+        {showLoading && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Loading…
@@ -518,7 +539,7 @@ export function BookedTab() {
       </div>
 
       {/* ── Booking list ── */}
-      {isLoading ? (
+      {showLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="relative flex gap-4 rounded-xl border bg-card p-4">

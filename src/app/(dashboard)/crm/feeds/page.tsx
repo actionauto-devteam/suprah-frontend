@@ -861,6 +861,7 @@ function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) 
 // ─── Feed Page ────────────────────────────────────────────────────────────────
 
 const PAGE_LIMIT = 20
+const INIT_TIMEOUT_MS = 15000
 
 export default function FeedsPage() {
   const router = useRouter()
@@ -872,6 +873,8 @@ export default function FeedsPage() {
   const [page, setPage] = React.useState(1)
   const [hasMore, setHasMore] = React.useState(false)
   const [loadingInit, setLoadingInit] = React.useState(true)
+  const [initError, setInitError] = React.useState<string | null>(null)
+  const [initAttempt, setInitAttempt] = React.useState(0)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
   const [newPostCount, setNewPostCount] = React.useState(0)
@@ -879,25 +882,21 @@ export default function FeedsPage() {
   const socketRef = React.useRef<any>(null)
   const ssSocketRef = React.useRef<any>(null)
 
-  // Auth check
-  React.useEffect(() => {
-    const t = localStorage.getItem("crm_token")
-    if (!t) { router.replace("/crm"); return }
-    apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
-      .then((res) => { setCurrentUser(res.data?.data || res.data); setToken(t) })
-      .catch(() => { localStorage.removeItem("crm_token"); router.replace("/crm") })
-  }, [router])
-
-  const fetchPostsAndReactions = React.useCallback(async (tk: string, pg: number) => {
+  const fetchPostsAndReactions = React.useCallback(async (tk: string, pg: number, signal?: AbortSignal) => {
     const res = await apiClient.get(`/api/crm/feeds?page=${pg}&limit=${PAGE_LIMIT}`, {
       headers: { Authorization: `Bearer ${tk}` },
+      signal,
     })
-    const d = res.data?.data
-    const fetchedPosts: Post[] = d.posts || []
+    const d = res.data?.data || res.data || {}
+    const fetchedPosts: Post[] = Array.isArray(d.posts) ? d.posts : []
     let rxMap: Record<string, ReactionState> = {}
     if (fetchedPosts.length > 0) {
       try {
-        const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetchedPosts.map((p) => p._id) }, { headers: { Authorization: `Bearer ${tk}` } })
+        const rRes = await apiClient.post(
+          "/api/crm/feeds/reactions/bulk",
+          { targetIds: fetchedPosts.map((p) => p._id) },
+          { headers: { Authorization: `Bearer ${tk}` }, signal }
+        )
         rxMap = rRes.data?.data?.reactions || {}
       } catch { }
     }
@@ -905,12 +904,80 @@ export default function FeedsPage() {
   }, [])
 
   React.useEffect(() => {
-    if (!token) return
-    fetchPostsAndReactions(token, 1)
-      .then(({ posts, hasMore, reactions }) => { setPosts(posts); setPostReactions(reactions); setHasMore(hasMore) })
-      .catch(() => { })
-      .finally(() => setLoadingInit(false))
-  }, [token, fetchPostsAndReactions])
+    let active = true
+    const controller = new AbortController()
+    let didTimeout = false
+
+    const timeoutId = setTimeout(() => {
+      didTimeout = true
+      controller.abort()
+      if (!active) return
+      setInitError("Initialization is taking too long. Please check your connection and retry.")
+      setLoadingInit(false)
+    }, INIT_TIMEOUT_MS)
+
+    const init = async () => {
+      setLoadingInit(true)
+      setInitError(null)
+      setCurrentUser(null)
+      setToken("")
+      setPosts([])
+      setPostReactions({})
+      setHasMore(false)
+      setPage(1)
+      setNewPostCount(0)
+
+      const t = localStorage.getItem("crm_token")
+      if (!t) {
+        if (!active) return
+        setInitError("Session expired. Please sign in again.")
+        setLoadingInit(false)
+        router.replace("/crm")
+        return
+      }
+
+      try {
+        const meRes = await apiClient.get("/api/crm/me", {
+          headers: { Authorization: `Bearer ${t}` },
+          signal: controller.signal,
+        })
+        if (!active) return
+        const me = meRes.data?.data || meRes.data
+        if (!me?._id) throw new Error("User profile missing from response")
+        setCurrentUser(me)
+        setToken(t)
+
+        const { posts, hasMore, reactions } = await fetchPostsAndReactions(t, 1, controller.signal)
+        if (!active) return
+        setPosts(posts)
+        setPostReactions(reactions)
+        setHasMore(hasMore)
+      } catch (err: any) {
+        if (!active || controller.signal.aborted || didTimeout) return
+        const status = err?.response?.status
+        if (status === 401 || status === 403) {
+          localStorage.removeItem("crm_token")
+          localStorage.removeItem("crm_user")
+          setInitError("Session expired. Please sign in again.")
+          router.replace("/crm")
+          return
+        }
+        const message = err?.response?.data?.message || err?.message || "Failed to initialize Feeds."
+        setInitError(message)
+      } finally {
+        if (!active) return
+        clearTimeout(timeoutId)
+        setLoadingInit(false)
+      }
+    }
+
+    init()
+    return () => {
+      active = false
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [router, fetchPostsAndReactions, initAttempt])
 
   React.useEffect(() => {
     if (!token || typeof window === "undefined") return
@@ -1004,7 +1071,7 @@ export default function FeedsPage() {
   }
 
   // ── Loading screen ──────────────────────────────────────────────────────────
-  if (loadingInit || !currentUser) {
+  if (loadingInit) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-5">
@@ -1019,6 +1086,44 @@ export default function FeedsPage() {
           <div className="text-center space-y-1">
             <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/40">Initializing</p>
             <p className="text-[8px] font-mono text-muted-foreground/20 tracking-widest">Action Auto CRM</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    const message = initError || "We could not load your profile. Please try again."
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-4 max-w-md px-6 text-center">
+          <div className="relative h-14 w-14">
+            <div className="absolute inset-0 rounded-full border-4 border-border/10" />
+            <div className="absolute inset-0 rounded-full border-4 border-red-500/40 border-t-red-500 border-r-transparent border-b-transparent border-l-transparent" />
+            <div className="absolute inset-1.5 rounded-full bg-red-500/5 flex items-center justify-center">
+              <Gauge className="h-5 w-5 text-red-500/70" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-muted-foreground/50">Initialization failed</p>
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">{message}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest"
+              onClick={() => setInitAttempt((v) => v + 1)}
+            >
+              Retry
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest"
+              onClick={() => router.replace("/crm")}
+            >
+              Sign in
+            </Button>
           </div>
         </div>
       </div>
@@ -1085,6 +1190,24 @@ export default function FeedsPage() {
         {/* ── Team Feeds tab ── */}
         {activeTab === "feeds" && (
           <>
+            {initError && (
+              <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                    <Gauge className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-black uppercase tracking-widest text-emerald-700">Feeds not ready</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">{initError}</p>
+                  </div>
+                </div>
+                <div>
+                  <Button variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest" onClick={() => setInitAttempt((v) => v + 1)}>
+                    Retry initialization
+                  </Button>
+                </div>
+              </div>
+            )}
             {/* New posts banner */}
             {newPostCount > 0 && (
               <button

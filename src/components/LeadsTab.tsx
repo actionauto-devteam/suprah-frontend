@@ -416,7 +416,7 @@ export function LeadsTab({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="ss4-display font-bold leading-tight tracking-tight" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
+                <h1 className="ss4-display font-bold leading-tight tracking-tight" style={{ fontSize: 16, color: 'var(--text-primary)' }}>
                   Lead Inbox
                 </h1>
                 {total > 0 && (
@@ -466,7 +466,7 @@ export function LeadsTab({
             <button
               key={i}
               onClick={() => { setStatusFilter(tab.key); setCurrentPage(1); setSelectedLead(null); }}
-              className="relative flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold transition-all shrink-0"
+              className="relative flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold transition-all shrink-0"
               style={{
                 color: statusFilter === tab.key ? 'var(--accent)' : 'var(--text-tertiary)',
                 borderBottom: `2px solid ${statusFilter === tab.key ? 'var(--accent)' : 'transparent'}`,

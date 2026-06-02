@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
+import { CarInventoryCard } from "@/components/car-inventory-card";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Check, ChevronDown, RefreshCw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -187,8 +187,8 @@ function ShopVehiclesContent() {
       if (axiosError.code !== "ERR_CANCELED") {
         setError(
           (axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Failed to load vehicles",
+          axiosError.message ||
+          "Failed to load vehicles",
         );
       }
     } finally {
@@ -373,7 +373,7 @@ function ShopVehiclesContent() {
   const vehicleCards = React.useMemo(
     () =>
       vehicles.map((vehicle) => (
-        <PremiumVehicleCard
+        <CarInventoryCard
           key={vehicle.id}
           vehicle={vehicle}
           shippingPrice={shippingRates[vehicle.id]}
@@ -419,8 +419,8 @@ function ShopVehiclesContent() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in flex flex-col min-h-full slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6 shrink-0">
+    <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 shrink-0">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground uppercase italic">
             Shop Vehicles
@@ -432,7 +432,7 @@ function ShopVehiclesContent() {
         </div>
       </div>
 
-      <div className="space-y-4 shrink-0">
+      <div className="space-y-3 shrink-0">
         <InventoryFilters
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -441,7 +441,7 @@ function ShopVehiclesContent() {
           apiPath="/api/vehicles/marketplace/filters"
         />
 
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-0">
           <div className="flex items-center gap-3">
             <p className="text-sm font-medium text-muted-foreground">
               <span className="font-bold text-foreground tracking-tight">
@@ -481,7 +481,7 @@ function ShopVehiclesContent() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsSortSheetOpen(true)}
-                className="h-9 min-w-[170px] justify-between gap-2"
+                className="h-9 min-w-42.5 justify-between gap-2"
               >
                 <span className="truncate">{currentSortLabel}</span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -523,19 +523,19 @@ function ShopVehiclesContent() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 pt-2">
+      <div className="flex-1 min-h-0 pt-0">
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {[...Array(6)].map((_, i) => (
               <div
                 key={i}
-                className="h-112.5 bg-zinc-100 dark:bg-zinc-900 rounded-2xl animate-pulse"
+                className="h-72 rounded-2xl bg-zinc-100 animate-pulse dark:bg-zinc-900"
               />
             ))}
           </div>
         ) : (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {vehicleCards}
             </div>
 

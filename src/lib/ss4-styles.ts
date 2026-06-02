@@ -174,6 +174,8 @@ export const SS4_CSS = `
     box-shadow: var(--bubble-own-shadow);
     color: #fff;
     border-radius: 18px 18px 4px 18px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   .ss4-bubble-other {
     background: var(--bubble-other-bg);
@@ -181,12 +183,14 @@ export const SS4_CSS = `
     color: var(--text-primary);
     border-radius: 18px 18px 18px 4px;
     box-shadow: var(--shadow-sm);
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   .ss4-msg-column {
     width: fit-content;
     max-width: min(68%, 42rem);
   }
-  .ss4-msg-bubble { width: 100%; max-width: 100%; overflow: hidden; }
+  .ss4-msg-bubble { width: 100%; max-width: 100%; word-break: break-word; overflow-wrap: anywhere; }
   .ss4-attachment-item { display: block; width: 100%; max-width: 100%; }
   .ss4-attachment-media { display: block; width: 100%; max-width: 100%; height: auto; object-fit: cover; }
   .ss4-attachment-video { display: block; width: 100%; max-width: 100%; height: auto; }
@@ -310,7 +314,7 @@ export const SS4_CSS = `
     border-radius: 999px;
     background: var(--bg-subtle);
     border: 1px solid var(--border-1);
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-secondary);

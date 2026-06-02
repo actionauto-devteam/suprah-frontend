@@ -43,7 +43,7 @@ export const ReplySection = React.memo(({
       >
         <div className="flex items-center gap-2">
           <Lock className="h-3.5 w-3.5" style={{ color: 'var(--text-disabled)' }} />
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>This inquiry is closed</span>
+          <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>This inquiry is closed</span>
         </div>
         <button onClick={onReopen} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 text-xs font-medium">
           <LockOpen className="h-3 w-3" /> Reopen
@@ -87,7 +87,7 @@ export const ReplySection = React.memo(({
             {/* Status dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium">
+                <button className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[12px] font-medium">
                   <Circle className="h-3 w-3" />
                   Status
                   <ChevronDown className="h-2.5 w-2.5 opacity-50" />
@@ -112,19 +112,19 @@ export const ReplySection = React.memo(({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <button onClick={onApptOpen} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium whitespace-nowrap">
+            <button onClick={onApptOpen} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[12px] font-medium whitespace-nowrap">
               <Calendar className="h-3 w-3" />
               Schedule
             </button>
 
-            <button onClick={onQuoteShipping} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium whitespace-nowrap">
+            <button onClick={onQuoteShipping} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[12px] font-medium whitespace-nowrap">
               <Truck className="h-3 w-3" />
               Quote
             </button>
 
             <button
               onClick={() => onStatusChange("Closed")}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap"
               style={{ color: 'var(--danger)', opacity: 0.7 }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}

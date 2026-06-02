@@ -15,7 +15,7 @@ export const StatusPill = React.memo(({ status }: { status: string }) => {
   if (!c) return null
   
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium tracking-wide ${c.bg} ${c.text} ${c.border}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium tracking-wide ${c.bg} ${c.text} ${c.border}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} />{c.label}
     </span>
   )

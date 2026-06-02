@@ -549,7 +549,7 @@ export function InventoryFilters({
               <Badge
                 key={key}
                 variant="secondary"
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium leading-none"
               >
                 {key}: {value as React.ReactNode}
                 <X
@@ -564,7 +564,7 @@ export function InventoryFilters({
             variant="ghost"
             size="sm"
             onClick={onClearFilters}
-            className="h-6 px-2 text-xs"
+            className="h-6 px-2 text-[11px] font-semibold"
           >
             Clear all
           </Button>

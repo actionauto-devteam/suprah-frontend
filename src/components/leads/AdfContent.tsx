@@ -9,15 +9,15 @@ export const AdfContent = React.memo(({ parsed }: AdfContentProps) => {
   const v = parsed.vehicle
   const c = parsed.customer
   const comments = parsed.comments
-  
+
   const vehicleLabel = [v?.year, v?.make, v?.model, v?.trim].filter(Boolean).join(' ')
   const hasVehicle = !!(v?.year || v?.make || v?.model)
 
   const KVRow = ({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) => (
     value ? (
-      <div className="flex items-baseline gap-4 py-2 border-b border-border/40 last:border-0">
-        <span className="text-muted-foreground text-[12px] font-medium shrink-0 w-28 text-right uppercase tracking-wide">{label}</span>
-        <span className={`text-foreground text-[14px] font-semibold ${mono ? 'font-mono' : ''}`}>{value}</span>
+      <div className="flex items-baseline gap-3 py-2 border-b border-border/40 last:border-0">
+        <span className="text-muted-foreground text-[12px] font-medium shrink-0 w-24 text-right uppercase tracking-wide">{label}</span>
+        <span className={`text-foreground text-[13px] font-semibold min-w-0 break-all ${mono ? 'font-mono' : ''}`}>{value}</span>
       </div>
     ) : null
   )
@@ -90,7 +90,7 @@ export const AdfContent = React.memo(({ parsed }: AdfContentProps) => {
             <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Customer Comments</span>
           </div>
           <div className="px-5 py-4">
-            <p className="text-[15px] text-foreground leading-[1.75]">{comments}</p>
+            <p className="text-[14px] text-foreground leading-[1.75] whitespace-pre-wrap wrap-break-word">{comments}</p>
           </div>
         </div>
       )}
