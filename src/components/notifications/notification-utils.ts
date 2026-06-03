@@ -89,7 +89,7 @@ export function getNotificationCategory(type: string): string {
   if (type.startsWith('shipment_') || type === 'proof_of_delivery') return 'Shipments';
   if (type.startsWith('vehicle_') || type.startsWith('inventory_') || type === 'new_inventory_alert') return 'Vehicles';
   if (type.startsWith('appointment_') || type === 'guest_response') return 'Appointments';
-  if (type.startsWith('new_lead') || type.startsWith('lead_') || type.startsWith('crm_')) return 'CRM';
+  if (type.startsWith('new_lead') || type.startsWith('lead_') || type.startsWith('crm_') || type === 'reminder') return 'CRM';
   if (type.startsWith('driver_')) return 'Driver';
   if (type.startsWith('payment_') || type.startsWith('payout_')) return 'Payments';
   if (type.startsWith('team_') || type === 'role_changed') return 'Team';
@@ -109,6 +109,7 @@ const ROUTE_MAP: Record<string, string> = {
   appointment_created: '/crm/appointments', appointment_updated: '/crm/appointments',
   appointment_cancelled: '/crm/appointments', appointment_reminder: '/crm/appointments', guest_response: '/crm/appointments',
   new_lead: '/crm', lead_assigned: '/crm', lead_status_changed: '/crm',
+  reminder: '/crm',
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
   message_received: '/crm/supra-space',
@@ -148,6 +149,9 @@ function getRoleContext(pathname: string): 'driver' | 'customer' | 'admin' | 'da
 }
 
 export function getNotificationRoute(notification: Notification, pathname?: string): string | null {
+  // Prefer the contextual route embedded in metadata (e.g. lead-reminder deep links)
+  if (notification.metadata?.route) return notification.metadata.route as string;
+
   if (!pathname) return ROUTE_MAP[notification.type] || null;
 
   const role = getRoleContext(pathname);

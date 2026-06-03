@@ -185,11 +185,16 @@ function ShopVehiclesContent() {
       console.error("[Inventory] Error fetching vehicles:", err);
       const axiosError = err as AxiosError;
       if (axiosError.code !== "ERR_CANCELED") {
-        setError(
-          (axiosError.response?.data as any)?.message ||
-          axiosError.message ||
-          "Failed to load vehicles",
-        );
+        const status = axiosError.response?.status;
+        if (status === 401 || status === 403) {
+          setError("Your session has expired or you do not have access. Please sign in again.");
+        } else {
+          setError(
+            (axiosError.response?.data as any)?.message ||
+              axiosError.message ||
+              "Failed to load vehicles",
+          );
+        }
       }
     } finally {
       if (currentSequence === fetchSequenceRef.current) {

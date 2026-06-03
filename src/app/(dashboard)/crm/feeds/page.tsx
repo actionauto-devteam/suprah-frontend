@@ -244,7 +244,7 @@ function ReactionBar({
           onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
           className={`flex items-center gap-1.5 rounded-md border font-semibold transition-all duration-150 select-none
             ${compact ? "px-2 py-0.5 text-[10px]" : "px-3 py-1.5 text-[11px] tracking-wide"}
-            ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/20 text-muted-foreground/35 hover:border-emerald-500/30 hover:text-emerald-600/60 hover:bg-emerald-500/5"}
+            ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/30 text-muted-foreground/60 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
             ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         >
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "👍"}</span>}
@@ -290,7 +290,7 @@ function ReactionBar({
                 const meta = REACTION_MAP[type as ReactionType]
                 if (!meta) return null
                 return (
-                  <span key={type} title={tooltipFor(type as ReactionType)} className={`text-[11px] font-bold cursor-default transition-colors tabular-nums ${myReaction === type ? meta.color : "text-muted-foreground/35 hover:text-muted-foreground/60"}`}>
+                  <span key={type} title={tooltipFor(type as ReactionType)} className={`text-[11px] font-bold cursor-default transition-colors tabular-nums ${myReaction === type ? meta.color : "text-muted-foreground/60 hover:text-muted-foreground/80"}`}>
                     {data.count}
                   </span>
                 )
@@ -375,7 +375,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
             <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/75">{comment.content}</p>
           </div>
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
-            <span className="text-[10px] text-muted-foreground/30 cursor-default font-mono" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
+            <span className="text-[10px] text-muted-foreground/60 cursor-default font-mono" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
             {canDelete && (
               <button onClick={() => setShowDeleteModal(true)} className="text-[10px] text-muted-foreground/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 uppercase tracking-wide font-bold">
                 Delete
@@ -461,17 +461,17 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
 
       {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-emerald-500/40" /></div>}
       {!loading && shouldCollapse && (
-        <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 hover:text-emerald-600 transition-colors">
+        <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-emerald-600 transition-colors">
           <ChevronDown className="h-3.5 w-3.5" /> {hiddenCount} more {hiddenCount === 1 ? "comment" : "comments"}
         </button>
       )}
       {!loading && comments.length >= COLLAPSE_THRESHOLD && showAll && (
-        <button onClick={() => setShowAll(false)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors">
+        <button onClick={() => setShowAll(false)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors">
           <ChevronUp className="h-3.5 w-3.5" /> Show less
         </button>
       )}
       {!loading && comments.length === 0 && (
-        <p className="text-[10px] text-muted-foreground/25 text-center py-1 uppercase tracking-widest font-bold">No comments yet — be the first</p>
+        <p className="text-[10px] text-muted-foreground/60 text-center py-1 uppercase tracking-widest font-bold">No comments yet — be the first</p>
       )}
       {!loading && visibleComments.map((comment) => (
         <CommentItem
@@ -496,18 +496,18 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
               onChange={(e) => { setNewComment(e.target.value); setSubmitError("") }}
               onKeyDown={handleKey}
               placeholder="Leave a comment…" rows={1} maxLength={1000}
-              className="w-full bg-transparent text-xs leading-relaxed p-2.5 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/20"
+              className="w-full bg-transparent text-xs leading-relaxed p-2.5 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/50"
               style={{ minHeight: "36px" }}
             />
             <div className="flex items-center justify-between px-2.5 pb-2">
               {preferNativeEmoji ? (
-                <button type="button" onClick={() => inputRef.current?.focus()} className="text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors" title="Emoji">
+                <button type="button" onClick={() => inputRef.current?.focus()} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" title="Emoji">
                   <Smile className="h-3.5 w-3.5" />
                 </button>
               ) : (
                 <Popover open={showEmoji} onOpenChange={setShowEmoji}>
                   <PopoverTrigger asChild>
-                    <button type="button" className="text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors">
+                    <button type="button" className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors">
                       <Smile className="h-3.5 w-3.5" />
                     </button>
                   </PopoverTrigger>
@@ -518,13 +518,13 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
                   </PopoverContent>
                 </Popover>
               )}
-              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-500 disabled:opacity-25 disabled:cursor-not-allowed transition-colors">
+              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Post
               </button>
             </div>
           </div>
           {submitError && <p className="text-[10px] text-red-500 mt-1 pl-1">{submitError}</p>}
-          {newComment && !submitError && <p className="text-[9px] text-muted-foreground/20 mt-1 pl-1 font-mono">Ctrl+Enter to post</p>}
+          {newComment && !submitError && <p className="text-[9px] text-muted-foreground/50 mt-1 pl-1 font-mono">Ctrl+Enter to post</p>}
         </div>
       </div>
     </div>
@@ -621,8 +621,8 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <p className="text-[10px] text-muted-foreground/35 cursor-default font-mono tracking-tight" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
-                  {post.isEdited && <span className="text-[9px] text-muted-foreground/25 italic font-medium">(edited)</span>}
+                  <p className="text-[10px] text-muted-foreground/60 cursor-default font-mono tracking-tight" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
+                  {post.isEdited && <span className="text-[9px] text-muted-foreground/50 italic font-medium">(edited)</span>}
                 </div>
               </div>
             </div>
@@ -680,7 +680,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
               </div>
               {editError && <p className="text-xs text-red-500">{editError}</p>}
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground/30 tabular-nums font-mono">{editContent.length}/5000</span>
+                <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">{editContent.length}/5000</span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" className="h-8 rounded-lg text-xs gap-1.5 font-bold" onClick={() => { setIsEditing(false); setEditError("") }} disabled={editLoading}>
                     <X className="h-3.5 w-3.5" /> Cancel
@@ -701,7 +701,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
             <button
               type="button"
               onClick={handleFocusComment}
-              className="flex items-center gap-2 rounded-md border border-border/25 bg-muted/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 hover:text-emerald-600 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all duration-150"
+              className="flex items-center gap-2 rounded-md border border-border/35 bg-muted/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 hover:text-emerald-600 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all duration-150"
             >
               <MessageCircle className="h-3.5 w-3.5" /> Comment
               {comments.length > 0 && (
@@ -762,11 +762,11 @@ function Composer({ currentUser, token, onPosted }: {
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/50">Broadcast Update</span>
+          <span className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/70">Broadcast Update</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Zap className="h-3 w-3 text-emerald-500/40" />
-          <span className="text-[9px] font-mono text-muted-foreground/25 tracking-tight">Action Auto CRM</span>
+          <Zap className="h-3 w-3 text-emerald-500/60" />
+          <span className="text-[9px] font-mono text-muted-foreground/60 tracking-tight">Action Auto CRM</span>
         </div>
       </div>
 
@@ -783,20 +783,20 @@ function Composer({ currentUser, token, onPosted }: {
             onKeyDown={handleKey}
             placeholder={`What's happening, ${currentUser.fullName.split(" ")[0]}?`}
             rows={isFocused || content ? 4 : 2} maxLength={5000}
-            className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none placeholder:text-muted-foreground/25 transition-all duration-200"
+            className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none placeholder:text-muted-foreground/50 transition-all duration-200"
           />
         </div>
       </div>
 
       <div className="flex items-center justify-between px-5 pb-4 border-t border-border/15 pt-3">
         {preferNativeEmoji ? (
-          <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg px-2.5 py-1.5 transition-colors text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
+          <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
             <Smile className="h-4 w-4" /> Emoji
           </button>
         ) : (
           <Popover open={showEmoji} onOpenChange={setShowEmoji}>
             <PopoverTrigger asChild>
-              <button type="button" className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg px-2.5 py-1.5 transition-colors ${showEmoji ? "bg-emerald-500/10 text-emerald-600" : "text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/40"}`}>
+              <button type="button" className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg px-2.5 py-1.5 transition-colors ${showEmoji ? "bg-emerald-500/10 text-emerald-600" : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40"}`}>
                 <Smile className="h-4 w-4" /> Emoji
               </button>
             </PopoverTrigger>
@@ -809,7 +809,7 @@ function Composer({ currentUser, token, onPosted }: {
         )}
         <div className="flex items-center gap-3">
           {content.length > 0 && (
-            <span className={`text-[10px] tabular-nums font-mono font-semibold transition-colors ${content.length > 4500 ? "text-red-500" : "text-muted-foreground/25"}`}>
+            <span className={`text-[10px] tabular-nums font-mono font-semibold transition-colors ${content.length > 4500 ? "text-red-500" : "text-muted-foreground/60"}`}>
               {content.length}/5000
             </span>
           )}
@@ -819,7 +819,7 @@ function Composer({ currentUser, token, onPosted }: {
         </div>
       </div>
       {error && <p className="text-xs text-red-500 px-5 pb-3">{error}</p>}
-      {content && !error && <p className="text-[9px] text-muted-foreground/20 px-5 pb-3 font-mono">Ctrl+Enter to post</p>}
+      {content && !error && <p className="text-[9px] text-muted-foreground/50 px-5 pb-3 font-mono">Ctrl+Enter to post</p>}
     </div>
   )
 }
@@ -841,7 +841,7 @@ function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) 
           className={`relative flex items-center gap-1.5 px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-all
             ${active === key
               ? "text-emerald-600"
-              : "text-muted-foreground/40 hover:text-muted-foreground/70"
+              : "text-muted-foreground/70 hover:text-muted-foreground"
             }`}
         >
           {icon}
@@ -1084,8 +1084,8 @@ export default function FeedsPage() {
             </div>
           </div>
           <div className="text-center space-y-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/40">Initializing</p>
-            <p className="text-[8px] font-mono text-muted-foreground/20 tracking-widest">Action Auto CRM</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/70">Initializing</p>
+            <p className="text-[8px] font-mono text-muted-foreground/50 tracking-widest">Action Auto CRM</p>
           </div>
         </div>
       </div>
@@ -1228,8 +1228,8 @@ export default function FeedsPage() {
             <div className="flex items-center gap-4">
               <SpeedStripe className="flex-1" />
               <div className="flex items-center gap-2 shrink-0">
-                <Gauge className="h-3 w-3 text-muted-foreground/30" />
-                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/40">Latest</p>
+                <Gauge className="h-3 w-3 text-muted-foreground/50" />
+                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/70">Latest</p>
               </div>
               <div className="flex items-center flex-1">
                 <div className="h-0.5 w-2 bg-emerald-300/30 mr-0.5" />
@@ -1249,8 +1249,8 @@ export default function FeedsPage() {
                   </div>
                 </div>
                 <div className="text-center space-y-1.5">
-                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/30">Showroom Empty</p>
-                  <p className="text-[10px] text-muted-foreground/20 font-medium">Be the first to post something!</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/70">Showroom Empty</p>
+                  <p className="text-[10px] text-muted-foreground/60 font-medium">Be the first to post something!</p>
                 </div>
               </div>
             ) : (
@@ -1273,7 +1273,7 @@ export default function FeedsPage() {
               <div className="flex justify-center py-4">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-emerald-500/40" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/25">Loading</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Loading</span>
                 </div>
               </div>
             )}
@@ -1281,7 +1281,7 @@ export default function FeedsPage() {
             {!hasMore && posts.length > 0 && (
               <div className="flex items-center gap-4 py-4">
                 <SpeedStripe className="flex-1" />
-                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/20 shrink-0">All caught up</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/60 shrink-0">All caught up</p>
                 <div className="flex items-center flex-1">
                   <div className="h-0.5 w-2 bg-emerald-300/30 mr-0.5" />
                   <div className="h-0.5 w-4 bg-emerald-400/60 mr-0.5" />

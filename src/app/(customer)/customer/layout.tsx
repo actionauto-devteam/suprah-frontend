@@ -130,7 +130,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="flex-1 overflow-auto p-4 lg:p-8 pb-24 md:pb-8">
-            <div className="mx-auto container">{children}</div>
+            <div className="w-full">{children}</div>
           </main>
           <MobileBottomNav items={customerNav} />
         </SidebarInset>

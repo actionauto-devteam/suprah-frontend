@@ -294,18 +294,32 @@ export default function ServiceNetworkPage() {
       if (!loc.location?.coordinates) return
       const [lng, lat] = loc.location.coordinates
       const isClosest = userCoords && index === 0
-      const color = isClosest ? "#16a34a" : "#52525b"
+      const pinColor = isClosest ? "#16a34a" : "#3b82f6"
 
-      const popup = new mapboxgl.Popup({ offset: 25, closeButton: false }).setHTML(
+      const popup = new mapboxgl.Popup({ offset: 36, closeButton: false }).setHTML(
         `<div style="color:#18181b;padding:4px;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:2px;">${loc.name}</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:2px;">${loc.name}${loc.city && loc.city !== loc.name ? ' – ' + loc.city : ''}</div>
           <div style="font-size:12px;color:#52525b;">${loc.address}, ${loc.city}, ${loc.state} ${loc.zipCode}</div>
           <div style="font-size:12px;color:#52525b;margin-top:2px;">${loc.phone}</div>
           ${loc.distance ? `<div style="font-size:12px;font-weight:600;color:#16a34a;margin-top:4px;">${loc.distance} away</div>` : ''}
         </div>`
       )
 
-      const marker = new mapboxgl.Marker({ color })
+      // Custom element: persistent label above + pin below
+      const el = document.createElement('div')
+      el.className = 'sn-marker-wrap'
+
+      const labelText = loc.city && loc.city !== loc.name
+        ? `${loc.name} – ${loc.city}`
+        : loc.name
+
+      el.innerHTML = `
+        <div class="sn-marker-label${isClosest ? ' sn-marker-label--closest' : ''}">${labelText}</div>
+        <div class="sn-marker-pin" style="background:${pinColor};"></div>
+        <div class="sn-marker-stem" style="background:${pinColor};"></div>
+      `
+
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .setPopup(popup)
         .addTo(map)
@@ -518,6 +532,60 @@ export default function ServiceNetworkPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #52525b !important; }
         html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #27272a !important; }
         html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #3f3f46 !important; }
+
+        /* ── Service Network custom map markers ── */
+        .sn-marker-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          cursor: pointer;
+        }
+        .sn-marker-label {
+          background: rgba(15, 15, 20, 0.82);
+          color: #f4f4f5;
+          font-size: 10px;
+          font-weight: 600;
+          line-height: 1.3;
+          padding: 3px 7px;
+          border-radius: 5px;
+          white-space: nowrap;
+          max-width: 140px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-bottom: 3px;
+          box-shadow: 0 1px 6px rgba(0,0,0,0.55);
+          letter-spacing: 0.01em;
+          pointer-events: none;
+          text-align: center;
+          border: 1px solid rgba(255,255,255,0.12);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+        }
+        .sn-marker-label--closest {
+          background: rgba(22, 163, 74, 0.92);
+          color: #fff;
+          border-color: rgba(255,255,255,0.3);
+        }
+        .sn-marker-pin {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          border: 2.5px solid #ffffff;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+          flex-shrink: 0;
+        }
+        .sn-marker-stem {
+          width: 2px;
+          height: 6px;
+          border-radius: 1px;
+          opacity: 0.7;
+          flex-shrink: 0;
+        }
+        .sn-marker-wrap:hover .sn-marker-label {
+          background: rgba(15, 15, 20, 0.95);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.65);
+        }
+        .sn-marker-wrap .mapboxgl-popup { pointer-events: auto; }
       `}</style>
     </div>
   )

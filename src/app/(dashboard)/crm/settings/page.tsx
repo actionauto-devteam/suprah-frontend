@@ -123,7 +123,7 @@ export default function CrmSettingsPage() {
           <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
           </div>
-          <p className="text-xs text-muted-foreground/40 tracking-widest uppercase">
+          <p className="text-xs text-muted-foreground/70 tracking-widest uppercase">
             Loading
           </p>
         </div>
@@ -251,7 +251,7 @@ export default function CrmSettingsPage() {
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-            <p className="text-xs text-muted-foreground/40 mt-0.5">
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
               Manage your CRM workspace
             </p>
           </div>
@@ -269,7 +269,7 @@ export default function CrmSettingsPage() {
           <div className="lg:col-span-3">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
                   Navigation
                 </p>
               </div>
@@ -323,7 +323,7 @@ export default function CrmSettingsPage() {
                   </div>
                   <div>
                     <p className="text-sm font-bold">User Management</p>
-                    <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                       Create and manage CRM user accounts
                     </p>
                   </div>
@@ -350,10 +350,10 @@ export default function CrmSettingsPage() {
                   <div className="h-16 w-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
                     <Lock className="h-6 w-6 text-muted-foreground/20" />
                   </div>
-                  <p className="text-sm font-semibold text-muted-foreground/40">
+                  <p className="text-sm font-semibold text-muted-foreground/80">
                     Restricted
                   </p>
-                  <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+                  <p className="text-xs text-muted-foreground/60 mt-1 max-w-xs">
                     User management is only available to admins. Contact your
                     administrator if you need access.
                   </p>
@@ -366,10 +366,10 @@ export default function CrmSettingsPage() {
               <div className="flex items-start gap-3">
                 <ShieldCheck className="h-4 w-4 text-emerald-500/60 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground/50">
+                  <p className="text-xs font-semibold text-muted-foreground/80">
                     Admin only
                   </p>
-                  <p className="text-[11px] text-muted-foreground/30 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] text-muted-foreground/60 mt-0.5 leading-relaxed">
                     Only users with the Admin role can create, edit, or
                     deactivate CRM accounts. All changes are logged for security
                     purposes.
@@ -391,7 +391,7 @@ export default function CrmSettingsPage() {
                   </div>
                   <div>
                     <p className="text-sm font-bold">Appearance</p>
-                    <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                       Customize your display preferences
                     </p>
                   </div>
@@ -406,7 +406,7 @@ export default function CrmSettingsPage() {
                     <Moon className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-semibold">Dark Mode</span>
-                      <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                      <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                         Switch between light and dark themes
                       </p>
                     </div>
