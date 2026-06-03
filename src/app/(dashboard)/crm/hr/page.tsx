@@ -195,7 +195,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
       <div>
         {isAdmin && (
           <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
               Upcoming Milestones
             </p>
             <button
@@ -234,10 +234,10 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
           <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
             <Gift className="h-6 w-6 text-muted-foreground/20" />
           </div>
-          <p className="text-sm font-semibold text-muted-foreground/40">
+          <p className="text-sm font-semibold text-muted-foreground/80">
             No upcoming milestones
           </p>
-          <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+          <p className="text-xs text-muted-foreground/60 mt-1 max-w-xs">
             Birthdays and work anniversaries in the next 30 days will appear here.
           </p>
         </div>
@@ -284,7 +284,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground/40 truncate">{entry.fullName}</p>
+              <p className="text-xs text-muted-foreground/80 truncate">{entry.fullName}</p>
               {entry.daysUntil === 0 ? (
                 <p className={`text-sm font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
                   {greeting(entry)}
@@ -297,7 +297,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
                     }`}
                 </p>
               )}
-              <p className="text-[11px] text-muted-foreground/30 mt-0.5">
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
                 {entry.type === "birthday" ? "Birthday" : `${entry.yearsCount ? `${entry.yearsCount}-year ` : ""}Work Anniversary`}
                 {" · "}{formatDate(entry.date)}
               </p>
@@ -356,7 +356,7 @@ function OnboardingTab({ token }: { token: string }) {
         <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
           <UserCheck className="h-6 w-6 text-muted-foreground/20" />
         </div>
-        <p className="text-sm font-semibold text-muted-foreground/40">No active employees</p>
+        <p className="text-sm font-semibold text-muted-foreground/80">No active employees</p>
       </div>
     );
   }
@@ -373,18 +373,18 @@ function OnboardingTab({ token }: { token: string }) {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{emp.fullName}</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-0.5 truncate">{emp.email}</p>
+            <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">{emp.email}</p>
           </div>
           <div className="shrink-0 text-right space-y-1">
             {emp.hireDate ? (
-              <p className="text-[11px] text-muted-foreground/50">
+              <p className="text-[11px] text-muted-foreground/70">
                 Hired {formatDate(emp.hireDate)}
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground/25 italic">No hire date set</p>
+              <p className="text-[11px] text-muted-foreground/50 italic">No hire date set</p>
             )}
             {emp.birthday && (
-              <p className="text-[10px] text-pink-500/60">
+              <p className="text-[10px] text-pink-500/80">
                 🎂 {formatDate(emp.birthday)}
               </p>
             )}
@@ -444,8 +444,8 @@ function OffboardingTab({
         <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
           <Lock className="h-6 w-6 text-muted-foreground/20" />
         </div>
-        <p className="text-sm font-semibold text-muted-foreground/40">Restricted</p>
-        <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+        <p className="text-sm font-semibold text-muted-foreground/80">Restricted</p>
+        <p className="text-xs text-muted-foreground/60 mt-1 max-w-xs">
           Only admins can manage offboarding.
         </p>
       </div>
@@ -466,12 +466,12 @@ function OffboardingTab({
 
       {/* Active employees — can be offboarded */}
       <div className="px-5 py-3 border-b border-border/20">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
           Active Employees ({active.length})
         </p>
       </div>
       {active.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-muted-foreground/30 text-center">No active employees.</div>
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No active employees.</div>
       ) : (
         <div className="divide-y divide-border/20">
           {active.map((emp) => (
@@ -484,7 +484,7 @@ function OffboardingTab({
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold truncate">{emp.fullName}</p>
-                <p className="text-[11px] text-muted-foreground/40 truncate">{emp.email}</p>
+                <p className="text-[11px] text-muted-foreground/60 truncate">{emp.email}</p>
               </div>
               <Button
                 size="sm"
@@ -502,12 +502,12 @@ function OffboardingTab({
 
       {/* Already offboarded */}
       <div className="px-5 py-3 border-y border-border/20 mt-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
           Offboarded ({offboarded.length})
         </p>
       </div>
       {offboarded.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-muted-foreground/30 text-center">No offboarded employees.</div>
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No offboarded employees.</div>
       ) : (
         <div className="divide-y divide-border/20">
           {offboarded.map((emp) => (
@@ -520,10 +520,10 @@ function OffboardingTab({
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold truncate">{emp.fullName}</p>
-                <p className="text-[11px] text-muted-foreground/40 truncate">{emp.email}</p>
+                <p className="text-[11px] text-muted-foreground/60 truncate">{emp.email}</p>
               </div>
               {emp.offboardedAt && (
-                <p className="text-[11px] text-muted-foreground/40 shrink-0">
+                <p className="text-[11px] text-muted-foreground/60 shrink-0">
                   {formatDate(emp.offboardedAt)}
                 </p>
               )}
@@ -605,7 +605,7 @@ export default function TeamEngagementPage() {
             <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
           </div>
 
-          <p className="text-xs text-muted-foreground/40 tracking-widest uppercase">
+          <p className="text-xs text-muted-foreground/70 tracking-widest uppercase">
             Loading
           </p>
         </div>
@@ -723,7 +723,7 @@ export default function TeamEngagementPage() {
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-            <p className="text-xs text-muted-foreground/40 mt-0.5">
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
               Manage your CRM workspace
             </p>
           </div>
@@ -742,7 +742,7 @@ export default function TeamEngagementPage() {
           <div className="lg:col-span-3">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
                   Navigation
                 </p>
               </div>
@@ -795,7 +795,7 @@ export default function TeamEngagementPage() {
                 </div>
                 <div>
                   <p className="text-sm font-bold">Team Engagement</p>
-                  <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                     Milestones, onboarding, and offboarding for your team.
                   </p>
                 </div>
@@ -809,7 +809,7 @@ export default function TeamEngagementPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${activeTab === tab.id
                         ? "border-emerald-500 text-emerald-600"
-                        : "border-transparent text-muted-foreground/50 hover:text-foreground/70"
+                        : "border-transparent text-muted-foreground/80 hover:text-foreground"
                       }`}
                   >
                     <tab.icon className="h-3.5 w-3.5" />
@@ -831,10 +831,10 @@ export default function TeamEngagementPage() {
               <div className="flex items-start gap-3">
                 <HeartHandshake className="h-4 w-4 text-emerald-500/60 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground/50">
+                  <p className="text-xs font-semibold text-muted-foreground/80">
                     Automated announcements
                   </p>
-                  <p className="text-[11px] text-muted-foreground/30 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] text-muted-foreground/60 mt-0.5 leading-relaxed">
                     Birthdays and work anniversaries are automatically announced
                     in the team Feed and the General channel in Suprah Space
                     every morning at 8:00 AM.

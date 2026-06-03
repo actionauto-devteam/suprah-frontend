@@ -750,7 +750,7 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
   const [cueVisible, setCueVisible] = React.useState(false)
 
   const SEEN_KEY = 'dbn2_seen_' + new Date().toDateString()
-  const alreadySeen = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SEEN_KEY)
+  const alreadySeen = typeof localStorage !== 'undefined' && localStorage.getItem(SEEN_KEY)
 
   React.useEffect(() => { injectCSS() }, [])
 
@@ -838,7 +838,15 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
     setTimeout(() => {
       setOverlayExiting(true)
       setTimeout(() => {
-        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(SEEN_KEY, '1')
+        if (typeof localStorage !== 'undefined') {
+          // Persist dismissal across tabs and browser restarts
+          localStorage.setItem(SEEN_KEY, '1')
+          // Prune stale daily keys (keep only the last 3 days) to avoid localStorage bloat
+          const prefix = 'dbn2_seen_'
+          Object.keys(localStorage)
+            .filter(k => k.startsWith(prefix) && k !== SEEN_KEY)
+            .forEach(k => localStorage.removeItem(k))
+        }
         setOverlayExiting(false)
         setModalExiting(false)
         cb?.()

@@ -426,7 +426,7 @@ export default function FinanceLinePage() {
 
   return (
     <div className="min-h-full bg-zinc-50 dark:bg-zinc-950">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      <div className="w-full px-4 sm:px-6 py-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -469,7 +469,7 @@ export default function FinanceLinePage() {
             <p className="text-xs text-zinc-400 mt-1">Create your first Finance Line product to sync it to customers.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
             {products.map((p) => (
               <div
                 key={p._id}
