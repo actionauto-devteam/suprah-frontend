@@ -87,6 +87,11 @@ const data = {
       icon: MessageSquare,
     },
     {
+      title: "Conversations",
+      url: "/crm/conversations",
+      icon: PlusSquare,
+    },
+    {
       title: "Feeds",
       url: "/crm/feeds",
       icon: Rss,
@@ -277,7 +282,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuButton
                     asChild
                     tooltip={item.title}
-                    isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
+                    isActive={
+                      pathname === item.url ||
+                      pathname.startsWith(item.url + "/")
+                    }
                     className={
                       item.isNew
                         ? "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
@@ -285,7 +293,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     }
                   >
                     <Link href={item.url}>
-                      <item.icon className={item.isNew ? "animate-pulse" : ""} />
+                      <item.icon
+                        className={item.isNew ? "animate-pulse" : ""}
+                      />
                       <span className="font-medium">{item.title}</span>
                       {item.isNew && (
                         <Badge

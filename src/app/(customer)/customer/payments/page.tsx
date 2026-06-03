@@ -10,20 +10,42 @@ import { apiClient } from "@/lib/api-client";
 import { Payment } from "@/types/billing";
 import { formatCurrency } from "@/utils/format";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  DollarSign, Clock, CheckCircle2, CreditCard, XCircle,
-  Loader2, RefreshCw, ArrowRight, ChevronLeft, Receipt, Search,
+  DollarSign,
+  Clock,
+  CheckCircle2,
+  CreditCard,
+  XCircle,
+  Loader2,
+  RefreshCw,
+  ArrowRight,
+  ChevronLeft,
+  Receipt,
+  Search,
 } from "lucide-react";
 
 import { StatusBadge } from "@/components/billing/StatusBadges";
 import { CheckoutForm } from "@/components/billing/CheckoutForm";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
+);
 
 const T = {
   bg: "var(--customer-payments-bg, var(--background))",
@@ -99,10 +121,49 @@ function SummaryCard({
       >
         {label}
       </p>
-      <p style={{ fontSize: 28, lineHeight: 1.05, fontWeight: 700, color: T.text, margin: "8px 0 0" }}>
+      <p
+        style={{
+          fontSize: 28,
+          lineHeight: 1.05,
+          fontWeight: 700,
+          color: T.text,
+          margin: "8px 0 0",
+        }}
+      >
         {value}
       </p>
-      <p style={{ fontSize: 12, color: T.textSub, margin: "6px 0 0", lineHeight: 1.5 }}>{sub}</p>
+      <p
+        style={{
+          fontSize: 12,
+          color: T.textSub,
+          margin: "6px 0 0",
+          lineHeight: 1.5,
+        }}
+      >
+        {sub}
+      </p>
+    </div>
+  );
+}
+
+function CompactEmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 px-4 py-6 text-center text-muted-foreground">
+      <div className="flex size-10 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+        <Icon style={{ width: 16, height: 16 }} />
+      </div>
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className="max-w-sm text-xs leading-5 text-muted-foreground">
+        {description}
+      </p>
     </div>
   );
 }
@@ -134,7 +195,9 @@ export default function CustomerPaymentsPage() {
   const [statusFilter, setStatusFilter] = React.useState<PaymentFilter>("all");
 
   // Payment flow state
-  const [selectedPayment, setSelectedPayment] = React.useState<Payment | null>(null);
+  const [selectedPayment, setSelectedPayment] = React.useState<Payment | null>(
+    null,
+  );
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = React.useState(false);
   const [paymentError, setPaymentError] = React.useState<string | null>(null);
@@ -158,7 +221,9 @@ export default function CustomerPaymentsPage() {
     }
   }, [authHeaders]);
 
-  React.useEffect(() => { fetchPayments(); }, [fetchPayments]);
+  React.useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
 
   // Handle Stripe return redirect
   React.useEffect(() => {
@@ -180,11 +245,13 @@ export default function CustomerPaymentsPage() {
       const res = await apiClient.post(
         "/api/payments/create-customer-intent",
         { paymentId: payment._id },
-        { headers }
+        { headers },
       );
       setClientSecret(res.data.data.clientSecret);
     } catch (err: any) {
-      setPaymentError(err.response?.data?.message || "Failed to initialize payment.");
+      setPaymentError(
+        err.response?.data?.message || "Failed to initialize payment.",
+      );
     }
   };
 
@@ -195,7 +262,7 @@ export default function CustomerPaymentsPage() {
         await apiClient.post(
           "/api/payments/confirm-customer",
           { paymentIntentId: payment.stripePaymentIntentId },
-          { headers }
+          { headers },
         );
       }
     } catch {
@@ -215,12 +282,12 @@ export default function CustomerPaymentsPage() {
 
   const stripeOptions: StripeElementsOptions | undefined = clientSecret
     ? {
-      clientSecret,
-      appearance: {
-        theme: "stripe",
-        variables: { colorPrimary: "#16a34a", borderRadius: "8px" },
-      },
-    }
+        clientSecret,
+        appearance: {
+          theme: "stripe",
+          variables: { colorPrimary: "#16a34a", borderRadius: "8px" },
+        },
+      }
     : undefined;
 
   const filteredPayments = React.useMemo(() => {
@@ -228,7 +295,8 @@ export default function CustomerPaymentsPage() {
 
     return payments.filter((payment) => {
       if (statusFilter === "action_required") {
-        if (payment.status !== "pending" && payment.status !== "failed") return false;
+        if (payment.status !== "pending" && payment.status !== "failed")
+          return false;
       } else if (statusFilter !== "all" && payment.status !== statusFilter) {
         return false;
       }
@@ -244,34 +312,58 @@ export default function CustomerPaymentsPage() {
     });
   }, [payments, search, statusFilter]);
 
-  const pending = filteredPayments.filter((p) => p.status === "pending" || p.status === "failed");
-  const history = filteredPayments.filter((p) => p.status !== "pending" && p.status !== "failed");
-  const actionRequiredAmount = pending.reduce((sum, payment) => sum + payment.amount, 0);
-  const totalPaidCount = payments.filter((payment) => payment.status === "succeeded").length;
-  const totalPaidAmount = stats?.totalPaid ?? history
-    .filter((payment) => payment.status === "succeeded")
-    .reduce((sum, payment) => sum + payment.amount, 0);
+  const pending = filteredPayments.filter(
+    (p) => p.status === "pending" || p.status === "failed",
+  );
+  const history = filteredPayments.filter(
+    (p) => p.status !== "pending" && p.status !== "failed",
+  );
+  const actionRequiredAmount = pending.reduce(
+    (sum, payment) => sum + payment.amount,
+    0,
+  );
+  const totalPaidCount = payments.filter(
+    (payment) => payment.status === "succeeded",
+  ).length;
+  const totalPaidAmount =
+    stats?.totalPaid ??
+    history
+      .filter((payment) => payment.status === "succeeded")
+      .reduce((sum, payment) => sum + payment.amount, 0);
   const averageInvoice = payments.length
-    ? payments.reduce((sum, payment) => sum + payment.amount, 0) / payments.length
+    ? payments.reduce((sum, payment) => sum + payment.amount, 0) /
+      payments.length
     : 0;
   const statusCounts = React.useMemo(
     () => ({
       all: payments.length,
       action_required: payments.filter(
-        (payment) => payment.status === "pending" || payment.status === "failed",
+        (payment) =>
+          payment.status === "pending" || payment.status === "failed",
       ).length,
-      pending: payments.filter((payment) => payment.status === "pending").length,
-      processing: payments.filter((payment) => payment.status === "processing").length,
-      succeeded: payments.filter((payment) => payment.status === "succeeded").length,
+      pending: payments.filter((payment) => payment.status === "pending")
+        .length,
+      processing: payments.filter((payment) => payment.status === "processing")
+        .length,
+      succeeded: payments.filter((payment) => payment.status === "succeeded")
+        .length,
       failed: payments.filter((payment) => payment.status === "failed").length,
-      cancelled: payments.filter((payment) => payment.status === "cancelled").length,
-      refunded: payments.filter((payment) => payment.status === "refunded").length,
+      cancelled: payments.filter((payment) => payment.status === "cancelled")
+        .length,
+      refunded: payments.filter((payment) => payment.status === "refunded")
+        .length,
     }),
     [payments],
   );
 
   const fmt = (d?: string) =>
-    d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+    d
+      ? new Date(d).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—";
 
   // ── Payment flow view ──────────────────────────────────────────
   if (selectedPayment && !paymentSuccess) {
@@ -292,9 +384,12 @@ export default function CustomerPaymentsPage() {
                 <CreditCard className="size-5 text-green-600" />
               </div>
               <div>
-                <CardTitle className="text-xl tracking-tight">Complete Your Payment</CardTitle>
+                <CardTitle className="text-xl tracking-tight">
+                  Complete Your Payment
+                </CardTitle>
                 <CardDescription className="mt-1 text-sm leading-6">
-                  {selectedPayment.invoiceNumber || "Invoice"} &middot; {selectedPayment.description}
+                  {selectedPayment.invoiceNumber || "Invoice"} &middot;{" "}
+                  {selectedPayment.description}
                 </CardDescription>
               </div>
             </div>
@@ -304,7 +399,10 @@ export default function CustomerPaymentsPage() {
               <div className="space-y-4 py-8 text-center">
                 <XCircle className="size-12 mx-auto text-destructive" />
                 <p className="text-destructive font-medium">{paymentError}</p>
-                <Button variant="outline" onClick={() => handlePayNow(selectedPayment)}>
+                <Button
+                  variant="outline"
+                  onClick={() => handlePayNow(selectedPayment)}
+                >
                   <RefreshCw className="size-4 mr-2" />
                   Try Again
                 </Button>
@@ -337,8 +435,12 @@ export default function CustomerPaymentsPage() {
             <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900">
               <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">Payment Successful!</h2>
-            <p className="text-sm leading-6 text-muted-foreground">Your payment has been processed successfully.</p>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">
+              Payment Successful!
+            </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Your payment has been processed successfully.
+            </p>
             <Button onClick={handleBackToList} className="mt-4">
               <ArrowRight className="size-4 mr-2" />
               Back to Payments
@@ -360,8 +462,22 @@ export default function CustomerPaymentsPage() {
       `}</style>
 
       <div style={{ background: T.bg, minHeight: "100%", colorScheme: theme }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 20px 72px" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, marginBottom: 20 }}>
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "0 auto",
+            padding: "28px 20px 72px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: 8,
+              marginBottom: 20,
+            }}
+          >
             <Link
               href="/customer"
               style={{
@@ -375,7 +491,17 @@ export default function CustomerPaymentsPage() {
             >
               <ChevronLeft style={{ width: 14, height: 14 }} /> Home
             </Link>
-            <h1 style={{ margin: 0, fontSize: 20, lineHeight: 1.1, fontWeight: 700, color: T.text }}>My Payments</h1>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 20,
+                lineHeight: 1.1,
+                fontWeight: 700,
+                color: T.text,
+              }}
+            >
+              My Payments
+            </h1>
           </div>
 
           <section
@@ -387,7 +513,15 @@ export default function CustomerPaymentsPage() {
               boxShadow: "0 1px 0 rgba(15, 23, 42, 0.02)",
             }}
           >
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 20,
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+              }}
+            >
               <div style={{ maxWidth: 720, display: "grid", gap: 10 }}>
                 <p
                   style={{
@@ -402,12 +536,30 @@ export default function CustomerPaymentsPage() {
                 >
                   Billing overview
                 </p>
-                <h2 style={{ fontSize: 34, lineHeight: 1.08, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.03em" }}>
+                <h2
+                  style={{
+                    fontSize: 34,
+                    lineHeight: 1.08,
+                    fontWeight: 700,
+                    color: T.text,
+                    margin: 0,
+                    letterSpacing: "-0.03em",
+                  }}
+                >
                   Track invoices, payment status, and history in one place.
                 </h2>
-                <p style={{ fontSize: 14, lineHeight: 1.7, color: T.textSub, margin: 0, maxWidth: 640 }}>
-                  This page now follows the same card-based hierarchy as the main payments dashboard,
-                  so the layout feels consistent and easier to scan.
+                <p
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 1.7,
+                    color: T.textSub,
+                    margin: 0,
+                    maxWidth: 640,
+                  }}
+                >
+                  This page now follows the same card-based hierarchy as the
+                  main payments dashboard, so the layout feels consistent and
+                  easier to scan.
                 </p>
               </div>
 
@@ -430,7 +582,8 @@ export default function CustomerPaymentsPage() {
                     lineHeight: 1.5,
                   }}
                 >
-                  {stats?.pendingCount ?? pending.length} invoices need attention
+                  {stats?.pendingCount ?? pending.length} invoices need
+                  attention
                 </div>
                 <div
                   style={{
@@ -508,7 +661,13 @@ export default function CustomerPaymentsPage() {
                 borderBottom: `0.5px solid ${T.border}`,
               }}
             >
-              <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 420 }}>
+              <div
+                style={{
+                  position: "relative",
+                  flex: "1 1 280px",
+                  maxWidth: 420,
+                }}
+              >
                 <Search
                   style={{
                     position: "absolute",
@@ -592,7 +751,9 @@ export default function CustomerPaymentsPage() {
                       padding: "6px 12px",
                       borderRadius: 8,
                       border: `0.5px solid ${active ? "#3B82F6" : "transparent"}`,
-                      background: active ? "rgba(59,130,246,0.14)" : "transparent",
+                      background: active
+                        ? "rgba(59,130,246,0.14)"
+                        : "transparent",
                       color: active ? "#3B82F6" : T.textSub,
                       fontSize: 12,
                       fontWeight: 600,
@@ -616,12 +777,29 @@ export default function CustomerPaymentsPage() {
                 padding: 0,
               }}
             >
-              <CardHeader style={{ padding: "18px 18px 16px", borderBottom: `0.5px solid ${T.border}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <CardHeader
+                style={{
+                  padding: "18px 18px 16px",
+                  borderBottom: `0.5px solid ${T.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <div style={{ display: "grid", gap: 4 }}>
-                    <CardTitle className="text-[15px] font-semibold tracking-tight">Pending Invoices</CardTitle>
+                    <CardTitle className="text-[15px] font-semibold tracking-tight">
+                      Pending Invoices
+                    </CardTitle>
                     <CardDescription className="text-sm leading-6">
-                      {pending.length ? `${pending.length} invoices need payment` : "No pending invoices right now."}
+                      {pending.length
+                        ? `${pending.length} invoices need payment`
+                        : "No pending invoices right now."}
                     </CardDescription>
                   </div>
                   <span
@@ -641,43 +819,85 @@ export default function CustomerPaymentsPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border">
-                      <TableHead className="font-semibold">Invoice #</TableHead>
-                      <TableHead className="font-semibold">Description</TableHead>
-                      <TableHead className="font-semibold">Amount</TableHead>
-                      <TableHead className="font-semibold">Due Date</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      Array.from({ length: 2 }).map((_, i) => (
+                {isLoading ? (
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent border-border">
+                        <TableHead className="font-semibold">
+                          Invoice #
+                        </TableHead>
+                        <TableHead className="font-semibold">
+                          Description
+                        </TableHead>
+                        <TableHead className="font-semibold">Amount</TableHead>
+                        <TableHead className="font-semibold">
+                          Due Date
+                        </TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold text-right">
+                          Action
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 2 }).map((_, i) => (
                         <TableRow key={i} className="border-border">
                           {Array.from({ length: 6 }).map((_, j) => (
-                            <TableCell key={j}><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                            <TableCell key={j}>
+                              <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                            </TableCell>
                           ))}
                         </TableRow>
-                      ))
-                    ) : pending.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                          <CheckCircle2 className="size-8 mx-auto mb-2 text-emerald-500" />
-                          No pending invoices. You're all caught up!
-                        </TableCell>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : pending.length === 0 ? (
+                  <CompactEmptyState
+                    icon={CheckCircle2}
+                    title="No pending invoices"
+                    description="You're all caught up. New invoices will appear here automatically when they become due."
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent border-border">
+                        <TableHead className="font-semibold">
+                          Invoice #
+                        </TableHead>
+                        <TableHead className="font-semibold">
+                          Description
+                        </TableHead>
+                        <TableHead className="font-semibold">Amount</TableHead>
+                        <TableHead className="font-semibold">
+                          Due Date
+                        </TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold text-right">
+                          Action
+                        </TableHead>
                       </TableRow>
-                    ) : (
-                      pending.map((p) => (
-                        <TableRow key={p._id} className="border-border hover:bg-muted/50">
-                          <TableCell className="font-mono text-xs">{p.invoiceNumber || "—"}</TableCell>
-                          <TableCell className="text-sm max-w-50 truncate">{p.description}</TableCell>
+                    </TableHeader>
+                    <TableBody>
+                      {pending.map((p) => (
+                        <TableRow
+                          key={p._id}
+                          className="border-border hover:bg-muted/50"
+                        >
+                          <TableCell className="font-mono text-xs">
+                            {p.invoiceNumber || "—"}
+                          </TableCell>
+                          <TableCell className="text-sm max-w-50 truncate">
+                            {p.description}
+                          </TableCell>
                           <TableCell className="font-bold text-amber-700 dark:text-amber-400">
                             {formatCurrency(p.amount)}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{fmt(p.dueDate)}</TableCell>
-                          <TableCell><StatusBadge status={p.status} /></TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {fmt(p.dueDate)}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={p.status} />
+                          </TableCell>
                           <TableCell className="text-right">
                             <Button size="sm" onClick={() => handlePayNow(p)}>
                               <CreditCard className="size-3.5 mr-1.5" />
@@ -685,10 +905,10 @@ export default function CustomerPaymentsPage() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
 
@@ -701,12 +921,29 @@ export default function CustomerPaymentsPage() {
                 padding: 0,
               }}
             >
-              <CardHeader style={{ padding: "16px 16px 14px", borderBottom: `0.5px solid ${T.border}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <CardHeader
+                style={{
+                  padding: "16px 16px 14px",
+                  borderBottom: `0.5px solid ${T.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <div style={{ display: "grid", gap: 4 }}>
-                    <CardTitle className="text-[15px] font-semibold tracking-tight">Payment History</CardTitle>
+                    <CardTitle className="text-[15px] font-semibold tracking-tight">
+                      Payment History
+                    </CardTitle>
                     <CardDescription className="text-sm leading-6">
-                      {history.length ? `${history.length} completed or archived payments` : "No payment history yet."}
+                      {history.length
+                        ? `${history.length} completed or archived payments`
+                        : "No payment history yet."}
                     </CardDescription>
                   </div>
                   <span
@@ -726,48 +963,82 @@ export default function CustomerPaymentsPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border">
-                      <TableHead className="font-semibold">Invoice #</TableHead>
-                      <TableHead className="font-semibold">Description</TableHead>
-                      <TableHead className="font-semibold">Amount</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold">Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      Array.from({ length: 3 }).map((_, i) => (
+                {isLoading ? (
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent border-border">
+                        <TableHead className="font-semibold">
+                          Invoice #
+                        </TableHead>
+                        <TableHead className="font-semibold">
+                          Description
+                        </TableHead>
+                        <TableHead className="font-semibold">Amount</TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold">Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from({ length: 3 }).map((_, i) => (
                         <TableRow key={i} className="border-border">
                           {Array.from({ length: 5 }).map((_, j) => (
-                            <TableCell key={j}><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                            <TableCell key={j}>
+                              <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                            </TableCell>
                           ))}
                         </TableRow>
-                      ))
-                    ) : history.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                          No payment history yet.
-                        </TableCell>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : history.length === 0 ? (
+                  <CompactEmptyState
+                    icon={Receipt}
+                    title="No payment history"
+                    description="Completed and archived payments will appear here once transactions are recorded."
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent border-border">
+                        <TableHead className="font-semibold">
+                          Invoice #
+                        </TableHead>
+                        <TableHead className="font-semibold">
+                          Description
+                        </TableHead>
+                        <TableHead className="font-semibold">Amount</TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold">Date</TableHead>
                       </TableRow>
-                    ) : (
-                      history.map((p) => (
-                        <TableRow key={p._id} className="border-border hover:bg-muted/50">
-                          <TableCell className="font-mono text-xs">{p.invoiceNumber || "—"}</TableCell>
-                          <TableCell className="text-sm max-w-50 truncate">{p.description}</TableCell>
-                          <TableCell className={`font-bold ${p.status === "succeeded" ? "text-emerald-700 dark:text-emerald-400" : ""}`}>
+                    </TableHeader>
+                    <TableBody>
+                      {history.map((p) => (
+                        <TableRow
+                          key={p._id}
+                          className="border-border hover:bg-muted/50"
+                        >
+                          <TableCell className="font-mono text-xs">
+                            {p.invoiceNumber || "—"}
+                          </TableCell>
+                          <TableCell className="text-sm max-w-50 truncate">
+                            {p.description}
+                          </TableCell>
+                          <TableCell
+                            className={`font-bold ${p.status === "succeeded" ? "text-emerald-700 dark:text-emerald-400" : ""}`}
+                          >
                             {formatCurrency(p.amount)}
                           </TableCell>
-                          <TableCell><StatusBadge status={p.status} /></TableCell>
+                          <TableCell>
+                            <StatusBadge status={p.status} />
+                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {fmt(p.paidAt || p.createdAt)}
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </div>
