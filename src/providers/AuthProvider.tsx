@@ -48,7 +48,7 @@ interface AuthContextType {
   setSignUpState: (state: any) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Module-level variable to track ongoing refresh requests across all hooks/components
 let globalRefreshPromise: Promise<string | null> | null = null;
@@ -167,7 +167,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const response = await apiClient.get("/api/users/me");
       if (response.data?.success || response.data?.data) {
-        const userData = response.data.data || response.data;
+        let userData = response.data.data || response.data;
+        if (process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && typeof window !== "undefined") {
+          const devRoleOverride = localStorage.getItem("dev_role_override");
+          if (devRoleOverride) userData = { ...userData, role: devRoleOverride };
+        }
         setUser(userData);
 
         const token =

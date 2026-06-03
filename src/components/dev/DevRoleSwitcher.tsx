@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Shield, ChevronDown, Loader2, X } from "lucide-react";
-import { apiClient } from "@/lib/api-client";
-import { useAuth, useUser } from "@/providers/AuthProvider";
+import { AuthContext } from "@/providers/AuthProvider";
 
 type Role = "admin" | "super_admin" | "employee" | "driver" | "customer";
 
@@ -16,10 +15,10 @@ const ROLES: { value: Role; label: string; color: string }[] = [
 ];
 
 const ORIGINAL_ROLE_KEY = "dev_original_role";
+const OVERRIDE_ROLE_KEY = "dev_role_override";
 
 export function DevRoleSwitcher() {
-  const { isSignedIn, getToken } = useAuth();
-  const { user } = useUser();
+  const context = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [originalRole, setOriginalRole] = useState<string | null>(null);
@@ -30,59 +29,32 @@ export function DevRoleSwitcher() {
     }
   }, []);
 
-  const isDev = process.env.NODE_ENV === "development";
+  if (!context) return null;
+
+  const { user, isSignedIn } = context;
   const canSwitch = user?.role === "admin" || user?.role === "super_admin" || !!originalRole;
 
-  const switchTo = useCallback(
-    async (role: Role) => {
-      if (!isSignedIn || switching) return;
-      setSwitching(true);
-      try {
-        const token = await getToken();
+  if (!isSignedIn || !canSwitch) return null;
 
-        if (!originalRole && user?.role) {
-          localStorage.setItem(ORIGINAL_ROLE_KEY, user.role);
-          setOriginalRole(user.role);
-        }
+  const switchTo = (role: Role) => {
+    if (switching) return;
+    setSwitching(true);
+    if (!originalRole && user?.role) {
+      localStorage.setItem(ORIGINAL_ROLE_KEY, user.role);
+      setOriginalRole(user.role);
+    }
+    localStorage.setItem(OVERRIDE_ROLE_KEY, role);
+    window.location.href = role === "driver" ? "/driver" : role === "customer" ? "/customer" : "/";
+  };
 
-        await apiClient.post(
-          "/api/dev/switch-role",
-          { role },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        window.location.href = role === "driver" ? "/driver" : role === "customer" ? "/customer" : "/";
-      } catch (err: any) {
-        const msg = err?.response?.data?.message || err.message || "Switch failed";
-        alert(msg);
-      } finally {
-        setSwitching(false);
-      }
-    },
-    [isSignedIn, getToken, switching, originalRole, user?.role]
-  );
-
-  const restore = useCallback(async () => {
+  const restore = () => {
     if (!originalRole || switching) return;
     setSwitching(true);
-    try {
-      const token = await getToken();
-      await apiClient.post(
-        "/api/dev/restore-role",
-        { role: originalRole },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      localStorage.removeItem(ORIGINAL_ROLE_KEY);
-      setOriginalRole(null);
-      window.location.href = "/";
-    } catch {
-      alert("Restore failed");
-    } finally {
-      setSwitching(false);
-    }
-  }, [originalRole, getToken, switching]);
-
-  if (!isDev || !isSignedIn || !canSwitch) return null;
+    localStorage.removeItem(OVERRIDE_ROLE_KEY);
+    localStorage.removeItem(ORIGINAL_ROLE_KEY);
+    setOriginalRole(null);
+    window.location.href = "/";
+  };
 
   const currentRole = ROLES.find((r) => r.value === user?.role);
 
@@ -105,7 +77,7 @@ export function DevRoleSwitcher() {
                 disabled={switching || role.value === user?.role}
                 onClick={() => switchTo(role.value)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all text-xs font-medium
-                  ${role.value === user?.role ? "bg-primary/10 text-primary font-bold" : "hover:bg-accent/60 text-foreground/80"} 
+                  ${role.value === user?.role ? "bg-primary/10 text-primary font-bold" : "hover:bg-accent/60 text-foreground/80"}
                   disabled:opacity-40`}
               >
                 <div className={`size-2 rounded-full ${role.color} ${role.value === user?.role ? "ring-2 ring-primary/30 ring-offset-1 ring-offset-card" : ""}`} />

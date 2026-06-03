@@ -140,6 +140,7 @@ export default function ServiceNetworkPage() {
   const [isGeocoding, setIsGeocoding] = React.useState(false)
   const [geocodedCount, setGeocodedCount] = React.useState(0)
   const [mapNotice, setMapNotice] = React.useState<string | null>(null)
+  const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(null)
 
   const mapRef = React.useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = React.useRef<mapboxgl.Map | null>(null)
@@ -355,9 +356,8 @@ export default function ServiceNetworkPage() {
   const flyToLocation = (loc: any) => {
     if (!mapInstanceRef.current || !loc.location?.coordinates) return
     const [lng, lat] = loc.location.coordinates
+    setSelectedLocationId(loc._id)
     mapInstanceRef.current.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 })
-    const idx = sortedLocations.findIndex(l => l._id === loc._id)
-    if (idx !== -1 && markersRef.current[idx]) markersRef.current[idx].togglePopup()
   }
 
   // -------------------------------------------------------------------------
@@ -429,6 +429,8 @@ export default function ServiceNetworkPage() {
                 className={`p-4 transition-all cursor-pointer ${
                   userCoords && i === 0
                     ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800 relative overflow-hidden'
+                    : selectedLocationId === loc._id
+                    ? 'bg-primary/5 border-primary/30 dark:bg-primary/10 dark:border-primary/30'
                     : 'bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
                 }`}
               >

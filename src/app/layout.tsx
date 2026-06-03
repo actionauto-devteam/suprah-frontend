@@ -89,7 +89,7 @@ export default function RootLayout({
             </main>
             <Toaster position="top-right" />
             <ImpersonationBanner />
-            {process.env.NODE_ENV === "development" && <DevRoleSwitcher />}
+            {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && <DevRoleSwitcher />}
             <ServiceWorkerRegistration />
             <InstallPrompt />
             <PushPrompt />

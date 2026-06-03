@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -13,6 +14,7 @@ import {
   CarFront,
   Pencil,
   Trash2,
+  LifeBuoy,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchOwnedVehicles, OwnedVehicle } from "@/lib/api/vehicles";
@@ -194,9 +196,23 @@ export default function MyGaragePage() {
           <h3 className="text-xl font-bold">No Vehicles Found</h3>
           <p className="text-muted-foreground mt-2 max-w-sm">
             It looks like your vehicle hasn&apos;t been synced from the
-            dealership yet. If you recently purchased a car, please contact
-            Support.
+            dealership yet. If you recently purchased a car, our support team
+            can help get it linked.
           </p>
+          <div className="flex gap-3 mt-5">
+            <Button asChild className="rounded-xl font-semibold">
+              <Link href="/customer/support">
+                <LifeBuoy className="w-4 h-4 mr-2" /> Contact Support
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddVehicleOpen(true)}
+              className="rounded-xl font-semibold"
+            >
+              + Add Vehicle Manually
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="space-y-12">
@@ -215,10 +231,10 @@ export default function MyGaragePage() {
               >
                 {/* Left Col: Image & Identity */}
                 <div className="lg:col-span-2">
-                  <div className="relative overflow-hidden rounded-3xl bg-zinc-900 shadow-2xl group border border-zinc-800 h-full min-h-[350px]">
+                  <div className="relative overflow-hidden rounded-3xl bg-zinc-900 shadow-2xl group border border-zinc-800 h-full min-h-87.5">
                     <div className="absolute inset-0">
                       <GarageVehicleImage vehicle={vehicle} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                      <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent" />
                     </div>
 
                     <div className="absolute top-4 right-4 flex gap-2 z-10">
