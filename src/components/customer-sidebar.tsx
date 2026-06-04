@@ -16,6 +16,7 @@ import {
   Gift,
   Wallet,
   MessageCircle,
+  PhoneCall,
 } from "lucide-react";
 
 import {
@@ -81,6 +82,12 @@ const customerData = {
       title: "Support Chat",
       url: "/dashboard/support",
       icon: MessageCircle,
+    },
+    // ── Call Center / Voice & Video ──────────────────────────────────────────
+    {
+      title: "Call Center",
+      url: "/dashboard/call-center",
+      icon: PhoneCall,
     },
   ],
 };

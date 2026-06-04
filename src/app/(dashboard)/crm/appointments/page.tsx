@@ -17,6 +17,7 @@ import {
   Sparkles,
   ChevronRight,
   MessageCircle,
+  PhoneCall,
 } from "lucide-react";
 import { AppointmentCalendar } from "@/components/AppointmentCalendar";
 import { BookedTab } from "@/components/BookedTab";
@@ -26,6 +27,7 @@ import { CrmCalendarConnect } from "@/components/CrmCalendarConnect";
 import { CrmCalendarSyncButton } from "@/components/CrmCalendarSyncButton";
 import { CustomerCredentialsTab } from "@/components/CustomerCredentialsTab";
 import { CustomersConcernTab } from "@/components/CustomersConcernTab";
+import { CustomerCallsTab } from "@/components/CustomerCallsTab";
 import type { LeadNavParams } from "@/components/CustomerCredentialsTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
@@ -47,11 +49,12 @@ import { format, isToday, isTomorrow } from "date-fns";
 // ─── Tab options ──────────────────────────────────────────────────────────────
 
 const TAB_OPTIONS: TabOption[] = [
-  { id: "calendar",  label: "Calendar View",        icon: <Calendar     className="h-3.5 w-3.5" /> },
-  { id: "upcoming",  label: "Upcoming",             icon: <Clock        className="h-3.5 w-3.5" /> },
-  { id: "booked",    label: "Booked",               icon: <Users        className="h-3.5 w-3.5" /> },
-  { id: "customers", label: "Customer Credentials", icon: <Contact      className="h-3.5 w-3.5" /> },
+  { id: "calendar",  label: "Calendar View",        icon: <Calendar      className="h-3.5 w-3.5" /> },
+  { id: "upcoming",  label: "Upcoming",             icon: <Clock         className="h-3.5 w-3.5" /> },
+  { id: "booked",    label: "Booked",               icon: <Users         className="h-3.5 w-3.5" /> },
+  { id: "customers", label: "Customer Credentials", icon: <Contact       className="h-3.5 w-3.5" /> },
   { id: "concerns",  label: "Customer's Concern",   icon: <MessageCircle className="h-3.5 w-3.5" /> },
+  { id: "calls",     label: "Customer Calls",       icon: <PhoneCall     className="h-3.5 w-3.5" /> },
 ];
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -241,6 +244,7 @@ interface CustomTabBarProps {
   bookedCount: number;
   customerCount: number;
   concernUnread: number;
+  callsPending: number;
 }
 
 function CustomTabBar({
@@ -250,6 +254,7 @@ function CustomTabBar({
   bookedCount,
   customerCount,
   concernUnread,
+  callsPending,
 }: CustomTabBarProps) {
   const tabs = [
     {
@@ -281,6 +286,12 @@ function CustomTabBar({
       label: "Concerns",
       icon: <MessageCircle className="h-3.5 w-3.5" />,
       count: concernUnread > 0 ? concernUnread : null,
+    },
+    {
+      id: "calls",
+      label: "Calls",
+      icon: <PhoneCall className="h-3.5 w-3.5" />,
+      count: callsPending > 0 ? callsPending : null,
     },
   ];
 
@@ -314,7 +325,7 @@ function CustomTabBar({
                   "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
                   value === tab.id
                     ? "bg-primary/15 text-primary"
-                    : tab.id === "concerns"
+                    : tab.id === "concerns" || tab.id === "calls"
                     ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                     : "bg-muted text-muted-foreground"
                 )}
@@ -569,6 +580,34 @@ function AppointmentsPageInner() {
     staleTime: 10_000,
   });
 
+  // ── Customer call pending count ───────────────────────────────────────────
+
+  const { data: callsPending = 0 } = useQuery({
+    queryKey: ["calls-pending"],
+    queryFn: async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const r = await apiClient.get(
+          "/api/customer-call/crm/conversations",
+          headers
+        );
+        const convs: any[] = r.data?.data || [];
+        // "pending" = an active request awaiting / preparing to start
+        return convs.filter(
+          (c: any) =>
+            !c.metadata?.resolved &&
+            ["requested", "preparing", "about_to_start"].includes(
+              c.metadata?.callStatus
+            )
+        ).length;
+      } catch {
+        return 0;
+      }
+    },
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const stats = React.useMemo(() => {
@@ -767,6 +806,13 @@ function AppointmentsPageInner() {
             </div>
           );
 
+        case "calls":
+          return (
+            <div className="p-4 h-full">
+              <CustomerCallsTab />
+            </div>
+          );
+
         default:
           return (
             <div className="flex items-center justify-center h-full text-xs text-muted-foreground/30 py-16">
@@ -954,6 +1000,7 @@ function AppointmentsPageInner() {
                 bookedCount={customerBookingsCount}
                 customerCount={customerCount}
                 concernUnread={concernUnread}
+                callsPending={callsPending}
               />
 
               {/* Tab content */}
@@ -1017,6 +1064,18 @@ function AppointmentsPageInner() {
                     }}
                   >
                     <CustomersConcernTab />
+                  </div>
+                )}
+
+                {/* ── Customer Calls tab ────────────────────────────────── */}
+                {activeTab === "calls" && (
+                  <div
+                    style={{
+                      height: "calc(100vh - 320px)",
+                      minHeight: 480,
+                    }}
+                  >
+                    <CustomerCallsTab />
                   </div>
                 )}
               </div>
