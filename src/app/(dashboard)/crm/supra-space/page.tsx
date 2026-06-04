@@ -1396,11 +1396,25 @@ export default function SupraSpacePage() {
     socket.on('message:reaction', onReaction);
     socket.on('message:poll', onPoll);
     socket.on('message:event', onEvent);
+    const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      setMsgs((prev) => {
+        const convMsgs = prev[conversationId];
+        if (!convMsgs) return prev;
+        return {
+          ...prev,
+          [conversationId]: convMsgs.map((m) =>
+            (m.readBy || []).includes(userId) ? m : { ...m, readBy: [...(m.readBy || []), userId] }
+          ),
+        };
+      });
+    };
+    socket.on('messages:read', onMsgsRead);
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
       socket.off('conversation:theme', onConvTheme); socket.off('message:reaction', onReaction);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
+      socket.off('messages:read', onMsgsRead);
     };
   }, [socket, appendMessageLocal, patchMsg, patchConv]);
 
