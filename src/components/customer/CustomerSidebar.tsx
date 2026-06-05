@@ -10,6 +10,7 @@ import {
   CreditCard,
   ShoppingBag,
   MessageCircle,
+  PhoneCall,
 } from "lucide-react";
 import { useAuthActions } from "@/providers/AuthProvider";
 import { usePathname } from "next/navigation";
@@ -66,6 +67,12 @@ const navItems = [
     title: "Support",
     url: "/customer/support",
     icon: MessageCircle,
+  },
+  // ── Call Center / Voice & Video ──────────────────────────────────────────
+  {
+    title: "Call Center",
+    url: "/customer/call-center",
+    icon: PhoneCall,
   },
 ];
 
