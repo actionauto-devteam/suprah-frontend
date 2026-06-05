@@ -11,6 +11,7 @@ import {
   CreditCard,
   ShoppingBag,
   MessageCircle,
+  PhoneCall,
   Zap,
   User,
   Star,
@@ -88,6 +89,7 @@ const navSections = [
       { title: "Service Network", url: "/customer/network", icon: MapIcon },
       { title: "Refer & Earn", url: "/customer/refer", icon: Wallet },
       { title: "Support", url: "/customer/support", icon: MessageCircle },
+      { title: "Call Center", url: "/customer/call-center", icon: PhoneCall },
     ],
   },
 ];

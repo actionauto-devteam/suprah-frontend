@@ -17,6 +17,7 @@ import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import ShopAssistant from "@/components/ShopAssistant";
 
 type SortOption =
   | "price-asc"
@@ -483,6 +484,12 @@ function ShopVehiclesContent() {
         onClose={() => setFinanceOpen(false)}
         vehicle={selectedVehicle}
       />
+
+      {/* ── Suprah Autrix — AI vehicle recommendation assistant ──────────────── */}
+      {/* Floating launcher; overlays the page without affecting the grid layout. */}
+      {/* Set `vehicleHrefBase` to your dedicated vehicle-detail route. Or reuse  */}
+      {/* the existing details modal by passing onViewVehicle (see note below).  */}
+      <ShopAssistant mode="float" vehicleHrefBase="/shop" />
     </div>
   );
 }
