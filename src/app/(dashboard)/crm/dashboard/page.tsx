@@ -461,6 +461,8 @@ export default function CrmDashboardPage() {
   const [trayToken, setTrayToken] = React.useState("");
   const [showTrayModal, setShowTrayModal] = React.useState(false);
   const [trayChecking, setTrayChecking] = React.useState(false);
+  const [serverIsOnShift, setServerIsOnShift] = React.useState(false);
+  const [serverShiftStartedAt, setServerShiftStartedAt] = React.useState<string | null>(null);
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(
     null,
@@ -559,16 +561,32 @@ export default function CrmDashboardPage() {
       });
       const s = res.data?.data;
       if (s) {
+        setServerIsOnShift(!!s.isOnShift);
+        setServerShiftStartedAt(s.shiftStartedAt ?? null);
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000);
-        setActivityStartAt(
-          s.currentIntervalStartAt
-            ? new Date(s.currentIntervalStartAt).getTime()
-            : (s.isOnShift && !s.isOnBreak)
-              // Heartbeat hasn't sent currentIntervalStartAt yet — use Date.now()
-              // as fallback so the timer keeps counting instead of freezing at 0.
-              ? Date.now()
-              : null,
-        );
+
+        // Pick the live-interval start carefully:
+        //  • Server says on-break or off-shift → clear local tracking
+        //  • Server gave a fresh currentIntervalStartAt → use it
+        //  • Otherwise → PRESERVE any existing local activityStartAt instead of
+        //    clobbering to null. This is critical for the race after Resume from
+        //    break: the user is actively tracking again, but the tray's heartbeat
+        //    may not have caught up yet, so the server still returns null. Without
+        //    this preservation, the CRM timer would freeze at "Idle — Paused" for
+        //    up to 60 seconds while the heartbeat lags.
+        //  • Fresh state with no prior tracking + shift started recently → Date.now()
+        const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000;
+        const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0;
+        const shiftStartedRecently = shiftStartedMs > 0
+          && (Date.now() - shiftStartedMs) < SHIFT_AUTO_RESUME_MS;
+
+        setActivityStartAt((prev) => {
+          if (!s.isOnShift || s.isOnBreak) return null;
+          if (s.currentIntervalStartAt) return new Date(s.currentIntervalStartAt).getTime();
+          if (prev !== null) return prev;                   // ← keep local tracking through brief heartbeat lag
+          if (shiftStartedRecently) return Date.now();
+          return null;
+        });
         // Break state (isOnBreak, currentBreakStartAt) is derived from todayLogs
         // via the break state effect — do NOT override here to avoid stale-server
         // data freezing the work timer at 00:00:00.
@@ -606,14 +624,24 @@ export default function CrmDashboardPage() {
       refreshShiftState();
       fetchActivityState();
     };
-    // Optimistic break-in: stop work timer immediately, then confirm from server
-    const syncBreakIn = () => {
+    // Optimistic break-in: stop work timer immediately and start break timer
+    // from the SERVER's breakStartedAt (matches the tray exactly — both clients
+    // are computing now() against the same reference). Using Date.now() would
+    // drift from the tray by the network/clock skew between client and server.
+    const syncBreakIn = (data?: { breakStartedAt?: string }) => {
       setActivityStartAt(null);
+      setIsOnBreak(true);
+      const breakStart = data?.breakStartedAt
+        ? new Date(data.breakStartedAt).getTime()
+        : Date.now();
+      setCurrentBreakStartAt(breakStart);
       refreshShiftState();
       fetchActivityState();
     };
-    // Optimistic break-out: restart work timer immediately, then confirm from server
+    // Optimistic break-out: stop break timer, restart work timer
     const syncBreakOut = () => {
+      setIsOnBreak(false);
+      setCurrentBreakStartAt(null);
       setActivityStartAt(Date.now());
       refreshShiftState();
       setTimeout(() => fetchActivityState(), 2500);
@@ -715,10 +743,25 @@ export default function CrmDashboardPage() {
       setTimeout(() => fetchActivityState(), 2500);
     } catch (err: unknown) {
       const apiError = err as ApiError;
-      setClockMsg(apiError.response?.data?.message || "Failed");
-      // Re-fetch so the buttons reflect the real server state
-      // (e.g. 400 on time-in means we're already on shift via tray app)
-      refreshShiftState();
+      const msg = apiError.response?.data?.message || "Failed";
+
+      // Graceful "Resume" path: backend already has an open clock-in (e.g. a
+      // forgotten clock-out from earlier or yesterday that today's logs don't
+      // surface). The user clicking Start Shift means they want to be on shift,
+      // so treat this as a successful state-sync rather than a hard error.
+      if (type === "time-in" && /already clocked in/i.test(msg)) {
+        setClockMsg(`Resumed your open shift at ${fmt(new Date())}`);
+        await refreshShiftState();
+        setTimeout(() => fetchActivityState(), 2500);
+      } else if (type === "time-out" && /must clock in before/i.test(msg)) {
+        // Symmetric: user clicks End Shift but backend says no active session.
+        // The CRM was showing on-shift from stale state — re-sync silently.
+        setClockMsg("");
+        await refreshShiftState();
+      } else {
+        setClockMsg(msg);
+        refreshShiftState();
+      }
     } finally {
       setIsClocking(false);
     }
@@ -848,19 +891,31 @@ export default function CrmDashboardPage() {
       )
     : undefined;
 
-  const hasClockedIn = !!timeIn;
+  // hasClockedIn / isActive incorporate the backend's `isOnShift` (from
+  // getShiftState's 2-day lookback) so an unclosed clock-in from yesterday or
+  // earlier today is still recognised even when today's todayTimeLogs is empty.
+  // Without this the CRM would show "Ready to clock in" while backend rejects
+  // Start Shift with "already clocked in", confusing the user.
+  const hasClockedIn = !!timeIn || serverIsOnShift;
   const hasClockedOut = !!timeOut;
   const isActive = hasClockedIn && !hasClockedOut;
   const isComplete = hasClockedOut;
 
-  // Derive break state from server logs so tray ↔ CRM stays in sync
+  // Derive break state from server logs so tray ↔ CRM stays in sync.
+  // Session start prefers today's time-in, but falls back to the backend's
+  // serverShiftStartedAt so break tracking still works when the active shift
+  // crossed MDT midnight (today has no time-in log of its own).
   React.useEffect(() => {
-    if (!timeIn) return;
-    const sessionStart = new Date(timeIn.timestamp).getTime();
+    const sessionStartMs = timeIn
+      ? new Date(timeIn.timestamp).getTime()
+      : serverShiftStartedAt
+        ? new Date(serverShiftStartedAt).getTime()
+        : null;
+    if (sessionStartMs === null) return;
     const breakLogs = sortedLogs.filter(
       (l) =>
         (l.type === "break-in" || l.type === "break-out") &&
-        new Date(l.timestamp).getTime() >= sessionStart,
+        new Date(l.timestamp).getTime() >= sessionStartMs,
     );
     let accumulated = 0;
     let currentBreakStart: number | null = null;
@@ -875,7 +930,7 @@ export default function CrmDashboardPage() {
     setBreakAccumulatedMs(accumulated);
     setIsOnBreak(currentBreakStart !== null);
     setCurrentBreakStartAt(currentBreakStart);
-  }, [sortedLogs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortedLogs, serverShiftStartedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sum all completed sessions BEFORE the current active time-in
   const previousSessionsMs = React.useMemo(() => {
@@ -1226,7 +1281,11 @@ export default function CrmDashboardPage() {
                       label: "Time In",
                       value: resumeOriginalClockIn
                         ? fmt(new Date(resumeOriginalClockIn))
-                        : timeIn ? fmt(new Date(timeIn.timestamp)) : "——",
+                        : timeIn
+                          ? fmt(new Date(timeIn.timestamp))
+                          : serverShiftStartedAt
+                            ? fmt(new Date(serverShiftStartedAt))
+                            : "——",
                     },
                     {
                       label: "Time Out",
