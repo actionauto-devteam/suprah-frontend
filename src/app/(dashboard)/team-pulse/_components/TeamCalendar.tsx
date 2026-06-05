@@ -297,83 +297,6 @@ export function TeamCalendar({
         </div>
       </div>
 
-      {isAdmin && pendingAbsences.length > 0 && (
-        <div className="rounded-xl border border-amber-200/60 dark:border-amber-800/40 bg-card overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200/30 dark:border-amber-800/30 bg-amber-500/5">
-            <Clock className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Pending Approvals</span>
-            <span className="ml-auto text-[10px] font-black text-amber-700 dark:text-amber-400 tabular-nums">{pendingAbsences.length}</span>
-          </div>
-          <div className="p-3 space-y-2">
-            {pendingAbsences.map((a) => {
-              const cfg = A[a.type as AbsenceType];
-              const liveAvatar = members.find((m) => m.name === a.userName)?.avatar;
-              return (
-                <div key={a._id} className={cn("rounded-xl border p-3", cfg.card)}>
-                  <div className="flex items-start gap-3">
-                    <Avatar className="size-8 shrink-0 ring-1 ring-border/30">
-                      <AvatarImage src={liveAvatar || a.userAvatar} />
-                      <AvatarFallback className="text-xs font-black">{a.userName[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                        <span className="text-xs font-bold">{a.userName}</span>
-                        <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md", cfg.pill)}>
-                          {cfg.label}{a.type === "other" && a.otherText ? ` — ${a.otherText}` : ""}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground/60">
-                          {format(parseISO(a.date), "MMM d, yyyy")}
-                        </span>
-                      </div>
-                      {a.title && <p className="text-xs font-semibold">{a.title}</p>}
-                      {a.note && <p className="text-xs text-muted-foreground/70 italic">{a.note}</p>}
-                      {(a.proofAttachments?.length ?? 0) > 0 && (
-                        <ProofAttachments attachments={a.proofAttachments!} />
-                      )}
-                    </div>
-                  </div>
-                  {rejectId === a._id ? (
-                    <div className="mt-2 space-y-1.5">
-                      <Input
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                        placeholder="Reason for rejection (optional)"
-                        className="h-7 text-xs bg-background"
-                      />
-                      <div className="flex gap-1.5">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs flex-1" onClick={() => { setRejectId(null); setRejectReason(""); }}>Cancel</Button>
-                        <Button size="sm" variant="destructive" className="h-7 text-xs flex-1" onClick={() => handleReject(a._id)} disabled={rejectAbsence.isPending}>Confirm Reject</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex gap-1.5 mt-2">
-                      <Button
-                        size="sm"
-                        className="h-7 text-xs flex-1 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
-                        onClick={() => handleApprove(a._id)}
-                        disabled={approveAbsence.isPending}
-                      >
-                        <Check className="size-3" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex-1 gap-1 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5"
-                        onClick={() => setRejectId(a._id)}
-                      >
-                        <X className="size-3" />
-                        Reject
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         <div className="lg:col-span-7 rounded-xl border border-border/50 bg-card overflow-hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/30">
@@ -447,7 +370,9 @@ export function TeamCalendar({
                   const isSel = selectedDay && isSameDay(day.date, selectedDay);
                   const isToday = isSameDay(day.date, new Date());
                   const isWknd = day.date.getDay() === 0 || day.date.getDay() === 6;
-                  const maxAvatars = hits.length <= 2 ? hits.length : hits.length <= 5 ? 3 : 4;
+                  // Google-Calendar style — show text labels per absence instead of
+                  // avatars: "FirstName Status" (e.g. "Charl Early Out", "Aldana On Day Off").
+                  const MAX_LABELS = 3;
                   const typeCounts: Record<string, number> = {};
                   hits.forEach((h) => { typeCounts[h.type] = (typeCounts[h.type] || 0) + 1; });
 
@@ -455,7 +380,7 @@ export function TeamCalendar({
                     <button
                       {...props}
                       className={cn(
-                        "relative flex flex-col items-start w-full h-full rounded-xl px-1.5 pt-1.5 pb-1 transition-all cursor-pointer select-none overflow-hidden",
+                        "relative flex flex-col items-start w-full h-full rounded-xl px-1 pt-1 pb-1 transition-all cursor-pointer select-none overflow-hidden",
                         "hover:bg-primary/8 active:scale-[0.97]",
                         isSel ? "bg-primary text-primary-foreground shadow-md" : "",
                         isToday && !isSel ? "ring-2 ring-primary/50 ring-inset" : "",
@@ -464,37 +389,43 @@ export function TeamCalendar({
                         modifiers.outside ? "opacity-0 pointer-events-none" : "",
                       )}
                     >
-                      <span className={cn("text-[11px] font-black leading-none z-10", isToday && !isSel ? "text-primary" : "", isSel ? "text-primary-foreground" : "", isWknd && !isSel ? "text-muted-foreground/60" : "")}>
+                      <span className={cn("text-[11px] font-black leading-none z-10 px-0.5", isToday && !isSel ? "text-primary" : "", isSel ? "text-primary-foreground" : "", isWknd && !isSel ? "text-muted-foreground/60" : "")}>
                         {day.date.getDate()}
                       </span>
                       {hits.length > 0 && (
-                        <div className="flex flex-wrap gap-px mt-1 w-full justify-center z-10">
-                          {hits.slice(0, maxAvatars).map((a) => {
-                            const liveAvatar = members.find((m) => m.name === a.userName)?.avatar;
-                            const avatarSrc = liveAvatar || a.userAvatar;
+                        <div className="flex flex-col gap-0.5 mt-1 w-full z-10">
+                          {hits.slice(0, MAX_LABELS).map((a) => {
+                            const cfg = A[a.type as AbsenceType];
+                            const firstName = a.userName.split(/[\s,]+/)[0] || a.userName;
+                            const statusLabel = a.type === "other" && a.otherText
+                              ? a.otherText
+                              : cfg?.label ?? "Absent";
+                            const fullLabel = `${firstName} ${statusLabel}`;
                             return (
                               <Tooltip key={a._id}>
                                 <TooltipTrigger asChild>
-                                  <div className={cn("rounded-full border-[1.5px] border-background overflow-hidden shrink-0", hits.length <= 2 ? "size-4" : "size-3.5")}>
-                                    {avatarSrc ? (
-                                      <img src={avatarSrc} alt={a.userName} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className={cn("w-full h-full flex items-center justify-center text-[6px] font-black text-white", A[a.type as AbsenceType]?.dot ?? "bg-gray-400")}>
-                                        {a.userName[0]}
-                                      </div>
+                                  <span
+                                    className={cn(
+                                      "block text-[9px] font-bold leading-tight px-1 py-px rounded truncate w-full text-left",
+                                      cfg?.pill ?? "bg-gray-200 text-gray-700",
                                     )}
-                                  </div>
+                                  >
+                                    {fullLabel}
+                                  </span>
                                 </TooltipTrigger>
                                 <TooltipContent className="text-xs">
                                   <p className="font-bold">{a.userName}</p>
-                                  <p className="text-muted-foreground">{A[a.type as AbsenceType]?.label}</p>
+                                  <p className="text-muted-foreground">{statusLabel}</p>
+                                  {a.status === "pending" && (
+                                    <p className="text-amber-500 text-[10px] mt-0.5">Pending approval</p>
+                                  )}
                                 </TooltipContent>
                               </Tooltip>
                             );
                           })}
-                          {hits.length > maxAvatars && (
-                            <span className={cn("text-[7px] font-black flex items-center justify-center rounded-full shrink-0", hits.length <= 2 ? "size-4" : "size-3.5", isSel ? "text-primary-foreground/70 bg-primary-foreground/20" : "text-muted-foreground bg-muted/60")}>
-                              +{hits.length - maxAvatars}
+                          {hits.length > MAX_LABELS && (
+                            <span className={cn("text-[9px] font-bold leading-tight px-1 py-px rounded text-left", isSel ? "text-primary-foreground/70 bg-primary-foreground/20" : "text-muted-foreground bg-muted/60")}>
+                              +{hits.length - MAX_LABELS} more
                             </span>
                           )}
                         </div>
@@ -586,48 +517,89 @@ export function TeamCalendar({
                       const canDel = a.userName === userName || isAdmin;
                       const liveAvatar = members.find((m) => m.name === a.userName)?.avatar;
                       const isMyAbsence = myUserId && a.userId === myUserId;
+                      const canApprove = isAdmin && a.status === 'pending';
                       return (
-                        <div key={a._id} className={cn("flex items-start gap-3 p-3 rounded-xl border", cfg.card)}>
-                          <Avatar className="size-8 shrink-0 ring-1 ring-border/30">
-                            <AvatarImage src={liveAvatar || a.userAvatar} />
-                            <AvatarFallback className="text-xs font-black">{a.userName[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                              <span className="text-xs font-bold">{a.userName}</span>
-                              <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1", cfg.pill)}>
-                                <span className={cn("size-1.5 rounded-full", cfg.dot)} />
-                                {cfg.label}{a.type === "other" && a.otherText ? ` — ${a.otherText}` : ""}
-                              </span>
-                              {a.status && a.status !== 'approved' && (
-                                <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 h-4", a.status === 'pending' ? "border-amber-300 text-amber-700 dark:text-amber-400" : "border-destructive/40 text-destructive")}>
-                                  {a.status}
-                                </Badge>
+                        <div key={a._id} className={cn("flex flex-col gap-2 p-3 rounded-xl border", cfg.card)}>
+                          <div className="flex items-start gap-3">
+                            <Avatar className="size-8 shrink-0 ring-1 ring-border/30">
+                              <AvatarImage src={liveAvatar || a.userAvatar} />
+                              <AvatarFallback className="text-xs font-black">{a.userName[0]}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <span className="text-xs font-bold">{a.userName}</span>
+                                <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1", cfg.pill)}>
+                                  <span className={cn("size-1.5 rounded-full", cfg.dot)} />
+                                  {cfg.label}{a.type === "other" && a.otherText ? ` — ${a.otherText}` : ""}
+                                </span>
+                                {a.status && a.status !== 'approved' && (
+                                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 h-4", a.status === 'pending' ? "border-amber-300 text-amber-700 dark:text-amber-400" : "border-destructive/40 text-destructive")}>
+                                    {a.status}
+                                  </Badge>
+                                )}
+                              </div>
+                              {a.title && <p className="text-xs font-semibold">{a.title}</p>}
+                              {a.note && <p className="text-xs text-muted-foreground/70 italic">{a.note}</p>}
+                              {(a.proofAttachments?.length ?? 0) > 0 && (
+                                <ProofAttachments attachments={a.proofAttachments!} />
+                              )}
+                              {a.type === 'sick' && isMyAbsence && (
+                                <div className="mt-1.5">
+                                  <input ref={proofInputRef} type="file" accept="image/*,.pdf,.doc,.docx" multiple className="hidden" onChange={(e) => handleProofUpload(a._id, e.target.files)} />
+                                  <button
+                                    onClick={() => { setPendingProofId(a._id); proofInputRef.current?.click(); }}
+                                    className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                                  >
+                                    <Upload className="size-2.5" />
+                                    {(a.proofAttachments?.length ?? 0) > 0 ? "Add more proof" : "Upload proof"}
+                                  </button>
+                                </div>
                               )}
                             </div>
-                            {a.title && <p className="text-xs font-semibold">{a.title}</p>}
-                            {a.note && <p className="text-xs text-muted-foreground/70 italic">{a.note}</p>}
-                            {(a.proofAttachments?.length ?? 0) > 0 && (
-                              <ProofAttachments attachments={a.proofAttachments!} />
-                            )}
-                            {/* Upload proof (for sick leave + own absence) */}
-                            {a.type === 'sick' && isMyAbsence && (
-                              <div className="mt-1.5">
-                                <input ref={proofInputRef} type="file" accept="image/*,.pdf,.doc,.docx" multiple className="hidden" onChange={(e) => handleProofUpload(a._id, e.target.files)} />
-                                <button
-                                  onClick={() => { setPendingProofId(a._id); proofInputRef.current?.click(); }}
-                                  className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors"
-                                >
-                                  <Upload className="size-2.5" />
-                                  {(a.proofAttachments?.length ?? 0) > 0 ? "Add more proof" : "Upload proof"}
-                                </button>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              {canApprove && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                                    title="Approve"
+                                    onClick={() => handleApprove(a._id)}
+                                    disabled={approveAbsence.isPending}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-[10px] font-bold text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    title="Reject"
+                                    onClick={() => setRejectId(rejectId === a._id ? null : a._id)}
+                                  >
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
+                              {canDel && (
+                                <Button variant="ghost" size="icon" className="size-6 opacity-40 hover:opacity-100 hover:text-destructive" title="Delete" onClick={() => handleDeleteAbsence(a._id)}>
+                                  <Trash2 className="size-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          {canDel && (
-                            <Button variant="ghost" size="icon" className="size-6 shrink-0 opacity-40 hover:opacity-100 hover:text-destructive" onClick={() => handleDeleteAbsence(a._id)}>
-                              <Trash2 className="size-3" />
-                            </Button>
+                          {canApprove && rejectId === a._id && (
+                            <div className="flex flex-col gap-1.5 pl-11">
+                              <Input
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="Reason for rejection (optional)"
+                                className="h-7 text-xs bg-background"
+                              />
+                              <div className="flex gap-1.5">
+                                <Button size="sm" variant="ghost" className="h-7 text-xs flex-1" onClick={() => { setRejectId(null); setRejectReason(""); }}>Cancel</Button>
+                                <Button size="sm" variant="destructive" className="h-7 text-xs flex-1" onClick={() => handleReject(a._id)} disabled={rejectAbsence.isPending}>Confirm Reject</Button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       );

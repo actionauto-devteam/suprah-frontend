@@ -11,6 +11,7 @@ import {
   Clock,
   Monitor,
   RefreshCw,
+  CalendarDays,
   Users,
   Zap,
   Apple,
@@ -434,6 +435,14 @@ export default function AdminShiftBoardPage() {
                 Updated {fmtLastSeen(lastRefreshed.toISOString())}
               </span>
             )}
+            <button
+              onClick={() => router.push("/team-pulse?tab=calendar")}
+              className="h-8 px-3 rounded-xl border border-zinc-800 flex items-center gap-1.5 hover:bg-zinc-800/50 transition-colors text-zinc-400 hover:text-zinc-200"
+              title="View early-out / out-of-office calendar"
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-bold uppercase tracking-wider hidden sm:inline">Calendar</span>
+            </button>
             <button
               onClick={fetchData}
               className="h-8 w-8 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-zinc-800/50 transition-colors text-zinc-500"

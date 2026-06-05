@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   CalendarDays,
@@ -67,9 +68,16 @@ function minutesUntilEndOfDay() {
   return differenceInMinutes(endOfDay(new Date()), new Date());
 }
 
+const VALID_TAB_IDS: TabId[] = ["overview", "team", "activity", "calendar", "schedules", "board"];
+
 export default function TeamPulsePage() {
   const { user } = useUser();
-  const [tab, setTab] = React.useState<TabId>("overview");
+  const searchParams = useSearchParams();
+  const initialTab = (() => {
+    const t = searchParams.get("tab") as TabId | null;
+    return t && VALID_TAB_IDS.includes(t) ? t : "overview";
+  })();
+  const [tab, setTab] = React.useState<TabId>(initialTab);
   const [openMemberId, setOpenMemberId] = React.useState<string | null>(null);
   const [myStatus, setMyStatus] = React.useState<OnlineStatus>("offline");
   const [myCustomStatus, setMyCustomStatus] = React.useState("");
