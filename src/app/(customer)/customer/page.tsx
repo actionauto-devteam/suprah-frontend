@@ -94,6 +94,10 @@ function GarageVehicleImage({ vehicle }: { vehicle: OwnedVehicle }) {
   );
 }
 
+function getVehicleId(vehicle: OwnedVehicle | null | undefined) {
+  return vehicle?.id || vehicle?._id || "";
+}
+
 export default function MyGaragePage() {
   const { theme } = useTheme();
 
@@ -111,15 +115,26 @@ export default function MyGaragePage() {
 
   // Select the first vehicle automatically if none is selected
   React.useEffect(() => {
-    if (vehicles && vehicles.length > 0 && !selectedVehicle) {
+    if (!vehicles || vehicles.length === 0) return;
+
+    if (!selectedVehicle) {
+      setSelectedVehicle(vehicles[0]);
+      return;
+    }
+
+    const selectedId = getVehicleId(selectedVehicle);
+    const stillExists = vehicles.some((v) => getVehicleId(v) === selectedId);
+    if (!stillExists) {
       setSelectedVehicle(vehicles[0]);
     }
   }, [vehicles, selectedVehicle]);
 
+  const selectedVehicleId = getVehicleId(selectedVehicle);
+
   const { data: serviceHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["serviceHistory", selectedVehicle?.id],
-    queryFn: () => fetchServiceHistory(selectedVehicle!.id),
-    enabled: !!selectedVehicle?.id,
+    queryKey: ["serviceHistory", selectedVehicleId],
+    queryFn: () => fetchServiceHistory(selectedVehicleId),
+    enabled: Boolean(selectedVehicleId),
   });
 
   const queryClient = useQueryClient();
@@ -217,6 +232,7 @@ export default function MyGaragePage() {
       ) : (
         <div className="space-y-12">
           {vehicles.map((vehicle) => {
+            const isSelected = getVehicleId(vehicle) === selectedVehicleId;
             const estimatedNextInterval = vehicle.currentMileage + 3000; // Simple heuristic for mock
             const serviceProgress = calculateServiceProgress(
               vehicle.currentMileage,
@@ -226,12 +242,27 @@ export default function MyGaragePage() {
 
             return (
               <div
-                key={vehicle.id}
+                key={getVehicleId(vehicle)}
                 className="grid grid-cols-1 lg:grid-cols-3 gap-8"
               >
                 {/* Left Col: Image & Identity */}
                 <div className="lg:col-span-2">
-                  <div className="relative overflow-hidden rounded-3xl bg-zinc-900 shadow-2xl group border border-zinc-800 h-full min-h-87.5">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedVehicle(vehicle)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedVehicle(vehicle);
+                      }
+                    }}
+                    className={`relative overflow-hidden rounded-3xl bg-zinc-900 shadow-2xl group border h-full min-h-87.5 w-full text-left ${
+                      isSelected
+                        ? "border-primary ring-2 ring-primary/40"
+                        : "border-zinc-800"
+                    }`}
+                  >
                     <div className="absolute inset-0">
                       <GarageVehicleImage vehicle={vehicle} />
                       <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent" />
@@ -239,13 +270,19 @@ export default function MyGaragePage() {
 
                     <div className="absolute top-4 right-4 flex gap-2 z-10">
                       <button
-                        onClick={() => handleEditVehicle(vehicle)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEditVehicle(vehicle);
+                        }}
                         className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-2 rounded-xl text-white border border-white/20 transition-colors"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteVehicle(vehicle)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteVehicle(vehicle);
+                        }}
                         className="bg-red-500/80 hover:bg-red-600 backdrop-blur-md p-2 rounded-xl text-white border border-red-500/50 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -395,50 +432,52 @@ export default function MyGaragePage() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {serviceHistory.map((record) => (
-                    <div
-                      key={record._id}
-                      className="p-5 flex flex-row rounded-2xl border border-border/40 bg-white dark:bg-zinc-950 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm transition-colors items-center gap-4"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center shrink-0">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-zinc-500 w-5 h-5"
-                        >
-                          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                        </svg>
+                <div className="max-h-[36rem] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {serviceHistory.map((record) => (
+                      <div
+                        key={record._id}
+                        className="p-5 flex flex-row rounded-2xl border border-border/40 bg-white dark:bg-zinc-950 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm transition-colors items-center gap-4"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center shrink-0">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="text-zinc-500 w-5 h-5"
+                          >
+                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-foreground truncate">
+                            {record.serviceType.replace(/_/g, " ")}
+                          </h4>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                            <MapPin className="w-3 h-3" /> {record.locationName}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Odometer: {record.mileageAtService.toLocaleString()}{" "}
+                            mi
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-foreground">
+                            {record.cost ? `$${record.cost.toFixed(2)}` : "--"}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(record.date).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-foreground truncate">
-                          {record.serviceType.replace("_", " ")}
-                        </h4>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                          <MapPin className="w-3 h-3" /> {record.locationName}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Odometer: {record.mileageAtService.toLocaleString()}{" "}
-                          mi
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-bold text-foreground">
-                          {record.cost ? `$${record.cost.toFixed(2)}` : "--"}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(record.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -69,6 +69,7 @@ export function VehicleDetailsModal({
             onApplyNow={onApplyNow}
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}
+            compactHeader
           />
         </div>
       </DialogContent>

@@ -74,10 +74,15 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_FILES = 5;
 
 function fmtTime(d: string) {
-  return new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 function fmtSize(b: number) {
-  return b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+  return b < 1048576
+    ? `${(b / 1024).toFixed(1)} KB`
+    : `${(b / 1048576).toFixed(1)} MB`;
 }
 function fmtDate(d: string) {
   const date = new Date(d);
@@ -88,7 +93,51 @@ function fmtDate(d: string) {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 function ini(name: string) {
-  return (name || "?").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  return (name || "?")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function cleanLegacyInquiryPayload(content: string) {
+  return (content || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\^"/g, "")
+    .replace(/\^/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/[“”]/g, '"')
+    .trim();
+}
+
+function formatSupportMessage(content: string) {
+  const raw = cleanLegacyInquiryPayload(content);
+  if (!raw) return "";
+
+  const collapsed = raw.replace(/\s+/g, " ").trim();
+  const inquiryLike =
+    /product\s*inquiry|customer'?s\s*question|product\s*id|\bproduct\s*:/i.test(
+      collapsed,
+    );
+
+  if (!inquiryLike) return raw;
+
+  const productMatch = collapsed.match(
+    /product\s*:\s*(.+?)(?=\s+(product\s*id|price|customer'?s\s*question|question)\s*:|$)/i,
+  );
+  const questionMatch = collapsed.match(
+    /(?:customer'?s\s*question|question)\s*:\s*(.+)$/i,
+  );
+
+  const productName = productMatch?.[1]?.trim() || "Product";
+  const questionText = questionMatch?.[1]?.trim() || "";
+
+  if (!questionText) {
+    return `Product inquiry\nProduct: ${productName}`;
+  }
+
+  return `Product inquiry\nProduct: ${productName}\nQuestion: ${questionText}`;
 }
 
 // ─── Date separator ───────────────────────────────────────────────────────────
@@ -106,7 +155,11 @@ function DateSep({ date }: { date: string }) {
 }
 
 function fmtDateKey(d: string) {
-  return new Date(d).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  return new Date(d).toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
@@ -126,36 +179,44 @@ function MessageBubble({
   const senderName = isOwn
     ? "You"
     : message.metadata?.crmUserName || message.sender?.fullName || "Support";
+  const displayContent = formatSupportMessage(message.content || "");
 
   return (
     <div className={cn("flex gap-2.5 px-4 py-1", isOwn && "flex-row-reverse")}>
       <div
         className={cn(
           "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white",
-          isOwn ? "bg-emerald-600" : "bg-violet-600"
+          isOwn ? "bg-emerald-600" : "bg-violet-600",
         )}
       >
         {ini(senderName)}
       </div>
 
-      <div className={cn("flex flex-col gap-0.5 max-w-[75%]", isOwn && "items-end")}>
+      <div
+        className={cn(
+          "flex flex-col gap-0.5 max-w-[75%]",
+          isOwn && "items-end",
+        )}
+      >
         <span className="text-[11px] font-medium text-muted-foreground px-0.5">
           {senderName}
           {!isOwn && message.metadata?.crmUserRole && (
-            <span className="ml-1 opacity-60">· {message.metadata.crmUserRole}</span>
+            <span className="ml-1 opacity-60">
+              · {message.metadata.crmUserRole}
+            </span>
           )}
         </span>
 
-        {message.content ? (
+        {displayContent ? (
           <div
             className={cn(
-              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word",
+              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap",
               isOwn
                 ? "bg-emerald-600 text-white rounded-tr-sm"
-                : "bg-muted text-foreground rounded-tl-sm border border-border/40"
+                : "bg-muted text-foreground rounded-tl-sm border border-border/40",
             )}
           >
-            {message.content}
+            {displayContent}
           </div>
         ) : null}
 
@@ -192,20 +253,27 @@ function MessageBubble({
                 "flex items-center gap-2.5 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80",
                 isOwn
                   ? "bg-emerald-700/50 border border-white/10"
-                  : "bg-muted border border-border/40"
+                  : "bg-muted border border-border/40",
               )}
               style={{ maxWidth: 220 }}
             >
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium truncate">{att.originalName}</p>
+                <p className="text-xs font-medium truncate">
+                  {att.originalName}
+                </p>
                 <p className="text-[10px] opacity-50">{fmtSize(att.size)}</p>
               </div>
               <Download className="h-3 w-3 shrink-0 opacity-50" />
             </a>
           ))}
 
-        <div className={cn("flex items-center gap-1 px-0.5", isOwn && "flex-row-reverse")}>
+        <div
+          className={cn(
+            "flex items-center gap-1 px-0.5",
+            isOwn && "flex-row-reverse",
+          )}
+        >
           <span className="text-[10px] text-muted-foreground/60 tabular-nums">
             {fmtTime(message.createdAt)}
           </span>
@@ -223,7 +291,13 @@ function MessageBubble({
 
 // ─── Pending file preview ─────────────────────────────────────────────────────
 
-function PendingFileItem({ file, onRemove }: { file: File; onRemove: () => void }) {
+function PendingFileItem({
+  file,
+  onRemove,
+}: {
+  file: File;
+  onRemove: () => void;
+}) {
   const isImg = file.type.startsWith("image/");
   const [preview, setPreview] = React.useState<string | null>(null);
   React.useEffect(() => {
@@ -239,13 +313,23 @@ function PendingFileItem({ file, onRemove }: { file: File; onRemove: () => void 
       style={{ width: 64 }}
     >
       {preview ? (
-        <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 48 }} />
+        <img
+          src={preview}
+          alt={file.name}
+          className="w-full object-cover"
+          style={{ height: 48 }}
+        />
       ) : (
-        <div className="flex items-center justify-center" style={{ height: 48 }}>
+        <div
+          className="flex items-center justify-center"
+          style={{ height: 48 }}
+        >
           <FileText className="h-5 w-5 text-muted-foreground" />
         </div>
       )}
-      <p className="px-1 py-0.5 text-[9px] text-muted-foreground truncate">{file.name}</p>
+      <p className="px-1 py-0.5 text-[9px] text-muted-foreground truncate">
+        {file.name}
+      </p>
       <button
         onClick={onRemove}
         className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 border border-border/50 flex items-center justify-center"
@@ -302,7 +386,8 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   const { user } = useUser();
 
   const [open, setOpen] = React.useState(mode === "page");
-  const [conversation, setConversation] = React.useState<ConcernConversation | null>(null);
+  const [conversation, setConversation] =
+    React.useState<ConcernConversation | null>(null);
   const [messages, setMessages] = React.useState<ConcernMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -310,7 +395,10 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(false);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
-  const [notice, setNotice] = React.useState<{ kind: "error" | "info"; text: string } | null>(null);
+  const [notice, setNotice] = React.useState<{
+    kind: "error" | "info";
+    text: string;
+  } | null>(null);
   const [unread, setUnread] = React.useState(0);
 
   const endRef = React.useRef<HTMLDivElement>(null);
@@ -351,7 +439,10 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
       const headers = await authHeaders();
       const params: any = { limit: 40 };
       if (before) params.before = before;
-      const r = await apiClient.get("/api/customer-concern/messages", { headers, params });
+      const r = await apiClient.get("/api/customer-concern/messages", {
+        headers,
+        params,
+      });
       const data: ConcernMessage[] = r.data?.data || [];
       if (before) {
         setMessages((p) => [...data, ...p]);
@@ -361,7 +452,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         setHasMore(data.length === 40);
       }
     },
-    [authHeaders]
+    [authHeaders],
   );
 
   // ── Open: init + load messages ─────────────────────────────────────────────
@@ -369,9 +460,11 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   React.useEffect(() => {
     if (!open) return;
     if (!conversation) {
-      init().then(() => fetchMessages()).catch(() => { });
+      init()
+        .then(() => fetchMessages())
+        .catch(() => {});
     } else {
-      fetchMessages().catch(() => { });
+      fetchMessages().catch(() => {});
     }
     setUnread(0);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -388,16 +481,28 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
     const candidates = ["__socket", "_socket", "socket", "__io"];
     let socket: any = null;
     for (const key of candidates) {
-      if ((window as any)[key]?.on) { socket = (window as any)[key]; break; }
+      if ((window as any)[key]?.on) {
+        socket = (window as any)[key];
+        break;
+      }
     }
     if (!socket) return;
 
-    const onReply = ({ message }: { conversationId: string; message: ConcernMessage }) => {
-      setMessages((p) => (p.find((m) => m._id === message._id) ? p : [...p, message]));
+    const onReply = ({
+      message,
+    }: {
+      conversationId: string;
+      message: ConcernMessage;
+    }) => {
+      setMessages((p) =>
+        p.find((m) => m._id === message._id) ? p : [...p, message],
+      );
       if (!open) setUnread((n) => n + 1);
     };
     const onNew = ({ message }: any) => {
-      setMessages((p) => (p.find((m) => m._id === message._id) ? p : [...p, message]));
+      setMessages((p) =>
+        p.find((m) => m._id === message._id) ? p : [...p, message],
+      );
     };
 
     socket.on("concern:reply", onReply);
@@ -432,7 +537,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         });
         if (r.data?.data) {
           setMessages((p) =>
-            p.find((m) => m._id === r.data.data._id) ? p : [...p, r.data.data]
+            p.find((m) => m._id === r.data.data._id) ? p : [...p, r.data.data],
           );
         }
         setPendingFiles([]);
@@ -440,11 +545,11 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         const r = await apiClient.post(
           "/api/customer-concern/messages",
           { content },
-          { headers }
+          { headers },
         );
         if (r.data?.data) {
           setMessages((p) =>
-            p.find((m) => m._id === r.data.data._id) ? p : [...p, r.data.data]
+            p.find((m) => m._id === r.data.data._id) ? p : [...p, r.data.data],
           );
         }
       }
@@ -475,7 +580,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   const loadMore = async () => {
     if (loadingMore || !hasMore || messages.length === 0) return;
     setLoadingMore(true);
-    await fetchMessages(messages[0].createdAt).catch(() => { });
+    await fetchMessages(messages[0].createdAt).catch(() => {});
     setLoadingMore(false);
   };
 
@@ -485,14 +590,21 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   // ── Chat body ──────────────────────────────────────────────────────────────
 
   const chatBody = (
-    <div className="flex-1 overflow-y-auto py-3 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+    <div
+      className="flex-1 overflow-y-auto py-3 space-y-0.5"
+      style={{ scrollbarWidth: "thin" }}
+    >
       {hasMore && (
         <div className="flex justify-center pb-2">
           <button
             onClick={loadMore}
             className="text-[11px] text-muted-foreground px-3 py-1 rounded-full bg-muted/50 hover:bg-muted transition-colors"
           >
-            {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "↑ Load earlier"}
+            {loadingMore ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              "↑ Load earlier"
+            )}
           </button>
         </div>
       )}
@@ -516,7 +628,8 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
       ) : (
         messages.map((msg, i) => {
           const prev = messages[i - 1];
-          const showDate = !prev || fmtDateKey(msg.createdAt) !== fmtDateKey(prev.createdAt);
+          const showDate =
+            !prev || fmtDateKey(msg.createdAt) !== fmtDateKey(prev.createdAt);
           return (
             <React.Fragment key={msg._id}>
               {showDate && <DateSep date={msg.createdAt} />}
@@ -545,7 +658,9 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             <PendingFileItem
               key={i}
               file={f}
-              onRemove={() => setPendingFiles((p) => p.filter((_, idx) => idx !== i))}
+              onRemove={() =>
+                setPendingFiles((p) => p.filter((_, idx) => idx !== i))
+              }
             />
           ))}
         </div>
@@ -554,7 +669,9 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         <p
           className={cn(
             "text-[11px] px-1",
-            notice.kind === "error" ? "text-destructive" : "text-muted-foreground"
+            notice.kind === "error"
+              ? "text-destructive"
+              : "text-muted-foreground",
           )}
         >
           {notice.text}
@@ -601,7 +718,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
               "h-7 w-7 rounded-lg flex items-center justify-center transition-all",
               input.trim() || pendingFiles.length > 0
                 ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+                : "bg-muted text-muted-foreground/40 cursor-not-allowed",
             )}
             title="Send"
           >
@@ -623,7 +740,10 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
       <>
         {!open && (
           <button
-            onClick={() => { setOpen(true); setUnread(0); }}
+            onClick={() => {
+              setOpen(true);
+              setUnread(0);
+            }}
             className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
             aria-label="Open support chat"
           >
@@ -641,7 +761,10 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             className="fixed bottom-6 right-6 z-50 w-90 rounded-2xl shadow-2xl border border-border/50 bg-background flex flex-col overflow-hidden"
             style={{ height: 520 }}
           >
-            <ChatHeader onClose={() => setOpen(false)} isResolved={isResolved} />
+            <ChatHeader
+              onClose={() => setOpen(false)}
+              isResolved={isResolved}
+            />
             {chatBody}
             {inputBar}
           </div>
@@ -669,7 +792,8 @@ export default function CustomerSupportPage() {
       <div className="shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">Support</h1>
         <p className="text-muted-foreground mt-1">
-          Send a message to our team — we&apos;ll get back to you as soon as possible.
+          Send a message to our team — we&apos;ll get back to you as soon as
+          possible.
         </p>
       </div>
       <div className="flex-1 min-h-0" style={{ minHeight: 480 }}>

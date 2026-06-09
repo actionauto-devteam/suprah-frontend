@@ -51,6 +51,7 @@ interface VehicleDetailViewProps {
   onQuoteClick?: () => void;
   shippingQuote?: number | null;
   isPublic?: boolean;
+  compactHeader?: boolean;
 }
 
 function cleanDescription(text: string, v?: Vehicle): string {
@@ -283,10 +284,12 @@ function Gallery({
   images,
   onOpenLightbox,
   vehicle,
+  compact,
 }: {
   images: string[];
   onOpenLightbox: (i: number) => void;
   vehicle: Vehicle;
+  compact?: boolean;
 }) {
   const [idx, setIdx] = React.useState(0);
   const [loaded, setLoaded] = React.useState(false);
@@ -353,7 +356,9 @@ function Gallery({
       <div
         className={cn(
           "relative overflow-hidden",
-          "h-[56vw] max-h-115 min-h-55",
+          compact
+            ? "h-[42vw] max-h-82 min-h-44 sm:h-[34vw]"
+            : "h-[56vw] max-h-115 min-h-55",
           spinMode && "cursor-grab active:cursor-grabbing",
         )}
         onTouchStart={onTouchStart}
@@ -488,7 +493,7 @@ function Gallery({
       </div>
 
       {/* Thumbnail strip — desktop */}
-      {images.length > 1 && (
+      {images.length > 1 && !compact && (
         <div className="hidden overflow-x-auto border-b border-zinc-800 bg-zinc-900 px-3 py-2.5 sm:flex gap-1.5 no-scrollbar">
           {images.map((img, i) => (
             <button
@@ -524,6 +529,7 @@ export function VehicleDetailView({
   onApplyNow,
   onQuoteClick,
   shippingQuote,
+  compactHeader,
 }: VehicleDetailViewProps) {
   const { userRole, isSuperAdmin } = useOrg();
   const isAdmin =
@@ -654,6 +660,7 @@ export function VehicleDetailView({
               setLightboxOpen(true);
             }}
             vehicle={vehicle}
+            compact={compactHeader}
           />
 
           {/* Identity bar — sm+ */}
@@ -765,6 +772,50 @@ export function VehicleDetailView({
               </div>
             ))}
           </div>
+
+          {compactHeader && (
+            <div className="border-b bg-background px-4 py-3 sm:px-5 lg:px-6">
+              <h3 className="mb-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Key Details
+              </h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    VIN
+                  </p>
+                  <p className="truncate font-mono text-xs font-semibold text-foreground">
+                    {vehicle.vin || "—"}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    Stock #
+                  </p>
+                  <p className="truncate text-xs font-semibold text-foreground">
+                    {vehicle.stockNumber || "—"}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    Mileage
+                  </p>
+                  <p className="truncate text-xs font-semibold text-foreground">
+                    {vehicle.mileage
+                      ? `${vehicle.mileage.toLocaleString()} mi`
+                      : "—"}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    Exterior
+                  </p>
+                  <p className="truncate text-xs font-semibold text-foreground">
+                    {vehicle.exteriorColor || vehicle.color || "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tab bar */}
           <div className="flex gap-0.5 border-b bg-background px-4 pt-2 sm:px-5">

@@ -63,6 +63,9 @@ function PremiumVehicleCardComponent({
   }, [vehicle.id, imageCandidates]);
 
   const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE;
+  const safeEngine = vehicle.engine?.trim() || "Unknown";
+  const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
+  const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
 
   const handleImageError = () => {
     if (imageIndex < imageCandidates.length - 1) {
@@ -81,7 +84,7 @@ function PremiumVehicleCardComponent({
 
   return (
     <Card
-      className="group relative overflow-hidden rounded-2xl py-0 bg-white dark:bg-zinc-950 border border-border/40 hover:border-green-500/50 shadow-sm hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
+      className="group relative overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-green-500/60 shadow-sm hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
       onClick={() => onVehicleClick?.(vehicle)}
     >
       {/* Premium Image Header */}
@@ -154,11 +157,11 @@ function PremiumVehicleCardComponent({
             />
 
             {/* Sleek Overlay Gradient */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-55 group-hover:opacity-70 transition-opacity duration-500" />
 
             {/* Top Badges */}
             <div className="absolute top-4 left-4 flex gap-2 z-10">
-              <Badge className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border-white/10 font-medium px-3 py-1">
+              <Badge className="bg-black/65 hover:bg-black/75 text-white backdrop-blur-md border-white/20 font-semibold px-3 py-1">
                 Stock #{vehicle.stockNumber}
               </Badge>
               {vehicle.featured && (
@@ -174,7 +177,7 @@ function PremiumVehicleCardComponent({
                 <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md leading-tight">
                   {vehicle.year} {vehicle.make}
                 </h3>
-                <p className="text-zinc-300 font-medium text-lg capitalize tracking-wide truncate">
+                <p className="text-zinc-100/95 font-semibold text-lg capitalize tracking-wide truncate">
                   {vehicle.model}
                   {vehicle.trim && ` - ${vehicle.trim}`}
                 </p>
@@ -200,7 +203,7 @@ function PremiumVehicleCardComponent({
           <div className="flex flex-col items-center flex-1 border-r border-border/50">
             <GaugeIcon className="w-5 h-5 text-muted-foreground mb-1" />
             <span className="text-sm font-semibold text-foreground">
-              {vehicle.mileage.toLocaleString()} mi
+              {safeMileage.toLocaleString()} mi
             </span>
           </div>
           <div className="flex flex-col items-center flex-1 border-r border-border/50">
@@ -208,13 +211,13 @@ function PremiumVehicleCardComponent({
               Eng
             </div>
             <span className="text-sm font-semibold text-foreground truncate max-w-25">
-              {vehicle.engine || "V6"}
+              {safeEngine}
             </span>
           </div>
           <div className="flex flex-col items-center flex-1">
             <MapPinIcon className="w-5 h-5 text-muted-foreground mb-1" />
             <span className="text-sm font-semibold text-foreground">
-              {vehicle.location.split(",")[0]}
+              {safeLocation}
             </span>
           </div>
         </div>

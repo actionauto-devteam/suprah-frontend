@@ -24,9 +24,11 @@ const CARD_FALLBACK =
   "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
 
 function getOriginalPrice(vehicleId: string, price: number): number {
-  const hash = vehicleId.split("").reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
+  const hash = vehicleId
+    .split("")
+    .reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
   const pct = 1.08 + (hash % 12) * 0.01;
-  return Math.round(price * pct / 500) * 500;
+  return Math.round((price * pct) / 500) * 500;
 }
 
 interface CarInventoryCardProps {
@@ -128,7 +130,10 @@ function VehicleImage({
   return (
     <div
       onClick={onClick}
-      className={cn("relative cursor-pointer overflow-hidden bg-muted dark:bg-zinc-900 group/img", className)}
+      className={cn(
+        "relative cursor-pointer overflow-hidden bg-muted dark:bg-zinc-900 group/img",
+        className,
+      )}
     >
       {!imgLoaded && (
         <div className="absolute inset-0 z-10 flex animate-pulse items-center justify-center bg-muted dark:bg-zinc-800">
@@ -154,7 +159,9 @@ function VehicleImage({
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-muted dark:bg-zinc-800">
           <TruckIcon className="h-7 w-7 text-muted-foreground/25" />
-          <span className="text-[10px] font-medium text-muted-foreground/40">No image</span>
+          <span className="text-[10px] font-medium text-muted-foreground/40">
+            No image
+          </span>
         </div>
       )}
 
@@ -174,16 +181,21 @@ function VehicleImage({
       {/* Status dot (list mode: minimal indicator) */}
       {showStatusDot && statusCfg && (
         <span
-          className={cn("absolute left-1.5 top-1.5 z-10 h-2 w-2 rounded-full ring-1 ring-black/20", statusCfg.dotColor)}
+          className={cn(
+            "absolute left-1.5 top-1.5 z-10 h-2 w-2 rounded-full ring-1 ring-black/20",
+            statusCfg.dotColor,
+          )}
         />
       )}
 
       {/* Days on lot */}
-      {showDaysOnLot && vehicle.daysOnLot !== undefined && vehicle.daysOnLot > 0 && (
-        <div className="absolute bottom-2 right-2 z-10 rounded-md bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-          {vehicle.daysOnLot}d
-        </div>
-      )}
+      {showDaysOnLot &&
+        vehicle.daysOnLot !== undefined &&
+        vehicle.daysOnLot > 0 && (
+          <div className="absolute bottom-2 right-2 z-10 rounded-md bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+            {vehicle.daysOnLot}d
+          </div>
+        )}
     </div>
   );
 }
@@ -196,7 +208,11 @@ export function CarInventoryCard({
   onCheckAvailability,
   onCreateLoad,
 }: CarInventoryCardProps) {
-  const statusCfg = vehicle.status ? (STATUS_CONFIG[vehicle.status] ?? null) : null;
+  const statusCfg = vehicle.status
+    ? (STATUS_CONFIG[vehicle.status] ?? null)
+    : null;
+  const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
+  const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
   const originalPrice =
     vehicle.marketPrice && vehicle.marketPrice > vehicle.price
       ? vehicle.marketPrice
@@ -233,11 +249,15 @@ export function CarInventoryCard({
               >
                 {vehicle.year} {vehicle.make} {vehicle.model}
                 {vehicle.trim && (
-                  <span className="font-normal text-muted-foreground ml-1.5 text-[13px]">{vehicle.trim}</span>
+                  <span className="font-normal text-muted-foreground ml-1.5 text-[13px]">
+                    {vehicle.trim}
+                  </span>
                 )}
               </h3>
               {vehicle.stockNumber && vehicle.stockNumber !== "N/A" && (
-                <span className="font-mono text-[10px] text-muted-foreground/50">#{vehicle.stockNumber}</span>
+                <span className="font-mono text-[10px] text-muted-foreground/50">
+                  #{vehicle.stockNumber}
+                </span>
               )}
             </div>
             {statusCfg && (
@@ -256,17 +276,23 @@ export function CarInventoryCard({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <GaugeIcon className="h-3 w-3 text-primary/50" />
-              {vehicle.mileage.toLocaleString()} mi
+              {safeMileage.toLocaleString()} mi
             </span>
             <span className="flex items-center gap-1">
               <MapPinIcon className="h-3 w-3" />
-              {vehicle.location.split(",")[0]}
+              {safeLocation}
             </span>
-            {vehicle.bodyStyle && <span className="hidden sm:inline">{vehicle.bodyStyle}</span>}
-            {vehicle.transmission && (
-              <span className="hidden sm:inline">{vehicle.transmission.split(" ")[0]}</span>
+            {vehicle.bodyStyle && (
+              <span className="hidden sm:inline">{vehicle.bodyStyle}</span>
             )}
-            {vehicle.fuelType && <span className="hidden sm:inline">{vehicle.fuelType}</span>}
+            {vehicle.transmission && (
+              <span className="hidden sm:inline">
+                {vehicle.transmission.split(" ")[0]}
+              </span>
+            )}
+            {vehicle.fuelType && (
+              <span className="hidden sm:inline">{vehicle.fuelType}</span>
+            )}
           </div>
         </div>
 
@@ -305,7 +331,7 @@ export function CarInventoryCard({
 
         {/* Mobile: full-card tap */}
         <button
-          className="absolute inset-0 sm:hidden"
+          className="absolute inset-0 sm:hidden z-[1]"
           onClick={() => onVehicleClick?.(vehicle)}
           aria-label={`View ${vehicle.year} ${vehicle.make} ${vehicle.model}`}
         />
@@ -341,13 +367,18 @@ export function CarInventoryCard({
       {/* Content */}
       <div className="flex min-w-0 flex-1 flex-col justify-between p-3 sm:p-4 gap-2">
         {/* Title block */}
-        <div onClick={() => onVehicleClick?.(vehicle)} className="cursor-pointer">
+        <div
+          onClick={() => onVehicleClick?.(vehicle)}
+          className="cursor-pointer"
+        >
           <h3 className="text-sm sm:text-base font-bold leading-snug text-foreground line-clamp-1">
             {vehicle.year} {vehicle.make} {vehicle.model}
           </h3>
           <div className="flex items-center gap-2 mt-0.5">
             {vehicle.trim && (
-              <span className="text-xs text-muted-foreground truncate">{vehicle.trim}</span>
+              <span className="text-xs text-muted-foreground truncate">
+                {vehicle.trim}
+              </span>
             )}
             {vehicle.stockNumber && vehicle.stockNumber !== "N/A" && (
               <span className="shrink-0 font-mono text-[10px] text-muted-foreground/50">
@@ -358,32 +389,41 @@ export function CarInventoryCard({
         </div>
 
         {/* Key specs */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        <div className="relative z-[2] flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-foreground/80">
           <span className="flex items-center gap-1">
             <GaugeIcon className="h-3.5 w-3.5 text-primary/60" />
-            {vehicle.mileage.toLocaleString()} mi
+            {safeMileage.toLocaleString()} mi
           </span>
           <span className="flex items-center gap-1">
             <MapPinIcon className="h-3.5 w-3.5" />
-            {vehicle.location.split(",")[0]}
+            {safeLocation}
           </span>
         </div>
 
         {/* Attribute badges — desktop only */}
         <div className="hidden sm:flex flex-wrap gap-1.5">
           {vehicle.bodyStyle && (
-            <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium">
+            <Badge
+              variant="secondary"
+              className="h-5 px-2 text-[10px] font-medium"
+            >
               {vehicle.bodyStyle}
             </Badge>
           )}
           {vehicle.transmission && (
-            <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium gap-1">
+            <Badge
+              variant="secondary"
+              className="h-5 px-2 text-[10px] font-medium gap-1"
+            >
               <Settings2 className="h-2.5 w-2.5" />
               {vehicle.transmission.split(" ")[0]}
             </Badge>
           )}
           {vehicle.fuelType && (
-            <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium gap-1">
+            <Badge
+              variant="secondary"
+              className="h-5 px-2 text-[10px] font-medium gap-1"
+            >
               <Fuel className="h-2.5 w-2.5" />
               {vehicle.fuelType}
             </Badge>
@@ -402,16 +442,21 @@ export function CarInventoryCard({
             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded hidden sm:inline">
               -{savingsPct}%
             </span>
-            {vehicle.daysOnLot !== undefined && vehicle.daysOnLot <= 7 && vehicle.daysOnLot > 0 && (
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 sm:hidden">
-                New
-              </span>
-            )}
+            {vehicle.daysOnLot !== undefined &&
+              vehicle.daysOnLot <= 7 &&
+              vehicle.daysOnLot > 0 && (
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 sm:hidden">
+                  New
+                </span>
+              )}
           </div>
         </div>
 
         {/* Actions — desktop only */}
-        <div className="hidden sm:flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="relative z-[3] hidden sm:flex flex-col gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
@@ -443,7 +488,7 @@ export function CarInventoryCard({
 
       {/* Mobile: full-card tap */}
       <button
-        className="absolute inset-0 sm:hidden"
+        className="absolute inset-0 sm:hidden z-[1]"
         onClick={() => onVehicleClick?.(vehicle)}
         aria-label={`View ${vehicle.year} ${vehicle.make} ${vehicle.model}`}
       />

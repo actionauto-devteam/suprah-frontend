@@ -58,7 +58,15 @@ const T = {
 };
 
 // Skeleton loader
-function Skeleton({ w, h, r = 8 }: { w: number | string; h: number; r?: number }) {
+function Skeleton({
+  w,
+  h,
+  r = 8,
+}: {
+  w: number | string;
+  h: number;
+  r?: number;
+}) {
   return (
     <div
       style={{
@@ -332,7 +340,9 @@ function NavCard({
           {desc}
         </p>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+      >
         {badge !== undefined && badge > 0 && (
           <span
             style={{
@@ -366,6 +376,7 @@ export default function BillingDashboard() {
   const [balance, setBalance] = React.useState<number | null>(null);
   const [stats, setStats] = React.useState<PaymentStats | null>(null);
   const [recentPayments, setRecentPayments] = React.useState<Payment[]>([]);
+  const [allPayments, setAllPayments] = React.useState<Payment[]>([]);
   const [pendingCount, setPendingCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isHidden, setIsHidden] = React.useState(false);
@@ -374,6 +385,67 @@ export default function BillingDashboard() {
   >(null);
 
   const userId = authUserId ?? "USR-0000";
+
+  const extractPayments = React.useCallback((payload: any): Payment[] => {
+    const data = payload?.data;
+    if (Array.isArray(data)) return data as Payment[];
+    if (Array.isArray(data?.payments)) return data.payments as Payment[];
+    if (Array.isArray(payload?.payments)) return payload.payments as Payment[];
+    if (Array.isArray(payload)) return payload as Payment[];
+    return [];
+  }, []);
+
+  const normalizeStats = React.useCallback((raw: any): PaymentStats | null => {
+    if (!raw || typeof raw !== "object") return null;
+    if (raw.byStatus && typeof raw.byStatus === "object") {
+      return {
+        byStatus: raw.byStatus,
+        totalCount: Number(raw.totalCount ?? 0),
+        totalRevenue: Number(raw.totalRevenue ?? 0),
+        pendingAmount: Number(raw.pendingAmount ?? 0),
+      };
+    }
+    return null;
+  }, []);
+
+  const buildStatsFromPayments = React.useCallback(
+    (payments: Payment[]): PaymentStats => {
+      const empty = {
+        pending: { count: 0, totalAmount: 0 },
+        processing: { count: 0, totalAmount: 0 },
+        succeeded: { count: 0, totalAmount: 0 },
+        failed: { count: 0, totalAmount: 0 },
+        refunded: { count: 0, totalAmount: 0 },
+        cancelled: { count: 0, totalAmount: 0 },
+      };
+      const byStatus = payments.reduce<
+        Record<string, { count: number; totalAmount: number }>
+      >(
+        (acc, payment) => {
+          const status = payment.status ?? "pending";
+          if (!acc[status]) acc[status] = { count: 0, totalAmount: 0 };
+          acc[status].count += 1;
+          acc[status].totalAmount += Number(payment.amount ?? 0);
+          return acc;
+        },
+        { ...empty },
+      );
+
+      const totalCount = payments.length;
+      const totalRevenue = Number(byStatus.succeeded?.totalAmount ?? 0);
+      const pendingAmount =
+        Number(byStatus.pending?.totalAmount ?? 0) +
+        Number(byStatus.failed?.totalAmount ?? 0);
+
+      return {
+        byStatus,
+        totalCount,
+        totalRevenue,
+        pendingAmount,
+      };
+    },
+    [],
+  );
 
   const load = React.useCallback(async () => {
     setIsLoading(true);
@@ -387,20 +459,55 @@ export default function BillingDashboard() {
           apiClient.get("/api/payments/balance", { headers }),
           apiClient.get("/api/payments/pending", { headers }),
         ]);
-      if (paymentsRes.status === "fulfilled")
-        setRecentPayments(paymentsRes.value.data.data.payments?.slice(0, 6) ?? []);
-      if (statsRes.status === "fulfilled")
-        setStats(statsRes.value.data.data ?? null);
+
+      const loadedPayments =
+        paymentsRes.status === "fulfilled"
+          ? extractPayments(paymentsRes.value.data)
+          : [];
+
+      const loadedPendingPayments =
+        pendingRes.status === "fulfilled"
+          ? extractPayments(pendingRes.value.data)
+          : [];
+
+      const uniqueById = new Map<string, Payment>();
+      [...loadedPayments, ...loadedPendingPayments].forEach((payment) => {
+        if (payment?._id) {
+          uniqueById.set(payment._id, payment);
+        }
+      });
+      const mergedPayments = Array.from(uniqueById.values()).sort(
+        (a, b) =>
+          new Date(b.createdAt ?? 0).getTime() -
+          new Date(a.createdAt ?? 0).getTime(),
+      );
+
+      setAllPayments(mergedPayments);
+      setRecentPayments(mergedPayments.slice(0, 6));
+
+      if (statsRes.status === "fulfilled") {
+        const normalized = normalizeStats(statsRes.value.data?.data);
+        setStats(normalized ?? buildStatsFromPayments(mergedPayments));
+      } else {
+        setStats(buildStatsFromPayments(mergedPayments));
+      }
+
       if (balanceRes.status === "fulfilled")
         setBalance(balanceRes.value.data.data?.balance ?? null);
-      if (pendingRes.status === "fulfilled")
-        setPendingCount((pendingRes.value.data.data ?? []).length);
+
+      setPendingCount(
+        loadedPendingPayments.length ||
+          mergedPayments.filter(
+            (payment) =>
+              payment.status === "pending" || payment.status === "failed",
+          ).length,
+      );
     } catch (e) {
       console.error(e);
     } finally {
       setIsLoading(false);
     }
-  }, [getToken]);
+  }, [buildStatsFromPayments, extractPayments, getToken, normalizeStats]);
 
   React.useEffect(() => {
     load();
@@ -410,12 +517,15 @@ export default function BillingDashboard() {
   const succeeded = stats?.byStatus?.succeeded;
   const pending = stats?.byStatus?.pending;
   const failed = stats?.byStatus?.failed;
+  const closedCount = (succeeded?.count ?? 0) + (failed?.count ?? 0);
   const winRate =
-    succeeded?.count && stats?.totalCount
-      ? Math.round((succeeded.count / stats.totalCount) * 100)
+    closedCount > 0
+      ? Math.round(((succeeded?.count ?? 0) / closedCount) * 100)
       : 0;
   const avgDeal =
-    (stats?.totalRevenue ?? 0) / Math.max(stats?.totalCount ?? 1, 1);
+    (stats?.totalRevenue ?? 0) / Math.max(succeeded?.count ?? 1, 1);
+  const hasAnyTransactionData =
+    (stats?.totalCount ?? 0) > 0 || allPayments.length > 0 || pendingCount > 0;
 
   return (
     <WiseProvider>
@@ -570,9 +680,7 @@ export default function BillingDashboard() {
                 animation: "fadeUp 0.38s ease 0.08s both",
               }}
             >
-              <div
-                className="dashboard-stats"
-              >
+              <div className="dashboard-stats">
                 <MiniMetric
                   label="Win Rate"
                   icon={TrendingUp}
@@ -812,7 +920,7 @@ export default function BillingDashboard() {
                         </div>
                       </div>
                     ))
-                  ) : recentPayments.length === 0 ? (
+                  ) : recentPayments.length === 0 && !hasAnyTransactionData ? (
                     <div
                       style={{
                         padding: "40px 20px",
@@ -839,9 +947,42 @@ export default function BillingDashboard() {
                         No transactions yet
                       </p>
                     </div>
+                  ) : recentPayments.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "24px 20px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: T.textSub,
+                          fontWeight: 600,
+                          margin: 0,
+                        }}
+                      >
+                        Loading transaction activity…
+                      </p>
+                      <p
+                        style={{
+                          fontSize: 10,
+                          color: T.textMute,
+                          margin: "6px 0 0",
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
+                        Metrics detected, syncing recent records
+                      </p>
+                    </div>
                   ) : (
                     recentPayments.map((p, i) => (
-                      <TxRow key={p._id} payment={p} idx={i} isHidden={isHidden} />
+                      <TxRow
+                        key={p._id}
+                        payment={p}
+                        idx={i}
+                        isHidden={isHidden}
+                      />
                     ))
                   )}
                 </div>
@@ -870,8 +1011,7 @@ export default function BillingDashboard() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(140px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
                   gap: 12,
                 }}
               >
