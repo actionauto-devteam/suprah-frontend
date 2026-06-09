@@ -2,92 +2,94 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Settings,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Calendar,
-  BellRing,
-  MapPin,
-  GaugeCircle,
   CarFront,
   Pencil,
   Trash2,
   LifeBuoy,
+  Wrench,
+  ShoppingBag,
+  MessageCircle,
+  Heart,
+  CreditCard,
+  Bell,
+  ChevronRight,
+  Plus,
+  LayoutDashboard,
+  ClipboardList,
+  MapPin,
+  GaugeCircle,
+  BellRing,
+  Settings,
+  ArrowUpRight,
+  Zap,
+  Package,
+  Sparkles,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { fetchOwnedVehicles, OwnedVehicle } from "@/lib/api/vehicles";
-import { fetchServiceHistory, ServiceRecord } from "@/lib/api/services";
+import { fetchServiceHistory } from "@/lib/api/services";
 import { apiClient } from "@/lib/api-client";
 import { LogServiceModal } from "@/components/customer/LogServiceModal";
 import { UpdateMileageModal } from "@/components/customer/UpdateMileageModal";
 import { AddVehicleModal } from "@/components/customer/AddVehicleModal";
 import { EditVehicleModal } from "@/components/customer/EditVehicleModal";
+import { BookServiceModal } from "@/components/customer/BookServiceModal";
 import { deleteVehicle } from "@/lib/api/vehicles";
-import { useTheme } from "@/context/ThemeContext";
-import { resolveImageUrl } from "@/lib/utils";
+import { resolveImageUrl, cn } from "@/lib/utils";
+import { useUser } from "@/providers/AuthProvider";
+import { useNotifications } from "@/context/NotificationContext";
+import { fetchSavedVehicles } from "@/lib/api/savedVehicles";
+import { useProfileContext } from "@/context/ProfileContext";
 
-// Helper to calculate progress bar
 const calculateServiceProgress = (current: number, nextDue: number) => {
   if (!nextDue || nextDue <= current) return 100;
-  const interval = Math.min(5000, nextDue); // roughly a standard oil interval
+  const interval = Math.min(5000, nextDue);
   const base = nextDue - interval;
-  const progress = ((current - base) / interval) * 100;
-  return Math.max(0, Math.min(progress, 100));
+  return Math.max(0, Math.min(((current - base) / interval) * 100, 100));
 };
 
-function buildVehiclePhotoFallback(
-  vehicle: Pick<OwnedVehicle, "year" | "make" | "model">,
-) {
-  const query = encodeURIComponent(
-    `${vehicle.year} ${vehicle.make} ${vehicle.model} car`,
-  );
+function buildVehiclePhotoFallback(vehicle: Pick<OwnedVehicle, "year" | "make" | "model">) {
+  const query = encodeURIComponent(`${vehicle.year} ${vehicle.make} ${vehicle.model} car`);
   return `https://source.unsplash.com/featured/1600x900/?${query}`;
 }
 
 function getVehicleImageSrc(vehicle: OwnedVehicle) {
-  const rawCandidates = [
-    vehicle.images?.[0],
-    (vehicle as any).imageUrl,
-    (vehicle as any).image,
-  ];
-
+  const rawCandidates = [vehicle.images?.[0], (vehicle as any).imageUrl, (vehicle as any).image];
   for (const candidate of rawCandidates) {
     const resolved = resolveImageUrl(candidate);
     if (resolved) return resolved;
   }
-
   return buildVehiclePhotoFallback(vehicle);
 }
 
 function GarageVehicleImage({ vehicle }: { vehicle: OwnedVehicle }) {
-  const initialSrc = React.useMemo(
-    () => getVehicleImageSrc(vehicle),
-    [vehicle],
-  );
-  const placeholderSrc = React.useMemo(
-    () => buildVehiclePhotoFallback(vehicle),
-    [vehicle],
-  );
+  const initialSrc = React.useMemo(() => getVehicleImageSrc(vehicle), [vehicle]);
+  const placeholderSrc = React.useMemo(() => buildVehiclePhotoFallback(vehicle), [vehicle]);
   const [src, setSrc] = React.useState(initialSrc);
   const [fallbackTried, setFallbackTried] = React.useState(false);
-
-  React.useEffect(() => {
-    setSrc(initialSrc);
-  }, [initialSrc]);
-
+  React.useEffect(() => { setSrc(initialSrc); }, [initialSrc]);
   return (
     <img
       src={src}
       alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-      className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-700"
+      className="w-full h-full object-cover opacity-70 group-hover:opacity-85 transition-opacity duration-500"
       onError={() => {
-        if (!fallbackTried) {
-          setFallbackTried(true);
-          setSrc(placeholderSrc);
-          return;
-        }
+        if (!fallbackTried) { setFallbackTried(true); setSrc(placeholderSrc); return; }
         setSrc("/placeholder-avatar.png");
       }}
     />
@@ -98,22 +100,60 @@ function getVehicleId(vehicle: OwnedVehicle | null | undefined) {
   return vehicle?.id || vehicle?._id || "";
 }
 
-export default function MyGaragePage() {
-  const { theme } = useTheme();
+const SERVICE_TYPE_COLORS: Record<string, string> = {
+  OIL_CHANGE: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  TIRES: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  BRAKES: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
+  INSPECTION: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20",
+  OTHER: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/20",
+};
+
+export default function CustomerDashboard() {
+  const { user } = useUser();
+  const { avatarUrl } = useProfileContext();
+  const { unreadCount, notifications, markAsRead } = useNotifications();
 
   const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
     queryKey: ["vehicles"],
     queryFn: fetchOwnedVehicles,
   });
 
-  const [selectedVehicle, setSelectedVehicle] =
-    React.useState<OwnedVehicle | null>(null);
+  const { data: savedVehicles = [] } = useQuery({
+    queryKey: ["savedVehicles"],
+    queryFn: fetchSavedVehicles,
+  });
+
+  const { data: upcomingAppointments = [] } = useQuery({
+    queryKey: ["appointments", "upcoming"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get("/api/appointments", { params: { status: "scheduled", limit: 3 } });
+        const d = res.data?.data || res.data;
+        return d?.appointments || d || [];
+      } catch { return []; }
+    },
+  });
+
+  const { data: pendingPayments } = useQuery({
+    queryKey: ["payments", "pending-count"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get("/api/payments", { params: { status: "pending", limit: 1 } });
+        const d = res.data?.data || res.data;
+        return d?.pagination?.total ?? (Array.isArray(d?.invoices) ? d.invoices.length : 0);
+      } catch { return 0; }
+    },
+  });
+
+  const [selectedVehicle, setSelectedVehicle] = React.useState<OwnedVehicle | null>(null);
   const [isLogServiceOpen, setIsLogServiceOpen] = React.useState(false);
   const [isUpdateMileageOpen, setIsUpdateMileageOpen] = React.useState(false);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = React.useState(false);
   const [isEditVehicleOpen, setIsEditVehicleOpen] = React.useState(false);
+  const [isBookServiceOpen, setIsBookServiceOpen] = React.useState(false);
+  const [serviceVehicle, setServiceVehicle] = React.useState<OwnedVehicle | null>(null);
+  const [historyVehicleId, setHistoryVehicleId] = React.useState<string>("");
 
-  // Select the first vehicle automatically if none is selected
   React.useEffect(() => {
     if (!vehicles || vehicles.length === 0) return;
 
@@ -126,381 +166,843 @@ export default function MyGaragePage() {
     const stillExists = vehicles.some((v) => getVehicleId(v) === selectedId);
     if (!stillExists) {
       setSelectedVehicle(vehicles[0]);
+      setHistoryVehicleId(vehicles[0].id || vehicles[0]._id);
     }
   }, [vehicles, selectedVehicle]);
 
-  const selectedVehicleId = getVehicleId(selectedVehicle);
+  const historyVehicle = React.useMemo(
+    () => vehicles?.find((v) => (v.id || v._id) === historyVehicleId) ?? vehicles?.[0] ?? null,
+    [vehicles, historyVehicleId],
+  );
 
   const { data: serviceHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["serviceHistory", selectedVehicleId],
-    queryFn: () => fetchServiceHistory(selectedVehicleId),
-    enabled: Boolean(selectedVehicleId),
+    queryKey: ["serviceHistory", historyVehicle?.id],
+    queryFn: () => fetchServiceHistory(historyVehicle!.id),
+    enabled: !!historyVehicle?.id,
   });
 
   const queryClient = useQueryClient();
 
-  const handleLogService = (vehicle: OwnedVehicle) => {
-    setSelectedVehicle(vehicle);
-    setIsLogServiceOpen(true);
+  const handleLogService = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsLogServiceOpen(true); };
+  const handleUpdateMileage = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsUpdateMileageOpen(true); };
+  const handleEditVehicle = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsEditVehicleOpen(true); };
+  const handleBookService = (v: OwnedVehicle) => { setServiceVehicle(v); setIsBookServiceOpen(true); };
+
+  const handleDeleteVehicle = async (v: OwnedVehicle) => {
+    if (!window.confirm(`Remove your ${v.year} ${v.make} from your garage? This cannot be undone.`)) return;
+    try {
+      await deleteVehicle(v.id);
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      if (selectedVehicle?.id === v.id) setSelectedVehicle(null);
+    } catch { }
   };
 
-  const handleUpdateMileage = (vehicle: OwnedVehicle) => {
-    setSelectedVehicle(vehicle);
-    setIsUpdateMileageOpen(true);
-  };
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = user?.firstName || "there";
+  const userInitial = user?.firstName?.charAt(0)?.toUpperCase() || "M";
 
-  const handleEditVehicle = (vehicle: OwnedVehicle) => {
-    setSelectedVehicle(vehicle);
-    setIsEditVehicleOpen(true);
-  };
-
-  const handleDeleteVehicle = async (vehicle: OwnedVehicle) => {
-    if (
-      window.confirm(
-        `Are you sure you want to remove your ${vehicle.year} ${vehicle.make} from your garage? This action cannot be undone.`,
-      )
-    ) {
-      try {
-        await deleteVehicle(vehicle.id);
-        queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-        if (selectedVehicle?.id === vehicle.id) {
-          setSelectedVehicle(null);
-        }
-        alert("Vehicle removed successfully.");
-      } catch (error) {
-        console.error("Failed to delete vehicle", error);
-        alert("An error occurred while removing the vehicle.");
-      }
-    }
-  };
+  const QUICK_ACTIONS = [
+    {
+      label: "Book Service",
+      sub: "Schedule your next visit",
+      icon: Wrench,
+      action: () => { setServiceVehicle(vehicles?.[0] ?? null); setIsBookServiceOpen(true); },
+      className: "border-primary/30 bg-primary/8 dark:bg-primary/12",
+      iconCls: "bg-primary/15 text-primary",
+      featured: true,
+    },
+    {
+      label: "Shop Vehicles",
+      sub: "Browse inventory",
+      icon: CarFront,
+      href: "/customer/shop",
+      className: "border-amber-500/20 bg-amber-500/6 dark:bg-amber-500/8",
+      iconCls: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    },
+    {
+      label: "Aftermarket",
+      sub: "Parts & upgrades",
+      icon: Package,
+      href: "/customer/aftermarket",
+      className: "border-purple-500/20 bg-purple-500/6 dark:bg-purple-500/8",
+      iconCls: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+    },
+    {
+      label: "Support",
+      sub: "Get help",
+      icon: MessageCircle,
+      href: "/customer/support",
+      className: "border-border/40 bg-muted/40",
+      iconCls: "bg-muted text-muted-foreground",
+    },
+  ];
 
   return (
-    <div
-      data-theme={theme}
-      style={{ colorScheme: theme }}
-      className="min-h-full bg-background space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700"
-    >
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-6">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-            My Garage
-          </h1>
-          <p className="text-muted-foreground mt-2 max-w-2xl text-lg">
-            Manage your Action Auto vehicles, track maintenance, and access
-            exclusive partner discounts.
-          </p>
-        </div>
-        <Button
-          onClick={() => setIsAddVehicleOpen(true)}
-          className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-xl px-6 h-11 font-semibold"
-        >
-          + Add Vehicle
-        </Button>
-      </div>
+    <div className="min-h-full bg-background animate-in fade-in slide-in-from-bottom-4 duration-600">
+      <Tabs defaultValue="overview" className="space-y-5">
 
-      {isLoadingVehicles ? (
-        <div className="h-64 flex items-center justify-center border rounded-3xl animate-pulse bg-zinc-50 dark:bg-zinc-900/50">
-          <p className="text-muted-foreground font-medium">
-            Loading your garage...
-          </p>
-        </div>
-      ) : !vehicles || vehicles.length === 0 ? (
-        <div className="h-64 flex flex-col items-center justify-center border rounded-3xl bg-zinc-50 dark:bg-zinc-900/50 p-6 text-center">
-          <CarFront className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mb-4" />
-          <h3 className="text-xl font-bold">No Vehicles Found</h3>
-          <p className="text-muted-foreground mt-2 max-w-sm">
-            It looks like your vehicle hasn&apos;t been synced from the
-            dealership yet. If you recently purchased a car, our support team
-            can help get it linked.
-          </p>
-          <div className="flex gap-3 mt-5">
-            <Button asChild className="rounded-xl font-semibold">
-              <Link href="/customer/support">
-                <LifeBuoy className="w-4 h-4 mr-2" /> Contact Support
-              </Link>
-            </Button>
+        {/* ─── Page header + Tabs ─────────────────────────────────── */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <TooltipProvider delayDuration={400}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-default select-none">
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/70">
+                      Member Portal
+                    </p>
+                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground uppercase leading-none mt-0.5">
+                      Dashboard
+                    </h1>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-55 p-3" sideOffset={8}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <LayoutDashboard className="h-3 w-3 text-primary shrink-0" />
+                    <p className="text-[11px] font-bold">Member Portal</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Your personal command center — manage vehicles, track service history, and access all member features.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button
-              variant="outline"
               onClick={() => setIsAddVehicleOpen(true)}
-              className="rounded-xl font-semibold"
+              size="sm"
+              className="gap-1.5 rounded-xl font-semibold shrink-0 h-9"
             >
-              + Add Vehicle Manually
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add Vehicle</span>
+              <span className="sm:hidden">Add</span>
             </Button>
           </div>
+
+          <TabsList className="flex w-full sm:w-fit gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1 h-auto dark:bg-zinc-900/60 dark:border-zinc-800">
+            <TabsTrigger
+              value="overview"
+              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="vehicles"
+              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+            >
+              <CarFront className="h-3.5 w-3.5" />
+              <span>
+                <span className="hidden xs:inline">My </span>Vehicles
+              </span>
+              {vehicles && vehicles.length > 0 && (
+                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 text-primary text-[9px] font-black px-1">
+                  {vehicles.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="history"
+              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+            >
+              <ClipboardList className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">Service </span>Log
+            </TabsTrigger>
+          </TabsList>
         </div>
-      ) : (
-        <div className="space-y-12">
-          {vehicles.map((vehicle) => {
-            const isSelected = getVehicleId(vehicle) === selectedVehicleId;
-            const estimatedNextInterval = vehicle.currentMileage + 3000; // Simple heuristic for mock
-            const serviceProgress = calculateServiceProgress(
-              vehicle.currentMileage,
-              estimatedNextInterval,
-            );
-            const isServiceDueSoon = serviceProgress > 80;
 
-            return (
-              <div
-                key={getVehicleId(vehicle)}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-              >
-                {/* Left Col: Image & Identity */}
-                <div className="lg:col-span-2">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedVehicle(vehicle)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedVehicle(vehicle);
-                      }
-                    }}
-                    className={`relative overflow-hidden rounded-3xl bg-zinc-900 shadow-2xl group border h-full min-h-87.5 w-full text-left ${
-                      isSelected
-                        ? "border-primary ring-2 ring-primary/40"
-                        : "border-zinc-800"
-                    }`}
-                  >
-                    <div className="absolute inset-0">
-                      <GarageVehicleImage vehicle={vehicle} />
-                      <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent" />
-                    </div>
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/*  TAB 1 — OVERVIEW                                          */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        <TabsContent value="overview" className="space-y-4 mt-0">
 
-                    <div className="absolute top-4 right-4 flex gap-2 z-10">
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleEditVehicle(vehicle);
-                        }}
-                        className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-2 rounded-xl text-white border border-white/20 transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleDeleteVehicle(vehicle);
-                        }}
-                        className="bg-red-500/80 hover:bg-red-600 backdrop-blur-md p-2 rounded-xl text-white border border-red-500/50 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+          {/* Welcome card */}
+          <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-primary/20" />
+            <div className="absolute right-0 top-0 h-full w-2/5 bg-linear-to-l from-primary/5 to-transparent pointer-events-none" />
 
-                    <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
-                      <div>
-                        <p className="text-zinc-300 font-medium tracking-widest uppercase mb-1 drop-shadow-md">
-                          Active Vehicle
-                        </p>
-                        <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl">
-                          {vehicle.year} {vehicle.make}
-                        </h2>
-                        <p className="text-xl text-zinc-200 font-medium mt-1 drop-shadow-md">
-                          {vehicle.model} {vehicle.trim && `- ${vehicle.trim}`}
-                        </p>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:text-right">
-                        <p className="text-xs text-zinc-400 font-semibold uppercase tracking-widest mb-1">
-                          VIN #
-                        </p>
-                        <p className="text-zinc-100 font-mono text-sm tracking-wider">
-                          {vehicle.vin}
-                        </p>
-                      </div>
-                    </div>
+            <div className="relative p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    {greeting}
+                  </p>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground uppercase leading-tight mt-0.5">
+                    {firstName}
+                    <span className="text-primary">.</span>
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                    Here&apos;s your account at a glance
+                  </p>
+                </div>
+                <Avatar className="h-12 w-12 ring-2 ring-primary/20 shrink-0">
+                  <AvatarImage src={resolveImageUrl(avatarUrl !== null ? avatarUrl : user?.imageUrl)} />
+                  <AvatarFallback className="bg-primary/10 text-primary font-black text-base">
+                    {userInitial}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+
+              <div className="mt-4 pt-3.5 border-t border-border/30 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <Link href="/customer" className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-primary transition-colors">
+                  <CarFront className="h-3.5 w-3.5 text-primary/60" />
+                  {vehicles?.length ?? 0} <span className="text-muted-foreground font-normal">vehicles</span>
+                </Link>
+                <span className="text-border/80 text-xs">·</span>
+                <Link href="/customer/saved" className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-primary transition-colors">
+                  <Heart className="h-3.5 w-3.5 text-rose-400" />
+                  {(savedVehicles as any[]).length} <span className="text-muted-foreground font-normal">saved</span>
+                </Link>
+                {unreadCount > 0 && (
+                  <>
+                    <span className="text-border/80 text-xs">·</span>
+                    <Link href="/customer/notifications" className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-black">
+                        {unreadCount}
+                      </span>
+                      new alert{unreadCount !== 1 ? "s" : ""}
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Stat tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                icon: CarFront,
+                label: "Vehicles",
+                value: vehicles?.length ?? 0,
+                href: "/customer",
+                ring: "ring-primary/20",
+                iconBg: "bg-primary/10",
+                iconCl: "text-primary",
+              },
+              {
+                icon: Heart,
+                label: "Wishlist",
+                value: (savedVehicles as any[]).length,
+                href: "/customer/saved",
+                ring: "ring-rose-400/20",
+                iconBg: "bg-rose-500/10",
+                iconCl: "text-rose-500",
+              },
+              {
+                icon: Bell,
+                label: "Alerts",
+                value: unreadCount,
+                href: "/customer/notifications",
+                ring: "ring-amber-400/20",
+                iconBg: "bg-amber-500/10",
+                iconCl: "text-amber-500",
+              },
+              {
+                icon: CreditCard,
+                label: "Payments Due",
+                value: pendingPayments ?? 0,
+                href: "/customer/payments",
+                ring: "ring-emerald-400/20",
+                iconBg: "bg-emerald-500/10",
+                iconCl: "text-emerald-500",
+              },
+            ].map((stat) => (
+              <Link key={stat.label} href={stat.href}>
+                <div
+                  className={cn(
+                    "group rounded-2xl border border-border/40 bg-card p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer",
+                    "hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5",
+                    "dark:bg-zinc-900/60",
+                  )}
+                >
+                  <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl ring-1", stat.iconBg, stat.ring)}>
+                    <stat.icon className={cn("h-4 w-4", stat.iconCl)} />
                   </div>
+                  <div>
+                    <p className="text-2xl font-black text-foreground tabular-nums leading-none">
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">{stat.label}</p>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 self-end -mt-1 group-hover:text-primary transition-colors group-hover:translate-x-0.5" />
                 </div>
+              </Link>
+            ))}
+          </div>
 
-                {/* Right Col: Health Engine */}
-                <div className="flex flex-col gap-6">
-                  {/* Service Health Card */}
-                  <Card className="flex-1 p-6 rounded-3xl border-border/40 shadow-sm bg-zinc-50 dark:bg-zinc-900/50 flex flex-col justify-center">
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-bold tracking-tight">
-                        Vehicle Health
-                      </h3>
-                      <div
-                        className={`p-2 rounded-full ${isServiceDueSoon ? "bg-amber-100 text-amber-600 dark:bg-amber-500/10" : "bg-green-100 text-green-600 dark:bg-green-500/10"}`}
-                      >
-                        {isServiceDueSoon ? (
-                          <BellRing className="w-5 h-5" />
-                        ) : (
-                          <Settings className="w-5 h-5" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between text-sm font-medium mb-2">
-                          <span className="text-muted-foreground flex items-center gap-1">
-                            <GaugeCircle className="w-4 h-4" /> Current
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-foreground">
-                              {vehicle.currentMileage.toLocaleString()} mi
-                            </span>
-                            <button
-                              onClick={() => handleUpdateMileage(vehicle)}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                              Update
-                            </button>
-                          </div>
-                        </div>
-                        <Progress
-                          value={serviceProgress}
-                          className="h-3 rounded-full bg-zinc-200 dark:bg-zinc-800"
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                          <span>
-                            Due: ~{estimatedNextInterval.toLocaleString()} mi
-                          </span>
-                        </div>
-                      </div>
-
-                      {isServiceDueSoon && (
-                        <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-start gap-3">
-                          <BellRing className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-                          <div>
-                            <h4 className="font-semibold text-amber-800 dark:text-amber-500 text-sm">
-                              Service Recommended Soon
-                            </h4>
-                            <p className="text-amber-700/80 dark:text-amber-400/80 text-xs mt-1">
-                              You are approaching your next service interval.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-6 space-y-3">
-                      <Button
-                        variant="outline"
-                        className="w-full rounded-xl font-semibold h-11"
-                        onClick={() => handleLogService(vehicle)}
-                      >
-                        Log New Service Result
-                      </Button>
-                      <Button
-                        className="w-full rounded-xl font-semibold h-11 bg-green-600 hover:bg-green-700 text-white shadow-md active:scale-95 transition-transform"
-                        onClick={() =>
-                          (window.location.href = "/customer/network")
-                        }
-                      >
-                        Find Jiffy Lube Locations
-                      </Button>
-                    </div>
-                  </Card>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Service History List (tied to selected car) */}
-          {selectedVehicle && (
-            <div className="pt-8 border-t border-border/50">
-              <div className="flex justify-between items-end mb-6">
-                <div>
-                  <h3 className="text-2xl font-extrabold tracking-tight">
-                    Digital Logbook
-                  </h3>
-                  <p className="text-muted-foreground mt-1">
-                    Showing history for {selectedVehicle.year}{" "}
-                    {selectedVehicle.make} {selectedVehicle.model}
-                  </p>
-                </div>
-              </div>
-
-              {isLoadingHistory ? (
-                <p className="text-muted-foreground animate-pulse">
-                  Loading service history...
-                </p>
-              ) : !serviceHistory || serviceHistory.length === 0 ? (
-                <div className="p-8 text-center border rounded-2xl bg-zinc-50 dark:bg-zinc-900/30 border-dashed">
-                  <Settings className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
-                  <p className="text-muted-foreground mb-4">
-                    No service records found for this vehicle.
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleLogService(selectedVehicle)}
+          {/* Quick Actions */}
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 px-0.5">
+              Quick Actions
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {QUICK_ACTIONS.map((item) => {
+                const inner = (
+                  <div
+                    className={cn(
+                      "group rounded-2xl border p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer",
+                      "hover:shadow-md hover:-translate-y-0.5",
+                      item.className,
+                      item.featured && "col-span-1",
+                    )}
                   >
-                    Log the first service
-                  </Button>
+                    <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", item.iconCls)}>
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground leading-none">{item.label}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{item.sub}</p>
+                    </div>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/30 self-end -mt-1 group-hover:text-primary group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                );
+                return item.href ? (
+                  <Link key={item.label} href={item.href}>{inner}</Link>
+                ) : (
+                  <button key={item.label} onClick={item.action} className="text-left">
+                    {inner}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Appointments + Notifications (side by side on lg) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {/* Upcoming Appointments */}
+            <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-4">
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <p className="text-sm font-bold text-foreground">Appointments</p>
+                </div>
+                <button
+                  onClick={() => { setServiceVehicle(vehicles?.[0] ?? null); setIsBookServiceOpen(true); }}
+                  className="text-[11px] text-primary font-semibold hover:underline flex items-center gap-0.5"
+                >
+                  Book new <Plus className="h-3 w-3" />
+                </button>
+              </div>
+
+              {(upcomingAppointments as any[]).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/40 bg-muted/20 p-5 text-center">
+                  <Calendar className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No upcoming appointments</p>
+                  <button
+                    onClick={() => { setServiceVehicle(vehicles?.[0] ?? null); setIsBookServiceOpen(true); }}
+                    className="mt-2 text-xs text-primary font-semibold hover:underline"
+                  >
+                    Schedule one now →
+                  </button>
                 </div>
               ) : (
-                <div className="max-h-[36rem] overflow-y-auto pr-1">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {serviceHistory.map((record) => (
-                      <div
-                        key={record._id}
-                        className="p-5 flex flex-row rounded-2xl border border-border/40 bg-white dark:bg-zinc-950 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm transition-colors items-center gap-4"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center shrink-0">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="text-zinc-500 w-5 h-5"
-                          >
-                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-foreground truncate">
-                            {record.serviceType.replace(/_/g, " ")}
-                          </h4>
-                          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                            <MapPin className="w-3 h-3" /> {record.locationName}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Odometer: {record.mileageAtService.toLocaleString()}{" "}
-                            mi
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-bold text-foreground">
-                            {record.cost ? `$${record.cost.toFixed(2)}` : "--"}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(record.date).toLocaleDateString()}
-                          </p>
-                        </div>
+                <div className="space-y-2">
+                  {(upcomingAppointments as any[]).map((appt: any, idx: number) => (
+                    <div
+                      key={appt._id || appt.id || idx}
+                      className="flex items-center gap-3 rounded-xl border border-border/30 bg-muted/30 p-3 hover:border-primary/20 transition-colors dark:bg-zinc-800/40"
+                    >
+                      <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-primary/10 shrink-0 text-center">
+                        <span className="text-[10px] font-bold text-primary uppercase leading-none">
+                          {appt.startTime ? new Date(appt.startTime).toLocaleDateString(undefined, { month: "short" }) : "—"}
+                        </span>
+                        <span className="text-base font-black text-primary leading-none">
+                          {appt.startTime ? new Date(appt.startTime).getDate() : "—"}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate leading-snug">
+                          {appt.title || "Service Appointment"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {appt.startTime
+                            ? new Date(appt.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                            : ""}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-[10px] capitalize rounded-full px-2"
+                      >
+                        {appt.type || "appt"}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+
+            {/* Recent Notifications */}
+            <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-4">
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-xl",
+                    unreadCount > 0 ? "bg-amber-500/10" : "bg-muted",
+                  )}>
+                    <Bell className={cn("h-3.5 w-3.5", unreadCount > 0 ? "text-amber-500" : "text-muted-foreground")} />
+                  </div>
+                  <p className="text-sm font-bold text-foreground">Notifications</p>
+                  {unreadCount > 0 && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-black px-1">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                <Link href="/customer/notifications" className="text-[11px] text-primary font-semibold hover:underline">
+                  View all →
+                </Link>
+              </div>
+
+              {notifications.slice(0, 3).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/40 bg-muted/20 p-5 text-center">
+                  <Bell className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No notifications yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.slice(0, 3).map((notif) => (
+                    <button
+                      key={notif._id}
+                      onClick={() => markAsRead(notif._id)}
+                      className={cn(
+                        "w-full flex items-start gap-2.5 rounded-xl border p-3 text-left transition-all duration-150",
+                        notif.isRead
+                          ? "border-border/30 bg-muted/20 hover:bg-muted/30"
+                          : "border-primary/15 bg-primary/5 hover:bg-primary/8 dark:border-primary/20 dark:bg-primary/8",
+                      )}
+                    >
+                      <div className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-xl mt-0.5",
+                        notif.isRead ? "bg-muted" : "bg-primary/15",
+                      )}>
+                        <Bell className={cn("h-3.5 w-3.5", notif.isRead ? "text-muted-foreground" : "text-primary")} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-xs leading-snug truncate",
+                          notif.isRead ? "font-medium text-foreground/80" : "font-bold text-foreground",
+                        )}>
+                          {notif.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">{notif.message}</p>
+                      </div>
+                      {!notif.isRead && (
+                        <span className="shrink-0 mt-1.5 h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* My Garage — Saved Vehicles carousel */}
+          <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-4">
+            <div className="flex items-center justify-between mb-3.5">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10">
+                  <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
+                </div>
+                <p className="text-sm font-bold text-foreground">Wishlist</p>
+                {(savedVehicles as any[]).length > 0 && (
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    {(savedVehicles as any[]).length} saved
+                  </span>
+                )}
+              </div>
+              <Link href="/customer/saved" className="text-[11px] text-primary font-semibold hover:underline flex items-center gap-0.5">
+                View all <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            {(savedVehicles as any[]).length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border/40 bg-muted/20 p-5 text-center">
+                <Heart className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-foreground">Your wishlist is empty</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Heart vehicles in the shop to save them here.
+                </p>
+                <Link href="/customer/shop">
+                  <Button variant="outline" size="sm" className="mt-3 h-7 text-xs rounded-xl gap-1.5">
+                    <CarFront className="h-3 w-3" /> Browse Shop
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div
+                className="flex gap-3 overflow-x-auto pb-1"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+              >
+                {(savedVehicles as any[]).slice(0, 8).map((v: any) => (
+                  <Link
+                    key={v.id || v._id}
+                    href="/customer/saved"
+                    className="group shrink-0 w-35 rounded-2xl border border-border/40 bg-background overflow-hidden hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 dark:bg-zinc-800/60"
+                  >
+                    <div className="relative h-21 bg-muted overflow-hidden">
+                      {(v.image || v.images?.[0]) ? (
+                        <img
+                          src={resolveImageUrl(v.image || v.images?.[0]) || ""}
+                          alt={`${v.year} ${v.make} ${v.model}`}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center">
+                          <CarFront className="h-7 w-7 text-muted-foreground/20" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
+                      {v.price && (
+                        <span className="absolute bottom-1.5 left-1.5 text-[10px] font-black text-white bg-black/50 backdrop-blur-sm rounded-full px-2 py-0.5">
+                          ${Number(v.price).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-2.5">
+                      <p className="text-xs font-bold text-foreground truncate leading-snug">
+                        {v.year} {v.make}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate">{v.model}</p>
+                    </div>
+                  </Link>
+                ))}
+
+                {/* "View all" tile */}
+                <Link
+                  href="/customer/saved"
+                  className="shrink-0 w-35 rounded-2xl border border-dashed border-primary/30 bg-primary/5 dark:bg-primary/8 flex flex-col items-center justify-center gap-1.5 p-3 hover:bg-primary/10 transition-colors"
+                >
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <p className="text-[11px] font-bold text-primary text-center leading-snug">
+                    View All Saved
+                  </p>
+                </Link>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/*  TAB 2 — MY VEHICLES                                       */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        <TabsContent value="vehicles" className="mt-0 space-y-4">
+          {isLoadingVehicles ? (
+            <div className="space-y-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-64 rounded-2xl bg-muted animate-pulse dark:bg-zinc-900" />
+              ))}
+            </div>
+          ) : !vehicles || vehicles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center rounded-2xl border border-dashed border-border/50 bg-muted/20">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <CarFront className="h-7 w-7 text-muted-foreground/30" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-foreground">No Vehicles Yet</h3>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Your vehicle hasn&apos;t been synced yet, or you haven&apos;t added one.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button asChild size="sm" className="rounded-xl gap-1.5">
+                  <Link href="/customer/support">
+                    <LifeBuoy className="h-3.5 w-3.5" /> Contact Support
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsAddVehicleOpen(true)} className="rounded-xl gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> Add Manually
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {vehicles.map((vehicle) => {
+                const estimatedNext = vehicle.currentMileage + 3000;
+                const svcProgress = calculateServiceProgress(vehicle.currentMileage, estimatedNext);
+                const dueSoon = svcProgress > 80;
+
+                return (
+                  <div key={vehicle.id} className="rounded-2xl overflow-hidden border border-border/40">
+
+                    {/* Cinematic vehicle banner */}
+                    <div className="relative h-52 sm:h-64 bg-zinc-900 group overflow-hidden">
+                      <GarageVehicleImage vehicle={vehicle} />
+                      <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-zinc-950/30 to-transparent" />
+
+                      {/* Top-right action buttons */}
+                      <div className="absolute top-3 right-3 flex gap-2 z-10">
+                        <button
+                          onClick={() => handleEditVehicle(vehicle)}
+                          className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteVehicle(vehicle)}
+                          className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-500/70 hover:bg-red-500 backdrop-blur-md border border-red-500/40 text-white transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Vehicle identity — bottom left */}
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                          Active Vehicle
+                        </p>
+                        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none mt-0.5">
+                          {vehicle.year} {vehicle.make}
+                        </h2>
+                        <p className="text-sm text-zinc-300 mt-0.5 font-medium">
+                          {vehicle.model}{vehicle.trim ? ` · ${vehicle.trim}` : ""}
+                        </p>
+                      </div>
+
+                      {/* VIN chip */}
+                      <div className="absolute bottom-4 right-4 hidden sm:block">
+                        <div className="rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3 py-2">
+                          <p className="text-[9px] text-zinc-400 uppercase tracking-widest">VIN</p>
+                          <p className="text-xs text-zinc-100 font-mono mt-0.5">{vehicle.vin}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Vehicle details + health */}
+                    <div className="bg-card dark:bg-zinc-900/60 grid grid-cols-1 sm:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-border/30">
+
+                      {/* Health metrics */}
+                      <div className="sm:col-span-2 p-4 sm:p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-bold text-foreground">Vehicle Health</p>
+                          <div className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold",
+                            dueSoon
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+                          )}>
+                            {dueSoon ? <BellRing className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
+                            {dueSoon ? "Service Soon" : "Good Standing"}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-2">
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                              <GaugeCircle className="h-3.5 w-3.5" />
+                              Current mileage
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground tabular-nums">
+                                {vehicle.currentMileage.toLocaleString()} mi
+                              </span>
+                              <button
+                                onClick={() => handleUpdateMileage(vehicle)}
+                                className="text-[10px] text-primary font-semibold hover:underline"
+                              >
+                                Update
+                              </button>
+                            </div>
+                          </div>
+                          <Progress value={svcProgress} className="h-2 rounded-full" />
+                          <p className="text-[10px] text-muted-foreground mt-1.5">
+                            Next service ~{estimatedNext.toLocaleString()} mi
+                          </p>
+                        </div>
+
+                        {vehicle.licensePlate && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">{vehicle.licensePlate}</span>
+                            <span>·</span>
+                            <span>{vehicle.color || "—"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick actions */}
+                      <div className="p-3 sm:p-5 grid grid-cols-3 sm:flex sm:flex-col gap-1.5 sm:gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-9 rounded-xl font-semibold text-xs gap-1 sm:gap-1.5 border-border/50"
+                          onClick={() => handleLogService(vehicle)}
+                        >
+                          <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                          <span className="hidden xxs:inline sm:hidden">Log</span>
+                          <span className="hidden sm:inline">Log Service</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="w-full h-9 rounded-xl font-semibold text-xs gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={() => { window.location.href = "/customer/network"; }}
+                        >
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          <span className="hidden xxs:inline sm:hidden">Find</span>
+                          <span className="hidden sm:inline">Find Shop</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-9 rounded-xl font-semibold text-xs gap-1 sm:gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+                          onClick={() => handleBookService(vehicle)}
+                        >
+                          <Calendar className="h-3.5 w-3.5 shrink-0" />
+                          <span className="hidden xxs:inline">Book</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full rounded-xl gap-1.5 h-10 border-dashed text-muted-foreground hover:text-primary hover:border-primary/40"
+                onClick={() => setIsAddVehicleOpen(true)}
+              >
+                <Plus className="h-4 w-4" /> Add Another Vehicle
+              </Button>
+            </div>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      <LogServiceModal
-        vehicle={selectedVehicle}
-        isOpen={isLogServiceOpen}
-        onOpenChange={setIsLogServiceOpen}
-      />
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/*  TAB 3 — SERVICE LOG                                       */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        <TabsContent value="history" className="mt-0 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black tracking-tight text-foreground uppercase">
+                Service Log
+              </h2>
+              {historyVehicle && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {historyVehicle.year} {historyVehicle.make} {historyVehicle.model}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {vehicles && vehicles.length > 1 && (
+                <Select value={historyVehicleId} onValueChange={setHistoryVehicleId}>
+                  <SelectTrigger className="h-8 w-36 text-xs rounded-xl border-border/50">
+                    <SelectValue placeholder="Select vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehicles.map((v) => (
+                      <SelectItem key={v.id || v._id} value={v.id || v._id} className="text-xs">
+                        {v.year} {v.make} {v.model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {historyVehicle && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-xl gap-1.5 text-xs font-semibold border-border/50 shrink-0"
+                  onClick={() => handleLogService(historyVehicle)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Log Service
+                </Button>
+              )}
+            </div>
+          </div>
 
-      <UpdateMileageModal
-        vehicle={selectedVehicle}
-        isOpen={isUpdateMileageOpen}
-        onOpenChange={setIsUpdateMileageOpen}
-      />
+          {isLoadingHistory ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 rounded-2xl bg-muted animate-pulse dark:bg-zinc-900" />
+              ))}
+            </div>
+          ) : !serviceHistory || serviceHistory.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center rounded-2xl border border-dashed border-border/50 bg-muted/20">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                <Wrench className="h-6 w-6 text-muted-foreground/25" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-foreground">No service records</p>
+                <p className="text-xs text-muted-foreground">Start logging your maintenance history.</p>
+              </div>
+              {historyVehicle && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl gap-1.5"
+                  onClick={() => handleLogService(historyVehicle)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Log First Service
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Timeline line */}
+              <div className="absolute left-4.75 top-4 bottom-4 w-px bg-border/40" />
 
-      <AddVehicleModal
-        isOpen={isAddVehicleOpen}
-        onOpenChange={setIsAddVehicleOpen}
-      />
+              <div className="space-y-3">
+                {serviceHistory.map((record, idx) => {
+                  const colorCls = SERVICE_TYPE_COLORS[record.serviceType] ?? SERVICE_TYPE_COLORS.OTHER;
+                  return (
+                    <div key={record._id || idx} className="flex gap-4 items-start">
+                      {/* Timeline dot */}
+                      <div className={cn(
+                        "shrink-0 flex h-10 w-10 items-center justify-center rounded-xl border z-10 bg-card",
+                        colorCls,
+                      )}>
+                        <Wrench className="h-4 w-4" />
+                      </div>
+
+                      {/* Record card */}
+                      <div className="flex-1 min-w-0 rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-3.5 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-foreground truncate">
+                            {record.serviceType.replace(/_/g, " ")}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                            {record.locationName && (
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <MapPin className="h-3 w-3" /> {record.locationName}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-muted-foreground tabular-nums">
+                              {record.mileageAtService.toLocaleString()} mi
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {record.cost ? (
+                            <p className="text-sm font-black text-foreground tabular-nums">
+                              ${record.cost.toFixed(2)}
+                            </p>
+                          ) : (
+                            <p className="text-sm font-medium text-muted-foreground">—</p>
+                          )}
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {new Date(record.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* ─── Modals ───────────────────────────────────────────────── */}
+      <LogServiceModal vehicle={selectedVehicle} isOpen={isLogServiceOpen} onOpenChange={setIsLogServiceOpen} />
+      <UpdateMileageModal vehicle={selectedVehicle} isOpen={isUpdateMileageOpen} onOpenChange={setIsUpdateMileageOpen} />
+      <AddVehicleModal isOpen={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen} />
+      <EditVehicleModal vehicle={selectedVehicle} isOpen={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen} />
+      <BookServiceModal vehicle={serviceVehicle} vehicles={vehicles} isOpen={isBookServiceOpen} onOpenChange={setIsBookServiceOpen} />
     </div>
   );
 }

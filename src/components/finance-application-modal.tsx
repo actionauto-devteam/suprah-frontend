@@ -130,7 +130,7 @@ export function FinanceApplicationModal({
     } catch (error: any) {
       toast.error(
         error.response?.data?.message ||
-          "Failed to submit application. Please try again.",
+        "Failed to submit application. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -147,7 +147,7 @@ export function FinanceApplicationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden bg-white dark:bg-zinc-950 border-none shadow-2xl h-[650px] flex flex-col">
+      <DialogContent className="sm:max-w-200 p-0 overflow-hidden bg-white dark:bg-zinc-950 border-none shadow-2xl h-162.5 flex flex-col">
         {/* Header with Progress */}
         <div className="bg-zinc-900 text-white p-6 shrink-0 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800">
@@ -281,7 +281,7 @@ export function FinanceApplicationModal({
                   <h4 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">
                     Identity Required
                   </h4>
-                  <p className="text-zinc-500 max-w-[280px] mx-auto">
+                  <p className="text-zinc-500 max-w-70 mx-auto">
                     This is a secure financial document. Please sign in to
                     verify your identity before proceeding.
                   </p>
@@ -290,7 +290,7 @@ export function FinanceApplicationModal({
                   onClick={() =>
                     (window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`)
                   }
-                  className="w-full max-w-[240px] h-12 bg-zinc-900 hover:bg-zinc-800 dark:bg-green-600 dark:hover:bg-green-700 text-white font-bold rounded-xl shadow-xl active:scale-[0.98] transition-all"
+                  className="w-full max-w-60 h-12 bg-zinc-900 hover:bg-zinc-800 dark:bg-green-600 dark:hover:bg-green-700 text-white font-bold rounded-xl shadow-xl active:scale-[0.98] transition-all"
                 >
                   <LogIn className="w-5 h-5 mr-3" />
                   Secure Login
@@ -463,7 +463,7 @@ export function FinanceApplicationModal({
                                   e.target.value,
                                 )
                               }
-                              className="pr-3 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:flex-shrink-0"
+                              className="pr-3 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:shrink-0"
                             />
                           </div>
                           <div className="space-y-2">
@@ -692,7 +692,7 @@ export function FinanceApplicationModal({
                   <Button
                     type="submit"
                     disabled={isSubmitting}
-                    className="bg-zinc-900 dark:bg-green-600 hover:bg-zinc-800 dark:hover:bg-green-700 text-white font-bold gap-2 min-w-[140px]"
+                    className="bg-zinc-900 dark:bg-green-600 hover:bg-zinc-800 dark:hover:bg-green-700 text-white font-bold gap-2 min-w-35"
                   >
                     {isSubmitting ? (
                       "Processing..."

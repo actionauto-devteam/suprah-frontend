@@ -15,6 +15,9 @@ interface VehicleDetailsModalProps {
   onInquiryClick: (vehicle: Vehicle) => void;
   onApplyNow: (vehicle: Vehicle) => void;
   shippingQuote?: number | null;
+  onBookTestDrive?: () => void;
+  isComparing?: boolean;
+  onToggleCompare?: (vehicleId: string) => void;
 }
 
 export function VehicleDetailsModal({
@@ -25,6 +28,9 @@ export function VehicleDetailsModal({
   onInquiryClick,
   onApplyNow,
   shippingQuote,
+  onBookTestDrive,
+  isComparing,
+  onToggleCompare,
 }: VehicleDetailsModalProps) {
   if (!vehicle) return null;
 
@@ -70,6 +76,9 @@ export function VehicleDetailsModal({
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}
             compactHeader
+            onBookTestDrive={onBookTestDrive}
+            isComparing={isComparing}
+            onToggleCompare={onToggleCompare}
           />
         </div>
       </DialogContent>

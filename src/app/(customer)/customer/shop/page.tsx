@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { CarInventoryCard } from "@/components/car-inventory-card";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
-import { RefreshCw, Star, Package } from "lucide-react";
+import { RefreshCw, Star, Package, ArrowLeftRight, Heart, X, ChevronRight } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
 import { ShopInventoryFilters } from "@/components/shop-inventory-filters";
@@ -15,9 +16,18 @@ import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import ShopAssistant from "@/components/ShopAssistant";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchSavedVehicles, saveVehicle, removeSavedVehicle } from "@/lib/api/savedVehicles";
+import { ComparisonTray } from "@/components/customer/ComparisonTray";
+import { BookTestDriveModal } from "@/components/customer/BookTestDriveModal";
+import { TradeInEstimatorModal } from "@/components/customer/TradeInEstimatorModal";
+import { Button } from "@/components/ui/button";
+import { AnimatePresence, motion } from "framer-motion";
+
+const CARD_FALLBACK = "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
 
 type SortOption =
   | "price-asc"
@@ -32,13 +42,152 @@ type SortOption =
   | "low-performing-desc";
 
 const SHOP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
-  { value: "make-asc", label: "Make (A–Z)" },
-  { value: "price-asc", label: "Price: Low → High" },
-  { value: "price-desc", label: "Price: High → Low" },
-  { value: "year-desc", label: "Year: Newest" },
-  { value: "demand-desc", label: "Most Inquiries" },
-  { value: "low-performing-desc", label: "Low Performing" },
+  { value: "price-asc", label: "Price: Low to High" },
+  { value: "price-desc", label: "Price: High to Low" },
+  { value: "year-desc", label: "Year: Newest First" },
+  { value: "year-asc", label: "Year: Oldest First" },
+  { value: "mileage-asc", label: "Mileage: Low to High" },
+  { value: "mileage-desc", label: "Mileage: High to Low" },
+  { value: "make-asc", label: "Make: A to Z" },
+  { value: "make-desc", label: "Make: Z to A" },
+  { value: "demand-desc", label: "Most Popular" },
 ];
+
+function SavedVehiclesFloatingButton({ savedVehicles }: { savedVehicles: Vehicle[] }) {
+  const [open, setOpen] = React.useState(false);
+  const count = savedVehicles.length;
+
+  return (
+    <>
+      {/* Floating pill button */}
+      <button
+        onClick={() => setOpen(true)}
+        className={cn(
+          "fixed left-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] md:bottom-8 md:left-6 z-30",
+          "flex items-center gap-2 rounded-full shadow-lg transition-all duration-200",
+          "border backdrop-blur-md",
+          count > 0
+            ? "bg-rose-500/90 hover:bg-rose-500 border-rose-400/40 text-white pr-3 pl-2.5 py-2"
+            : "bg-background/90 hover:bg-card border-border/60 text-muted-foreground hover:text-foreground px-3 py-2",
+          "hover:shadow-xl hover:scale-105 active:scale-95",
+        )}
+        aria-label="View saved vehicles"
+      >
+        <Heart
+          className={cn(
+            "h-4 w-4 transition-all",
+            count > 0 ? "fill-white text-white" : "text-muted-foreground",
+          )}
+        />
+        {count > 0 && (
+          <span className="text-xs font-black tabular-nums">{count}</span>
+        )}
+      </button>
+
+      {/* Saved vehicles panel */}
+      <AnimatePresence>
+        {open && (
+          <>
+            <motion.div
+              key="saved-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
+              onClick={() => setOpen(false)}
+            />
+
+            <motion.div
+              key="saved-panel"
+              initial={{ x: "100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "100%", opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 38, mass: 0.8 }}
+              className={cn(
+                "fixed right-0 top-0 bottom-0 z-50 w-72 sm:w-80",
+                "flex flex-col border-l border-border/60 bg-background shadow-2xl",
+              )}
+            >
+              {/* Panel header */}
+              <div className="flex items-center justify-between px-4 py-4 border-b border-border/50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/10">
+                    <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground leading-none">Saved</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {count} {count === 1 ? "vehicle" : "vehicles"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Saved list */}
+              <div className="flex-1 overflow-y-auto py-2">
+                {count === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center py-12">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                      <Heart className="h-6 w-6 text-muted-foreground/30" />
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">No saved vehicles</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Tap the heart icon on any vehicle to save it here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/40">
+                    {savedVehicles.map((v) => {
+                      const imgSrc = resolveImageUrl(v.image) || CARD_FALLBACK;
+                      return (
+                        <div key={v.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors">
+                          <img
+                            src={imgSrc}
+                            alt={`${v.year} ${v.make} ${v.model}`}
+                            onError={(e) => { (e.target as HTMLImageElement).src = CARD_FALLBACK; }}
+                            className="h-12 w-16 rounded-lg object-cover shrink-0 border border-border/30"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-foreground truncate leading-snug">
+                              {v.year} {v.make} {v.model}
+                            </p>
+                            {v.trim && (
+                              <p className="text-[10px] text-muted-foreground truncate">{v.trim}</p>
+                            )}
+                            <p className="text-xs font-black text-primary mt-0.5">
+                              ${v.price.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Panel footer */}
+              <div className="px-4 py-3 border-t border-border/50 shrink-0 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+                <Link href="/customer/saved" onClick={() => setOpen(false)}>
+                  <Button className="w-full gap-2 h-10 rounded-xl font-semibold" size="sm">
+                    View Wishlist
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
 
 function ShopVehiclesContent() {
   const router = useRouter();
@@ -53,6 +202,52 @@ function ShopVehiclesContent() {
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const fetchSequenceRef = React.useRef(0);
+  const queryClient = useQueryClient();
+
+  const { data: savedVehiclesData = [] } = useQuery({
+    queryKey: ["savedVehicles"],
+    queryFn: fetchSavedVehicles,
+  });
+  const savedVehicleIds = React.useMemo(
+    () => new Set((savedVehiclesData as Vehicle[]).map((v: Vehicle) => v.id)),
+    [savedVehiclesData],
+  );
+  const saveMutation = useMutation({
+    mutationFn: saveVehicle,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["savedVehicles"] }),
+  });
+  const unsaveMutation = useMutation({
+    mutationFn: removeSavedVehicle,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["savedVehicles"] }),
+  });
+  const handleToggleSave = React.useCallback(
+    (vehicle: Vehicle, newState: boolean) => {
+      if (newState) saveMutation.mutate(vehicle.id);
+      else unsaveMutation.mutate(vehicle.id);
+    },
+    [saveMutation, unsaveMutation],
+  );
+
+  const [comparedVehicles, setComparedVehicles] = React.useState<Vehicle[]>([]);
+  const comparedIds = React.useMemo(
+    () => new Set(comparedVehicles.map((v) => v.id)),
+    [comparedVehicles],
+  );
+  const toggleCompare = React.useCallback(
+    (vehicleId: string) => {
+      setComparedVehicles((prev) => {
+        const existing = prev.find((v) => v.id === vehicleId);
+        if (existing) return prev.filter((v) => v.id !== vehicleId);
+        const vehicle = vehicles.find((v) => v.id === vehicleId);
+        if (!vehicle || prev.length >= 3) return prev;
+        return [...prev, vehicle];
+      });
+    },
+    [vehicles],
+  );
+
+  const [isTestDriveOpen, setIsTestDriveOpen] = React.useState(false);
+  const [isTradeInOpen, setIsTradeInOpen] = React.useState(false);
 
   const {
     selectedVehicle,
@@ -88,8 +283,8 @@ function ShopVehiclesContent() {
     location: searchParams.get("location") || undefined,
     highDemand: searchParams.get("highDemand") === "true" ? true : undefined,
     lowPerforming: searchParams.get("lowPerforming") === "true" ? true : undefined,
-    sortBy: searchParams.get("sortBy") || "make",
-    sortOrder: searchParams.get("sortOrder") || "asc",
+    sortBy: searchParams.get("sortBy") || "",
+    sortOrder: searchParams.get("sortOrder") || "",
   });
 
   const [debouncedSearch, setDebouncedSearch] = React.useState(filters.search);
@@ -133,7 +328,6 @@ function ShopVehiclesContent() {
       setLastUpdated(new Date());
     } catch (err) {
       if (currentSequence !== fetchSequenceRef.current) return;
-      console.error("[Shop] Error fetching vehicles:", err);
       const axiosError = err as AxiosError;
       if (axiosError.code !== "ERR_CANCELED") {
         const status = axiosError.response?.status;
@@ -142,8 +336,8 @@ function ShopVehiclesContent() {
         } else {
           setError(
             (axiosError.response?.data as any)?.message ||
-              axiosError.message ||
-              "Failed to load vehicles",
+            axiosError.message ||
+            "Failed to load vehicles",
           );
         }
       }
@@ -164,30 +358,16 @@ function ShopVehiclesContent() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     fetchVehicles();
   }, [
-    page,
-    limit,
-    debouncedSearch,
-    filters.make,
-    filters.model,
-    filters.status,
-    filters.year,
-    filters.minPrice,
-    filters.maxPrice,
-    filters.minMileage,
-    filters.maxMileage,
-    filters.bodyStyle,
-    filters.location,
-    filters.highDemand,
-    filters.lowPerforming,
-    filters.sortBy,
-    filters.sortOrder,
+    page, limit, debouncedSearch,
+    filters.make, filters.model, filters.status, filters.year,
+    filters.minPrice, filters.maxPrice, filters.minMileage, filters.maxMileage,
+    filters.bodyStyle, filters.location, filters.highDemand, filters.lowPerforming,
+    filters.sortBy, filters.sortOrder,
     fetchVehicles,
   ]);
 
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      fetchVehicles();
-    }, 5 * 60 * 1000);
+    const interval = setInterval(() => fetchVehicles(), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchVehicles]);
 
@@ -198,21 +378,10 @@ function ShopVehiclesContent() {
 
   const handleClearFilters = () => {
     setFilters({
-      search: "",
-      make: undefined,
-      model: undefined,
-      status: "all",
-      year: undefined,
-      minPrice: undefined,
-      maxPrice: undefined,
-      minMileage: undefined,
-      maxMileage: undefined,
-      bodyStyle: undefined,
-      location: undefined,
-      highDemand: undefined,
-      lowPerforming: undefined,
-      sortBy: "make",
-      sortOrder: "asc",
+      search: "", make: undefined, model: undefined, status: "all", year: undefined,
+      minPrice: undefined, maxPrice: undefined, minMileage: undefined, maxMileage: undefined,
+      bodyStyle: undefined, location: undefined, highDemand: undefined, lowPerforming: undefined,
+      sortBy: "", sortOrder: "",
     });
     setPage(1);
   };
@@ -238,32 +407,31 @@ function ShopVehiclesContent() {
 
   const handleSortChange = (value: string) => {
     const sortMap: Record<string, { sortBy: string; sortOrder: string }> = {
-      "price-asc":           { sortBy: "price",         sortOrder: "asc" },
-      "price-desc":          { sortBy: "price",         sortOrder: "desc" },
-      "mileage-asc":         { sortBy: "mileage",       sortOrder: "asc" },
-      "mileage-desc":        { sortBy: "mileage",       sortOrder: "desc" },
-      "year-desc":           { sortBy: "year",          sortOrder: "desc" },
-      "make-asc":            { sortBy: "make",          sortOrder: "asc" },
-      "demand-desc":         { sortBy: "demand",        sortOrder: "desc" },
+      "price-asc": { sortBy: "price", sortOrder: "asc" },
+      "price-desc": { sortBy: "price", sortOrder: "desc" },
+      "mileage-asc": { sortBy: "mileage", sortOrder: "asc" },
+      "mileage-desc": { sortBy: "mileage", sortOrder: "desc" },
+      "year-desc": { sortBy: "year", sortOrder: "desc" },
+      "year-asc": { sortBy: "year", sortOrder: "asc" },
+      "make-asc": { sortBy: "make", sortOrder: "asc" },
+      "make-desc": { sortBy: "make", sortOrder: "desc" },
+      "demand-desc": { sortBy: "demand", sortOrder: "desc" },
       "low-performing-desc": { sortBy: "low-performing", sortOrder: "desc" },
     };
-    const mapped = sortMap[value] ?? { sortBy: "make", sortOrder: "asc" };
+    const mapped = sortMap[value] ?? { sortBy: "", sortOrder: "" };
     setFilters((prev: any) => ({ ...prev, ...mapped }));
   };
 
-  const currentSortValue = React.useMemo((): SortOption => {
+  const currentSortValue = React.useMemo((): SortOption | "" => {
     const key = `${filters.sortBy}-${filters.sortOrder}`;
     const aliases: Record<string, SortOption> = {
-      "price-asc":           "price-asc",
-      "price-desc":          "price-desc",
-      "mileage-asc":         "mileage-asc",
-      "mileage-desc":        "mileage-desc",
-      "year-desc":           "year-desc",
-      "make-asc":            "make-asc",
-      "demand-desc":         "demand-desc",
-      "low-performing-desc": "low-performing-desc",
+      "price-asc": "price-asc", "price-desc": "price-desc",
+      "mileage-asc": "mileage-asc", "mileage-desc": "mileage-desc",
+      "year-desc": "year-desc", "year-asc": "year-asc",
+      "make-asc": "make-asc", "make-desc": "make-desc",
+      "demand-desc": "demand-desc", "low-performing-desc": "low-performing-desc",
     };
-    return aliases[key] ?? "make-asc";
+    return aliases[key] ?? "";
   }, [filters.sortBy, filters.sortOrder]);
 
   const vehicleCards = React.useMemo(
@@ -280,24 +448,35 @@ function ShopVehiclesContent() {
           onVideo={handleVideo}
           onGetQuote={handleGetQuote}
           onVehicleClick={handleVehicleClick}
+          isSaved={savedVehicleIds.has(vehicle.id)}
+          onToggleSave={handleToggleSave}
+          isComparing={comparedIds.has(vehicle.id)}
+          onToggleCompare={toggleCompare}
+          canCompareMore={comparedVehicles.length < 3}
         />
       )),
-    [vehicles, shippingRates, viewMode, handleCheckAvailability, handleApplyNow, handleCallUs, handleVideo, handleGetQuote, handleVehicleClick],
+    [
+      vehicles, shippingRates, viewMode,
+      handleCheckAvailability, handleApplyNow, handleCallUs, handleVideo, handleGetQuote, handleVehicleClick,
+      savedVehicleIds, handleToggleSave, comparedIds, toggleCompare, comparedVehicles.length,
+    ],
   );
 
   if (error) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center max-w-md">
-          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-2">Error Loading Vehicles</h2>
-            <p className="text-red-500/80 mb-4">{error}</p>
-            <button
+          <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-6">
+            <h2 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2">Error Loading Vehicles</h2>
+            <p className="text-sm text-red-500/80 mb-4">{error}</p>
+            <Button
               onClick={fetchVehicles}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              variant="outline"
+              size="sm"
+              className="gap-2 border-red-300 text-red-600 hover:bg-red-50"
             >
-              <RefreshCw className="h-4 w-4" /> Retry
-            </button>
+              <RefreshCw className="h-3.5 w-3.5" /> Try Again
+            </Button>
           </div>
         </div>
       </div>
@@ -307,92 +486,89 @@ function ShopVehiclesContent() {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-      {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="shrink-0 pb-5 border-b border-border/60">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-3 min-w-0">
-            {/* Eyebrow */}
-            <div className="flex items-center gap-2.5">
-              <div className="h-px w-6 bg-primary" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary/80 leading-none">
-                Marketplace
-              </span>
-            </div>
+      {/* ─── Header ──────────────────────────────────────────────── */}
+      <div className="shrink-0">
+        <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 px-5 py-5 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2.5 min-w-0">
 
-            {/* Title with hover tooltip */}
-            <div className="relative group/hdrtip">
-              <h1 className="text-4xl sm:text-5xl font-black tracking-tight uppercase leading-none cursor-default select-none text-foreground">
-                Shop{" "}
-                <span className="text-primary">Vehicles</span>
-              </h1>
-              <div
-                className={cn(
-                  "pointer-events-none absolute top-full left-0 mt-3 w-64 z-20",
-                  "rounded-xl border border-border/80 bg-popover/95 backdrop-blur-sm p-4 shadow-xl",
-                  "opacity-0 translate-y-1 group-hover/hdrtip:opacity-100 group-hover/hdrtip:translate-y-0",
-                  "transition-all duration-200",
-                )}
-              >
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Star className="h-3.5 w-3.5 text-primary" />
-                  <p className="text-xs font-bold text-foreground">Member Exclusive</p>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Browse our premium inventory and take advantage of Member Exclusive pricing — available to Suprah members only.
+              {/* Eyebrow label */}
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
+                  Marketplace
+                </span>
+              </div>
+
+              {/* Title */}
+              <div>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
+                  Shop{" "}
+                  <span className="text-primary">Vehicles</span>
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                  Member-exclusive pricing on every listing
                 </p>
+              </div>
+
+              {/* Stat pills */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
+                  {isLoading ? (
+                    <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
+                  ) : total}
+                  {" "}available
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-semibold text-primary dark:bg-primary/12">
+                  <Star className="h-3 w-3" />
+                  Member Pricing
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+                  <Package className="h-3 w-3" />
+                  Shipping Quotes
+                </span>
               </div>
             </div>
 
-            {/* Stat pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/80 px-3 py-1 text-xs font-semibold text-foreground tabular-nums">
-                {isLoading ? (
-                  <span className="inline-block h-2.5 w-8 rounded animate-pulse bg-muted-foreground/20" />
-                ) : (
-                  total
-                )}{" "}
-                Available
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-                <Star className="h-3 w-3" />
-                Member Pricing
-              </span>
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-                <Package className="h-3 w-3" />
-                Shipping Quotes
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-end gap-1.5 shrink-0 mt-1">
-            <button
-              onClick={fetchVehicles}
-              disabled={isLoading}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
-                "border-border bg-card hover:bg-muted hover:border-primary/40 text-foreground",
-                "disabled:opacity-50 disabled:cursor-not-allowed",
-              )}
-              title="Refresh inventory"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
+            {/* Right: Actions + Live indicator */}
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-8 rounded-xl border-border/50"
+                  onClick={() => setIsTradeInOpen(true)}
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Trade-In</span>
+                </Button>
+                <button
+                  onClick={fetchVehicles}
+                  disabled={isLoading}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all",
+                    "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
+                  )}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
               <span className="text-[10px] font-medium text-muted-foreground">
-                {isLoading ? "Updating..." : lastUpdated ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}` : "Live"}
+                {isLoading ? "Updating..." : lastUpdated
+                  ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}`
+                  : "Live"}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Filters ──────────────────────────────────────────────── */}
-      <div className="shrink-0">
+      {/* ─── Filters ─────────────────────────────────────────────── */}
+      <div className="shrink-0 space-y-2">
         <ShopInventoryFilters
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -404,39 +580,53 @@ function ShopVehiclesContent() {
           onSortChange={handleSortChange}
           sortOptions={SHOP_SORT_OPTIONS}
         />
-
-        {/* Vehicle count line */}
-        <p className="mt-3 text-sm text-muted-foreground">
-          <span className="font-bold text-foreground tabular-nums">{total}</span> vehicles found
+        <p className="text-xs text-muted-foreground px-0.5">
+          <span className="font-bold text-foreground tabular-nums">{total}</span>{" "}
+          vehicle{total !== 1 ? "s" : ""} found
         </p>
       </div>
 
-      {/* ── Vehicle Grid / List ───────────────────────────────────── */}
+      {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
       <div className="flex-1 min-h-0">
         {isLoading ? (
           <div
             className={cn(
               viewMode === "grid"
-                ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+                ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
                 : "flex flex-col gap-2.5",
             )}
           >
-            {[...Array(viewMode === "grid" ? 6 : 8)].map((_, i) => (
+            {[...Array(viewMode === "grid" ? 8 : 6)].map((_, i) => (
               <div
                 key={i}
                 className={cn(
-                  "rounded-2xl bg-zinc-100 animate-pulse dark:bg-zinc-900",
-                  viewMode === "grid" ? "h-72" : "h-24",
+                  "rounded-2xl bg-muted animate-pulse dark:bg-zinc-900",
+                  viewMode === "grid" ? "aspect-5/4" : "h-24",
                 )}
               />
             ))}
           </div>
+        ) : vehicles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <Package className="h-7 w-7 text-muted-foreground/30" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-base font-bold text-foreground">No vehicles found</h2>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Try adjusting your filters or clearing them to see more results.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleClearFilters} className="gap-1.5 rounded-xl">
+              Clear Filters
+            </Button>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div
               className={cn(
                 viewMode === "grid"
-                  ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+                  ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
                   : "flex flex-col gap-2.5",
               )}
             >
@@ -455,6 +645,7 @@ function ShopVehiclesContent() {
         )}
       </div>
 
+      {/* ─── Modals ───────────────────────────────────────────────── */}
       <ShippingQuoteModal
         open={openModals.shipping}
         onOpenChange={setShippingOpen}
@@ -462,7 +653,6 @@ function ShopVehiclesContent() {
         defaultVehicle={selectedVehicle}
         onCalculate={handleCalculateQuote}
       />
-
       <VehicleDetailsModal
         isOpen={openModals.details}
         onClose={() => setDetailsOpen(false)}
@@ -471,34 +661,52 @@ function ShopVehiclesContent() {
         onInquiryClick={handleCheckAvailability}
         onApplyNow={handleApplyNow}
         shippingQuote={selectedVehicle ? shippingRates[selectedVehicle.id] : null}
+        onBookTestDrive={() => { setDetailsOpen(false); setIsTestDriveOpen(true); }}
+        isComparing={selectedVehicle ? comparedIds.has(selectedVehicle.id) : false}
+        onToggleCompare={toggleCompare}
       />
-
       <VehicleInquiryModal
         isOpen={openModals.inquiry}
         onClose={() => setInquiryOpen(false)}
         vehicle={selectedVehicle}
       />
-
       <FinanceApplicationModal
         isOpen={openModals.finance}
         onClose={() => setFinanceOpen(false)}
         vehicle={selectedVehicle}
       />
+      <BookTestDriveModal
+        vehicle={selectedVehicle}
+        isOpen={isTestDriveOpen}
+        onOpenChange={setIsTestDriveOpen}
+      />
+      <TradeInEstimatorModal
+        isOpen={isTradeInOpen}
+        onOpenChange={setIsTradeInOpen}
+      />
 
-      {/* ── Suprah Autrix — AI vehicle recommendation assistant ──────────────── */}
-      {/* Floating launcher; overlays the page without affecting the grid layout. */}
-      {/* Set `vehicleHrefBase` to your dedicated vehicle-detail route. Or reuse  */}
-      {/* the existing details modal by passing onViewVehicle (see note below).  */}
+      {/* ─── Floating elements ───────────────────────────────────── */}
       <ShopAssistant mode="float" vehicleHrefBase="/shop" />
+
+      <SavedVehiclesFloatingButton savedVehicles={savedVehiclesData as Vehicle[]} />
+
+      <ComparisonTray
+        vehicles={comparedVehicles}
+        onRemove={(id) => setComparedVehicles((prev) => prev.filter((v) => v.id !== id))}
+        onClear={() => setComparedVehicles([])}
+        onCompare={() => router.push(`/customer/compare?ids=${comparedVehicles.map((v) => v.id).join(",")}`)}
+      />
     </div>
   );
 }
 
 export default function ShopVehiclesPage() {
   return (
-    <React.Suspense
-      fallback={<div className="p-8 flex items-center justify-center">Loading...</div>}
-    >
+    <React.Suspense fallback={
+      <div className="flex items-center justify-center p-12">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    }>
       <ShopVehiclesContent />
     </React.Suspense>
   );

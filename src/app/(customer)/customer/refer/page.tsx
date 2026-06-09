@@ -156,7 +156,7 @@ export default function ReferAndEarnPage() {
                         <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-8">
                             <div>
                                 <p className="text-zinc-400 font-medium tracking-widest uppercase mb-2">Available Balance</p>
-                                <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-zinc-400">
+                                <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-400">
                                     ${walletBalance.toFixed(2)}
                                 </h2>
                                 {totalPendingWithdrawals > 0 && (
@@ -229,7 +229,7 @@ export default function ReferAndEarnPage() {
                         </Card>
                     </div>
 
-                    <Card className="flex-1 p-6 rounded-3xl border-border/40 bg-white dark:bg-zinc-950 shadow-sm flex flex-col h-[500px]">
+                    <Card className="flex-1 p-6 rounded-3xl border-border/40 bg-white dark:bg-zinc-950 shadow-sm flex flex-col h-125">
                         <h3 className="font-bold text-lg mb-6 flex justify-between items-center">
                             Ledger History
                         </h3>
@@ -248,7 +248,7 @@ export default function ReferAndEarnPage() {
                                                 <p className="font-semibold text-sm text-foreground capitalize">
                                                     {t.type} {t.status === 'pending' && <span className="text-xs ml-1 text-orange-500">(Pending)</span>}
                                                 </p>
-                                                <p className="text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[160px]">{t.note}</p>
+                                                <p className="text-xs text-muted-foreground truncate max-w-30 sm:max-w-40">{t.note}</p>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -274,7 +274,7 @@ export default function ReferAndEarnPage() {
 
             {/* Withdrawal Modal */}
             <Dialog open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-106.25">
                     <DialogHeader>
                         <DialogTitle>Withdraw Funds</DialogTitle>
                         <DialogDescription>

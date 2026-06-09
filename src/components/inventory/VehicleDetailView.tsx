@@ -30,6 +30,7 @@ import {
   Copy,
   TrendingUp,
   ArrowRight,
+  GitCompareArrows,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,9 @@ interface VehicleDetailViewProps {
   shippingQuote?: number | null;
   isPublic?: boolean;
   compactHeader?: boolean;
+  onBookTestDrive?: () => void;
+  isComparing?: boolean;
+  onToggleCompare?: (vehicleId: string) => void;
 }
 
 function cleanDescription(text: string, v?: Vehicle): string {
@@ -530,6 +534,9 @@ export function VehicleDetailView({
   onQuoteClick,
   shippingQuote,
   compactHeader,
+  onBookTestDrive,
+  isComparing,
+  onToggleCompare,
 }: VehicleDetailViewProps) {
   const { userRole, isSuperAdmin } = useOrg();
   const isAdmin =
@@ -1278,6 +1285,32 @@ export function VehicleDetailView({
                 >
                   <CheckCircle2 className="h-4 w-4 text-blue-500" /> Check
                   Availability
+                </Button>
+              )}
+              {onBookTestDrive && (
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-11 w-full gap-2 border-border/60 font-semibold"
+                  onClick={onBookTestDrive}
+                >
+                  <Calendar className="h-4 w-4 text-primary" /> Book Test Drive
+                </Button>
+              )}
+              {onToggleCompare && (
+                <Button
+                  size="lg"
+                  variant={isComparing ? "default" : "outline"}
+                  className={cn(
+                    "h-11 w-full gap-2 font-semibold",
+                    isComparing
+                      ? "bg-primary text-primary-foreground"
+                      : "border-border/60",
+                  )}
+                  onClick={() => onToggleCompare(vehicle.id)}
+                >
+                  <GitCompareArrows className="h-4 w-4" />
+                  {isComparing ? "Remove from Compare" : "Add to Compare"}
                 </Button>
               )}
               {onQuoteClick && (

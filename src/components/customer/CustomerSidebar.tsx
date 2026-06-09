@@ -20,6 +20,7 @@ import {
   Sparkles,
   Truck,
   Car,
+  Heart,
 } from "lucide-react";
 import { useAuthActions, useUser } from "@/providers/AuthProvider";
 import { usePathname } from "next/navigation";
@@ -73,7 +74,18 @@ const navSections = [
         icon: CarFront,
         hoverTooltip: "Browse our premium inventory and take advantage of Member Exclusive pricing.",
       },
-      { title: "My Garage", url: "/customer", icon: LayoutDashboard },
+      {
+        title: "My Garage",
+        url: "/customer",
+        icon: LayoutDashboard,
+        hoverTooltip: "Your personal dashboard — manage vehicles, track service history, and view upcoming appointments.",
+      },
+      {
+        title: "Wishlist",
+        url: "/customer/saved",
+        icon: Heart,
+        hoverTooltip: "Your curated vehicle collection. Save any car from the shop and access it here anytime.",
+      },
     ],
   },
   {
@@ -206,36 +218,55 @@ export function CustomerSidebar() {
                             {isActive && (
                               <span className="absolute left-0 inset-y-1 w-0.5 bg-green-500 rounded-r-full z-10 group-data-[collapsible=icon]:hidden" />
                             )}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <CollapsiblePrimitive.Trigger asChild>
+                            {/* Split: main link navigates, chevron toggles sub-menu */}
+                            <div className="flex items-center w-full gap-0.5">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
                                   <SidebarMenuButton
+                                    asChild
                                     isActive={isActive}
                                     tooltip="Shop Vehicles"
-                                    className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
+                                    className={`flex-1 rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
                                   >
-                                    <CarFront className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
-                                    <span className="text-[13px]">Shop Vehicles</span>
-                                    <ChevronRight
-                                      className={cn(
-                                        "ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
-                                        shopOpen && "rotate-90",
-                                      )}
-                                    />
+                                    <Link href="/customer/shop">
+                                      <CarFront className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
+                                      <span className="text-[13px]">Shop Vehicles</span>
+                                    </Link>
                                   </SidebarMenuButton>
-                                </CollapsiblePrimitive.Trigger>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-55 p-3" sideOffset={8}>
-                                <div className="flex items-center gap-1.5 mb-1">
-                                  <Star className="h-3 w-3 text-primary shrink-0" />
-                                  <p className="text-[11px] font-bold">Member Exclusive</p>
-                                </div>
-                                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                  Browse our premium inventory and take advantage of Member Exclusive pricing.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-55 p-3" sideOffset={8}>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Star className="h-3 w-3 text-primary shrink-0" />
+                                    <p className="text-[11px] font-bold">Member Exclusive</p>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                    Browse our premium inventory and take advantage of Member Exclusive pricing.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+
+                              {/* Chevron toggle — separate button, desktop only */}
+                              <CollapsiblePrimitive.Trigger asChild>
+                                <button
+                                  className={cn(
+                                    "group-data-[collapsible=icon]:hidden shrink-0 flex items-center justify-center h-8 w-7 rounded-lg transition-all",
+                                    isActive
+                                      ? "text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20"
+                                      : "text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60",
+                                  )}
+                                  aria-label="Toggle shop sub-menu"
+                                >
+                                  <ChevronRight
+                                    className={cn(
+                                      "h-3.5 w-3.5 transition-transform duration-200",
+                                      shopOpen && "rotate-90",
+                                    )}
+                                  />
+                                </button>
+                              </CollapsiblePrimitive.Trigger>
+                            </div>
                           </SidebarMenuItem>
+
                           <CollapsiblePrimitive.Content className="group-data-[collapsible=icon]:hidden">
                             <SidebarMenuSub>
                               {SHOP_SUB_ITEMS.map((subItem) => (
@@ -259,17 +290,44 @@ export function CustomerSidebar() {
                         {isActive && (
                           <span className="absolute left-0 inset-y-1 w-0.5 bg-green-500 rounded-r-full z-10 group-data-[collapsible=icon]:hidden" />
                         )}
-                        <SidebarMenuButton
-                          asChild
-                          isActive={isActive}
-                          tooltip={item.title}
-                          className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
-                        >
-                          <Link href={item.url}>
-                            <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
-                            <span className="text-[13px]">{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
+                        {"hoverTooltip" in item && item.hoverTooltip ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={isActive}
+                                tooltip={item.title}
+                                className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
+                              >
+                                <Link href={item.url}>
+                                  <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
+                                  <span className="text-[13px]">{item.title}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-50 p-3" sideOffset={8}>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <item.icon className="h-3 w-3 text-primary shrink-0" />
+                                <p className="text-[11px] font-bold">{item.title}</p>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                {"hoverTooltip" in item ? String(item.hoverTooltip) : ""}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
+                            tooltip={item.title}
+                            className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
+                          >
+                            <Link href={item.url}>
+                              <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
+                              <span className="text-[13px]">{item.title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        )}
                       </SidebarMenuItem>
                     );
                   })}

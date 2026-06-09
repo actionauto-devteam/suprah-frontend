@@ -301,7 +301,7 @@ export function FinanceApplicationFlow({
               <img
                 src={vehicle.image}
                 alt={vehicle.make}
-                className="w-14 h-10 sm:w-16 sm:h-12 object-cover rounded-lg flex-shrink-0"
+                className="w-14 h-10 sm:w-16 sm:h-12 object-cover rounded-lg shrink-0"
               />
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase">
@@ -340,7 +340,7 @@ export function FinanceApplicationFlow({
 
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-5 sm:space-y-8 [&_[data-slot=input]]:h-10 [&_select]:h-10"
+        className="space-y-5 sm:space-y-8 **:data-[slot=input]:h-10 [&_select]:h-10"
       >
         <Card className="border-zinc-200 p-0 dark:border-zinc-800 shadow-xl rounded-3xl overflow-hidden bg-white/50 dark:bg-zinc-950/50 backdrop-blur-xl">
           <CardHeader className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 p-5 sm:p-8">
@@ -430,11 +430,10 @@ export function FinanceApplicationFlow({
                 <Button
                   type="submit"
                   disabled={isSubmitting || (step === 6 && !isConfirmed)}
-                  className={`h-11 w-full sm:w-auto px-8 rounded-full font-bold shadow-lg transition-all ${
-                    step === 6 && !isConfirmed
+                  className={`h-11 w-full sm:w-auto px-8 rounded-full font-bold shadow-lg transition-all ${step === 6 && !isConfirmed
                       ? "bg-zinc-200 text-zinc-400 cursor-not-allowed shadow-none"
                       : "bg-green-600 hover:bg-green-700 text-white shadow-green-600/20"
-                  }`}
+                    }`}
                 >
                   {isSubmitting ? "Processing..." : "Submit Application"}{" "}
                   <FileCheck className="w-4 h-4 ml-2" />
@@ -566,7 +565,7 @@ function PersonalInfoSection({
                         !validDate && "text-muted-foreground",
                       )}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                       {validDate ? (
                         format(validDate, "MMMM d, yyyy")
                       ) : (
@@ -1065,11 +1064,10 @@ function ReviewSection({
           onClick={() => setIsConfirmed(!isConfirmed)}
         >
           <div
-            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-              isConfirmed
+            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${isConfirmed
                 ? "bg-green-600 border-green-600 scale-110 shadow-lg shadow-green-600/30"
                 : "border-zinc-300"
-            }`}
+              }`}
           >
             {isConfirmed && <CheckCircle2 className="w-5 h-5 text-white" />}
           </div>

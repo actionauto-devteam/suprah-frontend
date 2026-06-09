@@ -67,23 +67,23 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
       >
         <CustomerSidebar />
         <SidebarInset className="flex-1 flex flex-col min-w-0 bg-transparent">
-          <header className="flex h-16 shrink-0 items-center justify-between px-4 lg:px-6 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl z-10 sticky top-0">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger className="-ml-1 h-8 w-8 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all" />
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-zinc-900 dark:text-zinc-50 leading-none tracking-tight">
+          <header className="flex h-14 shrink-0 items-center justify-between px-4 lg:px-5 border-b border-border/50 bg-background/90 backdrop-blur-xl z-10 sticky top-0">
+            <div className="flex items-center gap-2.5">
+              <SidebarTrigger className="-ml-1 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all" />
+              <div className="hidden sm:flex items-center gap-2.5">
+                <div className="h-4 w-px bg-border/60" />
+                <div className="flex flex-col leading-none">
+                  <span className="text-[12px] font-black text-foreground tracking-tight">
                     Action Auto
                   </span>
-                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-none mt-0.5 font-medium">
+                  <span className="text-[9px] text-muted-foreground mt-0.5 font-medium tracking-widest uppercase">
                     Member Portal
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <ThemeModeToggle compact />
               <NotificationBell />
 
@@ -91,64 +91,63 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="relative h-8 w-8 rounded-full ring-1 ring-zinc-200 dark:ring-zinc-700 hover:ring-green-500 dark:hover:ring-green-500 transition-all p-0"
+                    className="relative h-8 w-8 rounded-full ring-1 ring-border/60 hover:ring-primary/40 transition-all p-0 ml-0.5"
                   >
                     <Avatar className="h-full w-full">
                       <AvatarImage
-                        src={resolveImageUrl(
-                          avatarUrl !== null ? avatarUrl : user?.imageUrl,
-                        )}
+                        src={resolveImageUrl(avatarUrl !== null ? avatarUrl : user?.imageUrl)}
                         alt={user?.fullName || "User"}
                       />
-                      <AvatarFallback className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs font-bold">
-                        {user?.firstName?.charAt(0) || "C"}
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">
+                        {user?.firstName?.charAt(0) || "M"}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-60" align="end" forceMount>
+                <DropdownMenuContent className="w-60 rounded-2xl" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal p-0">
-                    <div className="flex items-center gap-3 p-3 pb-2">
-                      <Avatar className="h-9 w-9 ring-2 ring-green-500/20">
+                    <div className="flex items-center gap-3 p-3.5 pb-3">
+                      <Avatar className="h-9 w-9 ring-2 ring-primary/20">
                         <AvatarImage
-                          src={resolveImageUrl(
-                            avatarUrl !== null ? avatarUrl : user?.imageUrl,
-                          )}
+                          src={resolveImageUrl(avatarUrl !== null ? avatarUrl : user?.imageUrl)}
                           alt={user?.fullName || "User"}
                         />
-                        <AvatarFallback className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs font-bold">
-                          {user?.firstName?.charAt(0) || "C"}
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">
+                          {user?.firstName?.charAt(0) || "M"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col min-w-0">
-                        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 leading-none truncate">
+                        <p className="text-sm font-bold text-foreground leading-none truncate">
                           {user?.fullName}
                         </p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-none truncate">
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-none truncate">
                           {user?.primaryEmailAddress?.emailAddress}
                         </p>
+                        <span className="mt-1.5 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary w-fit">
+                          Member
+                        </span>
                       </div>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => router.push("/customer/settings")}
-                    className="cursor-pointer gap-2"
+                    className="cursor-pointer gap-2 rounded-xl mx-1"
                   >
-                    <User className="h-4 w-4 text-zinc-400" />
+                    <User className="h-4 w-4 text-muted-foreground" />
                     Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => router.push("/customer/settings")}
-                    className="cursor-pointer gap-2"
+                    className="cursor-pointer gap-2 rounded-xl mx-1"
                   >
-                    <Settings className="h-4 w-4 text-zinc-400" />
+                    <Settings className="h-4 w-4 text-muted-foreground" />
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => signOut()}
-                    className="text-red-600 dark:text-red-500 cursor-pointer gap-2"
+                    className="text-red-500 cursor-pointer gap-2 rounded-xl mx-1 mb-1"
                   >
                     <LogOut className="h-4 w-4" />
                     Sign Out

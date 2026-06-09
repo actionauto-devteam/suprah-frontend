@@ -466,7 +466,7 @@ function SettingsContent() {
   <body>
     <h1>Action Auto Utah - Reports Print Batch</h1>
     <p>Generated ${escapeHtml(generatedAt)} • ${printableFiles.length} report${printableFiles.length === 1 ? "" : "s"}</p>
-    <table>
+    <table> 
       <thead>
         <tr>
           <th>#</th>
@@ -1834,8 +1834,8 @@ function ReportCard({
     <Card
       onClick={onClick}
       className={`border shadow-sm transition-all cursor-pointer bg-card p-0 md:p-4 group ${active
-          ? "border-primary/50 ring-2 ring-primary/20 bg-primary/5"
-          : "border-border/50 hover:border-primary/30 hover:ring-1 hover:ring-primary/20 hover:shadow-md"
+        ? "border-primary/50 ring-2 ring-primary/20 bg-primary/5"
+        : "border-border/50 hover:border-primary/30 hover:ring-1 hover:ring-primary/20 hover:shadow-md"
         }`}
     >
       <CardContent className="p-2 md:p-6">
@@ -1958,8 +1958,8 @@ function SettingNavItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${active
-          ? "bg-primary text-white shadow-sm"
-          : "text-muted-foreground hover:bg-secondary"
+        ? "bg-primary text-white shadow-sm"
+        : "text-muted-foreground hover:bg-secondary"
         }`}
     >
       <div
