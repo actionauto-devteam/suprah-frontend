@@ -1467,7 +1467,7 @@ export default function CrmDashboardPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-5">
                   Quick Actions
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
                   {quickActions.map((action, i) => (
                     <div
                       key={action.label}
