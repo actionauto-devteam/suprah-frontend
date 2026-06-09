@@ -14,6 +14,9 @@ export interface OwnedVehicle {
   status: "ACTIVE" | "SOLD" | "TRADED_IN";
   images: string[];
   purchaseDate?: string;
+  source?: "MANUAL" | "DEALERSHIP_TRANSFER";
+  dealershipName?: string;
+  transferredAt?: string;
 }
 
 export const fetchOwnedVehicles = async (): Promise<OwnedVehicle[]> => {

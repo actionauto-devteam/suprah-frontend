@@ -291,9 +291,19 @@ export default function MyGaragePage() {
 
                     <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
                       <div>
-                        <p className="text-zinc-300 font-medium tracking-widest uppercase mb-1 drop-shadow-md">
-                          Active Vehicle
-                        </p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-zinc-300 font-medium tracking-widest uppercase drop-shadow-md">
+                            Active Vehicle
+                          </p>
+                          {vehicle.source === "DEALERSHIP_TRANSFER" && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 backdrop-blur-md">
+                              ✓ Added by
+                              {vehicle.dealershipName
+                                ? ` ${vehicle.dealershipName}`
+                                : " dealership"}
+                            </span>
+                          )}
+                        </div>
                         <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl">
                           {vehicle.year} {vehicle.make}
                         </h2>

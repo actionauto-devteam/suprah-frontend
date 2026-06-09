@@ -177,7 +177,7 @@ function LiveClock() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group relative inline-flex items-center gap-2.5 rounded-full px-4 py-2 cursor-default select-none overflow-hidden border border-emerald-200/80 dark:border-emerald-500/20 bg-linear-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 backdrop-blur-sm hover:border-emerald-300/80 dark:hover:border-emerald-400/30 transition-all duration-300">
+        <div className="group relative inline-flex items-center gap-2 sm:gap-2.5 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 cursor-default select-none overflow-hidden border border-emerald-200/80 dark:border-emerald-500/20 bg-linear-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 backdrop-blur-sm hover:border-emerald-300/80 dark:hover:border-emerald-400/30 transition-all duration-300">
           <div className="absolute inset-0 bg-linear-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
@@ -268,7 +268,7 @@ function ActivityTimer({
               {i > 0 && (
                 <span
                   className={cn(
-                    "text-2xl font-thin mb-3 mx-0.5 transition-colors duration-500",
+                    "text-xl sm:text-2xl font-thin mb-2 sm:mb-3 mx-0.5 transition-colors duration-500",
                     isOnBreak
                       ? breakExceeded
                         ? "text-red-500/50"
@@ -284,7 +284,7 @@ function ActivityTimer({
               <div className="flex flex-col items-center">
                 <span
                   className={cn(
-                    "text-4xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
+                    "text-3xl sm:text-4xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
                     isOnBreak
                       ? breakExceeded
                         ? "text-red-500 dark:text-red-400"
@@ -358,7 +358,7 @@ function QuickAction({
     <button
       onClick={onClick}
       className={cn(
-        "group relative flex flex-col items-center justify-center gap-3 rounded-2xl p-5 w-full min-h-27.5",
+        "group relative flex flex-col items-center justify-center gap-2.5 sm:gap-3 rounded-2xl p-4 sm:p-5 w-full min-h-24 sm:min-h-27.5",
         "border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm",
         "hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-all duration-300 cursor-pointer overflow-hidden",
         "hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]",
@@ -1035,6 +1035,11 @@ export default function CrmDashboardPage() {
       route: "/crm/aftermarket",
     },
     {
+      icon: <Car className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      label: "Garage Review",
+      route: "/crm/garage-review",
+    },
+    {
       icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />,
       label: "Leaderboard",
       route: "/crm/leaderboard",
@@ -1055,9 +1060,9 @@ export default function CrmDashboardPage() {
         </div>
 
         <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 max-w-7xl mx-auto">
-            <div className="flex items-center gap-3">
-              <div className="relative h-9 w-9 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
+          <div className="flex items-center justify-between gap-2 h-14 sm:h-16 px-4 sm:px-6 max-w-7xl mx-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="relative h-9 w-9 shrink-0 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
                 <Car className="h-4 w-4 text-white" />
                 <div className="absolute inset-0 rounded-xl ring-1 ring-emerald-400/30" />
               </div>
@@ -1071,7 +1076,7 @@ export default function CrmDashboardPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <LiveClock />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1154,32 +1159,32 @@ export default function CrmDashboardPage() {
           </div>
         </header>
 
-        <main className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-7 flex-1 min-h-0 overflow-y-auto">
+        <main className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-7 flex-1 min-h-0 overflow-y-auto">
           <div
             className={cn(
-              "flex items-center justify-between transition-all duration-700",
+              "flex flex-wrap items-center gap-x-3 gap-y-2 transition-all duration-700",
               mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4",
             )}
           >
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center shadow-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center shadow-sm">
                 {greeting.icon}
               </div>
-              <div>
-                <h1 className="text-xl font-black text-zinc-900 dark:text-white tracking-tight">
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white tracking-tight truncate">
                   {greeting.text}
                 </h1>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono">
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono truncate">
                   {todayStr}
                 </p>
               </div>
-              <Badge className="hidden sm:inline-flex text-[10px] h-5 px-2.5 rounded-full capitalize font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20 ml-1">
-                {user.role}
-              </Badge>
             </div>
+            <Badge className="hidden sm:inline-flex text-[10px] h-5 px-2.5 rounded-full capitalize font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20">
+              {user.role}
+            </Badge>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
             <div
               className={cn(
                 "lg:col-span-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm flex flex-col overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
@@ -1232,7 +1237,7 @@ export default function CrmDashboardPage() {
                 </div>
               </div>
 
-              <div className="flex-1 flex items-center justify-center px-8 py-8 min-h-55">
+              <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-8 min-h-55">
                 {isActive && (
                   <ActivityTimer
                     todayTotalActiveMs={todayTotalActiveMs}
@@ -1248,7 +1253,7 @@ export default function CrmDashboardPage() {
                     <div className="relative inline-flex">
                       <CheckCircle2 className="h-12 w-12 text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
                     </div>
-                    <p className="text-5xl font-mono font-black tracking-tighter text-zinc-900 dark:text-white">
+                    <p className="text-4xl sm:text-5xl font-mono font-black tracking-tighter text-zinc-900 dark:text-white">
                       {finalHours}
                     </p>
                     <p className="text-[10px] text-zinc-400 dark:text-zinc-600 uppercase tracking-[0.2em] font-bold">
@@ -1389,10 +1394,10 @@ export default function CrmDashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-span-8 flex flex-col gap-5">
+            <div className="lg:col-span-8 flex flex-col gap-4 lg:gap-5">
               <div
                 className={cn(
-                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-6 overflow-hidden relative shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
+                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-5 sm:p-6 overflow-hidden relative shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
                   "transition-all duration-700 delay-200",
                   mounted
                     ? "opacity-100 translate-y-0"
@@ -1405,7 +1410,7 @@ export default function CrmDashboardPage() {
                   My Profile
                 </p>
 
-                <div className="flex items-center gap-5 pb-5 border-b border-zinc-100 dark:border-zinc-800/60">
+                <div className="flex items-center gap-4 sm:gap-5 pb-5 border-b border-zinc-100 dark:border-zinc-800/60">
                   <div className="relative shrink-0">
                     <div className="absolute -inset-1 rounded-full bg-linear-to-br from-emerald-500/30 to-emerald-700/10 animate-[spin_6s_linear_infinite]" />
                     <Avatar className="relative h-16 w-16 ring-2 ring-zinc-200 dark:ring-zinc-800">
@@ -1420,10 +1425,10 @@ export default function CrmDashboardPage() {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="text-lg font-black text-zinc-900 dark:text-white leading-tight">
+                    <p className="text-lg font-black text-zinc-900 dark:text-white leading-tight truncate">
                       {user.fullName}
                     </p>
-                    <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono">
+                    <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono truncate">
                       {user.email}
                     </p>
                     <div className="flex flex-wrap gap-1.5 mt-2.5">
@@ -1452,7 +1457,7 @@ export default function CrmDashboardPage() {
               {/* Quick Actions card */}
               <div
                 className={cn(
-                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-6 flex-1 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
+                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-5 sm:p-6 flex-1 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
                   "transition-all duration-700 delay-300",
                   mounted
                     ? "opacity-100 translate-y-0"
@@ -1557,7 +1562,7 @@ export default function CrmDashboardPage() {
       {showEarlyEndModal && (
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEarlyEndModal(false)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-y-auto max-h-[90vh] overscroll-contain" style={{ animation: "slideUp 0.25s ease-out" }}>
             <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
@@ -1750,7 +1755,7 @@ export default function CrmDashboardPage() {
 
           {/* Card */}
           <div
-            className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl shadow-black/70 overflow-hidden"
+            className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl shadow-black/70 overflow-y-auto max-h-[88vh] overscroll-contain"
             style={{ animation: "slideUp 0.25s ease-out" }}
           >
             <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
