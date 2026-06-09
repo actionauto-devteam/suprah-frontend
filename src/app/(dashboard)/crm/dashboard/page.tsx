@@ -229,8 +229,11 @@ function ActivityTimer({
 
   const liveMs = activityStartAt ? Math.max(0, now - activityStartAt) : 0;
   const totalMs = todayTotalActiveMs + liveMs;
-  const isActive =
-    activityStartAt !== null || (isOnShift && todayTotalActiveMs === 0);
+  // "Active" means the timer is actually ticking. Without activityStartAt the
+  // display is frozen, so labelling it "Active — Tracking" is misleading. The
+  // fallback for the just-clocked-in case (todayTotalActiveMs===0) is gated to
+  // when we actually have a live interval; otherwise we show the paused state.
+  const isActive = activityStartAt !== null;
 
   const breakLiveMs = currentBreakStartAt
     ? Math.max(0, now - currentBreakStartAt)
@@ -321,7 +324,9 @@ function ActivityTimer({
               : "● On Break — Paused"
             : isActive
               ? "● Active — Tracking"
-              : "○ Idle — Paused"}
+              : isOnShift
+                ? "○ Shift Open — Tap Resume"
+                : "○ Not Clocked In"}
         </span>
         {breakExceeded && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-center">
@@ -1322,42 +1327,60 @@ export default function CrmDashboardPage() {
                     )}
                   </Button>
                 )}
-                {isActive && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      onClick={handleBreak}
-                      className={cn(
-                        "h-11 rounded-xl font-bold gap-2 transition-all duration-200 border text-sm",
-                        isOnBreak
-                          ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                          : "border-zinc-200 dark:border-zinc-700/60 bg-zinc-50 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30",
-                      )}
-                    >
-                      {isOnBreak ? (
-                        <>
-                          <Play className="h-4 w-4" /> Resume
-                        </>
+                {isActive && (() => {
+                  // Three states for the active-shift action buttons:
+                  //  • On break → Break button shows "Resume" (ends break)
+                  //  • On shift but paused (no active tracking) → swap Break for "Resume Shift"
+                  //    so the user can re-engage tracking without having to "Break" first.
+                  //  • Actively tracking → normal Break + End Shift.
+                  const isPausedOnShift = !isOnBreak && activityStartAt === null;
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {isPausedOnShift ? (
+                        <Button
+                          onClick={() => handleClock("time-in")}
+                          disabled={isClocking}
+                          className="h-11 rounded-xl font-bold gap-2 transition-all duration-200 border text-sm border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                        >
+                          <Play className="h-4 w-4" /> Resume Shift
+                        </Button>
                       ) : (
-                        <>
-                          <Coffee className="h-4 w-4" /> Break
-                        </>
+                        <Button
+                          onClick={handleBreak}
+                          className={cn(
+                            "h-11 rounded-xl font-bold gap-2 transition-all duration-200 border text-sm",
+                            isOnBreak
+                              ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                              : "border-zinc-200 dark:border-zinc-700/60 bg-zinc-50 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30",
+                          )}
+                        >
+                          {isOnBreak ? (
+                            <>
+                              <Play className="h-4 w-4" /> Resume
+                            </>
+                          ) : (
+                            <>
+                              <Coffee className="h-4 w-4" /> Break
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                    <Button
-                      onClick={handleEndShiftClick}
-                      disabled={isClocking || isOnBreak}
-                      className="h-11 rounded-xl font-bold gap-2 transition-all duration-200 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 hover:border-red-300 dark:hover:border-red-400/40 disabled:opacity-30 text-sm"
-                    >
-                      {isClocking ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <LogOut className="h-4 w-4" /> End Shift
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
+                      <Button
+                        onClick={handleEndShiftClick}
+                        disabled={isClocking || isOnBreak}
+                        className="h-11 rounded-xl font-bold gap-2 transition-all duration-200 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 hover:border-red-300 dark:hover:border-red-400/40 disabled:opacity-30 text-sm"
+                      >
+                        {isClocking ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <LogOut className="h-4 w-4" /> End Shift
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })()}
                 {clockMsg && (
                   <p className="text-[11px] text-center text-emerald-600 dark:text-emerald-400/70 font-mono mt-2">
                     {clockMsg}
