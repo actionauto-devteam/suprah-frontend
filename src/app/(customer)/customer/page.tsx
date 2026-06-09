@@ -730,7 +730,7 @@ export default function CustomerDashboard() {
                   <div key={vehicle.id} className="rounded-2xl overflow-hidden border border-border/40">
 
                     {/* Cinematic vehicle banner */}
-                    <div className="relative h-52 sm:h-64 bg-zinc-900 group overflow-hidden">
+                    <div className="relative h-60 sm:h-72 bg-zinc-900 group overflow-hidden">
                       <GarageVehicleImage vehicle={vehicle} />
                       <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-zinc-950/30 to-transparent" />
 
@@ -750,24 +750,29 @@ export default function CustomerDashboard() {
                         </button>
                       </div>
 
-                      {/* Vehicle identity — bottom left */}
-                      <div className="absolute bottom-4 left-4 right-4">
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                          Active Vehicle
-                        </p>
-                        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none mt-0.5">
-                          {vehicle.year} {vehicle.make}
-                        </h2>
-                        <p className="text-sm text-zinc-300 mt-0.5 font-medium">
-                          {vehicle.model}{vehicle.trim ? ` · ${vehicle.trim}` : ""}
-                        </p>
-                      </div>
-
-                      {/* VIN chip */}
-                      <div className="absolute bottom-4 right-4 hidden sm:block">
-                        <div className="rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3 py-2">
-                          <p className="text-[9px] text-zinc-400 uppercase tracking-widest">VIN</p>
-                          <p className="text-xs text-zinc-100 font-mono mt-0.5">{vehicle.vin}</p>
+                      {/* Vehicle identity */}
+                      <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-zinc-300 font-medium tracking-widest uppercase drop-shadow-md">
+                              Active Vehicle
+                            </p>
+                            {(vehicle as any).source === "DEALERSHIP_TRANSFER" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 backdrop-blur-md">
+                                ✓ Added by{(vehicle as any).dealershipName ? ` ${(vehicle as any).dealershipName}` : " dealership"}
+                              </span>
+                            )}
+                          </div>
+                          <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl">
+                            {vehicle.year} {vehicle.make}
+                          </h2>
+                          <p className="text-xl text-zinc-200 font-medium mt-1 drop-shadow-md">
+                            {vehicle.model}{vehicle.trim ? ` · ${vehicle.trim}` : ""}
+                          </p>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:text-right shrink-0">
+                          <p className="text-xs text-zinc-400 font-semibold uppercase tracking-widest mb-1">VIN</p>
+                          <p className="text-zinc-100 font-mono text-sm tracking-wider">{vehicle.vin}</p>
                         </div>
                       </div>
                     </div>
