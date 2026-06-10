@@ -2,371 +2,164 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { WiseProvider, WisePanel } from "@/components/billing/WiseIntegration";
+import { BalanceCard } from "@/components/billing/BalanceCard";
 import { Payment, PaymentStats } from "@/types/billing";
-import { formatCurrency } from "@/utils/format";
 import {
-  ArrowUpRight,
-  ArrowDownLeft,
-  CheckCircle2,
-  XCircle,
+  T,
+  FONT,
+  numeric,
+  GlobalStyle,
+  Wordmark,
+  Card,
+  SectionLabel,
+  Skeleton,
+  StatusBadge,
+  StatCard,
+  IconBadge,
+} from "@/components/billing/ui";
+import {
   Activity,
+  ArrowRight,
   CreditCard,
+  Users,
   AlertCircle,
   Wallet,
-  Banknote,
-  Shield,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  BarChart3,
-  Users,
-  Zap,
   TrendingUp,
   Clock,
+  Receipt,
+  Banknote,
 } from "lucide-react";
+import { formatCurrency } from "@/utils/format";
 import { CashInModal } from "@/components/CashInModal";
 import { ReceiveModal } from "@/components/billing/ReceiveModal";
 import { SendModal } from "@/components/billing/SendModal";
 
-// Design Tokens
-const T = {
-  bg: "var(--color-background-tertiary, var(--background))",
-  surface: "var(--color-background-secondary, var(--card))",
-  surfaceHi: "var(--color-background-primary, var(--popover))",
-  border: "var(--color-border-tertiary, var(--border))",
-  borderHi: "var(--color-border-secondary, var(--border))",
-  text: "var(--color-text-primary, var(--foreground))",
-  textSub: "var(--color-text-secondary, var(--muted-foreground))",
-  textMute: "var(--color-text-tertiary, var(--muted-foreground))",
-  accent: "var(--color-text-info, #2563EB)",
-  accentBg: "var(--color-background-info, rgba(37,99,235,0.12))",
-  success: "var(--color-text-success, #16A34A)",
-  successBg: "var(--color-background-success, rgba(34,197,94,0.12))",
-  warning: "var(--color-text-warning, #D97706)",
-  warningBg: "var(--color-background-warning, rgba(217,119,6,0.12))",
-  danger: "var(--color-text-danger, #DC2626)",
-  dangerBg: "var(--color-background-danger, rgba(220,38,38,0.12))",
-  brand: "#16A34A",
-  brandMid: "#22C55E",
-  brandLight: "rgba(34,197,94,0.10)",
-  brandGlow: "rgba(34,197,94,0.16)",
-  brandBorder: "rgba(34,197,94,0.22)",
-};
-
-// Skeleton loader
-function Skeleton({
-  w,
-  h,
-  r = 8,
-}: {
-  w: number | string;
-  h: number;
-  r?: number;
-}) {
-  return (
-    <div
-      style={{
-        width: w,
-        height: h,
-        borderRadius: r,
-        background: "var(--color-border-tertiary)",
-        animation: "skShimmer 1.6s ease-in-out infinite",
-      }}
-    />
-  );
-}
-
-// Status pill
-function StatusPill({ status }: { status: string }) {
-  const cfg: Record<string, [string, string]> = {
-    succeeded: [T.success, T.successBg],
-    pending: [T.warning, T.warningBg],
-    failed: [T.danger, T.dangerBg],
-    processing: [T.accent, T.accentBg],
-    cancelled: [T.textMute, T.surface],
-    refunded: [T.textMute, T.surface],
-  };
-  const [color, bg] = cfg[status] ?? cfg.cancelled;
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        fontWeight: 700,
-        letterSpacing: "0.1em",
-        textTransform: "uppercase",
-        fontFamily: "var(--font-mono)",
-        color,
-        background: bg,
-        padding: "2px 8px",
-        borderRadius: 6,
-        border: "1px solid currentColor",
-        opacity: 0.9,
-      }}
-    >
-      {status}
-    </span>
-  );
-}
-
-// Transaction Row
-function TxRow({
-  payment,
-  idx,
-  isHidden,
-}: {
-  payment: Payment;
-  idx: number;
-  isHidden: boolean;
-}) {
+/* ── Transaction row ────────────────────────────────────────────────────── */
+function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
+  const credit = payment.status === "succeeded";
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "1fr auto auto",
-        gap: 12,
-        padding: "12px 14px",
-        borderRadius: 10,
-        borderBottom: `1px solid ${T.border}`,
+        gridTemplateColumns: "auto 1fr auto",
         alignItems: "center",
+        gap: 12,
+        padding: "12px 8px",
+        borderBottom: `1px solid ${T.border}`,
       }}
     >
+      <div
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 11,
+          background: credit ? T.successBg : T.surfaceAlt,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          fontFamily: FONT,
+          fontWeight: 700,
+          fontSize: 14,
+          color: credit ? T.success : T.textSub,
+        }}
+      >
+        {(payment.customerName?.[0] ?? "?").toUpperCase()}
+      </div>
+
       <div style={{ minWidth: 0 }}>
         <p
           style={{
-            fontSize: 13,
+            fontSize: 13.5,
             fontWeight: 600,
             color: T.text,
             margin: 0,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            letterSpacing: "-0.01em",
           }}
         >
           {payment.customerName}
         </p>
         <p
           style={{
-            fontSize: 11,
+            fontSize: 12,
             color: T.textMute,
             margin: "2px 0 0",
-            fontFamily: "var(--font-mono)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
           }}
         >
-          {payment.invoiceNumber ?? payment.description}
+          {payment.invoiceNumber ? `#${payment.invoiceNumber}` : payment.description}
         </p>
       </div>
-      <div>
-        <p
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: T.text,
-            margin: 0,
-            letterSpacing: "-0.02em",
-            fontFamily: "'Epilogue', monospace",
-          }}
-        >
-          {isHidden ? "$ •••••" : formatCurrency(payment.amount)}
+
+      <div style={{ textAlign: "right" }}>
+        <p style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0, ...numeric }}>
+          {hidden ? "$ •••••" : formatCurrency(payment.amount)}
         </p>
-      </div>
-      <div>
-        <StatusPill status={payment.status} />
+        <div style={{ marginTop: 4 }}>
+          <StatusBadge status={payment.status} />
+        </div>
       </div>
     </div>
   );
 }
 
-// Mini metric card
-function MiniMetric({
-  label,
-  value,
-  icon: Icon,
-  colorVar,
-  bgVar,
-  skeleton,
-}: {
-  label: string;
-  value: string;
-  icon: React.ElementType;
-  colorVar: string;
-  bgVar: string;
-  skeleton?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: T.surface,
-        border: `1px solid ${T.border}`,
-        borderRadius: 12,
-        padding: "14px 16px",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 8,
-          background: bgVar,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: `1px solid ${T.border}`,
-          flexShrink: 0,
-        }}
-      >
-        <Icon style={{ width: 14, height: 14, color: colorVar }} />
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <p
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            color: T.textMute,
-            margin: 0,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            fontFamily: "var(--font-mono)",
-          }}
-        >
-          {label}
-        </p>
-        {skeleton ? (
-          <div style={{ marginTop: 4 }}>
-            <Skeleton w={56} h={18} r={4} />
-          </div>
-        ) : (
-          <p
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: T.text,
-              margin: "3px 0 0",
-              letterSpacing: "-0.025em",
-              fontFamily: "'Epilogue', monospace",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {value}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Nav card
+/* ── Nav card ───────────────────────────────────────────────────────────── */
 function NavCard({
   href,
-  icon: Icon,
+  icon,
   title,
   desc,
   badge,
-  colorVar,
-  bgVar,
+  color,
+  bg,
 }: {
   href: string;
   icon: React.ElementType;
   title: string;
   desc: string;
   badge?: number;
-  colorVar: string;
-  bgVar: string;
+  color: string;
+  bg: string;
 }) {
   return (
-    <Link
-      href={href}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        background: T.surface,
-        border: `1px solid ${T.border}`,
-        borderRadius: 14,
-        padding: "16px 18px",
-        textDecoration: "none",
-        transition: "transform 0.18s ease, border-color 0.18s ease",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          background: bgVar,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: `1px solid ${T.border}`,
-        }}
+    <Link href={href} style={{ textDecoration: "none" }}>
+      <Card
+        pad="16px 18px"
+        style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}
       >
-        <Icon style={{ width: 18, height: 18, color: colorVar }} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: T.text,
-            margin: 0,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {title}
-        </p>
-        <p
-          style={{
-            fontSize: 11,
-            color: T.textSub,
-            margin: "3px 0 0",
-            lineHeight: 1.4,
-          }}
-        >
-          {desc}
-        </p>
-      </div>
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
-      >
-        {badge !== undefined && badge > 0 && (
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              background: T.warningBg,
-              color: T.warning,
-              borderRadius: 6,
-              padding: "2px 8px",
-              fontFamily: "var(--font-mono)",
-              border: `1px solid ${T.border}`,
-            }}
-          >
-            {badge}
-          </span>
-        )}
-        <ArrowRight
-          style={{
-            width: 12,
-            height: 12,
-            color: T.textMute,
-          }}
-        />
-      </div>
+        <IconBadge icon={icon} color={color} bg={bg} size={40} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: T.text, margin: 0 }}>{title}</p>
+          <p style={{ fontSize: 12, color: T.textSub, margin: "3px 0 0", lineHeight: 1.4 }}>
+            {desc}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          {badge !== undefined && badge > 0 && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                background: T.warningBg,
+                color: T.warning,
+                borderRadius: 8,
+                padding: "2px 8px",
+                ...numeric,
+              }}
+            >
+              {badge}
+            </span>
+          )}
+          <ArrowRight style={{ width: 14, height: 14, color: T.textMute }} />
+        </div>
+      </Card>
     </Link>
   );
 }
@@ -379,7 +172,7 @@ export default function BillingDashboard() {
   const [allPayments, setAllPayments] = React.useState<Payment[]>([]);
   const [pendingCount, setPendingCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isHidden, setIsHidden] = React.useState(false);
+  const [hidden, setHidden] = React.useState(false);
   const [activeModal, setActiveModal] = React.useState<
     "receive" | "send" | "cashin" | null
   >(null);
@@ -431,17 +224,13 @@ export default function BillingDashboard() {
         { ...empty },
       );
 
-      const totalCount = payments.length;
-      const totalRevenue = Number(byStatus.succeeded?.totalAmount ?? 0);
-      const pendingAmount =
-        Number(byStatus.pending?.totalAmount ?? 0) +
-        Number(byStatus.failed?.totalAmount ?? 0);
-
       return {
         byStatus,
-        totalCount,
-        totalRevenue,
-        pendingAmount,
+        totalCount: payments.length,
+        totalRevenue: Number(byStatus.succeeded?.totalAmount ?? 0),
+        pendingAmount:
+          Number(byStatus.pending?.totalAmount ?? 0) +
+          Number(byStatus.failed?.totalAmount ?? 0),
       };
     },
     [],
@@ -464,7 +253,6 @@ export default function BillingDashboard() {
         paymentsRes.status === "fulfilled"
           ? extractPayments(paymentsRes.value.data)
           : [];
-
       const loadedPendingPayments =
         pendingRes.status === "fulfilled"
           ? extractPayments(pendingRes.value.data)
@@ -472,24 +260,21 @@ export default function BillingDashboard() {
 
       const uniqueById = new Map<string, Payment>();
       [...loadedPayments, ...loadedPendingPayments].forEach((payment) => {
-        if (payment?._id) {
-          uniqueById.set(payment._id, payment);
-        }
+        if (payment?._id) uniqueById.set(payment._id, payment);
       });
-      const mergedPayments = Array.from(uniqueById.values()).sort(
+      const merged = Array.from(uniqueById.values()).sort(
         (a, b) =>
-          new Date(b.createdAt ?? 0).getTime() -
-          new Date(a.createdAt ?? 0).getTime(),
+          new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
       );
 
-      setAllPayments(mergedPayments);
-      setRecentPayments(mergedPayments.slice(0, 6));
+      setAllPayments(merged);
+      setRecentPayments(merged.slice(0, 6));
 
       if (statsRes.status === "fulfilled") {
         const normalized = normalizeStats(statsRes.value.data?.data);
-        setStats(normalized ?? buildStatsFromPayments(mergedPayments));
+        setStats(normalized ?? buildStatsFromPayments(merged));
       } else {
-        setStats(buildStatsFromPayments(mergedPayments));
+        setStats(buildStatsFromPayments(merged));
       }
 
       if (balanceRes.status === "fulfilled")
@@ -497,10 +282,7 @@ export default function BillingDashboard() {
 
       setPendingCount(
         loadedPendingPayments.length ||
-          mergedPayments.filter(
-            (payment) =>
-              payment.status === "pending" || payment.status === "failed",
-          ).length,
+          merged.filter((p) => p.status === "pending" || p.status === "failed").length,
       );
     } catch (e) {
       console.error(e);
@@ -514,583 +296,284 @@ export default function BillingDashboard() {
   }, [load]);
 
   const displayBalance = balance ?? stats?.totalRevenue ?? 0;
-  const succeeded = stats?.byStatus?.succeeded;
   const pending = stats?.byStatus?.pending;
   const failed = stats?.byStatus?.failed;
-  const closedCount = (succeeded?.count ?? 0) + (failed?.count ?? 0);
-  const winRate =
-    closedCount > 0
-      ? Math.round(((succeeded?.count ?? 0) / closedCount) * 100)
-      : 0;
-  const avgDeal =
-    (stats?.totalRevenue ?? 0) / Math.max(succeeded?.count ?? 1, 1);
-  const hasAnyTransactionData =
+  const hasAnyData =
     (stats?.totalCount ?? 0) > 0 || allPayments.length > 0 || pendingCount > 0;
+
+  const metrics = [
+    {
+      label: "Total received",
+      value: formatCurrency(stats?.totalRevenue ?? 0),
+      hint: `${stats?.byStatus?.succeeded?.count ?? 0} settled`,
+      icon: TrendingUp,
+      color: T.success,
+      bg: T.successBg,
+    },
+    {
+      label: "Pending amount",
+      value: formatCurrency(stats?.pendingAmount ?? 0),
+      hint: `${pending?.count ?? 0} invoices`,
+      icon: Clock,
+      color: T.warning,
+      bg: T.warningBg,
+    },
+    {
+      label: "Transactions",
+      value: String(stats?.totalCount ?? 0),
+      hint: "all time",
+      icon: Receipt,
+      color: T.info,
+      bg: T.infoBg,
+    },
+    {
+      label: "Failed",
+      value: String(failed?.count ?? 0),
+      hint: "need review",
+      icon: AlertCircle,
+      color: T.danger,
+      bg: T.dangerBg,
+    },
+  ];
 
   return (
     <WiseProvider>
-      <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@500;600;700;800&display=swap');
+      <GlobalStyle />
 
-          @keyframes skShimmer {
-            0%,100% { opacity:1; }
-            50%      { opacity:.4; }
-          }
-          @keyframes fadeUp {
-            from { opacity:0; transform:translateY(8px); }
-            to   { opacity:1; transform:none; }
-          }
-
-          * { box-sizing: border-box; }
-          body { margin: 0; }
-
-          .dashboard-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 24px;
-            align-items: start;
-          }
-
-          .dashboard-recent {
-            min-height: 320px;
-          }
-
-          .dashboard-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-          }
-
-          @media (max-width: 768px) {
-            .dashboard-header { flex-direction: column; align-items: flex-start; }
-            .dashboard-stats { grid-template-columns: 1fr 1fr; }
-            .dashboard-content { grid-template-columns: 1fr; }
-            .dashboard-recent { min-height: 0; }
-          }
-
-          @media (max-width: 480px) {
-            .dashboard-stats { grid-template-columns: 1fr; }
-          }
-        `}</style>
-
-        <div style={{ background: T.bg, minHeight: "100%", padding: "16px" }}>
-          <div
+      <div style={{ background: T.bg, minHeight: "100%", fontFamily: FONT }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 16px 64px" }}>
+          {/* Header */}
+          <header
             style={{
-              maxWidth: 1200,
-              margin: "0 auto",
-              padding: "12px 0 60px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 24,
+              gap: 16,
+              flexWrap: "wrap",
+              animation: "spy-fade-up 0.35s ease both",
             }}
           >
-            {/* Header */}
-            <header
-              className="dashboard-header"
+            <div>
+              <Wordmark size={26} />
+              <p style={{ fontSize: 13, color: T.textSub, margin: "6px 0 0" }}>
+                Payment dashboard
+              </p>
+            </div>
+            <Link
+              href="/billing/payments"
               style={{
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 28,
-                animation: "fadeUp 0.38s ease both",
-                gap: 16,
-                flexWrap: "wrap",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.brand,
+                textDecoration: "none",
+                padding: "9px 16px",
+                borderRadius: 12,
+                background: T.brandSoft,
+                border: `1px solid ${T.brandBorder}`,
               }}
             >
-              <div>
-                <h1
-                  style={{
-                    fontSize: 26,
-                    fontWeight: 800,
-                    color: T.text,
-                    margin: 0,
-                    letterSpacing: "-0.025em",
-                    fontFamily: "'Epilogue', sans-serif",
-                  }}
-                >
-                  Suprah<span style={{ color: T.brandMid }}>Pay</span>
-                </h1>
-                <p
-                  style={{
-                    fontSize: 10,
-                    color: T.textMute,
-                    margin: "6px 0 0",
-                    fontFamily: "var(--font-mono)",
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                  }}
-                >
-                  Payment Operations
-                </p>
-              </div>
+              <Activity style={{ width: 14, height: 14 }} />
+              All payments
+              <ArrowRight style={{ width: 13, height: 13 }} />
+            </Link>
+          </header>
 
-              <Link
-                href="/billing/payments"
+          {/* Hero balance + metrics */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1fr)",
+              gap: 18,
+              marginBottom: 18,
+              alignItems: "stretch",
+              animation: "spy-fade-up 0.35s ease 0.04s both",
+            }}
+            className="spy-hero-grid"
+          >
+            <BalanceCard
+              balance={displayBalance}
+              userId={userId}
+              userName="SuprahPay Account"
+              isLoading={isLoading}
+              stats={stats}
+              onReceive={() => setActiveModal("receive")}
+              onSend={() => setActiveModal("send")}
+              onCashIn={() => setActiveModal("cashin")}
+            />
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              {metrics.map((m) => (
+                <StatCard
+                  key={m.label}
+                  label={m.label}
+                  value={m.value}
+                  hint={m.hint}
+                  icon={m.icon}
+                  color={m.color}
+                  bg={m.bg}
+                  loading={isLoading}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Recent activity */}
+          <section style={{ marginBottom: 18, animation: "spy-fade-up 0.35s ease 0.08s both" }}>
+            <Card pad={0}>
+              <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 7,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  letterSpacing: "0.02em",
-                  color: T.brandMid,
-                  textDecoration: "none",
-                  padding: "8px 16px",
-                  borderRadius: 10,
-                  background: T.brandLight,
-                  border: `1px solid ${T.brandBorder}`,
-                  transition: "all 0.15s",
-                  whiteSpace: "nowrap",
-                  height: 40,
+                  justifyContent: "space-between",
+                  padding: "16px 20px",
+                  borderBottom: `1px solid ${T.border}`,
                 }}
               >
-                <Activity style={{ width: 12, height: 12 }} />
-                All Payments
-                <ArrowRight style={{ width: 11, height: 11, opacity: 0.7 }} />
-              </Link>
-            </header>
-
-            {/* Wise Integration Section */}
-            <section
-              style={{
-                marginBottom: 24,
-                animation: "fadeUp 0.38s ease 0.04s both",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: T.textMute,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  fontFamily: "var(--font-mono)",
-                  margin: "0 0 12px",
-                }}
-              >
-                Banking Layer
-              </p>
-              <WisePanel style={{ marginBottom: 0 }} />
-            </section>
-
-            {/* Stats Grid */}
-            <section
-              style={{
-                marginBottom: 24,
-                animation: "fadeUp 0.38s ease 0.08s both",
-              }}
-            >
-              <div className="dashboard-stats">
-                <MiniMetric
-                  label="Win Rate"
-                  icon={TrendingUp}
-                  value={isLoading ? "" : `${winRate}%`}
-                  skeleton={isLoading}
-                  colorVar={T.brandMid}
-                  bgVar={T.brandLight}
-                />
-                <MiniMetric
-                  label="Avg Deal"
-                  icon={BarChart3}
-                  value={isLoading ? "" : formatCurrency(avgDeal)}
-                  skeleton={isLoading}
-                  colorVar={T.accent}
-                  bgVar={T.accentBg}
-                />
-                <MiniMetric
-                  label="Volume"
-                  icon={Zap}
-                  value={isLoading ? "" : String(stats?.totalCount ?? 0)}
-                  skeleton={isLoading}
-                  colorVar={T.warning}
-                  bgVar={T.warningBg}
-                />
-                <MiniMetric
-                  label="Pending"
-                  icon={Clock}
-                  value={isLoading ? "" : String(pending?.count ?? 0)}
-                  skeleton={isLoading}
-                  colorVar={T.accent}
-                  bgVar={T.accentBg}
-                />
-              </div>
-            </section>
-
-            {/* Main Content Grid */}
-            <div
-              className="dashboard-content"
-              style={{
-                animation: "fadeUp 0.38s ease 0.12s both",
-              }}
-            >
-              {/* Revenue & Status Cards */}
-              <div
-                style={{
-                  background: T.surface,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 16,
-                  padding: "20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                }}
-              >
-                <div>
-                  <p
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: T.textMute,
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      fontFamily: "var(--font-mono)",
-                      margin: 0,
-                    }}
-                  >
-                    Total Revenue
-                  </p>
-                  {isLoading ? (
-                    <Skeleton w={140} h={32} r={6} />
-                  ) : (
-                    <p
-                      style={{
-                        fontSize: 32,
-                        fontWeight: 700,
-                        color: T.text,
-                        margin: "8px 0 0",
-                        letterSpacing: "-0.03em",
-                        fontFamily: "'Epilogue', monospace",
-                      }}
-                    >
-                      {isHidden
-                        ? "$ ••••"
-                        : formatCurrency(stats?.totalRevenue ?? 0)}
-                    </p>
-                  )}
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: T.textMute,
-                      margin: "6px 0 0",
-                      fontFamily: "var(--font-mono)",
-                    }}
-                  >
-                    {succeeded?.count ?? 0} deals closed
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 10,
-                  }}
+                <p style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0 }}>
+                  Recent activity
+                </p>
+                <Link
+                  href="/billing/payments"
+                  style={{ fontSize: 13, fontWeight: 600, color: T.brand, textDecoration: "none" }}
                 >
-                  <div
-                    style={{
-                      background: T.bg,
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 10,
-                      padding: "12px 14px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        color: T.textMute,
-                        margin: 0,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Pending
-                    </p>
-                    <p
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: T.warning,
-                        margin: "6px 0 0",
-                      }}
-                    >
-                      {pending?.count ?? 0}
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      background: T.bg,
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 10,
-                      padding: "12px 14px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        color: T.textMute,
-                        margin: 0,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Failed
-                    </p>
-                    <p
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: T.danger,
-                        margin: "6px 0 0",
-                      }}
-                    >
-                      {failed?.count ?? 0}
-                    </p>
-                  </div>
-                </div>
+                  View all →
+                </Link>
               </div>
 
-              {/* Recent Activity */}
-              <div
-                className="dashboard-recent"
-                style={{
-                  background: T.surface,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "16px 20px",
-                    borderBottom: `1px solid ${T.border}`,
-                    flexShrink: 0,
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: T.text,
-                      margin: 0,
-                      letterSpacing: "-0.02em",
-                    }}
-                  >
-                    Recent Activity
-                  </p>
-                  <Link
-                    href="/billing/payments"
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: T.brandMid,
-                      textDecoration: "none",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    View all →
-                  </Link>
-                </div>
-
-                <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
-                  {isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          padding: "12px 10px",
-                          borderBottom: `1px solid ${T.border}`,
-                        }}
-                      >
-                        <Skeleton w={40} h={40} r={10} />
-                        <div style={{ flex: 1 }}>
-                          <Skeleton w="50%" h={12} r={4} />
-                          <div style={{ marginTop: 6 }}>
-                            <Skeleton w="30%" h={10} r={4} />
-                          </div>
+              <div style={{ padding: "6px 12px" }}>
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 8px",
+                        borderBottom: `1px solid ${T.border}`,
+                      }}
+                    >
+                      <Skeleton w={38} h={38} r={11} />
+                      <div style={{ flex: 1 }}>
+                        <Skeleton w="45%" h={12} />
+                        <div style={{ marginTop: 6 }}>
+                          <Skeleton w="28%" h={10} />
                         </div>
                       </div>
-                    ))
-                  ) : recentPayments.length === 0 && !hasAnyTransactionData ? (
-                    <div
-                      style={{
-                        padding: "40px 20px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <Wallet
-                        style={{
-                          width: 28,
-                          height: 28,
-                          color: T.textMute,
-                          margin: "0 auto 8px",
-                          display: "block",
-                        }}
-                      />
-                      <p
-                        style={{
-                          fontSize: 13,
-                          color: T.textSub,
-                          fontWeight: 600,
-                          margin: 0,
-                        }}
-                      >
-                        No transactions yet
-                      </p>
                     </div>
-                  ) : recentPayments.length === 0 ? (
-                    <div
-                      style={{
-                        padding: "24px 20px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: T.textSub,
-                          fontWeight: 600,
-                          margin: 0,
-                        }}
-                      >
-                        Loading transaction activity…
-                      </p>
-                      <p
-                        style={{
-                          fontSize: 10,
-                          color: T.textMute,
-                          margin: "6px 0 0",
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
-                        Metrics detected, syncing recent records
-                      </p>
-                    </div>
-                  ) : (
-                    recentPayments.map((p, i) => (
-                      <TxRow
-                        key={p._id}
-                        payment={p}
-                        idx={i}
-                        isHidden={isHidden}
-                      />
-                    ))
-                  )}
-                </div>
+                  ))
+                ) : recentPayments.length === 0 ? (
+                  <div style={{ padding: "40px 20px", textAlign: "center" }}>
+                    <Wallet
+                      style={{ width: 28, height: 28, color: T.textMute, margin: "0 auto 10px", display: "block" }}
+                    />
+                    <p style={{ fontSize: 13.5, color: T.textSub, fontWeight: 600, margin: 0 }}>
+                      {hasAnyData ? "Syncing recent records…" : "No transactions yet"}
+                    </p>
+                  </div>
+                ) : (
+                  recentPayments.map((p) => <TxRow key={p._id} payment={p} hidden={hidden} />)
+                )}
               </div>
+            </Card>
+          </section>
+
+          {/* Linked account (Wise) */}
+          <section style={{ marginBottom: 24, animation: "spy-fade-up 0.35s ease 0.10s both" }}>
+            <SectionLabel>Linked bank account</SectionLabel>
+            <WisePanel style={{ marginBottom: 0 }} />
+          </section>
+
+          {/* Quick access */}
+          <section style={{ animation: "spy-fade-up 0.35s ease 0.12s both" }}>
+            <SectionLabel>Quick access</SectionLabel>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <NavCard
+                href="/billing/payments"
+                icon={CreditCard}
+                title="Payments"
+                desc="Invoices & billing history"
+                color={T.brand}
+                bg={T.brandSoft}
+              />
+              <NavCard
+                href="/billing/driver-payouts"
+                icon={Users}
+                title="Driver payouts"
+                desc="Manage driver payments"
+                color={T.success}
+                bg={T.successBg}
+              />
+              <NavCard
+                href="/billing/awaiting-payment"
+                icon={Banknote}
+                title="Awaiting payment"
+                desc="Outstanding invoices"
+                badge={pendingCount}
+                color={T.warning}
+                bg={T.warningBg}
+              />
+              <NavCard
+                href="/billing/my-payments"
+                icon={Wallet}
+                title="My payments"
+                desc="Personal invoices"
+                color={T.info}
+                bg={T.infoBg}
+              />
             </div>
+          </section>
 
-            {/* Navigation Cards */}
-            <section
-              style={{
-                animation: "fadeUp 0.38s ease 0.16s both",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: T.textMute,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  fontFamily: "var(--font-mono)",
-                  margin: "0 0 12px",
-                }}
-              >
-                Quick Access
-              </p>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                <NavCard
-                  href="/billing/payments"
-                  icon={CreditCard}
-                  title="Payments"
-                  desc="Invoices & billing history"
-                  colorVar={T.brandMid}
-                  bgVar={T.brandLight}
-                />
-                <NavCard
-                  href="/billing/driver-payouts"
-                  icon={Users}
-                  title="Driver Payouts"
-                  desc="Manage driver payments"
-                  colorVar={T.success}
-                  bgVar={T.successBg}
-                />
-                <NavCard
-                  href="/billing/awaiting-payment"
-                  icon={AlertCircle}
-                  title="Awaiting Payment"
-                  desc="Outstanding invoices"
-                  badge={pendingCount}
-                  colorVar={T.warning}
-                  bgVar={T.warningBg}
-                />
-                <NavCard
-                  href="/billing/my-payments"
-                  icon={Wallet}
-                  title="My Payments"
-                  desc="Personal invoices"
-                  colorVar={T.accent}
-                  bgVar={T.accentBg}
-                />
-              </div>
-            </section>
-
-            {/* Footer */}
-            <footer
-              style={{
-                marginTop: 40,
-                paddingTop: 20,
-                borderTop: `1px solid ${T.border}`,
-                textAlign: "center",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 12,
-                  color: T.textMute,
-                  margin: 0,
-                  fontFamily: "'Epilogue', sans-serif",
-                }}
-              >
-                © {new Date().getFullYear()} SuprahPay. All rights reserved.
-              </p>
-            </footer>
-          </div>
+          <footer
+            style={{
+              marginTop: 36,
+              paddingTop: 20,
+              borderTop: `1px solid ${T.border}`,
+              textAlign: "center",
+            }}
+          >
+            <p style={{ fontSize: 12.5, color: T.textMute, margin: 0 }}>
+              © {new Date().getFullYear()} SuprahPay. All rights reserved.
+            </p>
+          </footer>
         </div>
+      </div>
 
-        <CashInModal
-          open={activeModal === "cashin"}
-          onClose={() => setActiveModal(null)}
-        />
-        <ReceiveModal
-          open={activeModal === "receive"}
-          userId={userId}
-          userName="Account"
-          onClose={() => setActiveModal(null)}
-        />
-        <SendModal
-          open={activeModal === "send"}
-          onClose={() => setActiveModal(null)}
-          onSuccess={() => {}}
-          getToken={getToken}
-        />
-      </>
+      <style>{`
+        @media (max-width: 820px) {
+          .spy-hero-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      <CashInModal open={activeModal === "cashin"} onClose={() => setActiveModal(null)} />
+      <ReceiveModal
+        open={activeModal === "receive"}
+        userId={userId}
+        userName="SuprahPay Account"
+        onClose={() => setActiveModal(null)}
+      />
+      <SendModal
+        open={activeModal === "send"}
+        onClose={() => setActiveModal(null)}
+        onSuccess={() => load()}
+        getToken={getToken}
+      />
     </WiseProvider>
   );
 }
