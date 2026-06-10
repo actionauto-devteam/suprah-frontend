@@ -788,7 +788,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
 export default function CustomerSupportPage() {
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-4 h-[calc(100dvh-8rem)] flex flex-col">
       <div className="shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">Support</h1>
         <p className="text-muted-foreground mt-1">
@@ -796,7 +796,7 @@ export default function CustomerSupportPage() {
           possible.
         </p>
       </div>
-      <div className="flex-1 min-h-0" style={{ minHeight: 480 }}>
+      <div className="flex-1 min-h-0">
         <CustomerConcernChat mode="page" />
       </div>
     </div>

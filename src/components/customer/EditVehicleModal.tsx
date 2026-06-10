@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { updateVehicle, OwnedVehicle } from "@/lib/api/vehicles"
+import { updateVehicle, uploadVehicleImage, OwnedVehicle } from "@/lib/api/vehicles"
 import { toast } from "sonner"
-import { CarFront, Loader2 } from "lucide-react"
+import { CarFront, Loader2, Camera } from "lucide-react"
+import { resolveImageUrl, cn } from "@/lib/utils"
 
 interface EditVehicleModalProps {
     vehicle: OwnedVehicle | null;
@@ -22,11 +23,12 @@ interface EditVehicleModalProps {
 
 export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleModalProps) {
     const queryClient = useQueryClient()
+    const fileInputRef = React.useRef<HTMLInputElement>(null)
 
     const [color, setColor] = React.useState("")
     const [licensePlate, setLicensePlate] = React.useState("")
     const [trim, setTrim] = React.useState("")
-    const [imageUrl, setImageUrl] = React.useState("")
+    const [previewUrl, setPreviewUrl] = React.useState("")
 
     // Set initial values
     React.useEffect(() => {
@@ -34,9 +36,35 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
             setColor(vehicle.color || "")
             setLicensePlate(vehicle.licensePlate || "")
             setTrim(vehicle.trim || "")
-            setImageUrl(vehicle.images?.[0] || "")
+            setPreviewUrl(resolveImageUrl(vehicle.images?.[0]) || "")
         }
     }, [vehicle, isOpen])
+
+    const uploadMutation = useMutation({
+        mutationFn: (file: File) => {
+            if (!vehicle?.id) throw new Error("No vehicle selected")
+            return uploadVehicleImage(vehicle.id, file)
+        },
+        onSuccess: (updated) => {
+            setPreviewUrl(resolveImageUrl(updated.images?.[0]) || "")
+            queryClient.invalidateQueries({ queryKey: ["vehicles"] })
+            toast.success("Photo updated!")
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || "Failed to upload photo.")
+        }
+    })
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        if (!file.type.startsWith("image/")) {
+            toast.error("Please select an image file.")
+            return
+        }
+        uploadMutation.mutate(file)
+        e.target.value = ""
+    }
 
     const editMutation = useMutation({
         mutationFn: async () => {
@@ -45,7 +73,6 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
                 color: color || undefined,
                 licensePlate: licensePlate || undefined,
                 trim: trim || undefined,
-                images: imageUrl ? [imageUrl] : vehicle.images,
             }
             return updateVehicle(vehicle.id, payload)
         },
@@ -80,9 +107,42 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
 
                 <form onSubmit={handleSave} className="space-y-4 pt-4">
                     <div className="space-y-2">
-                        <Label>Top Image URL <span className="text-muted-foreground text-xs font-normal">(optional)</span></Label>
-                        <Input placeholder="https://example.com/car.jpg" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
-                        <p className="text-[10px] text-muted-foreground">Provide an image URL to customize how your car looks in your garage.</p>
+                        <Label>Vehicle Photo <span className="text-muted-foreground text-xs font-normal">(optional)</span></Label>
+                        <div className="flex items-center gap-3">
+                            <div className="h-16 w-24 rounded-xl overflow-hidden bg-muted border border-border/50 shrink-0 relative">
+                                {previewUrl ? (
+                                    <img src={previewUrl} alt="Vehicle" className="h-full w-full object-cover" />
+                                ) : (
+                                    <div className="h-full w-full flex items-center justify-center">
+                                        <CarFront className="h-5 w-5 text-muted-foreground/30" />
+                                    </div>
+                                )}
+                                {uploadMutation.isPending && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                        <Loader2 className="h-4 w-4 animate-spin text-white" />
+                                    </div>
+                                )}
+                            </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={handleFileChange}
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className={cn("gap-1.5")}
+                                disabled={uploadMutation.isPending}
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <Camera className="h-3.5 w-3.5" />
+                                {previewUrl ? "Change Photo" : "Upload Photo"}
+                            </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Upload a photo to customize how your car looks in your garage.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">

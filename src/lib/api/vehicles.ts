@@ -47,6 +47,20 @@ export const deleteVehicle = async (id: string): Promise<void> => {
   await apiClient.delete(`/api/customer/vehicles/${id}`);
 };
 
+export const uploadVehicleImage = async (
+  id: string,
+  file: File,
+): Promise<OwnedVehicle> => {
+  const formData = new FormData();
+  formData.append("image", file);
+  const response = await apiClient.post(
+    `/api/customer/vehicles/${id}/image`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data.data;
+};
+
 export interface DecodedVin {
   make: string;
   model: string;

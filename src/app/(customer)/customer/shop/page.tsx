@@ -25,6 +25,7 @@ import { ComparisonTray } from "@/components/customer/ComparisonTray";
 import { BookTestDriveModal } from "@/components/customer/BookTestDriveModal";
 import { TradeInEstimatorModal } from "@/components/customer/TradeInEstimatorModal";
 import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
 import { AnimatePresence, motion } from "framer-motion";
 
 const CARD_FALLBACK = "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
@@ -55,32 +56,36 @@ const SHOP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
 
 function SavedVehiclesFloatingButton({ savedVehicles }: { savedVehicles: Vehicle[] }) {
   const [open, setOpen] = React.useState(false);
+  const { state, isMobile } = useSidebar();
   const count = savedVehicles.length;
 
   return (
     <>
-      {/* Floating pill button */}
+      {/* Floating pill button — anchored to the page content area, clear of the sidebar */}
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed left-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] md:bottom-8 md:left-6 z-30",
-          "flex items-center gap-2 rounded-full shadow-lg transition-all duration-200",
+          "fixed z-45",
+          "bottom-[calc(env(safe-area-inset-bottom)+76px)] md:bottom-6",
+          "left-4",
+          !isMobile && (state === "collapsed" ? "md:left-[calc(var(--sidebar-width-icon)+1rem)]" : "md:left-[calc(var(--sidebar-width)+1rem)]"),
+          "flex items-center gap-3 rounded-full shadow-lg transition-all duration-200",
           "border backdrop-blur-md",
           count > 0
-            ? "bg-rose-500/90 hover:bg-rose-500 border-rose-400/40 text-white pr-3 pl-2.5 py-2"
-            : "bg-background/90 hover:bg-card border-border/60 text-muted-foreground hover:text-foreground px-3 py-2",
+            ? "bg-rose-500/90 hover:bg-rose-500 border-rose-400/40 text-white pr-5 pl-3.5 py-3"
+            : "bg-background/90 hover:bg-card border-border/60 text-muted-foreground hover:text-foreground px-4 py-3",
           "hover:shadow-xl hover:scale-105 active:scale-95",
         )}
         aria-label="View saved vehicles"
       >
         <Heart
           className={cn(
-            "h-4 w-4 transition-all",
+            "h-6 w-6 transition-all",
             count > 0 ? "fill-white text-white" : "text-muted-foreground",
           )}
         />
         {count > 0 && (
-          <span className="text-xs font-black tabular-nums">{count}</span>
+          <span className="text-base font-black tabular-nums">{count}</span>
         )}
       </button>
 
@@ -686,9 +691,9 @@ function ShopVehiclesContent() {
       />
 
       {/* ─── Floating elements ───────────────────────────────────── */}
-      <ShopAssistant mode="float" vehicleHrefBase="/shop" />
-
       <SavedVehiclesFloatingButton savedVehicles={savedVehiclesData as Vehicle[]} />
+
+      <ShopAssistant mode="float" vehicleHrefBase="/shop" />
 
       <ComparisonTray
         vehicles={comparedVehicles}

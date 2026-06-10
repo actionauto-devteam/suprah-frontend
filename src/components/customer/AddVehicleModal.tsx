@@ -9,12 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { decodeVin, DecodedVin } from "@/lib/api/vehicles";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Search, CarFront, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { resolveImageUrl, cn } from "@/lib/utils";
 
 interface AddVehicleModalProps {
     isOpen: boolean;
@@ -29,8 +31,13 @@ export function AddVehicleModal({
 
     // Step 1 State: Lookup
     const [step, setStep] = React.useState<1 | 2>(1);
+    const [entryMode, setEntryMode] = React.useState<"vin" | "inventory">("vin");
     const [vin, setVin] = React.useState("");
     const [decodedData, setDecodedData] = React.useState<DecodedVin | null>(null);
+
+    // Inventory search state
+    const [inventorySearch, setInventorySearch] = React.useState("");
+    const [debouncedInventorySearch, setDebouncedInventorySearch] = React.useState("");
 
     // Step 2 State: Details
     const [mileage, setMileage] = React.useState("");
@@ -41,13 +48,33 @@ export function AddVehicleModal({
     React.useEffect(() => {
         if (!isOpen) {
             setStep(1);
+            setEntryMode("vin");
             setVin("");
             setDecodedData(null);
+            setInventorySearch("");
+            setDebouncedInventorySearch("");
             setMileage("");
             setColor("");
             setLicensePlate("");
         }
     }, [isOpen]);
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => setDebouncedInventorySearch(inventorySearch), 400);
+        return () => clearTimeout(timer);
+    }, [inventorySearch]);
+
+    const { data: inventoryVehicles = [], isFetching: isLoadingInventory } = useQuery({
+        queryKey: ["add-vehicle-inventory-search", debouncedInventorySearch],
+        queryFn: async () => {
+            const res = await apiClient.get("/api/vehicles/marketplace", {
+                params: { search: debouncedInventorySearch, limit: 8, status: "all" },
+            });
+            const data = res.data?.data ?? res.data;
+            return Array.isArray(data) ? data : (data?.vehicles ?? []);
+        },
+        enabled: isOpen && entryMode === "inventory",
+    });
 
     // Mutation 1: Decode VIN
     const decodeMutation = useMutation({
@@ -119,6 +146,27 @@ export function AddVehicleModal({
         saveMutation.mutate();
     };
 
+    const handleSelectInventoryVehicle = (v: any) => {
+        if (!v.vin) {
+            toast.error("This vehicle doesn't have a VIN on file and can't be added yet.");
+            return;
+        }
+        setVin(String(v.vin).toUpperCase());
+        setDecodedData({
+            make: v.make,
+            model: v.model,
+            year: String(v.year),
+            trim: v.trim || "",
+            currentMileage: v.mileage || 0,
+            color: v.exteriorColor || v.color || "",
+            licensePlate: "",
+        });
+        setMileage(v.mileage ? String(v.mileage) : "");
+        setColor(v.exteriorColor || v.color || "");
+        setLicensePlate("");
+        setStep(2);
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-112.5">
@@ -126,46 +174,130 @@ export function AddVehicleModal({
                     <>
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <Search className="w-5 h-5" /> Smart VIN Lookup
+                                <CarFront className="w-5 h-5" /> Add a Vehicle
                             </DialogTitle>
                             <DialogDescription>
-                                Enter your 17-character Vehicle Identification Number to
-                                automatically securely pull your car's details.
+                                Add a vehicle by VIN, or pick one straight from our inventory.
                             </DialogDescription>
                         </DialogHeader>
-                        <form onSubmit={handleLookup} className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                                <Label>Vehicle Identification Number (VIN)</Label>
-                                <Input
-                                    required
-                                    minLength={17}
-                                    maxLength={17}
-                                    className="uppercase font-mono text-lg tracking-widest"
-                                    placeholder="e.g. 1G1RC6E45EU123..."
-                                    value={vin}
-                                    onChange={(e) => setVin(e.target.value.toUpperCase())}
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="pt-4 flex justify-end gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => onOpenChange(false)}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={decodeMutation.isPending || vin.length !== 17}
-                                >
-                                    {decodeMutation.isPending ? (
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    ) : null}
-                                    {decodeMutation.isPending ? "Decoding..." : "Search VIN"}
-                                </Button>
-                            </div>
-                        </form>
+
+                        <Tabs value={entryMode} onValueChange={(v) => setEntryMode(v as "vin" | "inventory")} className="pt-2">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="vin" className="gap-1.5 text-xs">
+                                    <Search className="h-3.5 w-3.5" /> VIN Lookup
+                                </TabsTrigger>
+                                <TabsTrigger value="inventory" className="gap-1.5 text-xs">
+                                    <CarFront className="h-3.5 w-3.5" /> From Inventory
+                                </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="vin" className="mt-0">
+                                <form onSubmit={handleLookup} className="space-y-4 pt-4">
+                                    <div className="space-y-2">
+                                        <Label>Vehicle Identification Number (VIN)</Label>
+                                        <Input
+                                            required
+                                            minLength={17}
+                                            maxLength={17}
+                                            className="uppercase font-mono text-lg tracking-widest"
+                                            placeholder="e.g. 1G1RC6E45EU123..."
+                                            value={vin}
+                                            onChange={(e) => setVin(e.target.value.toUpperCase())}
+                                            autoFocus
+                                        />
+                                        <p className="text-[10px] text-muted-foreground">
+                                            We&apos;ll automatically pull your car&apos;s make, model, and trim.
+                                        </p>
+                                    </div>
+                                    <div className="pt-2 flex justify-end gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => onOpenChange(false)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            disabled={decodeMutation.isPending || vin.length !== 17}
+                                        >
+                                            {decodeMutation.isPending ? (
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            ) : null}
+                                            {decodeMutation.isPending ? "Decoding..." : "Search VIN"}
+                                        </Button>
+                                    </div>
+                                </form>
+                            </TabsContent>
+
+                            <TabsContent value="inventory" className="mt-0">
+                                <div className="space-y-3 pt-4">
+                                    <div className="space-y-2">
+                                        <Label>Search Inventory</Label>
+                                        <Input
+                                            placeholder="Search by make, model, or year..."
+                                            value={inventorySearch}
+                                            onChange={(e) => setInventorySearch(e.target.value)}
+                                            autoFocus
+                                        />
+                                    </div>
+
+                                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                                        {isLoadingInventory ? (
+                                            <div className="flex items-center justify-center py-10">
+                                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                            </div>
+                                        ) : inventoryVehicles.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-10 text-center gap-1">
+                                                <CarFront className="h-6 w-6 text-muted-foreground/30" />
+                                                <p className="text-xs text-muted-foreground">No vehicles found.</p>
+                                            </div>
+                                        ) : (
+                                            inventoryVehicles.map((v: any) => (
+                                                <button
+                                                    key={v.id}
+                                                    type="button"
+                                                    onClick={() => handleSelectInventoryVehicle(v)}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 rounded-xl border border-border/50 p-2.5 text-left transition-colors",
+                                                        "hover:border-primary/40 hover:bg-primary/5",
+                                                    )}
+                                                >
+                                                    <div className="h-12 w-16 shrink-0 rounded-lg overflow-hidden bg-muted">
+                                                        {(v.image || v.images?.[0]) ? (
+                                                            <img
+                                                                src={resolveImageUrl(v.image || v.images?.[0]) || ""}
+                                                                alt={`${v.year} ${v.make} ${v.model}`}
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="h-full w-full flex items-center justify-center">
+                                                                <CarFront className="h-5 w-5 text-muted-foreground/30" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-xs font-bold truncate">
+                                                            {v.year} {v.make} {v.model}
+                                                        </p>
+                                                        <p className="text-[10px] text-muted-foreground truncate">
+                                                            {v.trim ? `${v.trim} · ` : ""}
+                                                            {v.vin ? `VIN ${String(v.vin).slice(-6)}` : "No VIN on file"}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    <div className="pt-2 flex justify-end">
+                                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                        </Tabs>
                     </>
                 ) : (
                     <>

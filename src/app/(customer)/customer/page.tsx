@@ -38,6 +38,8 @@ import {
   Zap,
   Package,
   Sparkles,
+  Clock,
+  Tag,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -55,6 +57,7 @@ import { useUser } from "@/providers/AuthProvider";
 import { useNotifications } from "@/context/NotificationContext";
 import { fetchSavedVehicles } from "@/lib/api/savedVehicles";
 import { useProfileContext } from "@/context/ProfileContext";
+import { toast } from "sonner";
 
 const calculateServiceProgress = (current: number, nextDue: number) => {
   if (!nextDue || nextDue <= current) return 100;
@@ -187,6 +190,7 @@ export default function CustomerDashboard() {
   const handleUpdateMileage = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsUpdateMileageOpen(true); };
   const handleEditVehicle = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsEditVehicleOpen(true); };
   const handleBookService = (v: OwnedVehicle) => { setServiceVehicle(v); setIsBookServiceOpen(true); };
+  const handleFutureUpdate = () => toast.info("Book Service is coming soon — stay tuned!");
 
   const handleDeleteVehicle = async (v: OwnedVehicle) => {
     if (!window.confirm(`Remove your ${v.year} ${v.make} from your garage? This cannot be undone.`)) return;
@@ -197,20 +201,45 @@ export default function CustomerDashboard() {
     } catch { }
   };
 
-  const hour = new Date().getHours();
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    setNow(new Date());
+    const interval = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const hour = now ? now.getHours() : new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = user?.firstName || "there";
+
+  const mstTime = now
+    ? new Intl.DateTimeFormat(undefined, {
+        timeZone: "America/Denver",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+        timeZoneName: "short",
+      }).format(now)
+    : "";
+  const localTime = now
+    ? new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(now)
+    : "";
   const userInitial = user?.firstName?.charAt(0)?.toUpperCase() || "M";
 
   const QUICK_ACTIONS = [
     {
       label: "Book Service",
-      sub: "Schedule your next visit",
+      sub: "Coming soon",
       icon: Wrench,
-      action: () => { setServiceVehicle(vehicles?.[0] ?? null); setIsBookServiceOpen(true); },
+      action: handleFutureUpdate,
       className: "border-primary/30 bg-primary/8 dark:bg-primary/12",
       iconCls: "bg-primary/15 text-primary",
       featured: true,
+      badge: "Soon",
     },
     {
       label: "Shop Vehicles",
@@ -302,6 +331,13 @@ export default function CustomerDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger
+              value="sell"
+              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+            >
+              <Tag className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">Auction </span>Listing
+            </TabsTrigger>
+            <TabsTrigger
               value="history"
               className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
             >
@@ -334,6 +370,13 @@ export default function CustomerDashboard() {
                   <p className="text-xs text-muted-foreground mt-1.5 font-medium">
                     Here&apos;s your account at a glance
                   </p>
+                  {now && (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5 font-semibold tabular-nums">
+                      <Clock className="h-3.5 w-3.5 text-primary/60" />
+                      {mstTime}
+                      <span className="text-muted-foreground/60 font-normal">({localTime} your time)</span>
+                    </p>
+                  )}
                 </div>
                 <Avatar className="h-12 w-12 ring-2 ring-primary/20 shrink-0">
                   <AvatarImage src={resolveImageUrl(avatarUrl !== null ? avatarUrl : user?.imageUrl)} />
@@ -447,8 +490,15 @@ export default function CustomerDashboard() {
                       item.featured && "col-span-1",
                     )}
                   >
-                    <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", item.iconCls)}>
-                      <item.icon className="h-5 w-5" />
+                    <div className="flex items-start justify-between">
+                      <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", item.iconCls)}>
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                      {(item as any).badge && (
+                        <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-wider rounded-full px-2">
+                          {(item as any).badge}
+                        </Badge>
+                      )}
                     </div>
                     <div>
                       <p className="text-sm font-bold text-foreground leading-none">{item.label}</p>
@@ -481,7 +531,7 @@ export default function CustomerDashboard() {
                   <p className="text-sm font-bold text-foreground">Appointments</p>
                 </div>
                 <button
-                  onClick={() => { setServiceVehicle(vehicles?.[0] ?? null); setIsBookServiceOpen(true); }}
+                  onClick={handleFutureUpdate}
                   className="text-[11px] text-primary font-semibold hover:underline flex items-center gap-0.5"
                 >
                   Book new <Plus className="h-3 w-3" />
@@ -493,7 +543,7 @@ export default function CustomerDashboard() {
                   <Calendar className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">No upcoming appointments</p>
                   <button
-                    onClick={() => { setServiceVehicle(vehicles?.[0] ?? null); setIsBookServiceOpen(true); }}
+                    onClick={handleFutureUpdate}
                     className="mt-2 text-xs text-primary font-semibold hover:underline"
                   >
                     Schedule one now →
@@ -874,6 +924,36 @@ export default function CustomerDashboard() {
               </Button>
             </div>
           )}
+        </TabsContent>
+
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/*  TAB — AUCTION LISTING                                     */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        <TabsContent value="sell" className="mt-0">
+          <div className="relative min-h-100">
+            {/* Blurred preview of the upcoming feature */}
+            <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-4 blur-sm pointer-events-none select-none opacity-60">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10">
+                  <Tag className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <p className="text-sm font-bold text-foreground">List Your Car for Auction</p>
+              </div>
+            </div>
+
+            {/* Future update overlay */}
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md px-8 py-10 text-center shadow-lg max-w-sm">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+                  <Sparkles className="h-6 w-6 text-primary" />
+                </div>
+                <h2 className="text-lg font-bold tracking-tight">Future Update</h2>
+                <p className="text-sm text-muted-foreground">
+                  Soon you&apos;ll be able to list your car for auction so other customers can bid and buy. Stay tuned!
+                </p>
+              </div>
+            </div>
+          </div>
         </TabsContent>
 
         {/* ══════════════════════════════════════════════════════════ */}

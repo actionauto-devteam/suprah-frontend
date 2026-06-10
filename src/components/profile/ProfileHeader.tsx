@@ -452,7 +452,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
 
         <div className="flex-1 min-w-0 w-full text-center sm:text-left space-y-2.5 sm:space-y-3">
           <div className="flex flex-col sm:flex-row items-center sm:items-baseline gap-2 sm:gap-3">
-            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md leading-tight break-words sm:truncate max-w-full">
+            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md leading-tight wrap-break-word sm:truncate max-w-full">
               {displayName}
             </h1>
             <Badge
@@ -498,8 +498,8 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 <Globe className="size-3 text-cyan-400/60" />
                 {profile?.personalInfo?.language
                   ? languageOptions.find(
-                      (l) => l.code === profile?.personalInfo?.language,
-                    )?.name
+                    (l) => l.code === profile?.personalInfo?.language,
+                  )?.name
                   : "English"}
               </span>
             </div>
