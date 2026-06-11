@@ -1040,6 +1040,11 @@ export default function CrmDashboardPage() {
       route: "/crm/garage-review",
     },
     {
+      icon: <Clock className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      label: "Svc Booking",
+      route: "/crm/service-booking",
+    },
+    {
       icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />,
       label: "Leaderboard",
       route: "/crm/leaderboard",

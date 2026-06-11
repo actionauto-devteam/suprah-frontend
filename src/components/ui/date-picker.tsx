@@ -18,6 +18,7 @@ interface DatePickerProps {
   disabled?: boolean;
   placeholder?: string;
   disablePastDates?: boolean;
+  disabledDates?: (date: Date) => boolean;
 }
 
 export function DatePicker({
@@ -25,8 +26,21 @@ export function DatePicker({
   onChange,
   disabled,
   placeholder = "Pick a date",
-  disablePastDates = true
+  disablePastDates = true,
+  disabledDates,
 }: DatePickerProps) {
+  const disabledMatcher = React.useMemo(() => {
+    const matchers: ((d: Date) => boolean)[] = [];
+    if (disablePastDates) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      matchers.push((d) => d < today);
+    }
+    if (disabledDates) matchers.push(disabledDates);
+    if (matchers.length === 0) return undefined;
+    return (d: Date) => matchers.some((fn) => fn(d));
+  }, [disablePastDates, disabledDates]);
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -47,7 +61,7 @@ export function DatePicker({
           mode="single"
           selected={value}
           onSelect={onChange}
-          disabled={disablePastDates ? { before: new Date() } : undefined}
+          disabled={disabledMatcher}
           initialFocus
         />
       </PopoverContent>
