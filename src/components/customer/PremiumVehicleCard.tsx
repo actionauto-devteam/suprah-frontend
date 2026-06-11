@@ -38,8 +38,7 @@ function PremiumVehicleCardComponent({
   onVehicleClick,
   onCreateLoad,
 }: PremiumVehicleCardProps) {
-  const FALLBACK_IMAGE =
-    "https://images.unsplash.com/photo-1550355291-bbee04a92027?q=80&w=2636&auto=format&fit=crop";
+  const FALLBACK_IMAGE = "/vehicle-placeholder.jpg";
 
   const imageCandidates = React.useMemo(() => {
     const rawCandidates = [vehicle.image, ...(vehicle.images || [])]

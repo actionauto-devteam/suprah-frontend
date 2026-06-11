@@ -40,8 +40,7 @@ import type { Vehicle } from "@/types/inventory";
 import { useOrg } from "@/hooks/useOrg";
 import { resolveImageUrl, cn } from "@/lib/utils";
 
-const FALLBACK =
-  "https://images.unsplash.com/photo-1550355291-bbee04a92027?q=80&w=2636&auto=format&fit=crop";
+const FALLBACK = "/vehicle-placeholder.jpg";
 
 type Tab = "overview" | "specs" | "features" | "internal";
 
@@ -236,6 +235,14 @@ function Lightbox({
           src={images[idx]}
           alt=""
           onLoad={() => setLoaded(true)}
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (!target.src.endsWith(FALLBACK)) {
+              target.src = FALLBACK;
+            } else {
+              setLoaded(true);
+            }
+          }}
           className={cn(
             "max-h-full max-w-full select-none object-contain transition-opacity duration-200",
             loaded ? "opacity-100" : "opacity-0",
@@ -275,7 +282,14 @@ function Lightbox({
                   : "border-transparent opacity-40 hover:opacity-75",
               )}
             >
-              <img src={img} alt="" className="h-full w-full object-cover" />
+              <img
+                src={img}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  if (!e.currentTarget.src.endsWith(FALLBACK)) e.currentTarget.src = FALLBACK;
+                }}
+              />
             </button>
           ))}
         </div>
@@ -383,6 +397,14 @@ function Gallery({
           src={images[idx]}
           alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
           onLoad={() => setLoaded(true)}
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (!target.src.endsWith(FALLBACK)) {
+              target.src = FALLBACK;
+            } else {
+              setLoaded(true);
+            }
+          }}
           className={cn(
             "h-full w-full object-cover transition-opacity duration-200",
             loaded ? "opacity-100" : "opacity-0",
@@ -518,6 +540,9 @@ function Gallery({
                 alt=""
                 className="h-full w-full object-cover"
                 loading="lazy"
+                onError={(e) => {
+                  if (!e.currentTarget.src.endsWith(FALLBACK)) e.currentTarget.src = FALLBACK;
+                }}
               />
             </button>
           ))}
@@ -543,10 +568,10 @@ export function VehicleDetailView({
     userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
 
   const allImages = React.useMemo(() => {
-    const raw = [vehicle.image, ...(vehicle.images || []), FALLBACK]
+    const raw = [vehicle.image, ...(vehicle.images || [])]
       .map((s) => resolveImageUrl(s)?.trim())
       .filter((s): s is string => Boolean(s));
-    return Array.from(new Set(raw));
+    return Array.from(new Set([...raw, FALLBACK]));
   }, [vehicle.image, vehicle.images]);
 
   const [lightboxOpen, setLightboxOpen] = React.useState(false);

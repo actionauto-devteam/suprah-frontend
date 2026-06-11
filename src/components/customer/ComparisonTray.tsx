@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { resolveImageUrl, cn } from "@/lib/utils";
 import type { Vehicle } from "@/types/inventory";
 
-const CARD_FALLBACK =
-  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
+const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
 interface ComparisonTrayProps {
   vehicles: Vehicle[];

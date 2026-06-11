@@ -50,6 +50,7 @@ import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistr
 
 import { Toaster } from "@/components/ui/sonner";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { SystemStatusBanner } from "@/components/layout/SystemStatusBanner";
 import { ReferralCatcher } from "@/components/referral/ReferralCatcher";
 import { SplashScreen } from "@/components/layout/SplashScreen";
 import { DevRoleSwitcher } from "@/components/dev/DevRoleSwitcher";
@@ -88,6 +89,7 @@ export default function RootLayout({
               </QueryProvider>
             </main>
             <Toaster position="top-right" />
+            <SystemStatusBanner />
             <ImpersonationBanner />
             {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && <DevRoleSwitcher />}
             <ServiceWorkerRegistration />

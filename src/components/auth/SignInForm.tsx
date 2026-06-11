@@ -18,6 +18,7 @@ import {
   AUTH_PRIMARY_BUTTON_CLASS,
   AUTH_SECONDARY_BUTTON_CLASS,
 } from "./theme";
+import { sanitizeRedirectUrl } from "@/lib/navigation";
 
 type SignInResult = {
   status: string;
@@ -47,6 +48,21 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    const code = searchParams.get("error");
+    if (!code) return;
+    const messages: Record<string, string> = {
+      service_unavailable:
+        "We're temporarily experiencing technical issues on our end. Your account and data are safe — please try again in a few minutes.",
+      oauth_failed: "Google sign-in didn't complete. Please try again.",
+      handle_oauth_failed: "Google sign-in didn't complete. Please try again.",
+    };
+    setError(messages[code] || "Sign-in failed. Please try again.");
+    if (code === "service_unavailable") {
+      window.dispatchEvent(new CustomEvent("system:degraded", { detail: {} }));
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoaded) return;
@@ -62,7 +78,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
       if (result.status === "complete") {
         toast.success("Welcome back to Action Auto!");
-        const searchParamRedirect = searchParams.get("redirect_url");
+        const searchParamRedirect = sanitizeRedirectUrl(searchParams.get("redirect_url"));
         const finalUrl = searchParamRedirect || result.targetUrl || "/";
         window.location.href = finalUrl;
       } else if (result.status === "needs_upgrade") {

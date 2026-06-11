@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { sanitizeRedirectUrl } from "@/lib/navigation";
 
 function CallbackContent() {
     const router = useRouter();
@@ -23,7 +24,7 @@ function CallbackContent() {
         // We just need to wait a tick and push them into the dashboard.
         if (token) {
             // Push to dashboard or specify redirect and force a full refresh so layout triggers the token sync properly.
-            const redirectUrl = searchParams.get("redirect_url");
+            const redirectUrl = sanitizeRedirectUrl(searchParams.get("redirect_url"));
             router.push(redirectUrl || "/");
             router.refresh();
         } else {

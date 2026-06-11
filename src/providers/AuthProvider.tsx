@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { UpdateProfileRequest } from "@/types/user";
+import { sanitizeRedirectUrl } from "@/lib/navigation";
 
 // --- TYPES & INTERFACES (Action Auto Security) ---
 export interface AuthUser {
@@ -236,7 +237,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 3. Prevent Logged-in users from hitting Auth pages (Sign-in/Sign-up)
     if (isPublic && (path === "/sign-in" || path === "/sign-up")) {
       const params = new URLSearchParams(search);
-      const redirectUrl = params.get("redirect_url");
+      const redirectUrl = sanitizeRedirectUrl(params.get("redirect_url"));
 
       if (redirectUrl) {
         router.push(redirectUrl);
@@ -395,9 +396,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Register API failure listener
     apiClient.setOnAuthFailure(() => {
-      signOut();
+      setUser(null);
+      setAccessToken(null);
+      const path = window.location.pathname;
+      if (!isPublicRoute(path)) {
+        router.push("/sign-in");
+      }
     });
-  }, [refreshUser, signOut]);
+  }, [refreshUser, setAccessToken, router]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

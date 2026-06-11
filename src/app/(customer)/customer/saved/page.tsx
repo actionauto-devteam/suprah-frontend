@@ -145,9 +145,6 @@ function WishlistContent() {
                 <h1 className="text-3xl xs:text-4xl sm:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
                   Wish<span className="text-rose-500">list</span>
                 </h1>
-                <p className="text-xs text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-sm">
-                  Your curated collection — saved, organized, and ready when you are.
-                </p>
               </div>
 
               {/* Stats pills */}

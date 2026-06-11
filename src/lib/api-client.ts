@@ -19,6 +19,18 @@ function processQueue(error: any, token: string | null = null) {
   failedQueue = [];
 }
 
+let lastDegradedDispatch = 0;
+
+function notifyServiceDegraded(message?: string) {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastDegradedDispatch < 15_000) return;
+  lastDegradedDispatch = now;
+  window.dispatchEvent(
+    new CustomEvent("system:degraded", { detail: { message } })
+  );
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private onAuthFailure?: () => void;
@@ -142,12 +154,19 @@ class ApiClient {
             return this.client(originalRequest);
           } catch (refreshError) {
             processQueue(refreshError, null);
-            (window as any).__AUTH_TOKEN__ = null;
-            console.error(
-              "[apiClient] Token refresh failed. User may need to re-login."
-            );
-            if (this.onAuthFailure) {
-              this.onAuthFailure();
+            const refreshStatus = (refreshError as any)?.response?.status;
+            if (refreshStatus === 401 || refreshStatus === 403) {
+              (window as any).__AUTH_TOKEN__ = null;
+              console.error(
+                "[apiClient] Refresh token rejected. User needs to re-login."
+              );
+              if (this.onAuthFailure) {
+                this.onAuthFailure();
+              }
+            } else {
+              console.error(
+                "[apiClient] Token refresh unreachable. Keeping session for retry."
+              );
             }
             return Promise.reject(refreshError);
           } finally {
@@ -160,6 +179,10 @@ class ApiClient {
           if (msg.includes("Suspended") && typeof window !== "undefined") {
             window.location.href = "/suspended";
           }
+        }
+
+        if (error.response?.status === 503) {
+          notifyServiceDegraded(error.response.data?.message);
         }
 
         if (error.code === "ERR_NETWORK" || error.message === "Network Error") {

@@ -22,8 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const FALLBACK =
-  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
+const FALLBACK = "/vehicle-placeholder.jpg";
 
 const SPEC_ROWS: Array<{ label: string; key: keyof Vehicle | string }> = [
   { label: "Make", key: "make" },

@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { AnimatePresence, motion } from "framer-motion";
 
-const CARD_FALLBACK = "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
+const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
 type SortOption =
   | "price-asc"
@@ -376,6 +376,33 @@ function ShopVehiclesContent() {
     return () => clearInterval(interval);
   }, [fetchVehicles]);
 
+  // Deep-link support: open the details modal for a vehicle passed via ?vehicleId=
+  const initialVehicleIdRef = React.useRef(searchParams.get("vehicleId"));
+  const vehicleIdHandledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    const vehicleId = initialVehicleIdRef.current;
+    if (!vehicleId || vehicleIdHandledRef.current || isLoading) return;
+    vehicleIdHandledRef.current = true;
+
+    const found = vehicles.find((v) => v.id === vehicleId);
+    if (found) {
+      handleVehicleClick(found);
+      return;
+    }
+
+    (async () => {
+      try {
+        const token = await getToken();
+        const response = await apiClient.get(`/api/vehicles/public/${vehicleId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = response.data?.data || response.data;
+        if (data) handleVehicleClick(data as Vehicle);
+      } catch { }
+    })();
+  }, [vehicles, isLoading, getToken, handleVehicleClick]);
+
   const handleFilterChange = (key: string, value: any) => {
     setFilters((prev: any) => ({ ...prev, [key]: value }));
     setPage(1);
@@ -493,7 +520,20 @@ function ShopVehiclesContent() {
 
       {/* ─── Header ──────────────────────────────────────────────── */}
       <div className="shrink-0">
-        <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 px-5 py-5 sm:px-6">
+        <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-primary/0" />
+          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-primary/8 to-transparent pointer-events-none" />
+          <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-primary/6 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 right-20 h-32 w-32 rounded-full bg-emerald-500/4 blur-2xl pointer-events-none" />
+
+          <div
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[72px] sm:text-[96px] font-black text-primary/5 uppercase leading-none select-none pointer-events-none tracking-tight"
+            aria-hidden
+          >
+            SHOP
+          </div>
+
+          <div className="relative px-5 py-5 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2.5 min-w-0">
 
@@ -568,6 +608,7 @@ function ShopVehiclesContent() {
                   : "Live"}
               </span>
             </div>
+          </div>
           </div>
         </div>
       </div>

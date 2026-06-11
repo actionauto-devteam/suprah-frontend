@@ -72,36 +72,66 @@ const navSections = [
         title: "Shop Vehicles",
         url: "/customer/shop",
         icon: CarFront,
-        hoverTooltip: "Browse our premium inventory and take advantage of Member Exclusive pricing.",
+        hoverTooltip: "Browse vehicles for sale.",
       },
       {
         title: "My Garage",
         url: "/customer",
         icon: LayoutDashboard,
-        hoverTooltip: "Your personal dashboard — manage vehicles, track service history, and view upcoming appointments.",
+        hoverTooltip: "Manage your vehicles, service history, and appointments.",
       },
       {
         title: "Wishlist",
         url: "/customer/saved",
         icon: Heart,
-        hoverTooltip: "Your curated vehicle collection. Save any car from the shop and access it here anytime.",
+        hoverTooltip: "Vehicles you've saved from the shop.",
       },
     ],
   },
   {
     label: "Manage",
     items: [
-      { title: "Aftermarket", url: "/customer/aftermarket", icon: ShoppingBag },
-      { title: "Payments", url: "/customer/payments", icon: CreditCard },
+      {
+        title: "Aftermarket",
+        url: "/customer/aftermarket",
+        icon: ShoppingBag,
+        hoverTooltip: "Shop parts and accessories for your vehicle.",
+      },
+      {
+        title: "Payments",
+        url: "/customer/payments",
+        icon: CreditCard,
+        hoverTooltip: "View and pay your invoices.",
+      },
     ],
   },
   {
     label: "Connect",
     items: [
-      { title: "Service Network", url: "/customer/network", icon: MapIcon },
-      { title: "Refer & Earn", url: "/customer/refer", icon: Wallet },
-      { title: "Support", url: "/customer/support", icon: MessageCircle },
-      { title: "Call Center", url: "/customer/call-center", icon: PhoneCall },
+      {
+        title: "Service Network",
+        url: "/customer/network",
+        icon: MapIcon,
+        hoverTooltip: "Find service shops near you.",
+      },
+      {
+        title: "Refer & Earn",
+        url: "/customer/refer",
+        icon: Wallet,
+        hoverTooltip: "Invite friends and earn rewards.",
+      },
+      {
+        title: "Support",
+        url: "/customer/support",
+        icon: MessageCircle,
+        hoverTooltip: "Get help from our team.",
+      },
+      {
+        title: "Call Center",
+        url: "/customer/call-center",
+        icon: PhoneCall,
+        hoverTooltip: "Call us for assistance.",
+      },
     ],
   },
 ];
@@ -234,13 +264,13 @@ export function CustomerSidebar() {
                                     </Link>
                                   </SidebarMenuButton>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" className="max-w-55 p-3" sideOffset={8}>
-                                  <div className="flex items-center gap-1.5 mb-1">
+                                <TooltipContent side="right" className="max-w-45 px-2.5 py-1.5" sideOffset={8}>
+                                  <div className="flex items-center gap-1.5 mb-0.5">
                                     <Star className="h-3 w-3 text-primary shrink-0" />
-                                    <p className="text-[11px] font-bold">Member Exclusive</p>
+                                    <p className="text-[11px] font-bold">Shop Vehicles</p>
                                   </div>
-                                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                    Browse our premium inventory and take advantage of Member Exclusive pricing.
+                                  <p className="text-[11px] text-muted-foreground leading-snug">
+                                    Browse vehicles for sale.
                                   </p>
                                 </TooltipContent>
                               </Tooltip>
@@ -305,12 +335,12 @@ export function CustomerSidebar() {
                                 </Link>
                               </SidebarMenuButton>
                             </TooltipTrigger>
-                            <TooltipContent side="right" className="max-w-50 p-3" sideOffset={8}>
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <item.icon className="h-3 w-3 text-primary shrink-0" />
+                            <TooltipContent side="right" className="max-w-45 px-2.5 py-1.5" sideOffset={8}>
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <Star className="h-3 w-3 text-primary shrink-0" />
                                 <p className="text-[11px] font-bold">{item.title}</p>
                               </div>
-                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              <p className="text-[11px] text-muted-foreground leading-snug">
                                 {"hoverTooltip" in item ? String(item.hoverTooltip) : ""}
                               </p>
                             </TooltipContent>

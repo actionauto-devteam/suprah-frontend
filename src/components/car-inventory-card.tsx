@@ -22,8 +22,7 @@ import {
 } from "lucide-react";
 import { resolveImageUrl, cn } from "@/lib/utils";
 
-const CARD_FALLBACK =
-  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop";
+const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
 function getOriginalPrice(vehicleId: string, price: number): number {
   const hash = vehicleId
@@ -111,10 +110,10 @@ function VehicleImage({
   canCompareMore,
 }: VehicleImageProps) {
   const imgCandidates = React.useMemo(() => {
-    const raw = [vehicle.image, ...(vehicle.images || []), CARD_FALLBACK]
+    const raw = [vehicle.image, ...(vehicle.images || [])]
       .map((s) => resolveImageUrl(s)?.trim())
       .filter((s): s is string => Boolean(s));
-    return Array.from(new Set(raw));
+    return Array.from(new Set([...raw, CARD_FALLBACK]));
   }, [vehicle.image, vehicle.images]);
 
   const [imgIdx, setImgIdx] = React.useState(0);
