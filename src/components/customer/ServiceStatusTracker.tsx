@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchActiveService, ServiceRecord, ServiceStatus } from "@/lib/api/services"
+import { getSocket } from "@/lib/socket.client"
 import { Card } from "@/components/ui/card"
 import { CheckCircle2, Circle, Loader2, Wrench, ShieldCheck, PackageCheck, Car } from "lucide-react"
 
@@ -84,12 +85,29 @@ interface ServiceStatusTrackerProps {
 }
 
 export function ServiceStatusTracker({ vehicleId, vehicleLabel }: ServiceStatusTrackerProps) {
+  const queryClient = useQueryClient()
+
   const { data: record, isLoading } = useQuery<ServiceRecord | null>({
     queryKey: ["activeService", vehicleId],
     queryFn: () => fetchActiveService(vehicleId),
     refetchInterval: 30_000,
     staleTime: 20_000,
   })
+
+  // Real-time: invalidate query when admin advances this vehicle's service status
+  React.useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handler = (data: { vehicleId: string }) => {
+      if (data?.vehicleId === vehicleId) {
+        queryClient.invalidateQueries({ queryKey: ["activeService", vehicleId] })
+      }
+    }
+
+    socket.on("service:status_updated", handler)
+    return () => { socket.off("service:status_updated", handler) }
+  }, [vehicleId, queryClient])
 
   if (isLoading) {
     return (
@@ -101,8 +119,9 @@ export function ServiceStatusTracker({ vehicleId, vehicleLabel }: ServiceStatusT
   }
 
   if (!record) return null
+  if (!record.serviceStatus || record.serviceStatus === "completed") return null
 
-  const currentIndex = STATUS_INDEX[record.serviceStatus ?? "received"]
+  const currentIndex = STATUS_INDEX[record.serviceStatus]
   const lastUpdated  = record.statusUpdatedAt
     ? new Date(record.statusUpdatedAt).toLocaleString("en-US", {
         month: "short", day: "numeric", hour: "numeric", minute: "2-digit",

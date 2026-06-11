@@ -106,3 +106,75 @@ export const transferVehicleToGarage = async (
   const res = await apiClient.post(`${BASE}/transfer`, payload, auth(token));
   return unwrap(res) as { transfer: GarageTransferRecord; ownedVehicle: unknown };
 };
+
+// ─── Service Queue ────────────────────────────────────────────────────────────
+
+export type ServiceStatus = "received" | "in_service" | "quality_check" | "ready" | "completed";
+
+export interface ActiveServiceRecord {
+  _id: string;
+  serviceType: "OIL_CHANGE" | "TIRES" | "BRAKES" | "INSPECTION" | "OTHER";
+  serviceStatus: ServiceStatus;
+  statusUpdatedAt?: string;
+  statusUpdatedBy?: string;
+  locationName: string;
+  mileageAtService: number;
+  date: string;
+  notes?: string;
+  vehicle: {
+    _id: string;
+    make: string;
+    model: string;
+    year: string;
+    vin: string;
+    licensePlate?: string;
+    color?: string;
+  };
+  customer: {
+    _id: string;
+    name: string;
+    email: string;
+    avatar?: string | null;
+  } | null;
+}
+
+export interface OwnedVehicleLite {
+  _id: string;
+  make: string;
+  model: string;
+  year: string;
+  vin: string;
+  licensePlate?: string;
+  color?: string;
+  currentMileage: number;
+}
+
+export const fetchServiceQueue = async (token: string): Promise<ActiveServiceRecord[]> => {
+  const res = await apiClient.get(`${BASE}/service/queue`, auth(token));
+  return (unwrap(res) ?? []) as ActiveServiceRecord[];
+};
+
+export const fetchCustomerVehiclesForService = async (
+  token: string,
+  customerId: string,
+): Promise<OwnedVehicleLite[]> => {
+  const res = await apiClient.get(`${BASE}/service/customer-vehicles/${customerId}`, auth(token));
+  return (unwrap(res) ?? []) as OwnedVehicleLite[];
+};
+
+export const checkInVehicleForService = async (
+  token: string,
+  payload: { vehicleId: string; serviceType: string; locationName: string; mileageAtService: number },
+): Promise<ActiveServiceRecord> => {
+  const res = await apiClient.post(`${BASE}/service/checkin`, payload, auth(token));
+  return unwrap(res) as ActiveServiceRecord;
+};
+
+export const advanceServiceStatus = async (
+  token: string,
+  serviceId: string,
+  status: ServiceStatus,
+): Promise<ActiveServiceRecord> => {
+  const res = await apiClient.patch(`${BASE}/service/status/${serviceId}`, { status }, auth(token));
+  return unwrap(res) as ActiveServiceRecord;
+};

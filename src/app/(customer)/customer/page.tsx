@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -38,13 +37,14 @@ import {
   Zap,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { initializeSocket, getSocket } from "@/lib/socket.client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { fetchOwnedVehicles, OwnedVehicle, deleteVehicle } from "@/lib/api/vehicles";
 import { fetchServiceHistory } from "@/lib/api/services";
 import { fetchSavedVehicles } from "@/lib/api/savedVehicles";
 import { apiClient } from "@/lib/api-client";
-import { useUser } from "@/providers/AuthProvider";
+import { useUser, useAuth } from "@/providers/AuthProvider";
 import { useProfileContext } from "@/context/ProfileContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -110,9 +110,40 @@ const SERVICE_TYPE_COLORS: Record<string, string> = {
 
 export default function CustomerDashboard() {
   const { user } = useUser();
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
   const { avatarUrl } = useProfileContext();
   const { unreadCount, notifications, markAsRead } = useNotifications();
   const { theme } = useTheme();
+
+  // Initialize socket and listen for real-time appointment + service updates
+  React.useEffect(() => {
+    let cleanup: (() => void) | null = null;
+
+    getToken().then((token) => {
+      if (!token) return;
+      const socket = initializeSocket(token);
+
+      const onAppointmentStatusUpdated = () => {
+        queryClient.invalidateQueries({ queryKey: ['appointments', 'service'] });
+      };
+      const onServiceCheckedIn = (data: { vehicleId: string }) => {
+        if (data?.vehicleId) {
+          queryClient.invalidateQueries({ queryKey: ['activeService', data.vehicleId] });
+        }
+      };
+
+      socket.on('appointment:status_updated', onAppointmentStatusUpdated);
+      socket.on('service:checked_in', onServiceCheckedIn);
+
+      cleanup = () => {
+        socket.off('appointment:status_updated', onAppointmentStatusUpdated);
+        socket.off('service:checked_in', onServiceCheckedIn);
+      };
+    });
+
+    return () => { cleanup?.(); };
+  }, [getToken, queryClient]);
 
   const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
     queryKey: ["vehicles"],
@@ -125,14 +156,16 @@ export default function CustomerDashboard() {
   });
 
   const { data: upcomingAppointments = [] } = useQuery({
-    queryKey: ["appointments", "upcoming"],
+    queryKey: ["appointments", "service"],
     queryFn: async () => {
       try {
-        const res = await apiClient.get("/api/appointments", { params: { status: "scheduled", limit: 3 } });
+        const res = await apiClient.get("/api/appointments", { params: { entryType: "appointment", includeCustomerBookings: "true", limit: 20 } });
         const d = res.data?.data || res.data;
-        return d?.appointments || d || [];
+        const all: any[] = d?.appointments || d || [];
+        return all.filter((a: any) => a.type === "service");
       } catch { return []; }
     },
+    refetchInterval: 30_000,
   });
 
   const { data: pendingPayments } = useQuery({
@@ -181,8 +214,6 @@ export default function CustomerDashboard() {
     queryFn: () => fetchServiceHistory(historyVehicle!.id || historyVehicle!._id),
     enabled: !!(historyVehicle?.id || historyVehicle?._id),
   });
-
-  const queryClient = useQueryClient();
 
   const handleLogService = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsLogServiceOpen(true); };
   const handleUpdateMileage = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsUpdateMileageOpen(true); };
@@ -244,34 +275,6 @@ export default function CustomerDashboard() {
       style={{ colorScheme: theme }}
       className="min-h-full bg-background space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700"
     >
-      {/* ── Page header ───────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            My Garage
-          </h1>
-          <p className="text-muted-foreground mt-1 max-w-2xl text-sm sm:text-base">
-            Manage your Action Auto vehicles, track maintenance, and access exclusive partner discounts.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={() => setIsMembershipCardOpen(true)}
-            variant="outline"
-            className="flex-1 xxs:flex-none rounded-xl px-5 h-11 font-semibold border-green-600/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            My Card
-          </Button>
-          <Button
-            onClick={() => setIsAddVehicleOpen(true)}
-            className="flex-1 xxs:flex-none bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-xl px-6 h-11 font-semibold"
-          >
-            + Add Vehicle
-          </Button>
-        </div>
-      </div>
-
       {/* ── Tabs ──────────────────────────────────────────────────── */}
       <Tabs defaultValue="overview" className="space-y-6">
         {/* Tab header row */}
@@ -299,15 +302,26 @@ export default function CustomerDashboard() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <Button
-            onClick={() => setIsAddVehicleOpen(true)}
-            size="sm"
-            className="gap-1.5 rounded-xl font-semibold shrink-0 h-9"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Vehicle</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={() => setIsMembershipCardOpen(true)}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 rounded-xl font-semibold h-9 border-green-600/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">My Card</span>
+            </Button>
+            <Button
+              onClick={() => setIsAddVehicleOpen(true)}
+              size="sm"
+              className="gap-1.5 rounded-xl font-semibold h-9"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add Vehicle</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </div>
         </div>
 
         <TabsList className="flex w-full sm:w-fit gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1 h-auto dark:bg-zinc-900/60 dark:border-zinc-800">
@@ -478,32 +492,82 @@ export default function CustomerDashboard() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {(upcomingAppointments as any[]).map((appt: any, idx: number) => (
+                  {(upcomingAppointments as any[]).map((appt: any, idx: number) => {
+                    const s = appt.status ?? "scheduled";
+                    const statusCls: Record<string, string> = {
+                      scheduled: "bg-amber-50 text-amber-600 border-amber-200/60 dark:bg-amber-900/20 dark:border-amber-700/40",
+                      confirmed: "bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-900/20 dark:border-emerald-700/40",
+                      completed: "bg-zinc-100 text-zinc-500 border-zinc-200/60 dark:bg-zinc-800/40 dark:border-zinc-700/40",
+                      cancelled: "bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-900/20 dark:border-rose-700/40",
+                      "no-show": "bg-orange-50 text-orange-600 border-orange-200/60 dark:bg-orange-900/20 dark:border-orange-700/40",
+                    };
+                    const flowSteps = ["scheduled", "confirmed", "completed"];
+                    const flowIdx = flowSteps.indexOf(s);
+                    const isTerminal = s === "cancelled" || s === "no-show";
+                    const statusLabel = s === "no-show" ? "No Show" : s === "confirmed" ? "On Queue" : s.charAt(0).toUpperCase() + s.slice(1);
+                    return (
                     <div
                       key={appt._id || appt.id || idx}
-                      className="flex items-center gap-3 rounded-xl border border-border/30 bg-muted/30 p-3 hover:border-primary/20 transition-colors dark:bg-zinc-800/40"
+                      className="rounded-xl border border-border/30 bg-muted/30 hover:border-primary/20 transition-colors dark:bg-zinc-800/40 overflow-hidden"
                     >
-                      <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-primary/10 shrink-0 text-center">
-                        <span className="text-[10px] font-bold text-primary uppercase leading-none">
-                          {appt.startTime ? new Date(appt.startTime).toLocaleDateString(undefined, { month: "short" }) : "—"}
-                        </span>
-                        <span className="text-base font-black text-primary leading-none">
-                          {appt.startTime ? new Date(appt.startTime).getDate() : "—"}
+                      {/* Top row — date, title, status badge */}
+                      <div className="flex items-center gap-3 p-3">
+                        <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-primary/10 shrink-0 text-center">
+                          <span className="text-[10px] font-bold text-primary uppercase leading-none">
+                            {appt.startTime ? new Date(appt.startTime).toLocaleDateString(undefined, { month: "short" }) : "—"}
+                          </span>
+                          <span className="text-base font-black text-primary leading-none">
+                            {appt.startTime ? new Date(appt.startTime).getDate() : "—"}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate leading-snug">
+                            {appt.title || "Service Appointment"}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {appt.startTime ? new Date(appt.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          "shrink-0 text-[10px] font-bold rounded-full border px-2 py-0.5",
+                          statusCls[s] ?? statusCls.scheduled
+                        )}>
+                          {statusLabel}
                         </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-foreground truncate leading-snug">
-                          {appt.title || "Service Appointment"}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {appt.startTime ? new Date(appt.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}
-                        </p>
+                      {/* Status flow stepper */}
+                      <div className="flex items-center gap-1 px-3 pb-2.5 border-t border-border/20 pt-2">
+                        {isTerminal ? (
+                          <span className={cn("text-[10px] font-bold rounded-full border px-2 py-0.5", statusCls[s])}>
+                            ⊘ {statusLabel}
+                          </span>
+                        ) : flowSteps.map((step, i) => {
+                          const isDone = i < flowIdx;
+                          const isCurrent = i === flowIdx;
+                          const stepLabel = step === "confirmed" ? "On Queue" : step.charAt(0).toUpperCase() + step.slice(1);
+                          return (
+                            <React.Fragment key={step}>
+                              <span className={cn(
+                                "flex items-center gap-0.5 text-[10px] font-bold rounded-full border px-2 py-0.5",
+                                isDone
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+                                  : isCurrent
+                                  ? statusCls[s]
+                                  : "text-zinc-400 border-zinc-200 dark:border-zinc-700/50"
+                              )}>
+                                {isDone && <span className="text-[9px]">✓</span>}
+                                {stepLabel}
+                              </span>
+                              {i < flowSteps.length - 1 && (
+                                <div className={cn("flex-1 h-px", isDone ? "bg-emerald-300/60 dark:bg-emerald-700/40" : "bg-border/30")} />
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </div>
-                      <Badge variant="secondary" className="shrink-0 text-[10px] capitalize rounded-full px-2">
-                        {appt.type || "appt"}
-                      </Badge>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -817,6 +881,94 @@ export default function CustomerDashboard() {
                   </div>
                 );
               })}
+
+              {/* Upcoming service appointments */}
+              {(upcomingAppointments as any[]).length > 0 && (
+                <div className="rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-4">
+                  <div className="flex items-center gap-2 mb-3.5">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10">
+                      <Calendar className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <p className="text-sm font-bold text-foreground">Scheduled Appointments</p>
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      {(upcomingAppointments as any[]).length} upcoming
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {(upcomingAppointments as any[]).map((appt: any, idx: number) => {
+                      const s = appt.status ?? "scheduled";
+                      const statusCls: Record<string, string> = {
+                        scheduled: "bg-amber-50 text-amber-600 border-amber-200/60 dark:bg-amber-900/20 dark:border-amber-700/40",
+                        confirmed: "bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-900/20 dark:border-emerald-700/40",
+                        completed: "bg-zinc-100 text-zinc-500 border-zinc-200/60 dark:bg-zinc-800/40 dark:border-zinc-700/40",
+                        cancelled: "bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-900/20 dark:border-rose-700/40",
+                        "no-show": "bg-orange-50 text-orange-600 border-orange-200/60 dark:bg-orange-900/20 dark:border-orange-700/40",
+                      };
+                      const flowSteps = ["scheduled", "confirmed", "completed"];
+                      const flowIdx = flowSteps.indexOf(s);
+                      const isTerminal = s === "cancelled" || s === "no-show";
+                      const statusLabel = s === "no-show" ? "No Show" : s === "confirmed" ? "On Queue" : s.charAt(0).toUpperCase() + s.slice(1);
+                      return (
+                        <div
+                          key={appt._id || appt.id || idx}
+                          className="rounded-xl border border-border/30 bg-muted/30 hover:border-primary/20 transition-colors dark:bg-zinc-800/40 overflow-hidden"
+                        >
+                          <div className="flex items-center gap-3 p-3">
+                            <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-primary/10 shrink-0 text-center">
+                              <span className="text-[10px] font-bold text-primary uppercase leading-none">
+                                {appt.startTime ? new Date(appt.startTime).toLocaleDateString(undefined, { month: "short" }) : "—"}
+                              </span>
+                              <span className="text-base font-black text-primary leading-none">
+                                {appt.startTime ? new Date(appt.startTime).getDate() : "—"}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-foreground truncate leading-snug">
+                                {appt.title || "Service Appointment"}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                {appt.startTime ? new Date(appt.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}
+                              </p>
+                            </div>
+                            <span className={cn("shrink-0 text-[10px] font-bold rounded-full border px-2 py-0.5", statusCls[s] ?? statusCls.scheduled)}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 px-3 pb-2.5 border-t border-border/20 pt-2">
+                            {isTerminal ? (
+                              <span className={cn("text-[10px] font-bold rounded-full border px-2 py-0.5", statusCls[s])}>
+                                ⊘ {statusLabel}
+                              </span>
+                            ) : flowSteps.map((step, i) => {
+                              const isDone = i < flowIdx;
+                              const isCurrent = i === flowIdx;
+                              const stepLabel = step === "confirmed" ? "On Queue" : step.charAt(0).toUpperCase() + step.slice(1);
+                              return (
+                                <React.Fragment key={step}>
+                                  <span className={cn(
+                                    "flex items-center gap-0.5 text-[10px] font-bold rounded-full border px-2 py-0.5",
+                                    isDone
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+                                      : isCurrent
+                                      ? statusCls[s]
+                                      : "text-zinc-400 border-zinc-200 dark:border-zinc-700/50"
+                                  )}>
+                                    {isDone && <span className="text-[9px]">✓</span>}
+                                    {stepLabel}
+                                  </span>
+                                  {i < flowSteps.length - 1 && (
+                                    <div className={cn("flex-1 h-px", isDone ? "bg-emerald-300/60 dark:bg-emerald-700/40" : "bg-border/30")} />
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <Button
                 variant="outline"

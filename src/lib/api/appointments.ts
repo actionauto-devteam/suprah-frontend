@@ -8,6 +8,9 @@ export interface CustomerBookingPayload {
   type: string;
   entryType: string;
   notes?: string;
+  slotId?: string;
+  participants?: string[];
+  guestEmails?: string[];
   customerBooking: {
     firstName: string;
     lastName: string;

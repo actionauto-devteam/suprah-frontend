@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useUser } from "@/providers/AuthProvider"
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { createCustomerAppointment } from "@/lib/api/appointments"
+import { fetchAvailableSlots } from "@/lib/api/serviceSlots"
 import { Calendar, Clock, MapPin, CheckCircle2, Loader2, ChevronLeft } from "lucide-react"
 
 const SERVICE_TYPES = [
@@ -31,16 +33,11 @@ const SERVICE_TYPES = [
   { value: "other", label: "Other / General Service" },
 ]
 
-const TIME_SLOTS = [
-  "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-  "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
-]
-
-function parseTimeSlot(dateStr: string, timeSlot: string): Date {
-  const [time, period] = timeSlot.split(" ")
+function parseTimeLabel(dateStr: string, label: string): Date {
+  const [time, period] = label.split(" ")
   const [hourStr, minuteStr] = time.split(":")
   let hour = parseInt(hourStr, 10)
-  const minute = parseInt(minuteStr, 10)
+  const minute = minuteStr ? parseInt(minuteStr, 10) : 0
   if (period === "PM" && hour !== 12) hour += 12
   if (period === "AM" && hour === 12) hour = 0
   const d = new Date(dateStr)
@@ -80,11 +77,26 @@ export function BookAppointmentModal({
   const [step, setStep] = React.useState<1 | 2 | 3>(1)
   const [serviceType, setServiceType] = React.useState("")
   const [date, setDate] = React.useState(getTomorrowISO())
-  const [timeSlot, setTimeSlot] = React.useState("")
+  const [timeSlot, setTimeSlot] = React.useState("")   // display label e.g. "8:00 AM"
+  const [slotId, setSlotId] = React.useState("")       // _id for atomic booking
   const [phone, setPhone] = React.useState("")
   const [notes, setNotes] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [bookedAppointment, setBookedAppointment] = React.useState<any>(null)
+
+  const { data: availableSlots = [], isFetching: slotsLoading } = useQuery({
+    queryKey: ["slots-network", date],
+    queryFn: () => fetchAvailableSlots(date),
+    enabled: isOpen && !!date,
+    staleTime: 30_000,
+  })
+
+  // Clear selected slot whenever the date changes
+  const handleDateChange = (newDate: string) => {
+    setDate(newDate)
+    setTimeSlot("")
+    setSlotId("")
+  }
 
   // Reset on close
   React.useEffect(() => {
@@ -94,6 +106,7 @@ export function BookAppointmentModal({
         setServiceType("")
         setDate(getTomorrowISO())
         setTimeSlot("")
+        setSlotId("")
         setPhone("")
         setNotes("")
         setBookedAppointment(null)
@@ -112,17 +125,20 @@ export function BookAppointmentModal({
     setIsSubmitting(true)
 
     try {
-      const startTime = parseTimeSlot(date, timeSlot)
-      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000) // +1 hour
+      const startTime = parseTimeLabel(date, timeSlot)
+      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
 
       const result = await createCustomerAppointment({
         title: `${serviceLabel} — Jiffy Lube ${location.city}`,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         location: locationFullAddress,
-        type: "in-person",
+        type: "service",
         entryType: "appointment",
-        notes: notes || undefined,
+        notes: `Service type: ${serviceLabel}.${notes ? " " + notes : ""}`,
+        participants: [],
+        guestEmails: [],
+        ...(slotId ? { slotId } : {}),
         customerBooking: {
           firstName: user.firstName || user.fullName?.split(" ")[0] || "",
           lastName: user.lastName || user.fullName?.split(" ").slice(1).join(" ") || "",
@@ -205,30 +221,58 @@ export function BookAppointmentModal({
                 type="date"
                 value={date}
                 min={getTomorrowISO()}
-                onChange={e => setDate(e.target.value)}
+                onChange={e => handleDateChange(e.target.value)}
                 className="h-11"
               />
             </div>
 
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" /> Preferred Time
+                <Clock className="w-3.5 h-3.5" /> Available Times
               </Label>
-              <div className="grid grid-cols-4 xxs:grid-cols-4 xs:grid-cols-5 gap-2">
-                {TIME_SLOTS.map(slot => (
-                  <button
-                    key={slot}
-                    onClick={() => setTimeSlot(slot)}
-                    className={`py-2.5 px-1 rounded-xl text-[11px] xs:text-xs font-semibold border transition-all active:scale-95 ${
-                      timeSlot === slot
-                        ? "bg-green-600 text-white border-green-600 shadow-md"
-                        : "bg-zinc-50 dark:bg-zinc-900 text-foreground border-zinc-200 dark:border-zinc-800 hover:border-green-400 hover:text-green-600"
-                    }`}
-                  >
-                    {slot}
-                  </button>
-                ))}
-              </div>
+
+              {slotsLoading ? (
+                <div className="flex items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading available times…
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center">
+                  <Clock className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mb-2" />
+                  <p className="text-sm font-medium text-zinc-500">No time slots available</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Try selecting a different date.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {availableSlots.map(slot => {
+                    const isSelected = slotId === slot._id
+                    return (
+                      <button
+                        key={slot._id}
+                        onClick={() => {
+                          if (!slot.isFull) {
+                            setTimeSlot(slot.label)
+                            setSlotId(slot._id)
+                          }
+                        }}
+                        disabled={slot.isFull}
+                        className={`py-2.5 px-1 rounded-xl text-xs font-semibold border transition-all active:scale-95 flex flex-col items-center gap-0.5 ${
+                          slot.isFull
+                            ? "bg-zinc-100 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-800 cursor-not-allowed"
+                            : isSelected
+                            ? "bg-green-600 text-white border-green-600 shadow-md"
+                            : "bg-zinc-50 dark:bg-zinc-900 text-foreground border-zinc-200 dark:border-zinc-800 hover:border-green-400 hover:text-green-600"
+                        }`}
+                      >
+                        <span>{slot.label}</span>
+                        {slot.isFull && (
+                          <span className="text-[9px] font-normal opacity-70">Full</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             <Button
