@@ -4,12 +4,14 @@ import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw } from "lucide-react"
+import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, CalendarPlus, List, Map as MapIcon } from "lucide-react"
 import mapboxgl from "mapbox-gl"
 
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { useTheme } from "@/context/ThemeContext"
+import { BookAppointmentModal } from "@/components/customer/BookAppointmentModal"
+import { MembershipCardInline } from "@/components/customer/MembershipCardInline"
 
 // ---------------------------------------------------------------------------
 // Static fallback: all 79 Utah Jiffy Lube locations from the store list XLS.
@@ -141,6 +143,8 @@ export default function ServiceNetworkPage() {
   const [geocodedCount, setGeocodedCount] = React.useState(0)
   const [mapNotice, setMapNotice] = React.useState<string | null>(null)
   const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(null)
+  const [bookingLocation, setBookingLocation] = React.useState<any | null>(null)
+  const [mobileTab, setMobileTab] = React.useState<'list' | 'map'>('list')
 
   const mapRef = React.useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = React.useRef<mapboxgl.Map | null>(null)
@@ -354,39 +358,54 @@ export default function ServiceNetworkPage() {
   }
 
   const flyToLocation = (loc: any) => {
+    setSelectedLocationId(loc._id)
+    setMobileTab('map')
     if (!mapInstanceRef.current || !loc.location?.coordinates) return
     const [lng, lat] = loc.location.coordinates
-    setSelectedLocationId(loc._id)
     mapInstanceRef.current.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 })
   }
+
+  // Resize map when mobile tab switches to map (Mapbox needs explicit resize after display:none → block)
+  React.useEffect(() => {
+    if (mobileTab === 'map') {
+      requestAnimationFrame(() => {
+        mapInstanceRef.current?.resize()
+        // second pass in case the first fires before layout is painted
+        setTimeout(() => mapInstanceRef.current?.resize(), 100)
+      })
+    }
+  }, [mobileTab])
 
   // -------------------------------------------------------------------------
   // 7. Render
   // -------------------------------------------------------------------------
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col pb-4 animate-in fade-in slide-in-from-bottom-4 duration-700 lg:h-[calc(100vh-8rem)] lg:pb-0">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 shrink-0">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Service Network</h1>
-          <p className="text-muted-foreground mt-1 max-w-2xl">
-            Find an Action Auto partner location near you. Simply show your membership card to redeem exclusive service discounts.
-          </p>
-        </div>
-        <div className="flex gap-3 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Enter Zip, City, or Address…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
-            />
+      <div className="shrink-0 mb-4">
+        <div className="flex flex-col gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Service Network</h1>
+            <p className="text-muted-foreground mt-1 text-sm sm:text-base max-w-2xl hidden sm:block">
+              Find an Action Auto partner location near you. Simply show your membership card to redeem exclusive service discounts.
+            </p>
           </div>
-          <Button onClick={handleLocateMe} variant="outline" className="shrink-0 bg-white dark:bg-zinc-900">
-            <Crosshair className="w-4 h-4 mr-2" /> Locate Me
-          </Button>
+          <div className="flex gap-2 w-full">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Zip, City, or Address…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-9 h-10 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+              />
+            </div>
+            <Button onClick={handleLocateMe} variant="outline" className="shrink-0 h-10 bg-white dark:bg-zinc-900 px-3">
+              <Crosshair className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Locate Me</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -394,16 +413,47 @@ export default function ServiceNetworkPage() {
       {isGeocoding && (
         <div className="mb-3 shrink-0 flex items-center gap-2 text-xs text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-lg">
           <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-          Geocoding locations in the background… ({geocodedCount}/{STATIC_UTAH_LOCATIONS.length} done) — map pins will appear as they resolve.
+          <span className="hidden xs:inline">Geocoding locations… ({geocodedCount}/{STATIC_UTAH_LOCATIONS.length} done)</span>
+          <span className="xs:hidden">Loading map pins…</span>
         </div>
       )}
 
+      {/* Mobile tab switcher — hidden on lg+ */}
+      <div className="flex lg:hidden gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl mb-4 shrink-0">
+        <button
+          onClick={() => setMobileTab('list')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+            mobileTab === 'list'
+              ? 'bg-white dark:bg-zinc-800 shadow text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <List className="w-4 h-4" />
+          Locations
+          <span className="text-xs text-muted-foreground font-normal">({sortedLocations.length})</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('map')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+            mobileTab === 'map'
+              ? 'bg-white dark:bg-zinc-800 shadow text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <MapIcon className="w-4 h-4" />
+          Map
+        </button>
+      </div>
+
       {/* Map & List Layout */}
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row lg:gap-6 lg:flex-1 lg:min-h-0">
 
         {/* Left: Location list */}
-        <div className="w-full lg:w-100 flex flex-col gap-4 overflow-y-auto pr-2 pb-8 custom-scrollbar">
-          <div className="flex justify-between items-end mt-2 mb-1 shrink-0">
+        <div className={`${mobileTab === 'list' ? 'block' : 'hidden'} lg:block w-full lg:w-100 lg:flex lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pr-2 lg:pb-8 custom-scrollbar`}>
+          {/* Membership card — always visible above the location list */}
+          <MembershipCardInline />
+
+          <div className="flex justify-between items-end mb-3 lg:mt-2 lg:mb-1 shrink-0">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
               {userCoords ? 'Nearest Locations' : 'All Locations'} · Jiffy Lube
             </h3>
@@ -412,7 +462,7 @@ export default function ServiceNetworkPage() {
             </span>
           </div>
 
-          <div className="flex flex-col gap-3 pb-4 shrink-0">
+          <div className="flex flex-col gap-3 pb-24 lg:pb-4 shrink-0">
             {isLoading ? (
               <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2 border border-dashed rounded-lg">
                 <RefreshCw className="w-5 h-5 animate-spin" />
@@ -468,11 +518,22 @@ export default function ServiceNetworkPage() {
                   </span>
                 </div>
 
-                <div className="mt-3">
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs bg-green-600/10 text-green-700 dark:text-green-400 border-green-600/30 hover:bg-green-600 hover:text-white"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setBookingLocation(loc)
+                    }}
+                  >
+                    <CalendarPlus className="w-3 h-3 mr-1" /> Book
+                  </Button>
                   <Button
                     variant={userCoords && i === 0 ? 'default' : 'outline'}
                     size="sm"
-                    className={`w-full h-8 text-xs ${userCoords && i === 0 ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                    className={`flex-1 h-8 text-xs ${userCoords && i === 0 ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
                     onClick={e => {
                       e.stopPropagation()
                       window.open(
@@ -496,7 +557,7 @@ export default function ServiceNetworkPage() {
         </div>
 
         {/* Right: Map */}
-        <div className="flex-1 min-h-125 flex flex-col">
+        <div className={`${mobileTab === 'map' ? 'block' : 'hidden'} lg:flex lg:flex-col lg:flex-1 w-full h-[68dvh] lg:h-auto`}>
           <Card className="flex-1 w-full h-full bg-zinc-100 dark:bg-zinc-900 border-border/50 shadow-inner overflow-hidden relative">
             {!mapboxgl.supported() ? (
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-10">
@@ -589,6 +650,12 @@ export default function ServiceNetworkPage() {
         }
         .sn-marker-wrap .mapboxgl-popup { pointer-events: auto; }
       `}</style>
+
+      <BookAppointmentModal
+        isOpen={bookingLocation !== null}
+        onOpenChange={open => { if (!open) setBookingLocation(null) }}
+        location={bookingLocation}
+      />
     </div>
   )
 }

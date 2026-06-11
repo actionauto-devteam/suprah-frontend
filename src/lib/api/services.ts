@@ -1,5 +1,7 @@
 import { apiClient } from "../api-client";
 
+export type ServiceStatus = "received" | "in_service" | "quality_check" | "ready" | "completed";
+
 export interface ServiceRecord {
   _id: string;
   vehicleId: string;
@@ -9,6 +11,8 @@ export interface ServiceRecord {
   locationName: string;
   cost?: number;
   notes?: string;
+  serviceStatus?: ServiceStatus;
+  statusUpdatedAt?: string;
 }
 
 export const logServiceEvent = async (
@@ -37,4 +41,11 @@ export const fetchServiceHistory = async (
   }
 
   return [];
+};
+
+export const fetchActiveService = async (
+  vehicleId: string,
+): Promise<ServiceRecord | null> => {
+  const response = await apiClient.get(`/api/service/active/${vehicleId}`);
+  return response.data?.data ?? null;
 };
