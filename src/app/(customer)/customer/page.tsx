@@ -3,8 +3,11 @@
 import * as React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CarFront, LayoutDashboard, ClipboardList, Tag } from "lucide-react";
+import { CarFront, LayoutDashboard, ClipboardList, Tag, CreditCard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MembershipCardModal } from "@/components/customer/MembershipCardModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { initializeSocket } from "@/lib/socket.client";
 import { fetchOwnedVehicles, deleteVehicle, OwnedVehicle } from "@/lib/api/vehicles";
 import { LogServiceModal } from "@/components/customer/LogServiceModal";
 import { UpdateMileageModal } from "@/components/customer/UpdateMileageModal";
@@ -17,7 +20,7 @@ import { ServiceLogTab } from "@/components/customer/garage/ServiceLogTab";
 import { AuctionListings } from "@/components/customer/auction/AuctionListings";
 import { useSearchParams } from "next/navigation";
 import { resolveImageUrl } from "@/lib/utils";
-import { useUser } from "@/providers/AuthProvider";
+import { useUser, useAuth } from "@/providers/AuthProvider";
 import { useProfileContext } from "@/context/ProfileContext";
 
 function getVehicleId(vehicle: OwnedVehicle | null | undefined) {
@@ -28,11 +31,41 @@ const TAB_VALUES = ["overview", "vehicles", "sell", "history"];
 
 function CustomerDashboardContent() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { avatarUrl } = useProfileContext();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const initialTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : "overview";
+
+  // Initialize socket and listen for real-time appointment + service updates
+  React.useEffect(() => {
+    let cleanup: (() => void) | null = null;
+
+    getToken().then((token) => {
+      if (!token) return;
+      const socket = initializeSocket(token);
+
+      const onAppointmentStatusUpdated = () => {
+        queryClient.invalidateQueries({ queryKey: ['appointments', 'service'] });
+      };
+      const onServiceCheckedIn = (data: { vehicleId: string }) => {
+        if (data?.vehicleId) {
+          queryClient.invalidateQueries({ queryKey: ['activeService', data.vehicleId] });
+        }
+      };
+
+      socket.on('appointment:status_updated', onAppointmentStatusUpdated);
+      socket.on('service:checked_in', onServiceCheckedIn);
+
+      cleanup = () => {
+        socket.off('appointment:status_updated', onAppointmentStatusUpdated);
+        socket.off('service:checked_in', onServiceCheckedIn);
+      };
+    });
+
+    return () => { cleanup?.(); };
+  }, [getToken, queryClient]);
 
   const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
     queryKey: ["vehicles"],
@@ -46,6 +79,7 @@ function CustomerDashboardContent() {
   const [isEditVehicleOpen, setIsEditVehicleOpen] = React.useState(false);
   const [isBookServiceOpen, setIsBookServiceOpen] = React.useState(false);
   const [serviceVehicle, setServiceVehicle] = React.useState<OwnedVehicle | null>(null);
+  const [isMembershipCardOpen, setIsMembershipCardOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!vehicles || vehicles.length === 0) return;
@@ -123,7 +157,16 @@ function CustomerDashboardContent() {
                   </div>
                 </div>
 
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
+                  <Button
+                    onClick={() => setIsMembershipCardOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 rounded-xl font-semibold h-9 border-green-600/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+                  >
+                    <CreditCard className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">My Card</span>
+                  </Button>
                   <Avatar className="h-12 w-12 ring-2 ring-primary/20">
                     <AvatarImage src={resolveImageUrl(avatarUrl !== null ? avatarUrl : user?.imageUrl)} />
                     <AvatarFallback className="bg-primary/10 text-primary font-black text-base">
@@ -206,6 +249,7 @@ function CustomerDashboardContent() {
       <AddVehicleModal isOpen={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen} />
       <EditVehicleModal vehicle={selectedVehicle} isOpen={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen} />
       <BookServiceModal vehicle={serviceVehicle} vehicles={vehicles} isOpen={isBookServiceOpen} onOpenChange={setIsBookServiceOpen} />
+      <MembershipCardModal isOpen={isMembershipCardOpen} onOpenChange={setIsMembershipCardOpen} />
     </div>
   );
 }
