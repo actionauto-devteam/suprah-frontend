@@ -4,29 +4,41 @@ import React from 'react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 
 interface JitsiMeetProps {
-  roomName: string;
+  roomName: string; // already tenant-prefixed by the backend for JaaS
   displayName: string;
+  email?: string;
+  avatarUrl?: string;
+  jwt?: string; // undefined when JaaS isn't configured (fallback path)
+  domain?: string;
   onClose: () => void;
   onError?: (error: any) => void;
 }
 
-export function JitsiMeet({ roomName, displayName, onClose, onError }: JitsiMeetProps) {
-  const domain = process.env.NEXT_PUBLIC_JITSI_DOMAIN || 'meet.jit.si';
+export function JitsiMeet({
+  roomName,
+  displayName,
+  email,
+  avatarUrl,
+  jwt,
+  domain,
+  onClose,
+  onError,
+}: JitsiMeetProps) {
+  const resolvedDomain = domain || process.env.NEXT_PUBLIC_JITSI_DOMAIN || '8x8.vc';
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
       <JitsiMeeting
-        domain={domain}
+        domain={resolvedDomain}
         roomName={roomName}
+        jwt={jwt}
         configOverwrite={{
+          prejoinPageEnabled: false,
           startWithAudioMuted: false,
           disableModeratorIndicator: false,
-          startScreenSharing: false,
-          enableEmailInStats: false,
-          prejoinPageEnabled: false,
+          disableDeepLinking: true,
           disableInviteFunctions: true,
-          hideConferenceSubject: false,
-          hideConferenceTimer: false,
+          enableEmailInStats: false,
           toolbarButtons: [
             'microphone',
             'camera',
@@ -38,52 +50,35 @@ export function JitsiMeet({ roomName, displayName, onClose, onError }: JitsiMeet
             'profile',
             'chat',
             'recording',
-            'livestreaming',
-            'etherpad',
-            'sharedvideo',
             'settings',
             'raisehand',
             'videoquality',
             'filmstrip',
-            'stats',
-            'shortcuts',
             'tileview',
             'select-background',
-            'help',
             'mute-everyone',
+            'security',
           ],
         }}
         interfaceConfigOverwrite={{
           DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
           SHOW_JITSI_WATERMARK: false,
           SHOW_WATERMARK_FOR_GUESTS: false,
-          TOOLBAR_ALWAYS_VISIBLE: false,
-          DEFAULT_REMOTE_DISPLAY_NAME: 'Team Member',
           MOBILE_APP_PROMO: false,
+          DEFAULT_REMOTE_DISPLAY_NAME: 'Team Member',
         }}
-        userInfo={{
-          displayName: displayName,
-          email: '',
-        }}
+        userInfo={{ displayName, email: email || '' }}
         onApiReady={(externalApi) => {
-          console.log('[Jitsi] API Ready');
-          
-          // Add custom event listeners
+          if (avatarUrl) {
+            try {
+              externalApi.executeCommand('avatarUrl', avatarUrl);
+            } catch {
+              /* avatar is best-effort */
+            }
+          }
           externalApi.addEventListeners({
-            readyToClose: () => {
-              console.log('[Jitsi] Ready to close');
-              onClose();
-            },
-            videoConferenceLeft: () => {
-              console.log('[Jitsi] Left conference');
-              onClose();
-            },
-            participantLeft: (participant: any) => {
-              console.log('[Jitsi] Participant left:', participant);
-            },
-            participantJoined: (participant: any) => {
-              console.log('[Jitsi] Participant joined:', participant);
-            },
+            readyToClose: onClose,
+            videoConferenceLeft: onClose,
           });
         }}
         onReadyToClose={onClose}

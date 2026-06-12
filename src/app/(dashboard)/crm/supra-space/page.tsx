@@ -24,6 +24,11 @@ import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupra
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 import { JitsiMeet } from './JitsiMeet';
+// ── NEW: calling ──
+import { useCall, CallSession } from '@/hooks/useCall';
+import { CallBanner } from './CallBanner';
+import { IncomingCallModal } from './IncomingCallModal';
+import { CallExperience } from './CallExperience';
 
 const SS4_MAX_UPLOAD_FILES = 5;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -169,14 +174,12 @@ if (typeof document !== 'undefined') {
     .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; }
     .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(91,124,246,0.25); border-radius:16px; }
     .ss4-divider { height:1px; background:var(--border-1); }
-    /* Reactions */
     .ss4-reaction-chip { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-hover); font-size:11px; cursor:pointer; transition:all .12s ease; }
     .ss4-reaction-chip:hover { border-color:var(--accent); }
     .ss4-reaction-mine { border-color:var(--accent); background:var(--accent-muted); color:var(--accent-text); }
     .ss4-react-pop { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:999px; box-shadow:var(--shadow-md); padding:4px; display:flex; gap:2px; }
     .ss4-react-pop button { font-size:18px; line-height:1; padding:3px 5px; border-radius:8px; transition:transform .12s ease,background .12s ease; }
     .ss4-react-pop button:hover { transform:scale(1.25); background:var(--bg-hover); }
-    /* Poll & Event cards */
     .ss4-card { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); border-radius:14px; box-shadow:var(--shadow-sm); }
     .ss4-poll-opt { position:relative; overflow:hidden; border:1px solid var(--border-2); border-radius:10px; cursor:pointer; transition:border-color .12s ease; }
     .ss4-poll-opt:hover { border-color:var(--accent); }
@@ -184,6 +187,7 @@ if (typeof document !== 'undefined') {
     .ss4-voice-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:14px; }
   `;
 }
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const ini = (n: string) => (n || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 const fmtTime = (d: string) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -248,7 +252,6 @@ const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % av
 
 interface CrmUser { _id: string; fullName: string; username: string; avatar?: string; role: string }
 
-// Build CSS variable overrides for a conversation theme
 function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
   if (!theme?.accent) return {};
   const a = theme.accent;
@@ -375,6 +378,7 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
     </div>
   );
 }
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
@@ -442,25 +446,20 @@ function Bubble({
           </div>
         ) : null}
 
-        {/* GIF */}
         {message.type === 'gif' && message.gif?.url && (
           <img src={message.gif.url} alt={message.gif.title || 'GIF'} className="rounded-xl" style={{ maxWidth: 240, maxHeight: 240, display: 'block' }} />
         )}
 
-        {/* Voice */}
         {voiceAtt && <VoicePlayer src={voiceAtt.url} duration={voiceAtt.duration} own={isOwn} />}
 
-        {/* Poll */}
         {message.type === 'poll' && message.poll && (
           <PollCard poll={message.poll} uid={uid} onVote={(optId) => onVotePoll(message._id, optId)} />
         )}
 
-        {/* Event */}
         {message.type === 'event' && message.event && (
           <EventCard event={message.event} uid={uid} onRsvp={(r) => onRsvp(message._id, r)} />
         )}
 
-        {/* Attachments (images / videos / files) */}
         {message.type !== 'voice' && message.attachments.length > 0 && (
           <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
             {message.attachments.filter(a => a.mimeType.startsWith('image/')).map((att, i) => (
@@ -492,7 +491,6 @@ function Bubble({
           </div>
         )}
 
-        {/* Reactions */}
         {message.reactions && message.reactions.length > 0 && (
           <div className={cn('flex flex-wrap gap-1 mt-0.5', isOwn && 'justify-end')}>
             {message.reactions.map(r => {
@@ -508,7 +506,6 @@ function Bubble({
           </div>
         )}
 
-        {/* Meta row */}
         <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
           <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>
           {isOwn && (message.readBy.length > 1
@@ -517,7 +514,6 @@ function Bubble({
         </div>
       </div>
 
-      {/* Hover actions */}
       {hov && !disableActions && (
         <div ref={reactRef} className={cn('ss4-msg-actions absolute top-0 flex items-center gap-0.5 px-1 py-1 z-10', isOwn ? 'right-16' : 'left-16')}>
           <div className="relative">
@@ -554,7 +550,7 @@ function Bubble({
   );
 }
 
-// ─── Video Call Modal ─────────────────────────────────────────────────────────
+// ─── Video Call Modal (legacy — no longer used; kept so JitsiMeet import stays referenced) ──
 function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
   conv: SSConversation; uid: string; onClose: () => void; allUsers: CrmUser[]; token: string;
 }) {
@@ -723,6 +719,7 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
     </div>
   );
 }
+
 // ─── GIF Picker ───────────────────────────────────────────────────────────────
 function GifPicker({ onPick, onClose }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void }) {
   const [q, setQ] = React.useState('');
@@ -1005,6 +1002,7 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
     </div>
   );
 }
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SupraSpacePage() {
   const router = useRouter();
@@ -1035,7 +1033,6 @@ export default function SupraSpacePage() {
   const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' }>({ open: false, tab: 'dm' });
   const [allUsers, setAllUsers] = React.useState<CrmUser[]>([]);
   const [q, setQ] = React.useState('');
-  const [videoCallConv, setVideoCallConv] = React.useState<SSConversation | null>(null);
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
@@ -1052,7 +1049,6 @@ export default function SupraSpacePage() {
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
 
-  // New-feature state
   const [showArchived, setShowArchived] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
@@ -1066,16 +1062,14 @@ export default function SupraSpacePage() {
   const gifRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
-  // Voice recording
   const [recording, setRecording] = React.useState(false);
   const [recSeconds, setRecSeconds] = React.useState(0);
-  const recSecondsRef = React.useRef(0);                       // FIX: avoids stale duration in onstop closure
+  const recSecondsRef = React.useRef(0);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const recChunksRef = React.useRef<Blob[]>([]);
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const recStreamRef = React.useRef<MediaStream | null>(null);
 
-  // Global message search
   const [msgResults, setMsgResults] = React.useState<any[]>([]);
   const [searching, setSearching] = React.useState(false);
 
@@ -1093,7 +1087,6 @@ export default function SupraSpacePage() {
   const isPinnedConv = React.useCallback((c: SSConversation) => (c.pinnedBy || []).map(String).includes(uid), [uid]);
   const isArchivedConv = React.useCallback((c: SSConversation) => (c.archivedBy || []).map(String).includes(uid), [uid]);
 
-  // name lookup for reactions / who-reacted
   const nameMap = React.useMemo(() => {
     const m: Record<string, string> = { [uid]: 'You' };
     allUsers.forEach(u => { m[u._id] = u.fullName; });
@@ -1126,6 +1119,27 @@ export default function SupraSpacePage() {
   }, []);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+
+  // ── Calling (NEW) ──
+  const call = useCall(socket, token, uid);
+  const [activeMeeting, setActiveMeeting] = React.useState<CallSession | null>(null);
+  const me = React.useMemo(() => allUsers.find(u => u._id === uid), [allUsers, uid]);
+
+  const handleStartCall = React.useCallback(async (conv: SSConversation) => {
+    try { setActiveMeeting(await call.startCall(conv._id)); }
+    catch (e) { showUploadNotice('error', getErrorMessage(e, 'Could not start the call.')); }
+  }, [call, showUploadNotice]);
+
+  const handleJoinCall = React.useCallback(async (meetingId: string) => {
+    try { setActiveMeeting(await call.joinCall(meetingId)); }
+    catch (e) { showUploadNotice('error', getErrorMessage(e, 'Could not join the call.')); }
+  }, [call, showUploadNotice]);
+
+  const handleLeaveCall = React.useCallback(async () => {
+    const mId = activeMeeting?.call?.meetingId;
+    setActiveMeeting(null);
+    if (mId) await call.endCall(mId);
+  }, [activeMeeting, call]);
 
   // ── Init ──
   React.useEffect(() => {
@@ -1167,8 +1181,6 @@ export default function SupraSpacePage() {
         const fetchedConvos: SSConversation[] = cv.data?.data || [];
         setConvos(fetchedConvos);
         setAllUsers(us.data?.data || []);
-        const reportGroup = fetchedConvos.find(c => c.type === 'group' && c.name === 'Online Team Report');
-        if (reportGroup) localStorage.setItem('dp_groupchat_id', reportGroup._id);
 
         const pendingUserId = new URLSearchParams(window.location.search).get('userId');
         if (pendingUserId) {
@@ -1201,7 +1213,6 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
 
-  // Reactive auto-open via convId (from TeamPulse useOpenDm hook)
   const targetConvId = searchParams.get('convId');
   React.useEffect(() => {
     if (loading || !targetConvId) return;
@@ -1209,7 +1220,6 @@ export default function SupraSpacePage() {
     router.replace('/crm/supra-space', { scroll: false });
   }, [loading, targetConvId, router]);
 
-  // Reactive auto-open: handles ?userId= navigations while page is already mounted
   const targetUserId = searchParams.get('userId');
   React.useEffect(() => {
     if (loading || !token || !targetUserId) return;
@@ -1228,7 +1238,6 @@ export default function SupraSpacePage() {
       });
   }, [loading, token, targetUserId, router]);
 
-  // ── Socket events ──
   React.useEffect(() => {
     if (!socket) return;
     const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => appendMessageLocal(conversationId, message);
@@ -1276,6 +1285,7 @@ export default function SupraSpacePage() {
         .finally(() => setLoadingMsgs(false));
     }
     markRead(activeId);
+    call.refreshStatus(activeId);
   }, [activeId, token]); // eslint-disable-line
 
   React.useEffect(() => {
@@ -1286,7 +1296,6 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => { setPendingFiles([]); setUploadNotice(null); setShowInfo(false); }, [activeId]);
 
-  // Outside-click closers
   React.useEffect(() => {
     const make = (ref: React.RefObject<HTMLDivElement | null>, close: () => void) => (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
     const hs: Array<[boolean, (e: MouseEvent) => void]> = [
@@ -1307,7 +1316,6 @@ export default function SupraSpacePage() {
     return () => document.removeEventListener('mousedown', h);
   }, [memberCard]);
 
-  // Global message search (debounced)
   React.useEffect(() => {
     if (!token || q.trim().length < 2) { setMsgResults([]); return; }
     setSearching(true);
@@ -1318,7 +1326,6 @@ export default function SupraSpacePage() {
     return () => clearTimeout(t);
   }, [q, token]);
 
-  // ── Send / upload ──
   const handleSend = async () => {
     if (!activeId || sending) return;
     const hasText = Boolean(input.trim());
@@ -1373,7 +1380,6 @@ export default function SupraSpacePage() {
     typingRef.current = setTimeout(() => sendTypingStop(activeId!), 2000);
   };
 
-  // ── Voice ──
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1383,7 +1389,7 @@ export default function SupraSpacePage() {
       mr.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
       mr.onstop = async () => {
         const blob = new Blob(recChunksRef.current, { type: 'audio/webm' });
-        const seconds = recSecondsRef.current;               // FIX: read live duration from ref
+        const seconds = recSecondsRef.current;
         recStreamRef.current?.getTracks().forEach(t => t.stop());
         if (blob.size > 0 && activeId) {
           const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
@@ -1407,7 +1413,6 @@ export default function SupraSpacePage() {
     setRecording(false);
   };
 
-  // ── GIF ──
   const sendGif = async (gif: { url: string; width?: number; height?: number; title?: string }) => {
     if (!activeId) return;
     try {
@@ -1416,7 +1421,6 @@ export default function SupraSpacePage() {
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to send GIF.')); }
   };
 
-  // ── Reactions / poll / event ──
   const handleReact = async (msgId: string, emoji: string) => {
     if (!activeId) return;
     setMsgs(p => ({ ...p, [activeId]: (p[activeId] || []).map(m => {
@@ -1457,7 +1461,6 @@ export default function SupraSpacePage() {
     setPinnedMsgIds(prev => { const n = new Set(prev); n.has(msgId) ? n.delete(msgId) : n.add(msgId); return n; });
   };
 
-  // ── Conversation actions (pin / archive / delete / members / theme / avatar) ──
   const togglePinConv = async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
     patchConv(c._id, { pinnedBy: pinned ? [...(c.pinnedBy || []), uid] : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
@@ -1519,7 +1522,6 @@ export default function SupraSpacePage() {
     img.src = raw;
   };
 
-  // ── Suprah Autrix ──
   const handleAutrix = async (action: 'improve' | 'draft' | 'formal' | 'casual') => {
     setAutrixOpen(false); setAutrixLoading(true);
     try {
@@ -1543,7 +1545,6 @@ export default function SupraSpacePage() {
     } catch {} finally { setAutrixLoading(false); }
   };
 
-  // ── DM / group / pagination ──
   const handleDM = async (targetId: string) => {
     setShowModal({ open: false, tab: 'dm' }); setActiveUsersOpen(false);
     try {
@@ -1576,13 +1577,11 @@ export default function SupraSpacePage() {
   const themeStyle = themeVars(activeConv?.theme);
   const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
-  // Sections
   const visibleConvos = convos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
   const pinnedList = visibleConvos.filter(c => isPinnedConv(c) && !isArchivedConv(c));
   const archivedList = convos.filter(c => isArchivedConv(c));
   const normalList = visibleConvos.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
 
-  // ── Conversation row ──
   const ConvRow = ({ conv, compact }: { conv: SSConversation; compact?: boolean }) => {
     const isAct = conv._id === activeId;
     const other = conv.members.find(m => m._id !== uid);
@@ -1624,7 +1623,7 @@ export default function SupraSpacePage() {
             <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title={archived ? 'Unarchive' : 'Archive'}>
               {archived ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
             </button>
-            <button onClick={e => { e.stopPropagation(); setVideoCallConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title="Call"><Phone className="h-3 w-3" /></button>
+            <button onClick={e => { e.stopPropagation(); handleStartCall(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title="Call"><Phone className="h-3 w-3" /></button>
           </div>
         )}
         {compact && (
@@ -1695,7 +1694,6 @@ export default function SupraSpacePage() {
           <div className="mx-4 ss4-divider" />
 
           <div className="flex-1 overflow-y-auto ss4-scroll pb-2">
-            {/* Message search results */}
             {q.trim().length >= 2 && (
               <div className="pt-2">
                 <div className="px-3 pb-1.5 flex items-center justify-between">
@@ -1715,7 +1713,6 @@ export default function SupraSpacePage() {
               </div>
             )}
 
-            {/* Pinned */}
             {pinnedList.length > 0 && (
               <div className="pt-1">
                 <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
@@ -1723,7 +1720,6 @@ export default function SupraSpacePage() {
               </div>
             )}
 
-            {/* Direct + Channels */}
             {(['direct', 'group'] as const).map(sectionType => {
               const list = normalList.filter(c => c.type === sectionType);
               if (list.length === 0) return null;
@@ -1742,7 +1738,6 @@ export default function SupraSpacePage() {
               </div>
             )}
 
-            {/* Archived */}
             {archivedList.length > 0 && (
               <div className="pt-3">
                 <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
@@ -1790,13 +1785,18 @@ export default function SupraSpacePage() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
-                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setVideoCallConv(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setVideoCallConv(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-8 w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-4 w-4" /></button>
                   </div>
                 </div>
+
+                {/* Active call banner */}
+                {call.liveCalls[activeId] && !activeMeeting && (
+                  <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
+                )}
 
                 {/* Messages */}
                 <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll" style={wallpaper ? { backgroundImage: wallpaper } : undefined}>
@@ -1863,218 +1863,218 @@ export default function SupraSpacePage() {
                       <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
                         <textarea value={input} onChange={handleTyping} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
                       </div>
-                      <div className="flex items-center justify-between px-3 pb-2.5 pt-1.5" style={{ borderTop: '1px solid var(--border-1)' }}>
+                      <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
                         <div className="flex items-center gap-0.5">
-                          <button onClick={() => fileRef.current?.click()} disabled={uploading || sending} className="ss4-icon-btn h-7 w-7" title="Attach">{uploading ? <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /> : <Paperclip className="h-4 w-4" />}</button>
-                          <input ref={fileRef} type="file" multiple accept="*/*" className="sr-only" onChange={e => { void handleUpload(e.target.files); e.currentTarget.value = ''; }} />
-                          <button onClick={startRecording} className="ss4-icon-btn h-7 w-7" title="Voice message"><Mic className="h-4 w-4" /></button>
-                          <div className="relative" ref={gifRef}>
-                            <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="GIF"><Film className="h-4 w-4" /></button>
+                          <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
+                          <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-8 w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
+                          <button onClick={startRecording} className="ss4-icon-btn h-8 w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
+                          <div ref={gifRef} className="relative">
+                            <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="GIF"><Film className="h-4 w-4" /></button>
                             {gifOpen && <GifPicker onPick={sendGif} onClose={() => setGifOpen(false)} />}
                           </div>
-                          <div className="relative" ref={emojiRef}>
-                            <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="Emoji"><Smile className="h-4 w-4" /></button>
-                            {emojiOpen && <div className="absolute bottom-full left-0 mb-2 z-50" style={{ boxShadow: 'var(--shadow-lg)' }}><EmojiPicker theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} onEmojiClick={(d: EmojiClickData) => { setInput(p => p + d.emoji); setEmojiOpen(false); }} height={380} width={320} lazyLoadEmojis /></div>}
-                          </div>
-                          <div className="relative" ref={createMenuRef}>
-                            <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="Poll / Event"><BarChart3 className="h-4 w-4" /></button>
-                            {createMenuOpen && (
-                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', minWidth: 150, boxShadow: 'var(--shadow-md)' }}>
-                                <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><BarChart3 className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} /> Create poll</button>
-                                <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><CalendarPlus className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} /> Create event</button>
+                          <div ref={emojiRef} className="relative">
+                            <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
+                            {emojiOpen && (
+                              <div className="absolute bottom-full left-0 mb-2 z-50">
+                                <EmojiPicker onEmojiClick={(d: EmojiClickData) => { setInput(prev => prev + d.emoji); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
                               </div>
                             )}
                           </div>
-                          <div className="relative" ref={autrixRef}>
-                            <button onClick={() => !autrixLoading && setAutrixOpen(v => !v)} disabled={autrixLoading} className="ss4-ai-btn h-7 px-2.5 flex items-center gap-1.5" title="Suprah Autrix">
-                              {autrixLoading ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: '#b49dff' }} /> : <Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} />}
-                              <span className="ss4-ai-text font-semibold" style={{ fontSize: 11 }}>Suprah Autrix</span>
+                          <div ref={createMenuRef} className="relative">
+                            <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Poll or event"><Plus className="h-4 w-4" /></button>
+                            {createMenuOpen && (
+                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 160, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                                <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><BarChart3 className="h-3.5 w-3.5" /> Create Poll</button>
+                                <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><CalendarPlus className="h-3.5 w-3.5" /> Create Event</button>
+                              </div>
+                            )}
+                          </div>
+                          <div ref={autrixRef} className="relative">
+                            <button onClick={() => setAutrixOpen(v => !v)} className="ss4-ai-btn h-8 px-2.5 flex items-center gap-1.5" title="Suprah Autrix">
+                              {autrixLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#b49dff' }} /> : <Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} />}
+                              <span className="ss4-ai-text font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Autrix</span>
                             </button>
                             {autrixOpen && (
-                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', minWidth: 200, boxShadow: 'var(--shadow-md)' }}>
-                                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border-1)' }}><p className="font-semibold" style={{ fontSize: 10, color: '#b49dff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Suprah Autrix AI</p></div>
-                                <div className="py-1">
-                                  {input.trim() ? (
-                                    <>
-                                      <button onClick={() => handleAutrix('improve')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} /> Improve draft</button>
-                                      <button onClick={() => handleAutrix('formal')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Bot className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} /> Make formal</button>
-                                      <button onClick={() => handleAutrix('casual')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Bot className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} /> Make casual</button>
-                                    </>
-                                  ) : (
-                                    <button onClick={() => handleAutrix('draft')} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} /> Draft a reply</button>
-                                  )}
-                                  <button onClick={() => { setAutrixOpen(false); setSummarizeOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-primary)' }}><BarChart3 className="h-3.5 w-3.5" style={{ color: '#b49dff' }} /> Summarize chat</button>
-                                </div>
+                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 180, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                                {([['improve', 'Improve writing'], ['formal', 'Make formal'], ['casual', 'Make casual'], ['draft', 'Draft a reply']] as const).map(([action, label]) => (
+                                  <button key={action} onClick={() => handleAutrix(action)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} /> {label}</button>
+                                ))}
+                                <div className="mx-2 my-1 ss4-divider" />
+                                <button onClick={() => { setAutrixOpen(false); setSummarizeOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><FileText className="h-3 w-3" style={{ color: '#b49dff' }} /> Summarize chat</button>
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {uploadNotice && <span className="max-w-50 truncate ss4-mono" style={{ fontSize: 10, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</span>}
-                          <button onClick={handleSend} disabled={(!input.trim() && pendingFiles.length === 0) || sending || uploading} className="ss4-send-btn h-7 w-7 flex items-center justify-center">{(sending || uploading) ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#fff' }} /> : <Send className="h-3.5 w-3.5" style={{ color: '#fff', opacity: (input.trim() || pendingFiles.length > 0) ? 1 : 0.5 }} />}</button>
-                        </div>
+                        <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0)} className="ss4-send-btn h-8 w-8 flex items-center justify-center shrink-0">
+                          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        </button>
                       </div>
                     </div>
+                  )}
+
+                  {uploadNotice && (
+                    <p className="px-1" style={{ fontSize: 11, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</p>
                   )}
                 </div>
               </>
             )}
           </div>
 
-          {/* ── Details (full-takeover, hides the chat) ── */}
+          {/* Details / Info full-takeover panel */}
           {showInfo && activeId && activeConv && (() => {
-            const media = activeMsgs.flatMap(m => m.attachments.filter(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)));
-            const files = activeMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)));
-            const pinned = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
-            const convName = getConvName(activeConv, uid);
-            const otherMember = activeConv.type === 'direct' ? activeConv.members.find(m => m._id !== uid) : null;
-            const isOtherOnline = otherMember ? presence[otherMember._id] === 'online' : false;
-            const canDeletePermanent = activeConv.type === 'group' && isAdmin;
+            const cName = getConvName(activeConv, uid);
+            const cAvatar = getConvAvatar(activeConv, uid);
+            const mediaMsgs = activeMsgs.filter(m => m.attachments.some(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)));
+            const fileMsgs = activeMsgs.filter(m => m.attachments.some(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)));
+            const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
             return (
-              <div className="ss4-sidebar absolute inset-0 z-30 flex flex-col overflow-hidden" style={{ background: 'var(--bg-base)' }}>
-                <div className="shrink-0 flex items-center gap-2 px-3 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+              <div className="absolute inset-0 z-30 flex flex-col" style={{ background: 'var(--bg-elevated)' }}>
+                <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-4 py-3">
                   <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><ChevronLeft className="h-4 w-4" /></button>
-                  <p className="ss4-display font-bold flex-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Details</p>
+                  <p className="ss4-display font-bold flex-1" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Details</p>
                   <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><X className="h-4 w-4" /></button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto ss4-scroll">
-                  <div className="max-w-xl mx-auto w-full">
-                    {/* Hero */}
-                    <div className="flex flex-col items-center gap-2 px-4 pt-6 pb-5" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                      <div className="relative group/ava">
-                        <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(convName))}>
-                          {getConvAvatar(activeConv, uid) ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" /> : activeConv.type === 'group' ? <Hash className="h-8 w-8 text-white opacity-80" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(convName)}</span>}
-                        </div>
-                        {activeConv.type === 'group' && !isReportGroup && (
-                          <>
-                            <button onClick={() => avatarFileRef.current?.click()} className="absolute inset-0 rounded-2xl flex items-center justify-center opacity-0 group-hover/ava:opacity-100 transition-opacity" style={{ background: 'rgba(0,0,0,0.5)' }} title="Change photo"><ImageIcon className="h-6 w-6 text-white" /></button>
-                            <input ref={avatarFileRef} type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
-                          </>
-                        )}
+                  {/* Header card */}
+                  <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
+                    <div className="relative">
+                      <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
+                        {cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : activeConv.type === 'group' ? <Hash className="h-7 w-7 text-white opacity-70" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                       </div>
-                      {editingGcName ? (
-                        <div className="flex items-center gap-1.5 w-full max-w-xs mt-1">
-                          <input value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} autoFocus className="ss4-search-input flex-1 px-2 py-1 text-center" style={{ fontSize: 15, fontWeight: 700 }}
-                            onKeyDown={e => { if (e.key === 'Enter') { renameChannel(gcNameInput); setEditingGcName(false); } if (e.key === 'Escape') { setGcNameInput(''); setEditingGcName(false); } }} />
-                          <button onClick={() => { renameChannel(gcNameInput); setEditingGcName(false); }} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0"><CheckIcon className="h-3.5 w-3.5" /></button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <p className="ss4-display font-bold" style={{ fontSize: 17, color: 'var(--text-primary)' }}>{convName}</p>
-                          {activeConv.type === 'group' && isAdmin && !isReportGroup && <button onClick={() => { setGcNameInput(convName); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
-                        </div>
+                      {activeConv.type === 'group' && isAdmin && (
+                        <>
+                          <input ref={avatarFileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
+                          <button onClick={() => avatarFileRef.current?.click()} className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)', border: '2px solid var(--bg-elevated)' }} title="Change photo"><ImageIcon className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
+                        </>
                       )}
-                      <p style={{ fontSize: 12, color: activeConv.type === 'direct' && isOtherOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : isOtherOnline ? '● Active now' : 'Offline'}</p>
-
-                      <div className="flex items-center gap-2 mt-2">
-                        <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 11 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
-                        <button onClick={() => toggleArchiveConv(activeConv)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 11 }}>
-                          {isArchivedConv(activeConv) ? <><ArchiveRestore className="h-3.5 w-3.5" /> Unarchive</> : <><Archive className="h-3.5 w-3.5" /> Archive</>}
-                        </button>
-                        {activeConv.type === 'group' && !isReportGroup && <button onClick={() => setManageOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 11 }}><UserPlus className="h-3.5 w-3.5" /> Add</button>}
-                      </div>
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-base)' }}>
-                      {(['members', 'media', 'files', 'pinned'] as const).map(tab => (
-                        <button key={tab} onClick={() => setInfoTab(tab)} className="flex-1 py-2.5 font-semibold capitalize relative" style={{ fontSize: 11, color: infoTab === tab ? 'var(--accent)' : 'var(--text-tertiary)', borderBottom: infoTab === tab ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: -1 }}>
-                          {tab}{tab === 'pinned' && pinned.length > 0 && <span className="ml-1 ss4-badge inline-flex items-center" style={{ borderRadius: 8 }}>{pinned.length}</span>}
-                        </button>
+                    {activeConv.type === 'group' && editingGcName ? (
+                      <div className="flex items-center gap-2 w-full max-w-xs">
+                        <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { renameChannel(gcNameInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
+                        <button onClick={() => { renameChannel(gcNameInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <p className="ss4-display font-bold text-center" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{cName}</p>
+                        {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
+                      </div>
+                    )}
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
+
+                    {activeConv.type === 'group' && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <button onClick={() => setManageOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><UserPlus className="h-3.5 w-3.5" /> Add</button>
+                        <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
+                      </div>
+                    )}
+                    {activeConv.type === 'direct' && (
+                      <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
+                    )}
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="px-4">
+                    <div className="ss4-tab-bar flex gap-1">
+                      {(['members', 'media', 'files', 'pinned'] as const).map(t => (
+                        <button key={t} onClick={() => setInfoTab(t)} className={cn('flex-1 h-7 ss4-tab capitalize', t === infoTab && 'ss4-tab-active')}>{t}</button>
                       ))}
                     </div>
+                  </div>
 
-                    {/* Members */}
+                  <div className="px-4 py-3">
                     {infoTab === 'members' && (
-                      <div className="py-2">
-                        {activeConv.members.map(member => {
-                          const isOnline = presence[member._id] === 'online';
-                          const isMe = member._id === uid;
-                          const memberIsAdmin = (activeConv.admins || []).map(String).includes(member._id);
+                      <div className="space-y-0.5">
+                        {activeConv.members.map(m => {
+                          const isOnline = presence[m._id] === 'online';
+                          const memberIsAdmin = (activeConv.admins || []).map(String).includes(m._id);
                           return (
-                            <div key={member._id} className="w-full flex items-center gap-3 px-4 py-2.5 group/m">
-                              <div className="relative shrink-0">
-                                <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(member.fullName))} style={{ fontSize: 12 }}>{member.avatar ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : ini(member.fullName)}</div>
+                            <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
+                              <button onClick={e => setMemberCard({ member: m, pos: { x: e.clientX, y: e.clientY } })} className="relative shrink-0">
+                                <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
+                                  {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
+                                </div>
                                 {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
-                              </div>
+                              </button>
                               <div className="min-w-0 flex-1">
-                                <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{member.fullName}{isMe && <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, fontSize: 11 }}> (you)</span>}</p>
-                                <p style={{ fontSize: 10, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : member.role || 'Offline'}</p>
+                                <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{m.fullName}{m._id === uid ? ' (You)' : ''}</p>
+                                <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{memberIsAdmin ? 'Admin' : (isOnline ? 'Active now' : 'Offline')}</p>
                               </div>
-                              {memberIsAdmin && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)', borderRadius: 4, padding: '1px 6px' }}>Admin</span>}
-                              {activeConv.type === 'group' && !isReportGroup && (isAdmin || isMe) && (
-                                <button onClick={() => removeMember(member._id)} className="h-7 w-7 rounded-lg flex items-center justify-center opacity-0 group-hover/m:opacity-100 transition-opacity" style={{ color: 'var(--danger)' }} title={isMe ? 'Leave channel' : 'Remove'}>
-                                  {isMe ? <LogOut className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
-                                </button>
+                              {activeConv.type === 'group' && isAdmin && m._id !== uid && (
+                                <button onClick={() => removeMember(m._id)} className="ss4-icon-btn h-7 w-7" title="Remove" style={{ color: 'var(--danger)' }}><UserMinus className="h-3.5 w-3.5" /></button>
                               )}
                             </div>
                           );
                         })}
+                        {activeConv.type === 'group' && (
+                          <button onClick={() => removeMember(uid)} className="w-full flex items-center gap-2 px-2 py-2.5 mt-2 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13 }}><LogOut className="h-4 w-4" /> Leave channel</button>
+                        )}
                       </div>
                     )}
 
-                    {/* Media */}
                     {infoTab === 'media' && (
-                      <div className="p-3">
-                        {media.length === 0 ? <div className="flex flex-col items-center justify-center py-14 gap-3"><ImageIcon className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} /><p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No photos or videos</p></div>
-                          : <div className="grid grid-cols-4 gap-1.5">{media.map((att, i) => { const isVid = isVideoAttachment(att); return (
-                            <button key={i} onClick={() => setLightbox({ src: att.url, type: isVid ? 'video' : 'image', name: att.originalName })} className="relative aspect-square rounded-xl overflow-hidden cursor-zoom-in group" style={{ background: 'var(--bg-hover)' }}>
-                              {isVid ? <video src={att.url} className="w-full h-full object-cover" muted /> : <img src={att.thumbnailUrl || att.url} alt="" className="w-full h-full object-cover" />}
-                              {isVid && <div className="absolute inset-0 flex items-center justify-center"><div className="h-7 w-7 rounded-full bg-black/50 flex items-center justify-center"><Video className="h-3.5 w-3.5 text-white" /></div></div>}
-                            </button>); })}</div>}
-                      </div>
+                      mediaMsgs.length === 0
+                        ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No media yet</p>
+                        : <div className="grid grid-cols-3 gap-1.5">
+                            {mediaMsgs.flatMap(m => m.attachments.filter(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)).map((a, i) => {
+                              const isVid = isVideoAttachment(a);
+                              return (
+                                <button key={`${m._id}-${i}`} onClick={() => setLightbox({ src: a.url, type: isVid ? 'video' : 'image', name: a.originalName })} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
+                                  {isVid ? <><video src={a.url} className="w-full h-full object-cover" muted /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <img src={a.thumbnailUrl || a.url} alt={a.originalName} className="w-full h-full object-cover" />}
+                                </button>
+                              );
+                            }))}
+                          </div>
                     )}
 
-                    {/* Files */}
                     {infoTab === 'files' && (
-                      <div className="py-2">
-                        {files.length === 0 ? <div className="flex flex-col items-center justify-center py-14 gap-3"><FileText className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} /><p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No files shared</p></div>
-                          : files.map((att, i) => (
-                            <a key={i} href={att.url} download={att.originalName} className="flex items-center gap-3 px-4 py-3 no-underline" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                              <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-5 w-5" style={{ color: 'var(--accent)' }} /></div>
-                              <div className="min-w-0 flex-1"><p className="truncate font-semibold" style={{ fontSize: 12, color: 'var(--text-primary)' }}>{att.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtSize(att.size)}</p></div>
-                              <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
-                            </a>))}
-                      </div>
+                      fileMsgs.length === 0
+                        ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No files yet</p>
+                        : <div className="space-y-1.5">
+                            {fileMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((a, i) => (
+                              <a key={`${m._id}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">
+                                <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
+                                <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtSize(a.size)}</p></div>
+                                <Download className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+                              </a>
+                            )))}
+                          </div>
                     )}
 
-                    {/* Pinned */}
                     {infoTab === 'pinned' && (
-                      <div className="py-2">
-                        {pinned.length === 0 ? <div className="flex flex-col items-center justify-center py-14 gap-3"><Pin className="h-10 w-10" style={{ color: 'var(--text-disabled)' }} /><p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No pinned messages</p></div>
-                          : pinned.map(msg => (
-                            <button key={msg._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${msg._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150); }} className="w-full text-left px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                              <div className="flex items-center justify-between gap-2 mb-1"><span className="font-semibold truncate" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{msg.sender.fullName}</span><button onClick={e => { e.stopPropagation(); handlePinToggle(msg._id); }} className="ss4-icon-btn h-5 w-5"><X className="h-3 w-3" /></button></div>
-                              <p className="line-clamp-3" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{msg.content || '📎 Attachment'}</p>
-                            </button>))}
-                      </div>
-                    )}
-
-                    {/* Danger zone */}
-                    {!isReportGroup && (
-                      <div className="p-4 mt-2" style={{ borderTop: '1px solid var(--border-1)' }}>
-                        <button onClick={() => setConfirmDelete(true)} className="w-full h-10 rounded-xl flex items-center justify-center gap-2 font-semibold" style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.25)' }}>
-                          <Trash2 className="h-4 w-4" />
-                          {canDeletePermanent ? 'Delete channel permanently' : activeConv.type === 'group' ? 'Leave & remove conversation' : 'Delete conversation'}
-                        </button>
-                      </div>
+                      pinnedMsgs.length === 0
+                        ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No pinned messages</p>
+                        : <div className="space-y-2">
+                            {pinnedMsgs.map(m => (
+                              <button key={m._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${m._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+                                <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender.fullName}</p>
+                                <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{m.content || '📎 Attachment'}</p>
+                              </button>
+                            ))}
+                          </div>
                     )}
                   </div>
-                </div>
 
-                {confirmDelete && (
-                  <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDelete(false)}>
-                    <div className="ss4-modal w-full max-w-xs p-5" onClick={e => e.stopPropagation()}>
-                      <p className="ss4-display font-bold mb-2" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{canDeletePermanent ? 'Delete channel?' : 'Delete conversation?'}</p>
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{canDeletePermanent ? 'This permanently removes the channel for everyone. This cannot be undone.' : 'This removes the conversation from your list.'}</p>
-                      <div className="flex gap-2 mt-4">
-                        <button onClick={() => setConfirmDelete(false)} className="flex-1 h-9 rounded-lg ss4-pill-btn font-semibold" style={{ fontSize: 13 }}>Cancel</button>
-                        <button onClick={() => deleteConversation(activeConv)} className="flex-1 h-9 rounded-lg font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
-                      </div>
+                  {/* Danger zone */}
+                  {(activeConv.type === 'direct' || isAdmin) && (
+                    <div className="px-4 pb-8 pt-2">
+                      <div className="mx-1 mb-3 ss4-divider" />
+                      <p className="ss4-section-label mb-2" style={{ color: 'var(--danger)' }}>Danger Zone</p>
+                      {!confirmDelete ? (
+                        <button onClick={() => setConfirmDelete(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13, border: '1px solid var(--danger-muted)' }}><Trash2 className="h-4 w-4" /> Delete conversation</button>
+                      ) : (
+                        <div className="rounded-xl p-3 space-y-2.5" style={{ background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.3)' }}>
+                          <p style={{ fontSize: 12, color: 'var(--text-primary)' }}>Delete this conversation for everyone? This cannot be undone.</p>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setConfirmDelete(false)} className="flex-1 h-8 rounded-lg ss4-pill-btn" style={{ fontSize: 12 }}>Cancel</button>
+                            <button onClick={() => deleteConversation(activeConv)} className="flex-1 h-8 rounded-lg font-semibold" style={{ fontSize: 12, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -2082,29 +2082,65 @@ export default function SupraSpacePage() {
       </div>
 
       {/* ── Modals ── */}
-      {showModal.open && <NewConvModal users={allUsers} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} />}
-      {videoCallConv && <VideoCallModal conv={videoCallConv} uid={uid} allUsers={allUsers} token={token} onClose={() => setVideoCallConv(null)} />}
-      {manageOpen && activeConv && <ManageMembersModal users={allUsers} existingIds={activeConv.members.map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />}
-      {themeOpen && activeConv && <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />}
+      {showModal.open && (
+        <NewConvModal users={allUsers.filter(u => u._id !== uid)} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} />
+      )}
+
+      {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
+      {call.incoming && !activeMeeting && (
+        <IncomingCallModal
+          call={call.incoming}
+          onJoin={() => handleJoinCall(call.incoming!.meetingId)}
+          onDismiss={() => call.setIncoming(null)}
+        />
+      )}
+      {activeMeeting && (
+        <CallExperience
+          session={activeMeeting}
+          displayName={me?.fullName || 'User'}
+          email={(me as any)?.email}
+          avatarUrl={me?.avatar}
+          onClose={handleLeaveCall}
+        />
+      )}
+
+      {manageOpen && activeConv && (
+        <ManageMembersModal users={allUsers} existingIds={activeConv.members.map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
+      )}
+      {themeOpen && activeConv && (
+        <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />
+      )}
       {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
       {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
-      {activeUsersOpen && <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} onMessage={handleDM} />}
-      {summarizeOpen && activeId && <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />}
+      {activeUsersOpen && (
+        <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} onMessage={handleDM} />
+      )}
+      {summarizeOpen && activeId && (
+        <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
+      )}
 
       {/* Member mini-card */}
       {memberCard && (() => {
-        const { member, pos } = memberCard;
-        const isOnline = presence[member._id] === 'online';
-        const existing = convos.find(c => c.type === 'direct' && c.members.some(m => m._id === member._id));
-        const cardX = Math.min(pos.x, window.innerWidth - 220);
-        const cardY = Math.min(pos.y, window.innerHeight - 200);
+        const m = memberCard.member;
+        const isOnline = presence[m._id] === 'online';
         return (
-          <div id="ss4-member-card" className="fixed z-150 rounded-2xl overflow-hidden" style={{ left: cardX, top: cardY, width: 200, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-            <div className="h-14 w-full" style={{ background: 'linear-gradient(135deg, rgba(91,124,246,0.6), rgba(120,80,220,0.4))' }} />
-            <div className="relative px-4 -mt-6 pb-3">
-              <div className={cn('h-12 w-12 rounded-full border-4 flex items-center justify-center overflow-hidden text-white font-bold', getAvaColor(member.fullName))} style={{ borderColor: 'var(--bg-elevated)', fontSize: 14 }}>{member.avatar ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : ini(member.fullName)}</div>
-              <div className="mt-2"><p className="font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{member.fullName}</p><p style={{ fontSize: 10, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)', marginTop: 2 }}>{isOnline ? '● Active now' : 'Offline'} {member.role ? `· ${member.role}` : ''}</p></div>
-              <button onClick={() => { setMemberCard(null); if (existing) { setActiveId(existing._id); setShowInfo(false); } else handleDM(member._id); }} className="ss4-send-btn w-full mt-3 h-8 flex items-center justify-center gap-1.5 font-semibold" style={{ fontSize: 12 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>
+          <div className="ss4-overlay fixed inset-0 z-100 flex items-center justify-center p-4" onClick={() => setMemberCard(null)}>
+            <div id="ss4-member-card" className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
+                <div className="relative">
+                  <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
+                    {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
+                  </div>
+                  {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full" />}
+                </div>
+                <div className="text-center">
+                  <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{m.fullName}</p>
+                  <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : 'Offline'}</p>
+                </div>
+                {m._id !== uid && (
+                  <button onClick={() => { setMemberCard(null); handleDM(m._id); }} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>
+                )}
+              </div>
             </div>
           </div>
         );

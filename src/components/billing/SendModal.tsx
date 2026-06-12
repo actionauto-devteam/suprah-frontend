@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+// NEW: real transfer call (Wise / PayPal) via the unified linked-account API
+import { linkedAccountApi } from "@/lib/linkedAccountApi";
 
 /*
  * Supra / Car-Dealership theme tokens
@@ -366,6 +368,8 @@ export function SendModal({
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [hoveredOpt, setHoveredOpt] = React.useState<string | null>(null);
+  // NEW: error surfaced on the confirm screen if the real transfer fails
+  const [confirmError, setConfirmError] = React.useState<string | null>(null);
 
   const [bankForm, setBankForm] = React.useState<BankForm>({
     bank: "",
@@ -412,6 +416,7 @@ export function SendModal({
       setSendType(null);
       setErrors({});
       setIsLoading(false);
+      setConfirmError(null); // NEW
       setBankForm({
         bank: "",
         accountNumber: "",
@@ -564,18 +569,60 @@ export function SendModal({
   };
 
   const handleProceed = () => {
-    if (validate()) setFlow("confirm");
+    if (validate()) {
+      setConfirmError(null);
+      setFlow("confirm");
+    }
   };
 
+  // ── REAL transfer (Wise / PayPal) ──────────────────────────────
   const handleConfirm = async () => {
     setIsLoading(true);
+    setConfirmError(null);
     try {
-      await getToken();
-      // TODO: await apiClient.post("/api/billing/transfer", payload, { headers: { Authorization: `Bearer ${token}` } });
-      await new Promise((r) => setTimeout(r, 1400)); // Simulated delay
+      // Resolve recipient + email from whichever flow the user chose
+      let recipient = getRecipientLabel();
+      let recipientEmail: string | undefined;
+      let reference: string | undefined;
+
+      if (sendType === "bank") {
+        recipient = bankForm.accountName || bankForm.bank;
+        reference = bankForm.reference || undefined;
+      } else if (sendType === "epay") {
+        recipient = epayForm.mobileNumber;
+        recipientEmail = epayForm.mobileNumber.includes("@")
+          ? epayForm.mobileNumber
+          : undefined;
+        reference = epayForm.reference || undefined;
+      } else if (sendType === "user") {
+        recipient = userForm.userId;
+        recipientEmail = userForm.userId.includes("@")
+          ? userForm.userId
+          : undefined;
+        reference = userForm.notes || undefined;
+      } else if (sendType === "upload-qr" || sendType === "scan-qr") {
+        recipient = qrForm.recipient;
+        recipientEmail = qrForm.recipient.includes("@")
+          ? qrForm.recipient
+          : undefined;
+        reference = qrForm.notes || undefined;
+      }
+
+      await linkedAccountApi.transfer({
+        amount: getAmount(),
+        currency: "USD",
+        recipient,
+        recipientEmail,
+        reference,
+      });
+
       setFlow("success");
     } catch (err: unknown) {
+      const msg =
+        (err as any)?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Transfer failed. Please try again.");
       console.error("[SendModal] transfer error:", err);
+      setConfirmError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -1660,6 +1707,7 @@ export function SendModal({
                 <ScreenHeader
                   title="Confirm Transfer"
                   onBack={() => {
+                    setConfirmError(null);
                     setFlow(sendType!);
                   }}
                 />
@@ -1757,6 +1805,26 @@ export function SendModal({
                       </div>
                     ))}
                   </div>
+
+                  {/* NEW: transfer error surfaced here instead of silent success */}
+                  {confirmError && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 13px",
+                        borderRadius: 8,
+                        background: "rgba(220,38,38,0.08)",
+                        border: "1px solid rgba(220,38,38,0.20)",
+                        fontSize: 12,
+                        color: "#FCA5A5",
+                        fontFamily: DISPLAY,
+                      }}
+                    >
+                      {confirmError}
+                    </div>
+                  )}
 
                   <SupraBtn onClick={handleConfirm} disabled={isLoading}>
                     {isLoading ? (
