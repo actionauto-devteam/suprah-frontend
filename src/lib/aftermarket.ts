@@ -12,7 +12,7 @@ export interface AftermarketAttachment {
 export interface AftermarketProduct {
   _id: string;
   name: string;
-  price: number;
+  price?: number;
   description: string;
   file?: AftermarketAttachment;
   media?: AftermarketAttachment;
