@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Calendar,
   CarFront,
   Pencil,
   Trash2,
@@ -68,7 +67,6 @@ interface VehiclesTabProps {
   onDelete: (vehicle: OwnedVehicle) => void;
   onLogService: (vehicle: OwnedVehicle) => void;
   onUpdateMileage: (vehicle: OwnedVehicle) => void;
-  onBookService: (vehicle: OwnedVehicle) => void;
 }
 
 export function VehiclesTab({
@@ -79,7 +77,6 @@ export function VehiclesTab({
   onDelete,
   onLogService,
   onUpdateMileage,
-  onBookService,
 }: VehiclesTabProps) {
   return (
     <div className="space-y-4">
@@ -243,7 +240,7 @@ export function VehiclesTab({
                   </div>
 
                   {/* Quick actions */}
-                  <div className="p-3 sm:p-5 grid grid-cols-3 sm:flex sm:flex-col gap-1.5 sm:gap-2">
+                  <div className="p-3 sm:p-5 grid grid-cols-2 sm:flex sm:flex-col gap-1.5 sm:gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -262,15 +259,6 @@ export function VehiclesTab({
                       <MapPin className="h-3.5 w-3.5 shrink-0" />
                       <span className="hidden xxs:inline sm:hidden">Find</span>
                       <span className="hidden sm:inline">Find Shop</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full h-9 rounded-xl font-semibold text-xs gap-1 sm:gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
-                      onClick={() => onBookService(vehicle)}
-                    >
-                      <Calendar className="h-3.5 w-3.5 shrink-0" />
-                      <span className="hidden xxs:inline">Book</span>
                     </Button>
                   </div>
                 </div>

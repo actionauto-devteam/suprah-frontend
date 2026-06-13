@@ -4,13 +4,13 @@ import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, CalendarPlus, List, Map as MapIcon } from "lucide-react"
+import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, List, Map as MapIcon } from "lucide-react"
 import mapboxgl from "mapbox-gl"
 
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { useTheme } from "@/context/ThemeContext"
-import { BookAppointmentModal } from "@/components/customer/BookAppointmentModal"
+
 import { MembershipCardInline } from "@/components/customer/MembershipCardInline"
 
 // ---------------------------------------------------------------------------
@@ -143,7 +143,6 @@ export default function ServiceNetworkPage() {
   const [geocodedCount, setGeocodedCount] = React.useState(0)
   const [mapNotice, setMapNotice] = React.useState<string | null>(null)
   const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(null)
-  const [bookingLocation, setBookingLocation] = React.useState<any | null>(null)
   const [mobileTab, setMobileTab] = React.useState<'list' | 'map'>('list')
 
   const mapRef = React.useRef<HTMLDivElement | null>(null)
@@ -520,17 +519,6 @@ export default function ServiceNetworkPage() {
 
                 <div className="mt-3 flex gap-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-8 text-xs bg-green-600/10 text-green-700 dark:text-green-400 border-green-600/30 hover:bg-green-600 hover:text-white"
-                    onClick={e => {
-                      e.stopPropagation()
-                      setBookingLocation(loc)
-                    }}
-                  >
-                    <CalendarPlus className="w-3 h-3 mr-1" /> Book
-                  </Button>
-                  <Button
                     variant={userCoords && i === 0 ? 'default' : 'outline'}
                     size="sm"
                     className={`flex-1 h-8 text-xs ${userCoords && i === 0 ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
@@ -651,11 +639,6 @@ export default function ServiceNetworkPage() {
         .sn-marker-wrap .mapboxgl-popup { pointer-events: auto; }
       `}</style>
 
-      <BookAppointmentModal
-        isOpen={bookingLocation !== null}
-        onOpenChange={open => { if (!open) setBookingLocation(null) }}
-        location={bookingLocation}
-      />
     </div>
   )
 }

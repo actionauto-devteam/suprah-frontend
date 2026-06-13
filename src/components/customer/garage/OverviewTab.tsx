@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
   CarFront,
-  Wrench,
   ShoppingBag,
   MessageCircle,
   Heart,
@@ -15,13 +14,11 @@ import {
   CreditCard,
   Bell,
   ChevronRight,
-  Plus,
   ArrowUpRight,
   Package,
   Clock,
   Star,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -144,19 +141,7 @@ export function OverviewTab() {
     : "";
   const userInitial = user?.firstName?.charAt(0)?.toUpperCase() || "M";
 
-  const handleFutureUpdate = () => toast.info("Book Service is coming soon — stay tuned!");
-
   const QUICK_ACTIONS = [
-    {
-      label: "Book Service",
-      sub: "Coming soon",
-      icon: Wrench,
-      action: handleFutureUpdate,
-      className: "border-primary/30 bg-primary/8 dark:bg-primary/12",
-      iconCls: "bg-primary/15 text-primary",
-      featured: true,
-      badge: "Soon",
-    },
     {
       label: "Refer & Earn",
       sub: "Invite & get rewarded",
@@ -537,24 +522,12 @@ export function OverviewTab() {
               </div>
               <p className="text-sm font-bold text-foreground">Appointments</p>
             </div>
-            <button
-              onClick={handleFutureUpdate}
-              className="text-[11px] text-primary font-semibold hover:underline flex items-center gap-0.5"
-            >
-              Book new <Plus className="h-3 w-3" />
-            </button>
           </div>
 
           {(upcomingAppointments as any[]).length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/40 bg-muted/20 p-5 text-center">
               <Calendar className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
               <p className="text-xs text-muted-foreground">No upcoming appointments</p>
-              <button
-                onClick={handleFutureUpdate}
-                className="mt-2 text-xs text-primary font-semibold hover:underline"
-              >
-                Schedule one now →
-              </button>
             </div>
           ) : (
             <div className="space-y-2">

@@ -15,15 +15,7 @@ import {
   History,
   Link2,
   X,
-  Wrench,
-  ClipboardList,
   ChevronRight,
-  RefreshCw,
-  AlertCircle,
-  PackageCheck,
-  ShieldCheck,
-  Clock,
-  Gavel,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,20 +29,16 @@ import {
   fetchTransferableDeals,
   fetchTransfers,
   transferVehicleToGarage,
-  fetchServiceQueue,
-  fetchCustomerVehiclesForService,
-  checkInVehicleForService,
-  advanceServiceStatus,
   InventoryVehicle,
   CustomerLite,
   TransferableDeal,
   GarageTransferRecord,
-  ActiveServiceRecord,
-  OwnedVehicleLite,
-  ServiceStatus,
 } from "@/lib/api/garageReview";
+<<<<<<< HEAD
 import { initializeCrmSocket } from "@/lib/crmSocket.client";
 import { AuctionApprovalTab } from "./AuctionApprovalTab";
+=======
+>>>>>>> feature/customers-fe
 
 function useDebounced<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = React.useState(value);
@@ -68,28 +56,15 @@ const statusTone = (status: string) => {
   return "bg-amber-500/90 text-white";
 };
 
-const SERVICE_STATUS_META: Record<ServiceStatus, { label: string; color: string; nextLabel: string; nextStatus: ServiceStatus | null }> = {
-  received:      { label: "Car Received",     color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",    nextLabel: "Start Servicing",        nextStatus: "in_service" },
-  in_service:    { label: "Being Serviced",   color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",        nextLabel: "Send to Quality Check",  nextStatus: "quality_check" },
-  quality_check: { label: "Quality Check",    color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400", nextLabel: "Mark Ready",             nextStatus: "ready" },
-  ready:         { label: "Ready for Pickup", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400", nextLabel: "Complete / Picked Up", nextStatus: "completed" },
-  completed:     { label: "Completed",        color: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",           nextLabel: "",                       nextStatus: null },
-};
-
-const SERVICE_TYPES = [
-  { value: "OIL_CHANGE", label: "Oil Change" },
-  { value: "TIRES",      label: "Tire Rotation / Replacement" },
-  { value: "BRAKES",     label: "Brake Service" },
-  { value: "INSPECTION", label: "Vehicle Inspection" },
-  { value: "OTHER",      label: "Other / General Service" },
-];
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function GarageReviewPage() {
   const router = useRouter();
   const [token, setToken] = React.useState("");
+<<<<<<< HEAD
   const [activeTab, setActiveTab] = React.useState<"transfer" | "service" | "auction">("transfer");
+=======
+>>>>>>> feature/customers-fe
 
   // ── auth gate ──
   React.useEffect(() => {
@@ -102,6 +77,7 @@ export default function GarageReviewPage() {
     <div className="min-h-full bg-background">
       <div className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
         {/* Header */}
+<<<<<<< HEAD
         <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-primary via-primary/70 to-primary/0" />
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-primary/8 to-transparent pointer-events-none" />
@@ -172,6 +148,26 @@ export default function GarageReviewPage() {
         {token && activeTab === "transfer" && <TransferTab token={token} />}
         {token && activeTab === "service" && <ServiceQueueTab token={token} />}
         {token && activeTab === "auction" && <AuctionApprovalTab token={token} />}
+=======
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/crm/dashboard")}
+            className="h-9 w-9 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 text-zinc-500" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-emerald-500" /> Garage Review
+            </h1>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              Vehicle transfer management
+            </p>
+          </div>
+        </div>
+
+        {token && <TransferTab token={token} />}
+>>>>>>> feature/customers-fe
       </div>
     </div>
   );
@@ -408,6 +404,7 @@ function TransferTab({ token }: { token: string }) {
   );
 }
 
+<<<<<<< HEAD
 // ─── SERVICE QUEUE TAB ────────────────────────────────────────────────────────
 
 function ServiceQueueTab({ token }: { token: string }) {
@@ -765,6 +762,8 @@ function ServiceQueueTab({ token }: { token: string }) {
 }
 
 // ─── Shared presentational helpers ───────────────────────────────────────────
+=======
+>>>>>>> feature/customers-fe
 
 function Thumb({ image, fallback }: { image: string | null; fallback: React.ReactNode }) {
   return (

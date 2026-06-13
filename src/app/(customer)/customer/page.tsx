@@ -8,20 +8,18 @@ import { CarFront, LayoutDashboard, ClipboardList, Tag, CreditCard } from "lucid
 import { Button } from "@/components/ui/button";
 import { MembershipCardModal } from "@/components/customer/MembershipCardModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { initializeSocket } from "@/lib/socket.client";
 import { fetchOwnedVehicles, deleteVehicle, OwnedVehicle } from "@/lib/api/vehicles";
 import { LogServiceModal } from "@/components/customer/LogServiceModal";
 import { UpdateMileageModal } from "@/components/customer/UpdateMileageModal";
 import { AddVehicleModal } from "@/components/customer/AddVehicleModal";
 import { EditVehicleModal } from "@/components/customer/EditVehicleModal";
-import { BookServiceModal } from "@/components/customer/BookServiceModal";
 import { OverviewTab } from "@/components/customer/garage/OverviewTab";
 import { VehiclesTab } from "@/components/customer/garage/VehiclesTab";
 import { ServiceLogTab } from "@/components/customer/garage/ServiceLogTab";
 import { AuctionListings } from "@/components/customer/auction/AuctionListings";
 import { useSearchParams } from "next/navigation";
 import { resolveImageUrl } from "@/lib/utils";
-import { useUser, useAuth } from "@/providers/AuthProvider";
+import { useUser } from "@/providers/AuthProvider";
 import { useProfileContext } from "@/context/ProfileContext";
 
 function getVehicleId(vehicle: OwnedVehicle | null | undefined) {
@@ -32,41 +30,11 @@ const TAB_VALUES = ["overview", "vehicles", "sell", "history"];
 
 function CustomerDashboardContent() {
   const { user } = useUser();
-  const { getToken } = useAuth();
   const { avatarUrl } = useProfileContext();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const initialTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : "overview";
-
-  // Initialize socket and listen for real-time appointment + service updates
-  React.useEffect(() => {
-    let cleanup: (() => void) | null = null;
-
-    getToken().then((token) => {
-      if (!token) return;
-      const socket = initializeSocket(token);
-
-      const onAppointmentStatusUpdated = () => {
-        queryClient.invalidateQueries({ queryKey: ['appointments', 'service'] });
-      };
-      const onServiceCheckedIn = (data: { vehicleId: string }) => {
-        if (data?.vehicleId) {
-          queryClient.invalidateQueries({ queryKey: ['activeService', data.vehicleId] });
-        }
-      };
-
-      socket.on('appointment:status_updated', onAppointmentStatusUpdated);
-      socket.on('service:checked_in', onServiceCheckedIn);
-
-      cleanup = () => {
-        socket.off('appointment:status_updated', onAppointmentStatusUpdated);
-        socket.off('service:checked_in', onServiceCheckedIn);
-      };
-    });
-
-    return () => { cleanup?.(); };
-  }, [getToken, queryClient]);
 
   const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
     queryKey: ["vehicles"],
@@ -78,8 +46,6 @@ function CustomerDashboardContent() {
   const [isUpdateMileageOpen, setIsUpdateMileageOpen] = React.useState(false);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = React.useState(false);
   const [isEditVehicleOpen, setIsEditVehicleOpen] = React.useState(false);
-  const [isBookServiceOpen, setIsBookServiceOpen] = React.useState(false);
-  const [serviceVehicle, setServiceVehicle] = React.useState<OwnedVehicle | null>(null);
   const [isMembershipCardOpen, setIsMembershipCardOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -100,8 +66,6 @@ function CustomerDashboardContent() {
   const handleLogService = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsLogServiceOpen(true); };
   const handleUpdateMileage = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsUpdateMileageOpen(true); };
   const handleEditVehicle = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsEditVehicleOpen(true); };
-  const handleBookService = (v: OwnedVehicle) => { setServiceVehicle(v); setIsBookServiceOpen(true); };
-
   const handleDeleteVehicle = async (v: OwnedVehicle) => {
     if (!window.confirm(`Remove your ${v.year} ${v.make} from your garage? This cannot be undone.`)) return;
     try {
@@ -253,7 +217,6 @@ function CustomerDashboardContent() {
             onDelete={handleDeleteVehicle}
             onLogService={handleLogService}
             onUpdateMileage={handleUpdateMileage}
-            onBookService={handleBookService}
           />
         </TabsContent>
 
@@ -271,7 +234,6 @@ function CustomerDashboardContent() {
       <UpdateMileageModal vehicle={selectedVehicle} isOpen={isUpdateMileageOpen} onOpenChange={setIsUpdateMileageOpen} />
       <AddVehicleModal isOpen={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen} />
       <EditVehicleModal vehicle={selectedVehicle} isOpen={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen} />
-      <BookServiceModal vehicle={serviceVehicle} vehicles={vehicles} isOpen={isBookServiceOpen} onOpenChange={setIsBookServiceOpen} />
       <MembershipCardModal isOpen={isMembershipCardOpen} onOpenChange={setIsMembershipCardOpen} />
     </div>
   );
