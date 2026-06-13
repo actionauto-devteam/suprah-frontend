@@ -479,7 +479,6 @@ export function OverviewTab() {
                   "group rounded-2xl border p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer",
                   "hover:shadow-md hover:-translate-y-0.5",
                   item.className,
-                  item.featured && "col-span-1",
                 )}
               >
                 <div className="flex items-start justify-between">
@@ -499,13 +498,7 @@ export function OverviewTab() {
                 <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/30 self-end -mt-1 group-hover:text-primary group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
               </div>
             );
-            return item.href ? (
-              <Link key={item.label} href={item.href}>{inner}</Link>
-            ) : (
-              <button key={item.label} onClick={item.action} className="text-left">
-                {inner}
-              </button>
-            );
+            return <Link key={item.label} href={item.href}>{inner}</Link>;
           })}
         </div>
       </div>
