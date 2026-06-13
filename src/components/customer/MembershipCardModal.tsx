@@ -6,15 +6,23 @@ import { useUser, useAuthActions } from "@/providers/AuthProvider"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Share2, Shield, Star, Car } from "lucide-react"
+import { Share2 } from "lucide-react"
 import { toast } from "sonner"
 
 function getMemberId(userId: string): string {
-  return `AA-${userId.slice(-8).toUpperCase()}`
+  const hex = userId.slice(-12).toUpperCase()
+  return `${hex.slice(0,4)} ${hex.slice(4,8)} ${hex.slice(8,12)}`
+}
+
+function getSinceYear(userId: string): string {
+  try {
+    const ts = parseInt(userId.substring(0, 8), 16) * 1000
+    return new Date(ts).getFullYear().toString()
+  } catch {
+    return new Date().getFullYear().toString()
+  }
 }
 
 interface MembershipCardModalProps {
@@ -28,19 +36,14 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
   if (!user || !rawUser) return null
 
-  const memberId = getMemberId(rawUser._id)
   const memberName =
-    `${user.firstName} ${user.lastName}`.trim() || user.fullName || rawUser.email
-
-  const qrPayload = JSON.stringify({
-    type: "aa-member",
-    id: rawUser._id,
-    mid: memberId,
-    name: memberName,
-  })
+    `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.fullName || rawUser.email
+  const memberId = getMemberId(rawUser._id)
+  const sinceYear = getSinceYear(rawUser._id)
+  const qrValue = `https://suprah.ai/member/${rawUser._id}?name=${encodeURIComponent(memberName)}&dealer=${encodeURIComponent("Action Auto")}`
 
   const handleShare = async () => {
-    const text = `${memberName} — Action Auto Member ID: ${memberId}`
+    const text = `${memberName} — Action Auto Member · ${memberId}`
     if (navigator.share) {
       try {
         await navigator.share({ title: "Action Auto Membership Card", text })
@@ -55,84 +58,130 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white">
-        <div className="relative overflow-hidden rounded-3xl bg-zinc-950 text-white shadow-2xl border border-zinc-800 p-5 sm:p-7">
-          {/* ambient glow */}
-          <div className="pointer-events-none absolute -top-20 -right-20 w-56 h-56 bg-green-500/20 rounded-full blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-20 w-56 h-56 bg-emerald-400/10 rounded-full blur-3xl" />
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white/60 [&>button]:top-3 [&>button]:left-3 [&>button]:right-auto [&>button]:z-50">
 
-          {/* card header */}
-          <DialogHeader className="relative z-10 mb-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-green-600 flex items-center justify-center shadow-lg">
-                  <Car className="w-5 h-5 text-white" />
-                </div>
-                <div className="leading-tight">
-                  <DialogTitle className="text-white text-sm font-extrabold tracking-widest uppercase">
-                    Action Auto
-                  </DialogTitle>
-                  <p className="text-zinc-400 text-[10px] uppercase tracking-widest">
-                    Jiffy Lube Partner
-                  </p>
-                </div>
+        {/* ── Card shell ── */}
+        <div
+          className="relative overflow-hidden rounded-2xl text-white select-none"
+          style={{
+            background: "linear-gradient(140deg, #060d10 0%, #0b1a14 40%, #071210 100%)",
+            boxShadow: "0 32px 64px -12px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.08)",
+            aspectRatio: "1.586",
+          }}
+        >
+          {/* Green top stripe */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500 to-emerald-500/0" />
+
+          {/* Dual green glows */}
+          <div className="pointer-events-none absolute -top-20 -right-20 w-56 h-56 rounded-full bg-emerald-500/25 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 w-48 h-48 rounded-full bg-green-400/15 blur-3xl" />
+
+          {/* Dot-matrix texture */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)",
+              backgroundSize: "10px 10px",
+              maskImage: "radial-gradient(ellipse 100% 100% at 50% 50%, black 40%, transparent 100%)",
+              WebkitMaskImage: "radial-gradient(ellipse 100% 100% at 50% 50%, black 40%, transparent 100%)",
+            }}
+          />
+
+          <div className="relative z-10 h-full flex flex-col justify-between px-5 py-4 sm:px-6 sm:py-5">
+
+            {/* ── Top row: branding + QR ── */}
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] font-black tracking-[0.28em] uppercase text-white leading-none">
+                  Action Auto
+                </p>
+                <p className="text-[8.5px] tracking-[0.22em] uppercase text-emerald-400/80 mt-1">
+                  Jiffy Lube Partner
+                </p>
               </div>
 
-              <div className="flex items-center gap-1 rounded-full bg-green-500/15 border border-green-500/30 px-2.5 py-1">
-                <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                <span className="text-green-400 text-[10px] font-bold uppercase tracking-wider">
-                  Gold
-                </span>
+              <div className="bg-white rounded-lg p-1.5 shadow-xl">
+                <QRCodeSVG
+                  value={qrValue}
+                  size={72}
+                  bgColor="#ffffff"
+                  fgColor="#0b1a14"
+                  level="M"
+                  marginSize={0}
+                />
               </div>
             </div>
-          </DialogHeader>
 
-          {/* QR code */}
-          <div className="relative z-10 flex justify-center mb-5">
-            <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-2xl">
-              <QRCodeSVG
-                value={qrPayload}
-                size={152}
-                bgColor="#ffffff"
-                fgColor="#18181b"
-                level="M"
-                includeMargin={false}
-              />
+            {/* ── EMV chip + Gold badge ── */}
+            <div className="flex items-center gap-3">
+              {/* EMV chip */}
+              <svg width="38" height="30" viewBox="0 0 38 30" fill="none">
+                <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.25)" strokeWidth="1"/>
+                <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipG)"/>
+                <line x1="13" y1="0.5" x2="13" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
+                <line x1="25" y1="0.5" x2="25" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
+                <line x1="0.5" y1="10" x2="37.5" y2="10" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
+                <line x1="0.5" y1="20" x2="37.5" y2="20" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
+                <rect x="13" y="10" width="12" height="10" rx="1.5" fill="rgba(0,0,0,0.2)" stroke="rgba(0,0,0,0.25)" strokeWidth="0.5"/>
+                <defs>
+                  <linearGradient id="chipG" x1="0" y1="0" x2="38" y2="30" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#c8a43c"/>
+                    <stop offset="0.45" stopColor="#f5d97a"/>
+                    <stop offset="1" stopColor="#b8902e"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              <div className="flex items-center gap-1 rounded-full bg-amber-400/10 border border-amber-400/30 px-2.5 py-1">
+                <span className="text-amber-400 text-[9px] font-bold uppercase tracking-wider">★ Gold Member</span>
+              </div>
             </div>
-          </div>
 
-          {/* member info */}
-          <div className="relative z-10 space-y-0.5 mb-5">
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-none break-all">
-              {memberName}
-            </h2>
-            <p className="font-mono text-green-400 text-sm font-bold tracking-[0.15em]">
-              {memberId}
-            </p>
-            <p className="text-zinc-500 text-xs pt-1 leading-relaxed">
-              Show this QR code at any Jiffy Lube partner location to verify
-              membership and redeem exclusive discounts.
-            </p>
-          </div>
+            {/* ── Cardholder info ── */}
+            <div className="flex items-end justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/40 mb-1">Cardholder</p>
+                <p className="text-sm font-bold tracking-[0.12em] uppercase text-white leading-none truncate max-w-[160px]">
+                  {memberName}
+                </p>
+                <p className="font-mono text-emerald-400/90 text-[11px] font-semibold tracking-[0.14em] mt-1">
+                  {memberId}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/40 mb-1">Since</p>
+                <p className="font-mono text-white/70 text-xs font-semibold">{sinceYear}</p>
+              </div>
+            </div>
 
-          {/* divider */}
-          <div className="relative z-10 flex items-center gap-3 mb-5">
-            <div className="flex-1 h-px bg-zinc-800" />
-            <Shield className="w-3.5 h-3.5 text-zinc-600" />
-            <div className="flex-1 h-px bg-zinc-800" />
-          </div>
-
-          {/* actions */}
-          <div className="relative z-10">
-            <Button
-              onClick={handleShare}
-              className="w-full bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl h-11 font-semibold transition-colors"
+            {/* ── Representative section ── */}
+            <div
+              className="rounded-xl px-3 py-2"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                borderTop: "1px solid rgba(255,255,255,0.07)",
+              }}
             >
-              <Share2 className="w-4 h-4 mr-2" />
-              Share Card
-            </Button>
+              <p className="text-[10px] font-bold text-white/85 leading-none">Justin Soha</p>
+              <p className="text-[8px] text-white/45 leading-snug mt-0.5">
+                VP of Operations &amp; Market Ops Manager · Lube Management Corp, Utah
+              </p>
+            </div>
+
           </div>
         </div>
+
+        {/* Share button */}
+        <div className="mt-3">
+          <Button
+            onClick={handleShare}
+            className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
+          >
+            <Share2 className="w-4 h-4 mr-2" />
+            Share Card
+          </Button>
+        </div>
+
       </DialogContent>
     </Dialog>
   )

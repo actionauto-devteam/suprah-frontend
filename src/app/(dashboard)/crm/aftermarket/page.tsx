@@ -44,7 +44,7 @@ interface Attachment {
 interface Product {
   _id: string;
   name: string;
-  price: number;
+  price?: number;
   description: string;
   file?: Attachment;
   media?: Attachment;
@@ -130,7 +130,7 @@ function ProductDetailModal({
               </p>
             </div>
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 shrink-0">
-              {currency(product.price)}
+              {product.price != null ? currency(product.price) : <span className="text-sm font-semibold text-zinc-400">No price set</span>}
             </span>
           </div>
 
@@ -195,7 +195,7 @@ function ProductFormModal({
   React.useEffect(() => {
     if (open) {
       setName(editing?.name ?? "");
-      setPrice(editing ? String(editing.price) : "");
+      setPrice(editing?.price != null ? String(editing.price) : "");
       setDescription(editing?.description ?? "");
       setFileObj(null);
       setMediaObj(null);
@@ -207,20 +207,22 @@ function ProductFormModal({
 
   const handleSubmit = async () => {
     setError("");
-    if (!name.trim() || !description.trim() || price === "") {
-      setError("Name, price, and description are required.");
+    if (!name.trim() || !description.trim()) {
+      setError("Name and description are required.");
       return;
     }
-    const priceNum = Number(price);
-    if (Number.isNaN(priceNum) || priceNum < 0) {
-      setError("Price must be a valid non-negative number.");
-      return;
+    if (price !== "") {
+      const priceNum = Number(price);
+      if (Number.isNaN(priceNum) || priceNum < 0) {
+        setError("Price must be a valid non-negative number.");
+        return;
+      }
     }
     setSaving(true);
     try {
       const fd = new FormData();
       fd.append("name", name.trim());
-      fd.append("price", String(priceNum));
+      fd.append("price", price);
       fd.append("description", description.trim());
       if (fileObj) fd.append("file", fileObj);
       if (mediaObj) fd.append("media", mediaObj);
@@ -260,7 +262,7 @@ function ProductFormModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Price (USD)</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Price (USD) — optional</label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
               <Input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" className="pl-9 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800" />
@@ -508,7 +510,9 @@ export default function FinanceLinePage() {
                     <h3 className="font-bold text-sm text-zinc-900 dark:text-white leading-tight line-clamp-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                       {p.name}
                     </h3>
-                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 shrink-0">{currency(p.price)}</span>
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                      {p.price != null ? currency(p.price) : <span className="text-zinc-400">—</span>}
+                    </span>
                   </div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 line-clamp-2 flex-1">{p.description}</p>
 

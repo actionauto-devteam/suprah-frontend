@@ -579,7 +579,7 @@ function InquiryModal({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-sm truncate">{product.name}</p>
-                <p className="text-xs text-emerald-600 font-bold">{currency(product.price)}</p>
+                {product.price != null && <p className="text-xs text-emerald-600 font-bold">{currency(product.price)}</p>}
                 <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                   ID: {product._id.slice(-8).toUpperCase()}
                 </p>
@@ -705,9 +705,13 @@ function ProductDetailModal({
                 )}
               </button>
             </div>
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 shrink-0">
-              {currency(product.price)}
-            </span>
+            {product.price != null ? (
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                {currency(product.price)}
+              </span>
+            ) : (
+              <span className="text-sm font-semibold text-zinc-400 shrink-0">Contact for pricing</span>
+            )}
           </div>
 
           <div>
@@ -734,12 +738,21 @@ function ProductDetailModal({
 
           {/* Action buttons */}
           <div className="flex flex-col gap-2 mt-auto">
-            <Button
-              onClick={() => { onAddToCart(product); onClose(); }}
-              className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
-            >
-              <ShoppingCart className="h-4 w-4" /> Add to Cart — {currency(product.price)}
-            </Button>
+            {product.price != null ? (
+              <Button
+                onClick={() => { onAddToCart(product); onClose(); }}
+                className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+              >
+                <ShoppingCart className="h-4 w-4" /> Add to Cart — {currency(product.price)}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => { onOpenInquiry(product); onClose(); }}
+                className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"
+              >
+                <MessageSquare className="h-4 w-4" /> Contact for Pricing
+              </Button>
+            )}
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -933,7 +946,7 @@ export default function AftermarketPage() {
   const removeLine = (id: string) => setCart((prev) => prev.filter((l) => l.product._id !== id));
 
   const cartCount = cart.reduce((s, l) => s + l.quantity, 0);
-  const cartTotal = cart.reduce((s, l) => s + l.product.price * l.quantity, 0);
+  const cartTotal = cart.reduce((s, l) => s + (l.product.price ?? 0) * l.quantity, 0);
 
   const handleConfirmOrder = async () => {
     if (cart.length === 0) return;
@@ -1024,7 +1037,7 @@ export default function AftermarketPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-white truncate">{line.product.name}</p>
-                            <p className="text-xs text-emerald-400 font-bold mt-0.5">{currency(line.product.price)}</p>
+                            {line.product.price != null && <p className="text-xs text-emerald-400 font-bold mt-0.5">{currency(line.product.price)}</p>}
                             <div className="flex items-center gap-2 mt-2">
                               <button onClick={() => updateQty(line.product._id, -1)} className="h-6 w-6 rounded-md border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"><Minus className="h-3 w-3 text-zinc-400" /></button>
                               <span className="text-sm font-bold text-white w-6 text-center tabular-nums">{line.quantity}</span>
@@ -1106,7 +1119,11 @@ export default function AftermarketPage() {
               <div className="p-5 flex flex-col flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-bold text-foreground leading-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{p.name}</h3>
-                  <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">{currency(p.price)}</span>
+                  {p.price != null ? (
+                    <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">{currency(p.price)}</span>
+                  ) : (
+                    <span className="text-xs font-semibold text-zinc-400 shrink-0">Contact for pricing</span>
+                  )}
                 </div>
 
                 {/* ── Rating chip on card ── */}
@@ -1122,12 +1139,21 @@ export default function AftermarketPage() {
 
                 {/* Card action buttons */}
                 <div className="mt-4 flex flex-col gap-1.5">
-                  <Button
-                    onClick={(e) => { e.stopPropagation(); addToCart(p); setCartOpen(true); }}
-                    className="w-full rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 font-semibold gap-2"
-                  >
-                    <Plus className="h-4 w-4" /> Add to Cart
-                  </Button>
+                  {p.price != null ? (
+                    <Button
+                      onClick={(e) => { e.stopPropagation(); addToCart(p); setCartOpen(true); }}
+                      className="w-full rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 font-semibold gap-2"
+                    >
+                      <Plus className="h-4 w-4" /> Add to Cart
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={(e) => { e.stopPropagation(); openInquiry(p); }}
+                      className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-2"
+                    >
+                      <MessageSquare className="h-4 w-4" /> Contact for Pricing
+                    </Button>
+                  )}
                   <div className="flex gap-1.5">
                     <button
                       onClick={(e) => { e.stopPropagation(); openReviews(p); }}
