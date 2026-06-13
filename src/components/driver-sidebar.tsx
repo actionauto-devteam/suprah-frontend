@@ -39,6 +39,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User as UserIcon, Settings as SettingsIcon } from "lucide-react";
 import { useOrg } from "@/hooks/useOrg";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const navItems = [
   { title: "Dashboard", url: "/driver", icon: LayoutDashboard },
@@ -61,6 +71,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { organization } = useOrg();
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   return (
     <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
@@ -174,7 +185,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut()}>
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}>
                   <LogOut className="mr-2 size-4" />
                   Log out
                 </DropdownMenuItem>
@@ -184,6 +195,23 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will be signed out of your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => signOut()}>
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }

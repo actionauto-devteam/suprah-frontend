@@ -37,6 +37,16 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Menu items.
 const data = {
@@ -69,6 +79,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
     const pathname = usePathname()
     const { signOut } = useAuthActions()
     const { user } = useUser()
+    const [logoutOpen, setLogoutOpen] = React.useState(false)
 
     return (
         <Sidebar variant="inset" {...props}>
@@ -131,7 +142,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                                 side="top"
                                 className="w-[--radix-popper-anchor-width]"
                             >
-                                <DropdownMenuItem onClick={() => signOut()}>
+                                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true) }}>
                                     <LogOut className="mr-2 h-4 w-4" />
                                     Sign out
                                 </DropdownMenuItem>
@@ -140,6 +151,23 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>
+
+            <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You will be signed out of your account.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={() => signOut()}>
+                            Sign out
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Sidebar>
     )
 }

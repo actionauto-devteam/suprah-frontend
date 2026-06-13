@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CarFront, LayoutDashboard, ClipboardList, Tag, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -178,43 +179,65 @@ function CustomerDashboardContent() {
             </div>
           </div>
 
-          <TabsList className="flex w-full sm:w-fit gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1 h-auto dark:bg-zinc-900/60 dark:border-zinc-800">
-            <TabsTrigger
-              value="overview"
-              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
-            >
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="vehicles"
-              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
-            >
-              <CarFront className="h-3.5 w-3.5" />
-              <span>
-                <span className="hidden xs:inline">My </span>Vehicles
-              </span>
-              {vehicles && vehicles.length > 0 && (
-                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 text-primary text-[9px] font-black px-1">
-                  {vehicles.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="sell"
-              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
-            >
-              <Tag className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Auction </span>Listing
-            </TabsTrigger>
-            <TabsTrigger
-              value="history"
-              className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
-            >
-              <ClipboardList className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Service </span>Log
-            </TabsTrigger>
-          </TabsList>
+          <TooltipProvider>
+            <TabsList className="flex w-full sm:w-fit gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1 h-auto dark:bg-zinc-900/60 dark:border-zinc-800">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger
+                    value="overview"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">Overview</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Snapshot of your garage activity</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger
+                    value="vehicles"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                  >
+                    <CarFront className="h-3.5 w-3.5" />
+                    <span>
+                      <span className="hidden xs:inline">My </span>Vehicles
+                    </span>
+                    {vehicles && vehicles.length > 0 && (
+                      <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 text-primary text-[9px] font-black px-1">
+                        {vehicles.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Vehicles registered to your account</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger
+                    value="sell"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                  >
+                    <Tag className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">Auction </span>Listing
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>List your car for sale</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger
+                    value="history"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    <span className="hidden xs:inline">Service </span>Log
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>History of services on your vehicles</TooltipContent>
+              </Tooltip>
+            </TabsList>
+          </TooltipProvider>
         </div>
 
         <TabsContent value="overview" className="mt-0">

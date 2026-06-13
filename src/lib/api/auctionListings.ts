@@ -71,6 +71,8 @@ export interface AuctionListing {
   soldAt?: string;
   rejectionReason?: string;
   reviewedAt?: string;
+  reviewerNotes?: string;
+  convertedVehicleId?: string;
   statusHistory: ListingStatusEvent[];
   createdAt: string;
   updatedAt: string;
@@ -242,7 +244,7 @@ export const deleteListingPhoto = async (
   return response.data.data;
 };
 
-export const getListingTitle = (listing: AuctionListing) => {
+export const getListingTitle = (listing: Pick<AuctionListing, "year" | "make" | "model">) => {
   const parts = [listing.year, listing.make, listing.model].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : "Untitled Listing";
 };

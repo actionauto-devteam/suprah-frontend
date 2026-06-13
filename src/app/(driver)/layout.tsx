@@ -31,6 +31,16 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { driverNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { resolveImageUrl } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function DriverLayoutContent({
   children,
@@ -42,6 +52,7 @@ function DriverLayoutContent({
   const { isLoaded, isDriver, userRole } = useOrg();
   const router = useRouter();
   const [guardPassed, setGuardPassed] = React.useState(false);
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   React.useEffect(() => {
     const checkApproval = async () => {
@@ -158,7 +169,7 @@ function DriverLayoutContent({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-gray-200 dark:bg-white/5" />
                 <DropdownMenuItem
-                  onClick={() => signOut()}
+                  onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}
                   className="p-3 text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer font-medium"
                 >
                   Sign Out
@@ -172,6 +183,23 @@ function DriverLayoutContent({
         </main>
         <MobileBottomNav items={driverNav} />
       </SidebarInset>
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will be signed out of your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => signOut()}>
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

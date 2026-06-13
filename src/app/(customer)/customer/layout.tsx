@@ -32,6 +32,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { resolveImageUrl } from "@/lib/utils";
 import { Settings, User, LogOut } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
@@ -40,6 +50,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const { userRole, isLoaded } = useOrg();
   const { theme } = useTheme();
   const router = useRouter();
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!isLoaded) return;
@@ -146,7 +157,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => signOut()}
+                    onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}
                     className="text-red-500 cursor-pointer gap-2 rounded-xl mx-1 mb-1"
                   >
                     <LogOut className="h-4 w-4" />
@@ -163,6 +174,23 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
           <MobileBottomNav items={customerNav} />
         </SidebarInset>
       </div>
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will be signed out of your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => signOut()}>
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

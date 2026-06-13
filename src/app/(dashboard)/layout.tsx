@@ -36,6 +36,16 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { dealershipNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function DashboardLayoutContent({
   children,
@@ -53,6 +63,7 @@ function DashboardLayoutContent({
   const pathname = usePathname();
   const { isImpersonating } = adminStore.useStore();
   const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
   const [hasResolvedOrgAccess, setHasResolvedOrgAccess] = React.useState(false);
@@ -231,7 +242,7 @@ function DashboardLayoutContent({
                       Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => signOut()}>
+                    <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}>
                       Log out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -250,6 +261,23 @@ function DashboardLayoutContent({
         </main>
         <MobileBottomNav items={dealershipNav} />
       </SidebarInset>
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will be signed out of your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => signOut()}>
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }
