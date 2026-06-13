@@ -149,7 +149,7 @@ function CustomerDashboardContent() {
                 <TooltipTrigger asChild>
                   <TabsTrigger
                     value="overview"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
                   >
                     <LayoutDashboard className="h-3.5 w-3.5" />
                     <span className="hidden xs:inline">Overview</span>
@@ -161,7 +161,7 @@ function CustomerDashboardContent() {
                 <TooltipTrigger asChild>
                   <TabsTrigger
                     value="vehicles"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
                   >
                     <CarFront className="h-3.5 w-3.5" />
                     <span>
@@ -180,7 +180,7 @@ function CustomerDashboardContent() {
                 <TooltipTrigger asChild>
                   <TabsTrigger
                     value="sell"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
                   >
                     <Tag className="h-3.5 w-3.5" />
                     <span className="hidden xs:inline">Auction </span>Listing
@@ -192,7 +192,7 @@ function CustomerDashboardContent() {
                 <TooltipTrigger asChild>
                   <TabsTrigger
                     value="history"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
                   >
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span className="hidden xs:inline">Service </span>Log
