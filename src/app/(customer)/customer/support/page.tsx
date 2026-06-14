@@ -24,10 +24,19 @@ import {
   ChevronDown,
   FileText,
   Download,
+  Headset,
+  Plus,
+  History,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
+import { initializeSocket } from "@/lib/socket.client";
+import type { Socket } from "socket.io-client";
+import {
+  AttachmentLightbox,
+  type LightboxAttachment,
+} from "@/components/chat/AttachmentLightbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,17 +65,37 @@ interface ConcernMessage {
   };
 }
 
-interface ConcernConversation {
+interface ConcernCase {
   _id: string;
-  name: string;
-  metadata: {
-    type: string;
-    customerUserId: string;
-    resolved?: boolean;
-  };
+  caseNumber: number;
+  resolved: boolean;
+  resolvedAt: string | null;
+  createdAt: string;
+  lastMessage: string;
+  lastMessageAt: string | null;
+  unreadCount: number;
 }
 
 type Mode = "page" | "float";
+
+const GROUP_GAP_MS = 3 * 60 * 1000;
+
+function isOwnMessage(message: ConcernMessage) {
+  return (
+    message.metadata?.isCustomerMessage === true ||
+    message.sender?.isCustomer === true
+  );
+}
+
+function sameGroup(a: ConcernMessage | undefined, b: ConcernMessage | undefined) {
+  if (!a || !b) return false;
+  if (isOwnMessage(a) !== isOwnMessage(b)) return false;
+  return (
+    Math.abs(
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ) < GROUP_GAP_MS
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -166,30 +195,53 @@ function fmtDateKey(d: string) {
 
 function MessageBubble({
   message,
-  currentUserId,
+  groupStart,
+  groupEnd,
+  ownName,
+  ownAvatar,
+  onOpenMedia,
 }: {
   message: ConcernMessage;
-  currentUserId: string;
+  groupStart: boolean;
+  groupEnd: boolean;
+  ownName: string;
+  ownAvatar?: string;
+  onOpenMedia: (attachment: LightboxAttachment) => void;
 }) {
-  const isOwn =
-    message.metadata?.isCustomerMessage === true ||
-    message.sender?.isCustomer === true ||
-    message.sender?._id === currentUserId;
+  const isOwn = isOwnMessage(message);
 
-  const senderName = isOwn
-    ? "You"
-    : message.metadata?.crmUserName || message.sender?.fullName || "Support";
+  const senderName = isOwn ? ownName : "Suprah Support";
   const displayContent = formatSupportMessage(message.content || "");
 
   return (
-    <div className={cn("flex gap-2.5 px-4 py-1", isOwn && "flex-row-reverse")}>
-      <div
-        className={cn(
-          "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white",
-          isOwn ? "bg-emerald-600" : "bg-violet-600",
-        )}
-      >
-        {ini(senderName)}
+    <div
+      className={cn(
+        "flex gap-2.5 px-4",
+        isOwn && "flex-row-reverse",
+        groupStart ? "pt-2" : "pt-0.5",
+      )}
+    >
+      <div className="h-7.5 w-7.5 shrink-0">
+        {groupStart &&
+          (isOwn ? (
+            ownAvatar ? (
+              <img
+                src={ownAvatar}
+                alt={ownName}
+                className="h-7.5 w-7.5 rounded-xl object-cover shadow-sm"
+              />
+            ) : (
+              <div className="h-7.5 w-7.5 rounded-xl flex items-center justify-center text-[10px] font-bold text-white shadow-sm bg-linear-to-br from-emerald-500 to-emerald-700">
+                {ini(ownName)}
+              </div>
+            )
+          ) : (
+            <img
+              src="/favicon.png"
+              alt="Suprah Support"
+              className="h-7.5 w-7.5 rounded-xl object-cover shadow-sm border border-border/40"
+            />
+          ))}
       </div>
 
       <div
@@ -198,21 +250,18 @@ function MessageBubble({
           isOwn && "items-end",
         )}
       >
-        <span className="text-[11px] font-medium text-muted-foreground px-0.5">
-          {senderName}
-          {!isOwn && message.metadata?.crmUserRole && (
-            <span className="ml-1 opacity-60">
-              · {message.metadata.crmUserRole}
-            </span>
-          )}
-        </span>
+        {groupStart && (
+          <span className="text-[11px] font-medium text-muted-foreground px-0.5">
+            {senderName}
+          </span>
+        )}
 
         {displayContent ? (
           <div
             className={cn(
-              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap",
+              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap shadow-sm",
               isOwn
-                ? "bg-emerald-600 text-white rounded-tr-sm"
+                ? "bg-linear-to-br from-emerald-500 to-emerald-700 text-white rounded-tr-sm shadow-emerald-900/10"
                 : "bg-muted text-foreground rounded-tl-sm border border-border/40",
             )}
           >
@@ -220,39 +269,63 @@ function MessageBubble({
           </div>
         ) : null}
 
-        {/* Image attachments */}
+        {/* Image / video attachments */}
         {message.attachments
-          ?.filter((a) => a.mimeType?.startsWith("image/"))
-          .map((att, i) => (
-            <a
-              key={i}
-              href={att.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-xl overflow-hidden"
-              style={{ maxWidth: 220 }}
-            >
-              <img
-                src={att.url}
-                alt={att.originalName}
-                className="rounded-xl object-cover hover:opacity-90 transition-opacity"
-                style={{ maxHeight: 180, maxWidth: 220, display: "block" }}
-              />
-            </a>
-          ))}
+          ?.filter(
+            (a) =>
+              a.mimeType?.startsWith("image/") ||
+              a.mimeType?.startsWith("video/"),
+          )
+          .map((att, i) => {
+            const isVideo = att.mimeType?.startsWith("video/");
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() =>
+                  onOpenMedia({
+                    src: att.url,
+                    type: isVideo ? "video" : "image",
+                    name: att.originalName,
+                  })
+                }
+                className="block rounded-xl overflow-hidden"
+                style={{ maxWidth: 220 }}
+              >
+                {isVideo ? (
+                  <video
+                    src={att.url}
+                    className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                    style={{ maxHeight: 180, maxWidth: 220, display: "block" }}
+                  />
+                ) : (
+                  <img
+                    src={att.url}
+                    alt={att.originalName}
+                    className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                    style={{ maxHeight: 180, maxWidth: 220, display: "block" }}
+                  />
+                )}
+              </button>
+            );
+          })}
 
         {/* File attachments */}
         {message.attachments
-          ?.filter((a) => !a.mimeType?.startsWith("image/"))
+          ?.filter(
+            (a) =>
+              !a.mimeType?.startsWith("image/") &&
+              !a.mimeType?.startsWith("video/"),
+          )
           .map((att, i) => (
             <a
               key={i}
               href={att.url}
               download={att.originalName}
               className={cn(
-                "flex items-center gap-2.5 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80",
+                "flex items-center gap-2.5 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80 shadow-sm",
                 isOwn
-                  ? "bg-emerald-700/50 border border-white/10"
+                  ? "bg-white/15 border border-white/15"
                   : "bg-muted border border-border/40",
               )}
               style={{ maxWidth: 220 }}
@@ -268,22 +341,24 @@ function MessageBubble({
             </a>
           ))}
 
-        <div
-          className={cn(
-            "flex items-center gap-1 px-0.5",
-            isOwn && "flex-row-reverse",
-          )}
-        >
-          <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-            {fmtTime(message.createdAt)}
-          </span>
-          {isOwn &&
-            (message.readBy?.length > 0 ? (
-              <CheckCheck className="h-3 w-3 text-emerald-500" />
-            ) : (
-              <Check className="h-3 w-3 text-muted-foreground/40" />
-            ))}
-        </div>
+        {groupEnd && (
+          <div
+            className={cn(
+              "flex items-center gap-1 px-0.5",
+              isOwn && "flex-row-reverse",
+            )}
+          >
+            <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+              {fmtTime(message.createdAt)}
+            </span>
+            {isOwn &&
+              (message.readBy?.length > 0 ? (
+                <CheckCheck className="h-3 w-3 text-emerald-500" />
+              ) : (
+                <Check className="h-3 w-3 text-muted-foreground/40" />
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -342,35 +417,174 @@ function PendingFileItem({
 
 // ─── Chat header ──────────────────────────────────────────────────────────────
 
+function CaseHistoryPanel({
+  cases,
+  activeCaseId,
+  onSelect,
+  onClose,
+}: {
+  cases: ConcernCase[];
+  activeCaseId: string | null;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute right-3 top-full z-20 mt-1.5 w-72 max-h-80 overflow-y-auto rounded-2xl border border-border/50 bg-card shadow-xl">
+      <div className="px-3 py-2 border-b border-border/40">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+          Your conversations
+        </p>
+      </div>
+      {cases.length === 0 ? (
+        <p className="px-3 py-4 text-xs text-muted-foreground">
+          No conversations yet.
+        </p>
+      ) : (
+        cases.map((c) => (
+          <button
+            key={c._id}
+            onClick={() => {
+              onSelect(c._id);
+              onClose();
+            }}
+            className={cn(
+              "flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted/60",
+              c._id === activeCaseId && "bg-violet-500/8",
+            )}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold">
+                  Case #{c.caseNumber}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                    c.resolved
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
+                  {c.resolved ? "Resolved" : "Open"}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {c.lastMessage || "No messages yet"}
+              </p>
+              <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                {c.lastMessageAt ? fmtDate(c.lastMessageAt) : fmtDate(c.createdAt)}
+              </p>
+            </div>
+            {c.unreadCount > 0 && (
+              <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[10px] font-bold flex items-center justify-center px-1 shrink-0 mt-0.5">
+                {c.unreadCount > 9 ? "9+" : c.unreadCount}
+              </span>
+            )}
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
 function ChatHeader({
   onClose,
   isResolved,
+  caseNumber,
+  cases,
+  activeCaseId,
+  onSelectCase,
+  onNewCase,
+  canStartNew,
+  creatingCase,
 }: {
   onClose?: () => void;
   isResolved: boolean;
+  caseNumber: number | null;
+  cases: ConcernCase[];
+  activeCaseId: string | null;
+  onSelectCase: (id: string) => void;
+  onNewCase: () => void;
+  canStartNew: boolean;
+  creatingCase: boolean;
 }) {
+  const [showHistory, setShowHistory] = React.useState(false);
+  const totalUnread = cases.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card shrink-0">
-      <div className="h-8 w-8 rounded-full bg-emerald-600/10 border border-emerald-600/20 flex items-center justify-center">
-        <MessageCircle className="h-4 w-4 text-emerald-600" />
+    <div className="relative flex items-center gap-3 px-4 py-3.5 border-b border-border/50 bg-card/80 backdrop-blur-sm shrink-0">
+      <div className="relative h-10 w-10 shrink-0 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/40">
+        <MessageCircle className="h-4.5 w-4.5 text-white" />
+        <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30" />
+        {!isResolved && (
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-card" />
+          </span>
+        )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm leading-none">Support Chat</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
+        <div className="flex items-center gap-1.5">
+          <p className="font-bold text-sm leading-none tracking-tight">Support Chat</p>
+          {caseNumber != null && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+              Case #{caseNumber}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-1">
           {isResolved ? (
-            <span className="text-emerald-600">✓ Resolved</span>
+            <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
+              <CheckCheck className="h-3 w-3" /> Resolved
+            </span>
           ) : (
             "Our team typically replies within a few hours"
           )}
         </p>
       </div>
+
+      <button
+        onClick={onNewCase}
+        disabled={!canStartNew || creatingCase}
+        title="Start a new conversation"
+        className="h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        {creatingCase ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Plus className="h-4 w-4" />
+        )}
+      </button>
+
+      <button
+        onClick={() => setShowHistory((v) => !v)}
+        title="Conversation history"
+        className="relative h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <History className="h-4 w-4" />
+        {totalUnread > 0 && (
+          <span className="absolute -top-1 -right-1 h-3.5 min-w-3.5 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center px-0.5">
+            {totalUnread > 9 ? "9+" : totalUnread}
+          </span>
+        )}
+      </button>
+
       {onClose && (
         <button
           onClick={onClose}
-          className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
+          className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted transition-colors"
         >
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
+      )}
+
+      {showHistory && (
+        <CaseHistoryPanel
+          cases={cases}
+          activeCaseId={activeCaseId}
+          onSelect={onSelectCase}
+          onClose={() => setShowHistory(false)}
+        />
       )}
     </div>
   );
@@ -386,8 +600,9 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   const { user } = useUser();
 
   const [open, setOpen] = React.useState(mode === "page");
-  const [conversation, setConversation] =
-    React.useState<ConcernConversation | null>(null);
+  const [cases, setCases] = React.useState<ConcernCase[]>([]);
+  const [activeCaseId, setActiveCaseId] = React.useState<string | null>(null);
+  const [creatingCase, setCreatingCase] = React.useState(false);
   const [messages, setMessages] = React.useState<ConcernMessage[]>([]);
   const [input, setInput] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -400,6 +615,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
     text: string;
   } | null>(null);
   const [unread, setUnread] = React.useState(0);
+  const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
 
   const endRef = React.useRef<HTMLDivElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -417,27 +633,22 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
     return { Authorization: `Bearer ${token}` };
   }, [getToken]);
 
-  // ── Init conversation ──────────────────────────────────────────────────────
+  // ── Fetch cases ─────────────────────────────────────────────────────────────
 
-  const init = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const headers = await authHeaders();
-      const r = await apiClient.get("/api/customer-concern/init", { headers });
-      setConversation(r.data?.data || null);
-    } catch {
-      showNotice("error", "Could not connect to support. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  const fetchCases = React.useCallback(async () => {
+    const headers = await authHeaders();
+    const r = await apiClient.get("/api/customer-concern/cases", { headers });
+    const data: ConcernCase[] = r.data?.data || [];
+    setCases(data);
+    return data;
   }, [authHeaders]);
 
   // ── Fetch messages ─────────────────────────────────────────────────────────
 
   const fetchMessages = React.useCallback(
-    async (before?: string) => {
+    async (conversationId: string, before?: string) => {
       const headers = await authHeaders();
-      const params: any = { limit: 40 };
+      const params: any = { limit: 40, conversationId };
       if (before) params.before = before;
       const r = await apiClient.get("/api/customer-concern/messages", {
         headers,
@@ -455,17 +666,69 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
     [authHeaders],
   );
 
-  // ── Open: init + load messages ─────────────────────────────────────────────
+  // ── Load a specific case ────────────────────────────────────────────────────
+
+  const loadCase = React.useCallback(
+    async (caseId: string) => {
+      setActiveCaseId(caseId);
+      setMessages([]);
+      setHasMore(false);
+      setLoading(true);
+      try {
+        await fetchMessages(caseId);
+        setCases((p) =>
+          p.map((c) => (c._id === caseId ? { ...c, unreadCount: 0 } : c)),
+        );
+      } catch {
+        showNotice("error", "Could not load this conversation.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchMessages],
+  );
+
+  // ── Start a new conversation ────────────────────────────────────────────────
+
+  const handleNewCase = async () => {
+    if (creatingCase) return;
+    setCreatingCase(true);
+    try {
+      const headers = await authHeaders();
+      const r = await apiClient.post(
+        "/api/customer-concern/cases",
+        {},
+        { headers },
+      );
+      const newCase = r.data?.data;
+      if (newCase?._id) {
+        await fetchCases();
+        await loadCase(newCase._id);
+      }
+    } catch {
+      showNotice(
+        "error",
+        "Could not start a new conversation. Please try again.",
+      );
+    } finally {
+      setCreatingCase(false);
+    }
+  };
+
+  // ── Open: load cases + most recent case's messages ─────────────────────────
 
   React.useEffect(() => {
     if (!open) return;
-    if (!conversation) {
-      init()
-        .then(() => fetchMessages())
-        .catch(() => {});
-    } else {
-      fetchMessages().catch(() => {});
-    }
+    setLoading(true);
+    fetchCases()
+      .then((data) => {
+        if (data.length > 0) return loadCase(data[0]._id);
+        setLoading(false);
+      })
+      .catch(() => {
+        showNotice("error", "Could not connect to support. Please try again.");
+        setLoading(false);
+      });
     setUnread(0);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -478,45 +741,68 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   // ── Real-time: listen for CRM replies ─────────────────────────────────────
 
   React.useEffect(() => {
-    const candidates = ["__socket", "_socket", "socket", "__io"];
-    let socket: any = null;
-    for (const key of candidates) {
-      if ((window as any)[key]?.on) {
-        socket = (window as any)[key];
-        break;
-      }
-    }
-    if (!socket) return;
+    let active = true;
+    let socket: Socket | null = null;
 
     const onReply = ({
+      conversationId,
       message,
     }: {
       conversationId: string;
       message: ConcernMessage;
     }) => {
-      setMessages((p) =>
-        p.find((m) => m._id === message._id) ? p : [...p, message],
-      );
-      if (!open) setUnread((n) => n + 1);
+      if (conversationId === activeCaseId) {
+        setMessages((p) =>
+          p.find((m) => m._id === message._id) ? p : [...p, message],
+        );
+        if (!open) setUnread((n) => n + 1);
+      } else {
+        setCases((p) =>
+          p.map((c) =>
+            c._id === conversationId
+              ? {
+                  ...c,
+                  unreadCount: (c.unreadCount || 0) + 1,
+                  lastMessage: message.content,
+                  lastMessageAt: message.createdAt,
+                }
+              : c,
+          ),
+        );
+        if (!open) setUnread((n) => n + 1);
+      }
     };
-    const onNew = ({ message }: any) => {
-      setMessages((p) =>
-        p.find((m) => m._id === message._id) ? p : [...p, message],
+    const onResolved = ({
+      conversationId,
+      resolved,
+    }: {
+      conversationId: string;
+      resolved: boolean;
+    }) => {
+      setCases((p) =>
+        p.map((c) => (c._id === conversationId ? { ...c, resolved } : c)),
       );
     };
 
-    socket.on("concern:reply", onReply);
-    socket.on("message:new", onNew);
+    (async () => {
+      const token = await getToken();
+      if (!token || !active) return;
+      socket = initializeSocket(token);
+      socket.on("concern:reply", onReply);
+      socket.on("concern:resolved", onResolved);
+    })();
+
     return () => {
-      socket.off("concern:reply", onReply);
-      socket.off("message:new", onNew);
+      active = false;
+      socket?.off("concern:reply", onReply);
+      socket?.off("concern:resolved", onResolved);
     };
-  }, [open]);
+  }, [open, getToken, activeCaseId]);
 
   // ── Send message ───────────────────────────────────────────────────────────
 
   const handleSend = async () => {
-    if (sending) return;
+    if (sending || !activeCaseId) return;
     const hasText = Boolean(input.trim());
     const hasFiles = pendingFiles.length > 0;
     if (!hasText && !hasFiles) return;
@@ -532,6 +818,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         const fd = new FormData();
         pendingFiles.forEach((f) => fd.append("files", f));
         if (content) fd.append("content", content);
+        fd.append("conversationId", activeCaseId);
         const r = await apiClient.post("/api/customer-concern/upload", fd, {
           headers: { ...headers, "Content-Type": "multipart/form-data" },
         });
@@ -544,7 +831,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
       } else {
         const r = await apiClient.post(
           "/api/customer-concern/messages",
-          { content },
+          { content, conversationId: activeCaseId },
           { headers },
         );
         if (r.data?.data) {
@@ -553,6 +840,13 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
           );
         }
       }
+      setCases((p) =>
+        p.map((c) =>
+          c._id === activeCaseId
+            ? { ...c, lastMessage: content, lastMessageAt: new Date().toISOString() }
+            : c,
+        ),
+      );
     } catch {
       setInput(content);
       showNotice("error", "Failed to send message. Please try again.");
@@ -578,14 +872,17 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   };
 
   const loadMore = async () => {
-    if (loadingMore || !hasMore || messages.length === 0) return;
+    if (loadingMore || !hasMore || messages.length === 0 || !activeCaseId) return;
     setLoadingMore(true);
-    await fetchMessages(messages[0].createdAt).catch(() => {});
+    await fetchMessages(activeCaseId, messages[0].createdAt).catch(() => {});
     setLoadingMore(false);
   };
 
-  const isResolved = !!conversation?.metadata?.resolved;
-  const currentUserId = user?.id || (user as any)?._id?.toString() || "";
+  const activeCase = cases.find((c) => c._id === activeCaseId) || null;
+  const isResolved = !!activeCase?.resolved;
+  const canStartNew = !activeCaseId || messages.length > 0;
+  const ownName = user?.fullName || "You";
+  const ownAvatar = user?.imageUrl;
 
   // ── Chat body ──────────────────────────────────────────────────────────────
 
@@ -613,14 +910,40 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         <div className="flex justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : messages.length === 0 ? (
+      ) : !activeCaseId ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
-          <div className="h-12 w-12 rounded-2xl bg-emerald-600/10 border border-emerald-600/20 flex items-center justify-center">
-            <MessageCircle className="h-5 w-5 text-emerald-600" />
+          <div className="relative h-14 w-14 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/40">
+            <MessageCircle className="h-6 w-6 text-white" />
+            <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30" />
           </div>
           <div>
-            <p className="font-semibold text-sm">How can we help?</p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="font-bold text-sm">How can we help?</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-60">
+              Start a conversation and our support team will get back to you.
+            </p>
+          </div>
+          <button
+            onClick={handleNewCase}
+            disabled={creatingCase}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-emerald-900/20 hover:from-emerald-600 hover:to-emerald-800 transition-all disabled:opacity-60"
+          >
+            {creatingCase ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            Start a conversation
+          </button>
+        </div>
+      ) : messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
+          <div className="relative h-14 w-14 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/40">
+            <MessageCircle className="h-6 w-6 text-white" />
+            <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30" />
+          </div>
+          <div>
+            <p className="font-bold text-sm">How can we help?</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-60">
               Send us a message and our support team will get back to you.
             </p>
           </div>
@@ -628,12 +951,24 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
       ) : (
         messages.map((msg, i) => {
           const prev = messages[i - 1];
+          const next = messages[i + 1];
           const showDate =
             !prev || fmtDateKey(msg.createdAt) !== fmtDateKey(prev.createdAt);
+          const nextShowsDate =
+            !next || fmtDateKey(msg.createdAt) !== fmtDateKey(next.createdAt);
+          const groupStart = showDate || !sameGroup(prev, msg);
+          const groupEnd = nextShowsDate || !sameGroup(msg, next);
           return (
             <React.Fragment key={msg._id}>
               {showDate && <DateSep date={msg.createdAt} />}
-              <MessageBubble message={msg} currentUserId={currentUserId} />
+              <MessageBubble
+                message={msg}
+                groupStart={groupStart}
+                groupEnd={groupEnd}
+                ownName={ownName}
+                ownAvatar={ownAvatar}
+                onOpenMedia={setLightbox}
+              />
             </React.Fragment>
           );
         })
@@ -644,11 +979,23 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
   // ── Input bar ──────────────────────────────────────────────────────────────
 
-  const inputBar = isResolved ? (
-    <div className="shrink-0 px-4 py-3 border-t border-border/50 text-center">
+  const inputBar = !activeCaseId ? null : isResolved ? (
+    <div className="shrink-0 px-4 py-3 border-t border-border/50 text-center space-y-2">
       <p className="text-xs text-muted-foreground">
-        This concern has been resolved. Contact support to reopen.
+        This conversation is resolved.
       </p>
+      <button
+        onClick={handleNewCase}
+        disabled={creatingCase}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-emerald-900/20 hover:from-emerald-600 hover:to-emerald-800 transition-all disabled:opacity-60"
+      >
+        {creatingCase ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Plus className="h-3.5 w-3.5" />
+        )}
+        Start a new conversation
+      </button>
     </div>
   ) : (
     <div className="shrink-0 px-3 pb-3 pt-2 space-y-1.5 border-t border-border/50">
@@ -677,7 +1024,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
           {notice.text}
         </p>
       )}
-      <div className="flex items-end gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+      <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -695,7 +1042,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => fileRef.current?.click()}
-            className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="h-7 w-7 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Attach file"
           >
             <Paperclip className="h-4 w-4" />
@@ -715,9 +1062,9 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             onClick={handleSend}
             disabled={(!input.trim() && pendingFiles.length === 0) || sending}
             className={cn(
-              "h-7 w-7 rounded-lg flex items-center justify-center transition-all",
+              "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
               input.trim() || pendingFiles.length > 0
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                ? "bg-linear-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white shadow-sm shadow-emerald-900/20"
                 : "bg-muted text-muted-foreground/40 cursor-not-allowed",
             )}
             title="Send"
@@ -764,11 +1111,19 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             <ChatHeader
               onClose={() => setOpen(false)}
               isResolved={isResolved}
+              caseNumber={activeCase?.caseNumber ?? null}
+              cases={cases}
+              activeCaseId={activeCaseId}
+              onSelectCase={loadCase}
+              onNewCase={handleNewCase}
+              canStartNew={canStartNew}
+              creatingCase={creatingCase}
             />
             {chatBody}
             {inputBar}
           </div>
         )}
+        <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
       </>
     );
   }
@@ -777,9 +1132,19 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
   return (
     <div className="flex flex-col h-full min-h-0 rounded-2xl border border-border/50 bg-background overflow-hidden">
-      <ChatHeader isResolved={isResolved} />
+      <ChatHeader
+        isResolved={isResolved}
+        caseNumber={activeCase?.caseNumber ?? null}
+        cases={cases}
+        activeCaseId={activeCaseId}
+        onSelectCase={loadCase}
+        onNewCase={handleNewCase}
+        canStartNew={canStartNew}
+        creatingCase={creatingCase}
+      />
       {chatBody}
       {inputBar}
+      <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
@@ -788,15 +1153,62 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
 export default function CustomerSupportPage() {
   return (
-    <div className="space-y-4 h-[calc(100dvh-8rem)] flex flex-col">
-      <div className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Support</h1>
-        <p className="text-muted-foreground mt-1">
-          Send a message to our team — we&apos;ll get back to you as soon as
-          possible.
-        </p>
+    <div className="relative flex h-[calc(100dvh-8rem)] flex-col gap-4">
+      {/* Decorative background blobs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -top-48 -right-32 h-100 w-100 rounded-full bg-violet-500/5 dark:bg-violet-500/4 blur-3xl" />
+        <div className="absolute bottom-0 -left-32 h-80 w-80 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
       </div>
-      <div className="flex-1 min-h-0">
+
+      {/* ─── Hero header ─────────────────────────────────────────────── */}
+      <div className="relative z-10 shrink-0 overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-violet-500 via-violet-400 to-violet-500/0" />
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-violet-500/8 to-transparent pointer-events-none" />
+        <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-violet-400/6 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-20 h-32 w-32 rounded-full bg-violet-500/4 blur-2xl pointer-events-none" />
+
+        <div
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-[72px] sm:text-[96px] font-black text-violet-500/5 uppercase leading-none select-none pointer-events-none tracking-tight"
+          aria-hidden
+        >
+          HELP
+        </div>
+
+        <div className="relative px-5 py-5 sm:px-7 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <Headset className="h-3 w-3 text-violet-500 shrink-0" />
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-violet-500/80">
+                  Help Center
+                </span>
+              </div>
+
+              <div>
+                <h1 className="text-3xl xs:text-4xl sm:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
+                  Live <span className="text-violet-500">Support</span>
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                  Send us a message — we&apos;ll get back to you as soon as possible.
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/8 px-3 py-1.5 text-xs font-bold text-violet-600 dark:text-violet-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-500" />
+                </span>
+                Team online
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Chat ─────────────────────────────────────────────────────── */}
+      <div className="relative z-10 flex-1 min-h-0">
         <CustomerConcernChat mode="page" />
       </div>
     </div>

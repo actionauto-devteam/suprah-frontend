@@ -15,10 +15,9 @@ import {
   FileText,
   Download,
   RefreshCw,
-  Users,
+  History,
   ChevronRight,
   X,
-  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +26,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
+import { useCrmToken } from "@/hooks/useCrmToken";
+import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { format, isToday, isYesterday } from "date-fns";
+import {
+  AttachmentLightbox,
+  type LightboxAttachment,
+} from "@/components/chat/AttachmentLightbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +45,7 @@ interface ConcernConversation {
     customerEmail?: string;
     resolved?: boolean;
     resolvedAt?: string;
+    caseNumber?: number | null;
     type: "customer_concern";
   };
   lastMessageAt?: string;
@@ -81,6 +87,16 @@ interface ConcernMessage {
   };
 }
 
+interface RelatedCase {
+  _id: string;
+  caseNumber?: number | null;
+  resolved?: boolean;
+  resolvedAt?: string | null;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  createdAt: string;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtRelative(d?: string) {
@@ -105,6 +121,19 @@ function fmtSize(b: number) {
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const GROUP_GAP_MS = 3 * 60 * 1000;
+
+function senderKey(m: ConcernMessage) {
+  const isCustomer =
+    m.metadata?.isCustomerMessage === true || m.sender?.isCustomer === true;
+  return isCustomer ? "customer" : m.sender?._id || "crm";
+}
+
+function sameGroup(a?: ConcernMessage, b?: ConcernMessage) {
+  if (!a || !b) return false;
+  if (senderKey(a) !== senderKey(b)) return false;
+  return Math.abs(new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) < GROUP_GAP_MS;
+}
 
 // ─── Date separator ───────────────────────────────────────────────────────────
 
@@ -113,8 +142,8 @@ function DateSep({ date }: { date: string }) {
   const label = isToday(d)
     ? "Today"
     : isYesterday(d)
-    ? "Yesterday"
-    : format(d, "EEEE, MMM d, yyyy");
+      ? "Yesterday"
+      : format(d, "EEEE, MMM d, yyyy");
   return (
     <div className="flex items-center gap-3 my-5 px-5">
       <div className="flex-1 h-px bg-border/40" />
@@ -135,9 +164,15 @@ function fmtDate(d: string) {
 function ConcernBubble({
   message,
   crmUserId,
+  groupStart,
+  groupEnd,
+  onOpenMedia,
 }: {
   message: ConcernMessage;
   crmUserId: string;
+  groupStart: boolean;
+  groupEnd: boolean;
+  onOpenMedia: (att: LightboxAttachment) => void;
 }) {
   const isCustomer =
     message.metadata?.isCustomerMessage === true ||
@@ -156,18 +191,27 @@ function ConcernBubble({
   return (
     <div
       className={cn(
-        "flex gap-2.5 px-5 py-1",
+        "flex gap-2.5 px-5",
+        groupStart ? "pt-2" : "pt-0.5",
         isOwn && !isCustomer && "flex-row-reverse"
       )}
     >
       {/* Avatar */}
-      <div
-        className={cn(
-          "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white",
-          isCustomer ? "bg-blue-600" : isOwn ? "bg-violet-600" : "bg-teal-600"
+      <div className="h-7 w-7 shrink-0">
+        {groupStart && (
+          <div
+            className={cn(
+              "h-7 w-7 rounded-full flex items-center justify-center mt-0.5 text-[10px] font-bold text-white shadow-sm",
+              isCustomer
+                ? "bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-900/20"
+                : isOwn
+                  ? "bg-linear-to-br from-violet-500 to-violet-700 shadow-violet-900/20"
+                  : "bg-linear-to-br from-teal-500 to-teal-700 shadow-teal-900/20"
+            )}
+          >
+            {ini(senderName)}
+          </div>
         )}
-      >
-        {ini(senderName)}
       </div>
 
       <div
@@ -177,32 +221,34 @@ function ConcernBubble({
         )}
       >
         {/* Sender label */}
-        <div className="flex items-center gap-1.5 px-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            {senderName}
-          </span>
-          {isCustomer && (
-            <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-blue-500/30 text-blue-600 bg-blue-500/5">
-              Customer
-            </Badge>
-          )}
-          {roleTag && (
-            <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
-              {roleTag}
-            </Badge>
-          )}
-        </div>
+        {groupStart && (
+          <div className="flex items-center gap-1.5 px-0.5">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              {senderName}
+            </span>
+            {isCustomer && (
+              <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-blue-500/30 text-blue-600 bg-blue-500/5">
+                Customer
+              </Badge>
+            )}
+            {roleTag && (
+              <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
+                {roleTag}
+              </Badge>
+            )}
+          </div>
+        )}
 
         {/* Text bubble */}
         {message.content && (
           <div
             className={cn(
-              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words",
+              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word",
               isCustomer
                 ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-foreground rounded-tl-sm"
                 : isOwn
-                ? "bg-violet-600 text-white rounded-tr-sm"
-                : "bg-muted border border-border/40 text-foreground rounded-tl-sm"
+                  ? "bg-linear-to-br from-violet-500 to-violet-700 text-white rounded-tr-sm shadow-sm shadow-violet-900/10"
+                  : "bg-muted border border-border/40 text-foreground rounded-tl-sm"
             )}
           >
             {message.content}
@@ -213,26 +259,37 @@ function ConcernBubble({
         {message.attachments?.length > 0 && (
           <div className="flex flex-col gap-1.5 mt-0.5">
             {message.attachments
-              .filter((a) => a.mimeType?.startsWith("image/"))
-              .map((att, i) => (
-                <a
-                  key={i}
-                  href={att.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl overflow-hidden"
-                  style={{ maxWidth: 240 }}
-                >
-                  <img
-                    src={att.url}
-                    alt={att.originalName}
-                    className="rounded-xl object-cover hover:opacity-90 transition-opacity"
-                    style={{ maxHeight: 200, maxWidth: 240, display: "block" }}
-                  />
-                </a>
-              ))}
+              .filter((a) => a.mimeType?.startsWith("image/") || a.mimeType?.startsWith("video/"))
+              .map((att, i) => {
+                const isVideo = att.mimeType?.startsWith("video/");
+                return (
+                  <button
+                    key={i}
+                    onClick={() =>
+                      onOpenMedia({ src: att.url, type: isVideo ? "video" : "image", name: att.originalName })
+                    }
+                    className="block rounded-xl overflow-hidden"
+                    style={{ maxWidth: 240 }}
+                  >
+                    {isVideo ? (
+                      <video
+                        src={att.url}
+                        className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                        style={{ maxHeight: 200, maxWidth: 240, display: "block" }}
+                      />
+                    ) : (
+                      <img
+                        src={att.url}
+                        alt={att.originalName}
+                        className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                        style={{ maxHeight: 200, maxWidth: 240, display: "block" }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             {message.attachments
-              .filter((a) => !a.mimeType?.startsWith("image/"))
+              .filter((a) => !a.mimeType?.startsWith("image/") && !a.mimeType?.startsWith("video/"))
               .map((att, i) => (
                 <a
                   key={i}
@@ -258,22 +315,24 @@ function ConcernBubble({
         )}
 
         {/* Meta */}
-        <div
-          className={cn(
-            "flex items-center gap-1 px-0.5",
-            (isOwn && !isCustomer) && "flex-row-reverse"
-          )}
-        >
-          <span className="text-[10px] text-muted-foreground/50 tabular-nums">
-            {fmtFull(message.createdAt)}
-          </span>
-          {!isCustomer && isOwn &&
-            (message.readBy?.length > 1 ? (
-              <CheckCheck className="h-3 w-3 text-violet-500" />
-            ) : (
-              <Check className="h-3 w-3 text-muted-foreground/40" />
-            ))}
-        </div>
+        {groupEnd && (
+          <div
+            className={cn(
+              "flex items-center gap-1 px-0.5",
+              (isOwn && !isCustomer) && "flex-row-reverse"
+            )}
+          >
+            <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+              {fmtFull(message.createdAt)}
+            </span>
+            {!isCustomer && isOwn &&
+              (message.readBy?.length > 1 ? (
+                <CheckCheck className="h-3 w-3 text-violet-500" />
+              ) : (
+                <Check className="h-3 w-3 text-muted-foreground/40" />
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -305,20 +364,22 @@ function ConversationItem({
       className={cn(
         "w-full flex items-start gap-3 px-3 py-3 text-left rounded-xl transition-all relative",
         isActive
-          ? "bg-primary/8 ring-1 ring-primary/20"
+          ? "bg-violet-500/8 ring-1 ring-violet-500/20"
           : "hover:bg-muted/60"
       )}
     >
       {/* Active indicator */}
       {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-primary rounded-r" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-linear-to-b from-violet-500 to-violet-700 rounded-r" />
       )}
 
       {/* Avatar */}
       <div
         className={cn(
-          "h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5",
-          isResolved ? "bg-muted-foreground/40" : "bg-blue-600"
+          "h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5 shadow-sm",
+          isResolved
+            ? "bg-muted-foreground/40"
+            : "bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-900/20"
         )}
       >
         {ini(conv.metadata?.customerName || conv.name)}
@@ -326,17 +387,24 @@ function ConversationItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-1">
-          <p
-            className={cn(
-              "text-sm font-semibold truncate flex-1",
-              conv.unreadCount > 0 && "font-bold"
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <p
+              className={cn(
+                "text-sm font-semibold truncate",
+                conv.unreadCount > 0 && "font-bold"
+              )}
+            >
+              {conv.metadata?.customerName || conv.name}
+            </p>
+            {conv.metadata?.caseNumber != null && (
+              <span className="shrink-0 text-[10px] font-medium text-muted-foreground/70 tabular-nums">
+                #{conv.metadata.caseNumber}
+              </span>
             )}
-          >
-            {conv.metadata?.customerName || conv.name}
-          </p>
+          </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {conv.unreadCount > 0 && (
-              <span className="h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
+              <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[9px] font-bold flex items-center justify-center px-1">
                 {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
               </span>
             )}
@@ -410,6 +478,8 @@ export function CustomersConcernTab() {
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [notice, setNotice] = React.useState<{ kind: "error" | "info"; text: string } | null>(null);
   const [resolvingId, setResolvingId] = React.useState<string | null>(null);
+  const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
+  const [showHistory, setShowHistory] = React.useState(false);
 
   const endRef = React.useRef<HTMLDivElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -463,6 +533,25 @@ export function CustomersConcernTab() {
 
   const activeConv = conversations.find((c) => c._id === activeId) || null;
 
+  // ── Related cases for the active customer (history) ──
+  const { data: relatedCases = [] } = useQuery({
+    queryKey: ["concern-related-cases", activeId],
+    queryFn: async () => {
+      const h = await getHeaders();
+      const r = await apiClient.get(
+        `/api/customer-concern/crm/conversations/${activeId}/related`,
+        h
+      );
+      return (r.data?.data || []) as RelatedCase[];
+    },
+    enabled: !!activeId,
+    staleTime: 15_000,
+  });
+
+  React.useEffect(() => {
+    setShowHistory(false);
+  }, [activeId]);
+
   // ── Fetch messages for active conversation ──
   const fetchMessages = React.useCallback(
     async (id: string, before?: string) => {
@@ -497,9 +586,11 @@ export function CustomersConcernTab() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // ── Real-time socket ──
+  // ── Real-time socket (SupraSpace, authenticated via crm_token) ──
+  const crmToken = useCrmToken();
+  const { socket } = useSupraSpaceSocket(crmToken);
+
   React.useEffect(() => {
-    const socket = (window as any).__socket || (window as any)._socket;
     if (!socket) return;
 
     const onMsg = ({ conversationId, message }: any) => {
@@ -509,21 +600,17 @@ export function CustomersConcernTab() {
       queryClient.invalidateQueries({ queryKey: ["concern-conversations"] });
     };
     const onNew = () => queryClient.invalidateQueries({ queryKey: ["concern-conversations"] });
-    const onResolved = ({ conversationId, resolved }: any) => {
-      queryClient.invalidateQueries({ queryKey: ["concern-conversations"] });
-    };
+    const onResolved = () => queryClient.invalidateQueries({ queryKey: ["concern-conversations"] });
 
     socket.on("message:new", onMsg);
     socket.on("concern:new", onNew);
-    socket.on("concern:message", onNew);
     socket.on("concern:resolved", onResolved);
     return () => {
       socket.off("message:new", onMsg);
       socket.off("concern:new", onNew);
-      socket.off("concern:message", onNew);
       socket.off("concern:resolved", onResolved);
     };
-  }, [activeId, queryClient]);
+  }, [socket, activeId, queryClient]);
 
   // ── Send reply ──
   const handleSend = async () => {
@@ -535,18 +622,28 @@ export function CustomersConcernTab() {
     const h = await getHeaders();
     setSending(true);
     const content = reply.trim();
+    const files = pendingFiles;
     setReply("");
     setPendingFiles([]);
 
     try {
-      const r = await apiClient.post(
-        `/api/customer-concern/crm/conversations/${activeId}/reply`,
-        {
-          content,
-          ...(hasFiles ? { attachments: [] } : {}), // Files handled separately below
-        },
-        h
-      );
+      let r;
+      if (hasFiles) {
+        const formData = new FormData();
+        if (content) formData.append("content", content);
+        files.forEach((f) => formData.append("files", f));
+        r = await apiClient.post(
+          `/api/customer-concern/crm/conversations/${activeId}/reply-upload`,
+          formData,
+          h
+        );
+      } else {
+        r = await apiClient.post(
+          `/api/customer-concern/crm/conversations/${activeId}/reply`,
+          { content },
+          h
+        );
+      }
       if (r.data?.data) {
         setMessages((p) =>
           p.find((m) => m._id === r.data.data._id) ? p : [...p, r.data.data]
@@ -555,6 +652,7 @@ export function CustomersConcernTab() {
       queryClient.invalidateQueries({ queryKey: ["concern-conversations"] });
     } catch {
       setReply(content);
+      setPendingFiles(files);
       showNotice("error", "Failed to send reply. Please try again.");
     } finally {
       setSending(false);
@@ -594,11 +692,10 @@ export function CustomersConcernTab() {
   };
 
   // ── CRM user id (for own messages) ──
-  // Adjust to your actual CRM auth context
   const crmUserId = React.useMemo(() => {
-    try { return JSON.parse(atob(localStorage.getItem("crm_token")?.split(".")[1] || ""))?.sub || ""; }
+    try { return JSON.parse(atob(localStorage.getItem("crm_token")?.split(".")[1] || ""))?.id || ""; }
     catch { return ""; }
-  }, []);
+  }, [crmToken]);
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -612,12 +709,17 @@ export function CustomersConcernTab() {
         )}
       >
         {/* List header */}
-        <div className="p-3 space-y-2.5 border-b border-border/50 shrink-0">
-          <div className="flex items-center justify-between">
+        <div className="relative overflow-hidden p-3 space-y-2.5 border-b border-border/50 shrink-0">
+          <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-violet-500/8 blur-2xl pointer-events-none" />
+          <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">Customer's Concerns</p>
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-violet-500 to-violet-700 shadow-sm shadow-violet-900/20 dark:shadow-violet-900/40">
+                <MessageCircle className="h-3.5 w-3.5 text-white" />
+                <div className="absolute inset-0 rounded-xl ring-1 ring-violet-400/30" />
+              </div>
+              <p className="font-bold text-sm tracking-tight">Concerns</p>
               {totalUnread > 0 && (
-                <Badge className="h-4.5 min-w-4.5 rounded-full text-[9px] font-bold px-1.5">
+                <Badge className="h-4.5 min-w-4.5 rounded-full text-[9px] font-bold px-1.5 bg-violet-600 hover:bg-violet-600">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </Badge>
               )}
@@ -626,7 +728,7 @@ export function CustomersConcernTab() {
               variant="ghost"
               size="sm"
               onClick={() => refetchConvs()}
-              className="h-7 w-7 p-0"
+              className="h-7 w-7 p-0 rounded-lg hover:bg-violet-500/10 hover:text-violet-600"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
@@ -639,7 +741,7 @@ export function CustomersConcernTab() {
               placeholder="Search customers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/40 border-border/40"
+              className="pl-8 h-8 text-xs bg-muted/40 border-border/40 rounded-xl focus-visible:ring-violet-500/30 focus-visible:border-violet-500/40"
             />
           </div>
 
@@ -650,9 +752,9 @@ export function CustomersConcernTab() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "flex-1 h-6 rounded-lg text-[11px] font-medium transition-all capitalize",
+                  "flex-1 h-6 rounded-lg text-[11px] font-semibold transition-all capitalize",
                   filter === f
-                    ? "bg-primary text-primary-foreground shadow-sm"
+                    ? "bg-linear-to-br from-violet-500 to-violet-700 text-white shadow-sm shadow-violet-900/20"
                     : "bg-muted/50 text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -673,8 +775,8 @@ export function CustomersConcernTab() {
             </div>
           ) : filteredConvs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
-              <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
-                <MessageCircle className="h-5 w-5 text-muted-foreground" />
+              <div className="relative h-12 w-12 rounded-2xl bg-violet-500/10 flex items-center justify-center ring-1 ring-violet-500/15">
+                <MessageCircle className="h-5 w-5 text-violet-400" />
               </div>
               <p className="text-xs text-muted-foreground">
                 {search ? "No results found" : filter === "resolved" ? "No resolved concerns yet" : "No open concerns"}
@@ -697,8 +799,8 @@ export function CustomersConcernTab() {
       <div className={cn("flex flex-col flex-1 min-w-0 overflow-hidden", !activeId && "hidden md:flex")}>
         {!activeId ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-            <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
-              <MessageCircle className="h-6 w-6 text-muted-foreground/50" />
+            <div className="relative h-16 w-16 rounded-2xl bg-linear-to-br from-violet-500/15 to-violet-700/10 flex items-center justify-center ring-1 ring-violet-500/15">
+              <MessageCircle className="h-7 w-7 text-violet-400" />
             </div>
             <div>
               <p className="font-semibold text-sm">Select a concern</p>
@@ -710,7 +812,8 @@ export function CustomersConcernTab() {
         ) : (
           <>
             {/* Thread header */}
-            <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card">
+            <div className="relative shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card">
+              <div className="absolute -top-10 right-10 h-28 w-28 rounded-full bg-violet-500/6 blur-2xl pointer-events-none -z-10" />
               <button
                 onClick={() => setActiveId(null)}
                 className="md:hidden h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted"
@@ -719,7 +822,7 @@ export function CustomersConcernTab() {
               </button>
 
               <div
-                className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0"
+                className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm shadow-blue-900/20"
               >
                 {ini(activeConv?.metadata?.customerName || "")}
               </div>
@@ -729,6 +832,11 @@ export function CustomersConcernTab() {
                   <p className="font-semibold text-sm truncate">
                     {activeConv?.metadata?.customerName || "Customer"}
                   </p>
+                  {activeConv?.metadata?.caseNumber != null && (
+                    <span className="text-[11px] font-medium text-muted-foreground/70 tabular-nums shrink-0">
+                      Case #{activeConv.metadata.caseNumber}
+                    </span>
+                  )}
                   {activeConv?.metadata?.resolved && (
                     <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-emerald-500/30 text-emerald-600 bg-emerald-500/5 shrink-0">
                       Resolved
@@ -771,7 +879,7 @@ export function CustomersConcernTab() {
                         size="sm"
                         onClick={() => handleResolve(true)}
                         disabled={resolvingId === activeId}
-                        className="h-7 px-2.5 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                        className="h-7 px-2.5 text-xs gap-1.5 rounded-lg bg-linear-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 shadow-sm shadow-emerald-900/20"
                       >
                         {resolvingId === activeId ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -785,21 +893,73 @@ export function CustomersConcernTab() {
                   </Tooltip>
                 )}
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="text-xs">
-                      <p className="font-medium mb-1">Handling team</p>
-                      {activeConv?.members.map((m) => (
-                        <p key={m._id} className="text-muted-foreground">{m.fullName}</p>
-                      ))}
+                <div className="relative">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowHistory((v) => !v)}
+                        className={cn(
+                          "h-7 px-2 text-xs gap-1.5 relative",
+                          showHistory && "bg-muted"
+                        )}
+                      >
+                        <History className="h-3.5 w-3.5 text-muted-foreground" />
+                        History
+                        {relatedCases.length > 0 && (
+                          <span className="h-4 min-w-4 rounded-full bg-muted-foreground/20 text-[9px] font-bold flex items-center justify-center px-1">
+                            {relatedCases.length}
+                          </span>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>This customer's other cases</TooltipContent>
+                  </Tooltip>
+
+                  {showHistory && (
+                    <div className="absolute right-0 top-full mt-1.5 w-72 max-h-80 overflow-y-auto rounded-xl border border-border/50 bg-popover shadow-lg z-20 p-1.5">
+                      {relatedCases.length === 0 ? (
+                        <p className="text-xs text-muted-foreground px-2.5 py-4 text-center">
+                          No other cases for this customer.
+                        </p>
+                      ) : (
+                        relatedCases.map((c) => (
+                          <button
+                            key={c._id}
+                            onClick={() => { setActiveId(c._id); setShowHistory(false); }}
+                            className="w-full flex flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted/60 transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold">
+                                Case #{c.caseNumber ?? "—"}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "h-4 px-1.5 text-[9px]",
+                                    c.resolved
+                                      ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5"
+                                      : "border-blue-500/30 text-blue-600 bg-blue-500/5"
+                                  )}
+                                >
+                                  {c.resolved ? "Resolved" : "Open"}
+                                </Badge>
+                                <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                  {fmtRelative(c.lastMessageAt || c.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {c.lastMessage || "No messages yet"}
+                            </p>
+                          </button>
+                        ))
+                      )}
                     </div>
-                  </TooltipContent>
-                </Tooltip>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -827,6 +987,9 @@ export function CustomersConcernTab() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                  <div className="relative h-12 w-12 rounded-2xl bg-violet-500/10 flex items-center justify-center ring-1 ring-violet-500/15">
+                    <MessageCircle className="h-5 w-5 text-violet-400" />
+                  </div>
                   <p className="text-sm font-medium">No messages yet</p>
                   <p className="text-xs text-muted-foreground">
                     The customer hasn't sent any messages in this conversation.
@@ -835,11 +998,20 @@ export function CustomersConcernTab() {
               ) : (
                 messages.map((msg, i) => {
                   const prev = messages[i - 1];
+                  const next = messages[i + 1];
                   const showDate = !prev || fmtDate(msg.createdAt) !== fmtDate(prev.createdAt);
+                  const groupStart = showDate || !sameGroup(prev, msg);
+                  const groupEnd = !next || fmtDate(next.createdAt) !== fmtDate(msg.createdAt) || !sameGroup(msg, next);
                   return (
                     <React.Fragment key={msg._id}>
                       {showDate && <DateSep date={msg.createdAt} />}
-                      <ConcernBubble message={msg} crmUserId={crmUserId} />
+                      <ConcernBubble
+                        message={msg}
+                        crmUserId={crmUserId}
+                        groupStart={groupStart}
+                        groupEnd={groupEnd}
+                        onOpenMedia={setLightbox}
+                      />
                     </React.Fragment>
                   );
                 })
@@ -868,14 +1040,14 @@ export function CustomersConcernTab() {
               {activeConv?.metadata?.resolved ? (
                 <div className="flex items-center justify-center py-2.5 rounded-xl bg-muted/40 border border-border/30">
                   <p className="text-xs text-muted-foreground">
-                    Concern is resolved.{" "}
+                    This case is resolved. Customer can start a new conversation anytime.{" "}
                     <button onClick={() => handleResolve(false)} className="underline hover:text-foreground transition-colors">
                       Reopen to reply.
                     </button>
                   </p>
                 </div>
               ) : (
-                <div className="flex items-end gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2 focus-within:border-violet-500/50 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all">
                   <textarea
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
@@ -884,13 +1056,13 @@ export function CustomersConcernTab() {
                     }}
                     placeholder="Reply to customer…"
                     rows={1}
-                    className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-[28px] max-h-28 py-0.5 placeholder:text-muted-foreground/50"
+                    className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-7 max-h-28 py-0.5 placeholder:text-muted-foreground/50"
                     style={{ lineHeight: "1.55" }}
                   />
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => fileRef.current?.click()}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="h-7 w-7 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                       <Paperclip className="h-4 w-4" />
                     </button>
@@ -900,9 +1072,9 @@ export function CustomersConcernTab() {
                       onClick={handleSend}
                       disabled={(!reply.trim() && pendingFiles.length === 0) || sending}
                       className={cn(
-                        "h-7 w-7 rounded-lg flex items-center justify-center transition-all",
+                        "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
                         reply.trim() || pendingFiles.length > 0
-                          ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                          ? "bg-linear-to-br from-violet-500 to-violet-700 hover:from-violet-600 hover:to-violet-800 text-white shadow-sm shadow-violet-900/20"
                           : "bg-muted text-muted-foreground/40 cursor-not-allowed"
                       )}
                     >
@@ -915,6 +1087,8 @@ export function CustomersConcernTab() {
           </>
         )}
       </div>
+
+      <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }

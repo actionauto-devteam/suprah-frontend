@@ -23,6 +23,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
+import { useCrmToken } from "@/hooks/useCrmToken";
+import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { format, isToday, isYesterday } from "date-fns";
 import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
 
@@ -125,13 +127,13 @@ function CallListItem({
       onClick={onClick}
       className={cn(
         "w-full flex items-start gap-3 px-3 py-3 text-left rounded-xl transition-all relative",
-        isActive ? "bg-primary/8 ring-1 ring-primary/20" : "hover:bg-muted/60"
+        isActive ? "bg-amber-500/8 ring-1 ring-amber-500/20" : "hover:bg-muted/60"
       )}
     >
       {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-primary rounded-r" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-linear-to-b from-amber-500 to-orange-600 rounded-r" />
       )}
-      <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5 bg-blue-600">
+      <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5 bg-linear-to-br from-blue-500 to-blue-700 shadow-sm shadow-blue-900/20">
         {ini(conv.metadata?.customerName || conv.name)}
       </div>
       <div className="min-w-0 flex-1">
@@ -141,7 +143,7 @@ function CallListItem({
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
             {conv.unreadCount > 0 && (
-              <span className="h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
+              <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-amber-500 to-orange-600 text-white text-[9px] font-bold flex items-center justify-center px-1">
                 {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
               </span>
             )}
@@ -176,8 +178,10 @@ function TimelineRow({ msg, crmUserId }: { msg: CallMessage; crmUserId: string }
     <div className={cn("flex gap-2.5 px-5 py-1", !isCustomer && "flex-row-reverse")}>
       <div
         className={cn(
-          "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white",
-          isCustomer ? "bg-blue-600" : "bg-violet-600"
+          "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white shadow-sm",
+          isCustomer
+            ? "bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-900/20"
+            : "bg-linear-to-br from-amber-500 to-orange-600 shadow-amber-900/20"
         )}
       >
         {ini(senderName)}
@@ -199,10 +203,10 @@ function TimelineRow({ msg, crmUserId }: { msg: CallMessage; crmUserId: string }
         </div>
         <div
           className={cn(
-            "rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words flex items-start gap-2",
+            "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word flex items-start gap-2",
             isCustomer
               ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-foreground rounded-tl-sm"
-              : "bg-violet-600 text-white rounded-tr-sm"
+              : "bg-linear-to-br from-amber-500 to-orange-600 text-white rounded-tr-sm shadow-sm shadow-amber-900/10"
           )}
         >
           {!isCustomer && <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5 opacity-80" />}
@@ -303,9 +307,11 @@ export function CustomerCallsTab() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // ── Real-time socket ──
+  // ── Real-time socket (SupraSpace, authenticated via crm_token) ──
+  const crmToken = useCrmToken();
+  const { socket } = useSupraSpaceSocket(crmToken);
+
   React.useEffect(() => {
-    const socket = (window as any).__socket || (window as any)._socket;
     if (!socket) return;
 
     const onAny = (payload: any) => {
@@ -323,7 +329,7 @@ export function CustomerCallsTab() {
       socket.off("call:status", onAny);
       socket.off("call:started", onAny);
     };
-  }, [activeId, queryClient]);
+  }, [socket, activeId, queryClient]);
 
   // ── Send a predefined status update (one-way to customer) ──
   const handleSendPreset = async (presetKey: string) => {
@@ -407,7 +413,7 @@ export function CustomerCallsTab() {
     } catch {
       return "";
     }
-  }, []);
+  }, [crmToken]);
 
   // ── Jitsi overlay ──
   if (jitsi) {
@@ -431,17 +437,22 @@ export function CustomerCallsTab() {
           activeId ? "hidden md:flex md:w-72 lg:w-80" : "w-full md:w-72 lg:w-80"
         )}
       >
-        <div className="p-3 space-y-2.5 border-b border-border/50 shrink-0">
-          <div className="flex items-center justify-between">
+        <div className="relative overflow-hidden p-3 space-y-2.5 border-b border-border/50 shrink-0">
+          <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-amber-500/8 blur-2xl pointer-events-none" />
+          <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">Customer Calls</p>
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-amber-500 to-orange-600 shadow-sm shadow-amber-900/20 dark:shadow-amber-900/40">
+                <PhoneCall className="h-3.5 w-3.5 text-white" />
+                <div className="absolute inset-0 rounded-xl ring-1 ring-amber-400/30" />
+              </div>
+              <p className="font-bold text-sm tracking-tight">Calls</p>
               {totalUnread > 0 && (
-                <Badge className="h-4.5 min-w-4.5 rounded-full text-[9px] font-bold px-1.5">
+                <Badge className="h-4.5 min-w-4.5 rounded-full text-[9px] font-bold px-1.5 bg-amber-600 hover:bg-amber-600">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </Badge>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-7 w-7 p-0">
+            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-7 w-7 p-0 rounded-lg hover:bg-amber-500/10 hover:text-amber-600">
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -451,7 +462,7 @@ export function CustomerCallsTab() {
               placeholder="Search customers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/40 border-border/40"
+              className="pl-8 h-8 text-xs bg-muted/40 border-border/40 rounded-xl focus-visible:ring-amber-500/30 focus-visible:border-amber-500/40"
             />
           </div>
         </div>
@@ -463,8 +474,8 @@ export function CustomerCallsTab() {
             </div>
           ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
-              <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
-                <PhoneCall className="h-5 w-5 text-muted-foreground" />
+              <div className="relative h-12 w-12 rounded-2xl bg-amber-500/10 flex items-center justify-center ring-1 ring-amber-500/15">
+                <PhoneCall className="h-5 w-5 text-amber-400" />
               </div>
               <p className="text-xs text-muted-foreground">
                 {search ? "No results found" : "No incoming call requests"}
@@ -487,8 +498,8 @@ export function CustomerCallsTab() {
       <div className={cn("flex flex-col flex-1 min-w-0 overflow-hidden", !activeId && "hidden md:flex")}>
         {!activeId ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-            <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
-              <PhoneCall className="h-6 w-6 text-muted-foreground/50" />
+            <div className="relative h-16 w-16 rounded-2xl bg-linear-to-br from-amber-500/15 to-orange-600/10 flex items-center justify-center ring-1 ring-amber-500/15">
+              <PhoneCall className="h-7 w-7 text-amber-400" />
             </div>
             <div>
               <p className="font-semibold text-sm">Select a call request</p>
@@ -500,14 +511,15 @@ export function CustomerCallsTab() {
         ) : (
           <>
             {/* Header */}
-            <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card">
+            <div className="relative shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card overflow-hidden">
+              <div className="absolute -top-10 right-10 h-28 w-28 rounded-full bg-amber-500/6 blur-2xl pointer-events-none -z-10" />
               <button
                 onClick={() => setActiveId(null)}
                 className="md:hidden h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted"
               >
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
-              <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              <div className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm shadow-blue-900/20">
                 {ini(activeConv?.metadata?.customerName || "")}
               </div>
               <div className="flex-1 min-w-0">
@@ -546,7 +558,7 @@ export function CustomerCallsTab() {
                         <Button
                           size="sm"
                           onClick={handleJoinCall}
-                          className="h-7 px-2.5 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                          className="h-7 px-2.5 text-xs gap-1.5 rounded-lg bg-linear-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 shadow-sm shadow-emerald-900/20"
                         >
                           <PhoneCall className="h-3 w-3" />
                           Join
@@ -621,7 +633,9 @@ export function CustomerCallsTab() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-                  <Clock className="h-6 w-6 text-muted-foreground/40" />
+                  <div className="relative h-12 w-12 rounded-2xl bg-amber-500/10 flex items-center justify-center ring-1 ring-amber-500/15">
+                    <Clock className="h-5 w-5 text-amber-400" />
+                  </div>
                   <p className="text-sm font-medium">No activity yet</p>
                   <p className="text-xs text-muted-foreground">
                     Send a status update or start the call when you&apos;re ready.
@@ -655,8 +669,8 @@ export function CustomerCallsTab() {
                     onClick={() => handleSendPreset(preset.key)}
                     disabled={sendingPreset !== null}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-muted hover:border-border disabled:opacity-50",
-                      preset.key === "declined" && "border-red-500/20 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      "flex items-center gap-1.5 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-amber-500/8 hover:border-amber-500/30 hover:text-amber-700 dark:hover:text-amber-400 disabled:opacity-50",
+                      preset.key === "declined" && "border-red-500/20 text-red-600 hover:bg-red-50 hover:border-red-500/30 hover:text-red-600 dark:hover:bg-red-950/20"
                     )}
                   >
                     {sendingPreset === preset.key ? (

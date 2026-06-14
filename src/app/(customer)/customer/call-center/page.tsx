@@ -11,11 +11,14 @@ import {
   Clock,
   CheckCircle2,
   PhoneOff,
+  Headset,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
+import { initializeSocket } from "@/lib/socket.client";
+import type { Socket } from "socket.io-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,8 +104,10 @@ const STATUS_META: Record<
 function StatusToastCard({ toast, onClose }: { toast: StatusToast; onClose: () => void }) {
   const meta = STATUS_META[toast.status] ?? STATUS_META.preparing;
   return (
-    <div className="pointer-events-auto flex items-start gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-lg w-80 max-w-[calc(100vw-3rem)]">
-      <div className={cn("mt-0.5 shrink-0", meta.tone)}>{meta.icon}</div>
+    <div className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-border/60 bg-card/95 backdrop-blur-sm px-4 py-3 shadow-xl shadow-black/5 dark:shadow-black/30 w-80 max-w-[calc(100vw-3rem)]">
+      <div className={cn("mt-0.5 shrink-0 h-8 w-8 rounded-xl flex items-center justify-center bg-muted", meta.tone)}>
+        {meta.icon}
+      </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold">
           {toast.crmUserName ? `${toast.crmUserName} · Support` : "Support"}
@@ -138,16 +143,21 @@ function ModeCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border p-6 transition-all",
+        "relative flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border p-5 sm:p-6 transition-all overflow-hidden",
         selected
-          ? "border-emerald-500/60 bg-emerald-500/5 ring-2 ring-emerald-500/20"
-          : "border-border/60 hover:border-border bg-card hover:bg-muted/40"
+          ? "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-500/10 shadow-lg shadow-emerald-900/10 dark:shadow-emerald-900/30"
+          : "border-border/60 hover:border-emerald-500/30 bg-card hover:bg-muted/40"
       )}
     >
+      {selected && (
+        <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30 pointer-events-none" />
+      )}
       <div
         className={cn(
-          "flex h-12 w-12 items-center justify-center rounded-2xl",
-          selected ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
+          "relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all",
+          selected
+            ? "bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20"
+            : "bg-muted text-muted-foreground"
         )}
       >
         {isVoice ? <Phone className="h-6 w-6" /> : <Video className="h-6 w-6" />}
@@ -240,15 +250,8 @@ export default function CustomerCallCenterPage() {
 
   // ── Real-time: one-way status pushes from staff ───────────────────────────
   React.useEffect(() => {
-    const candidates = ["__socket", "_socket", "socket", "__io"];
-    let socket: any = null;
-    for (const key of candidates) {
-      if ((window as any)[key]?.on) {
-        socket = (window as any)[key];
-        break;
-      }
-    }
-    if (!socket) return;
+    let active = true;
+    let socket: Socket | null = null;
 
     const onStatus = (payload: any) => {
       if (payload?.status) setStatus(payload.status as CallStatus);
@@ -275,13 +278,20 @@ export default function CustomerCallCenterPage() {
       });
     };
 
-    socket.on("call:status", onStatus);
-    socket.on("call:started", onStarted);
+    (async () => {
+      const token = await getToken();
+      if (!token || !active) return;
+      socket = initializeSocket(token);
+      socket.on("call:status", onStatus);
+      socket.on("call:started", onStarted);
+    })();
+
     return () => {
-      socket.off("call:status", onStatus);
-      socket.off("call:started", onStarted);
+      active = false;
+      socket?.off("call:status", onStatus);
+      socket?.off("call:started", onStarted);
     };
-  }, [pushToast]);
+  }, [pushToast, getToken]);
 
   // Cleanup toast timers on unmount
   React.useEffect(() => {
@@ -340,14 +350,78 @@ export default function CustomerCallCenterPage() {
     );
   }
 
+  const isLive = status === "in_progress" || status === "about_to_start";
+
   return (
-    <div className="space-y-6 h-full flex flex-col">
-      {/* Header */}
-      <div className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Call Center</h1>
-        <p className="text-muted-foreground mt-1">
-          Start a voice or video call with our team. We&apos;ll keep you posted with live updates.
-        </p>
+    <div className="relative flex h-full flex-col gap-4">
+      {/* Decorative background blobs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -top-48 -right-32 h-100 w-100 rounded-full bg-amber-500/5 dark:bg-amber-500/4 blur-3xl" />
+        <div className="absolute bottom-0 -left-32 h-80 w-80 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
+      </div>
+
+      {/* ─── Hero header ─────────────────────────────────────────────── */}
+      <div className="relative z-10 shrink-0 overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-amber-500 via-amber-400 to-amber-500/0" />
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-amber-500/8 to-transparent pointer-events-none" />
+        <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-amber-400/6 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-20 h-32 w-32 rounded-full bg-amber-500/4 blur-2xl pointer-events-none" />
+
+        <div
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-[72px] sm:text-[96px] font-black text-amber-500/5 uppercase leading-none select-none pointer-events-none tracking-tight"
+          aria-hidden
+        >
+          CALLS
+        </div>
+
+        <div className="relative px-5 py-5 sm:px-7 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <Headset className="h-3 w-3 text-amber-500 shrink-0" />
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500/80">
+                  Live Assistance
+                </span>
+              </div>
+
+              <div>
+                <h1 className="text-3xl xs:text-4xl sm:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
+                  Call <span className="text-amber-500">Center</span>
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                  Start a voice or video call — we&apos;ll keep you posted with live updates.
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold",
+                  isLive
+                    ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400"
+                    : "border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400"
+                )}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span
+                    className={cn(
+                      "animate-ping absolute inline-flex h-full w-full rounded-full opacity-60",
+                      isLive ? "bg-emerald-400" : "bg-amber-400"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "relative inline-flex h-2 w-2 rounded-full",
+                      isLive ? "bg-emerald-500" : "bg-amber-500"
+                    )}
+                  />
+                </span>
+                {meta.label}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* One-way status toasts (top-right) */}
@@ -357,8 +431,8 @@ export default function CustomerCallCenterPage() {
         ))}
       </div>
 
-      <div className="flex-1 min-h-0">
-        <div className="mx-auto flex max-w-xl flex-col gap-6 rounded-2xl border border-border/50 bg-background p-6">
+      <div className="relative z-10 flex-1 min-h-0">
+        <div className="mx-auto flex max-w-xl flex-col gap-6 rounded-2xl border border-border/50 bg-background p-5 sm:p-6 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none">
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -366,8 +440,16 @@ export default function CustomerCallCenterPage() {
           ) : (
             <>
               {/* Current status banner */}
-              <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3">
-                <div className={cn("shrink-0", meta.tone)}>{meta.icon}</div>
+              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3">
+                <div className="relative shrink-0 h-9 w-9 rounded-xl bg-muted flex items-center justify-center">
+                  <span className={meta.tone}>{meta.icon}</span>
+                  {isLive && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-card" />
+                    </span>
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-muted-foreground">Current status</p>
                   <p className={cn("text-sm font-semibold", meta.tone)}>{meta.label}</p>
@@ -377,7 +459,7 @@ export default function CustomerCallCenterPage() {
               {/* Mode chooser */}
               <div>
                 <p className="text-sm font-medium mb-3">Choose how you&apos;d like to connect</p>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <ModeCard mode="voice" selected={mode === "voice"} onSelect={() => setMode("voice")} />
                   <ModeCard mode="video" selected={mode === "video"} onSelect={() => setMode("video")} />
                 </div>
@@ -401,7 +483,7 @@ export default function CustomerCallCenterPage() {
                   <button
                     onClick={handleJoin}
                     disabled={joining}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition-all hover:bg-emerald-700 disabled:opacity-60"
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition-all hover:from-emerald-600 hover:to-emerald-800 disabled:opacity-60"
                   >
                     {joining ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -417,7 +499,7 @@ export default function CustomerCallCenterPage() {
                     className={cn(
                       "flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all",
                       canRequest
-                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                        ? "bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-600 hover:to-emerald-800"
                         : "bg-muted text-muted-foreground/60 cursor-not-allowed"
                     )}
                   >
@@ -445,9 +527,11 @@ export default function CustomerCallCenterPage() {
                       return (
                         <div
                           key={m._id}
-                          className="flex items-start gap-2 rounded-lg bg-muted/40 px-3 py-2"
+                          className="flex items-start gap-2.5 rounded-xl bg-muted/40 px-3 py-2"
                         >
-                          <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                          <div className="shrink-0 mt-0.5 h-6 w-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <Bell className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm leading-snug">{m.content}</p>
                             <p className="text-[10px] text-muted-foreground/60 mt-0.5">
