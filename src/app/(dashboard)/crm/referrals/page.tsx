@@ -41,6 +41,7 @@ interface CallData {
   callType: CallType;
   leadName: string;
   leadPhone: string;
+  leadEmail: string | null;
 }
 
 interface ReferralLead {
@@ -374,11 +375,18 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
           {callData && !loading && (
             <>
               {/* Email sent notice */}
-              {lead.email && (
+              {callData.leadEmail ? (
                 <div className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
                   <p className="text-[11px] text-emerald-400 leading-relaxed">
-                    Invitation email sent to <span className="font-semibold">{lead.email}</span>
+                    Invitation email sent to <span className="font-semibold">{callData.leadEmail}</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-amber-400 leading-relaxed">
+                    No email on file for this lead — share the link manually.
                   </p>
                 </div>
               )}
