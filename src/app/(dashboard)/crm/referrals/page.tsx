@@ -35,6 +35,7 @@ type CallType = "voice" | "video";
 interface CallData {
   domain: string;
   room: string;
+  jitsiRoom: string;
   jwt: string;
   publicJoinUrl: string;
   callType: CallType;
@@ -844,7 +845,7 @@ export default function ReferralsPage() {
 
       {activeCall && (
         <JitsiMeet
-          roomName={activeCall.room}
+          roomName={activeCall.jitsiRoom}
           displayName="Representative"
           jwt={activeCall.jwt}
           domain={activeCall.domain}

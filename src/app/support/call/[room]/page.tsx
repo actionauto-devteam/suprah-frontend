@@ -21,6 +21,7 @@ export default function SupportCallPage() {
   const [jitsiData, setJitsiData] = React.useState<{
     domain: string;
     room: string;
+    jitsiRoom: string;
     jwt: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = React.useState("");
@@ -59,7 +60,7 @@ export default function SupportCallPage() {
   if (step === "call" && jitsiData) {
     return (
       <JitsiMeet
-        roomName={jitsiData.room}
+        roomName={jitsiData.jitsiRoom}
         displayName={displayName}
         jwt={jitsiData.jwt}
         domain={jitsiData.domain}
