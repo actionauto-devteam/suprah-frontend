@@ -56,6 +56,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
         "We're temporarily experiencing technical issues on our end. Your account and data are safe — please try again in a few minutes.",
       oauth_failed: "Google sign-in didn't complete. Please try again.",
       handle_oauth_failed: "Google sign-in didn't complete. Please try again.",
+      no_account: "No account found for this Google profile. Please contact your representative to set up your account.",
     };
     setError(messages[code] || "Sign-in failed. Please try again.");
     if (code === "service_unavailable") {
@@ -240,14 +241,6 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
         Sign in with Google
       </Button>
 
-      <div className="text-center pt-1">
-        <p className="text-sm font-normal text-zinc-500">
-          Need an account?{" "}
-          <button onClick={onToggleMode} className={`${AUTH_LINK_CLASS} ml-1`}>
-            Sign up
-          </button>
-        </p>
-      </div>
     </div>
   );
 }

@@ -36,14 +36,14 @@ export default function ReferAndEarnPage() {
 
     const handleCopyLink = () => {
         if (!dashboard?.referralCode) return;
-        const link = `${window.location.origin}/?ref=${dashboard.referralCode}`;
+        const link = `${window.location.origin}/referral/${dashboard.referralCode}`;
         navigator.clipboard.writeText(link);
         toast.success("Referral link copied to clipboard!");
     }
 
     const getShareLink = () => {
         if (!dashboard?.referralCode) return "";
-        return `${window.location.origin}/?ref=${dashboard.referralCode}`;
+        return `${window.location.origin}/referral/${dashboard.referralCode}`;
     }
 
     const shareToWhatsApp = () => {

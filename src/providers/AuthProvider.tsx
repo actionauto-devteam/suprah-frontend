@@ -62,6 +62,9 @@ const PUBLIC_ROUTES = [
   "/verify-email",
   "/accept-invite",
   "/vehicle",
+  "/referral",
+  "/offline",
+  "/support",
 ];
 
 const isPublicRoute = (path: string) => {

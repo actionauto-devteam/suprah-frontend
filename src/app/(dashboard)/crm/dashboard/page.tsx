@@ -33,6 +33,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   Headset,
+  Gift,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1051,6 +1052,11 @@ export default function CrmDashboardPage() {
       route: "/crm/leaderboard",
       accent: "amber" as const,
     },
+    {
+      icon: <Gift className="h-5 w-5 text-violet-500 dark:text-violet-400" />,
+      label: "Referrals",
+      route: "/crm/referrals",
+    },
   ];
 
   return (
@@ -1473,7 +1479,7 @@ export default function CrmDashboardPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-5">
                   Quick Actions
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3">
                   {quickActions.map((action, i) => (
                     <div
                       key={action.label}

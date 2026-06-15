@@ -64,7 +64,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
 
     const handleCopyLink = () => {
         if (!walletData?.referralCode) return;
-        const link = `https://actionautoutah.com/join?ref=${walletData.referralCode}`;
+        const link = `${window.location.origin}/referral/${walletData.referralCode}`;
         navigator.clipboard.writeText(link);
         toast.success("Referral link copied!");
     };
@@ -270,7 +270,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
                                         <div className="flex gap-2 p-1 rounded-xl bg-zinc-900 border border-zinc-800 max-w-lg">
                                             <input
                                                 readOnly
-                                                value={`https://actionautoutah.com/join?ref=${walletData?.referralCode || '...'}`}
+                                                value={walletData?.referralCode ? `${window.location.origin}/referral/${walletData.referralCode}` : '...'}
                                                 className="bg-transparent border-0 focus:ring-0 flex-1 px-3 font-mono text-xs font-semibold text-zinc-400 outline-none"
                                             />
                                             <button onClick={handleCopyLink} className="px-5 py-2.5 rounded-lg bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-bold text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-orange-500/20">
