@@ -360,7 +360,7 @@ function QuickAction({
     <button
       onClick={onClick}
       className={cn(
-        "group relative flex flex-col items-center justify-center gap-2.5 sm:gap-3 rounded-2xl p-4 sm:p-5 w-full min-h-24 sm:min-h-27.5",
+        "group relative flex h-full w-full flex-col items-center justify-center gap-2 sm:gap-2.5 rounded-2xl p-3 sm:p-4 min-h-22 sm:min-h-25",
         "border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm",
         "hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-all duration-300 cursor-pointer overflow-hidden",
         "hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]",
@@ -372,7 +372,7 @@ function QuickAction({
       <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-linear-to-r from-transparent via-white/6 dark:via-white/3 to-transparent pointer-events-none" />
       <div
         className={cn(
-          "h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-300",
+          "h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl flex items-center justify-center transition-all duration-300",
           "bg-zinc-100 dark:bg-zinc-800/80 group-hover:scale-110",
           accent === "amber"
             ? "group-hover:bg-amber-500/10 group-hover:shadow-[0_0_16px_-4px_rgba(245,158,11,0.4)]"
@@ -381,7 +381,7 @@ function QuickAction({
       >
         {icon}
       </div>
-      <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors duration-300 tracking-wide uppercase whitespace-nowrap">
+      <span className="text-[10px] sm:text-[11px] font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors duration-300 tracking-wide uppercase text-center leading-tight line-clamp-2">
         {label}
       </span>
     </button>
@@ -1479,13 +1479,16 @@ export default function CrmDashboardPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-5">
                   Quick Actions
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                {/* 9 actions → balanced grid at every breakpoint:
+                    3 cols (mobile / sm) = 3 even rows, 5 cols (lg+) keeps the
+                    wide column tidy without orphan tiles dangling on their own row. */}
+                <div className="grid grid-cols-3 lg:grid-cols-5 auto-rows-fr gap-2.5 sm:gap-3">
                   {quickActions.map((action, i) => (
                     <div
                       key={action.label}
-                      className="transition-all duration-500"
+                      className="h-full transition-all duration-500"
                       style={{
-                        transitionDelay: mounted ? `${300 + i * 60}ms` : "0ms",
+                        transitionDelay: mounted ? `${300 + i * 50}ms` : "0ms",
                         opacity: mounted ? 1 : 0,
                         transform: mounted
                           ? "translateY(0)"
@@ -1522,7 +1525,7 @@ export default function CrmDashboardPage() {
       {/* CRM Tray App connect banner — appears once after login */}
       {trayBanner && (
         <div
-          className="fixed bottom-5 right-5 z-50 w-76 rounded-2xl bg-zinc-900 border border-zinc-700/50 shadow-2xl shadow-black/60 overflow-hidden"
+          className="fixed bottom-5 right-5 z-50 w-76 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-zinc-900 border border-zinc-700/50 shadow-2xl shadow-black/60 overflow-hidden"
           style={{ animation: "slideUp 0.3s ease-out" }}
         >
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
