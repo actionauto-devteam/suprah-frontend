@@ -14,6 +14,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
+import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
+import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
@@ -204,6 +207,9 @@ function DashboardLayoutContent({
                 {/* Notification Bell */}
                 <NotificationBell />
 
+                {/* Messenger dropdown (Suprah Space) */}
+                <MessengerDropdown />
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -262,6 +268,9 @@ function DashboardLayoutContent({
         <MobileBottomNav items={dealershipNav} />
       </SidebarInset>
 
+      {/* Chat popup windows — fixed position, visible on all routes */}
+      <ChatPopupManager />
+
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
@@ -291,7 +300,9 @@ export default function DashboardLayout({
     <ProfileProvider>
       <ProfileToastProvider>
         <NotificationProvider>
-          <DashboardLayoutContent>{children}</DashboardLayoutContent>
+          <SupraSpaceMessengerProvider>
+            <DashboardLayoutContent>{children}</DashboardLayoutContent>
+          </SupraSpaceMessengerProvider>
         </NotificationProvider>
       </ProfileToastProvider>
     </ProfileProvider>

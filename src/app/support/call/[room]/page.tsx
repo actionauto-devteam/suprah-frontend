@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Car, Loader2, Phone, Video, AlertCircle, ChevronRight, Mail } from "lucide-react";
+import { Car, Loader2, Phone, Video, AlertCircle, ChevronRight, Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -178,9 +178,13 @@ export default function SupportCallPage() {
                 <ChevronRight className="h-4 w-4" />
               </Button>
 
-              <p className="text-[10px] text-zinc-700 text-center">
-                Your call is private and secure.
-              </p>
+              {/* Recording consent notice */}
+              <div className="flex items-start gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-zinc-600 mt-0.5 shrink-0" />
+                <p className="text-[10px] text-zinc-600 leading-relaxed">
+                  By joining, you acknowledge that this call may be recorded by Action Auto Utah for quality assurance and training purposes.
+                </p>
+              </div>
             </form>
           </div>
         )}

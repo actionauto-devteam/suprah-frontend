@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Step = "loading" | "invalid" | "form" | "success";
+type Step = "loading" | "invalid" | "form" | "success" | "duplicate";
 type CallType = "voice" | "video";
 
 interface ReferralInfo {
@@ -79,7 +79,11 @@ export default function ReferralLandingPage() {
       const body = await res.json();
 
       if (!res.ok) {
-        setError(body?.message || "Something went wrong. Please try again.");
+        if (res.status === 409) {
+          setStep("duplicate");
+        } else {
+          setError(body?.message || "Something went wrong. Please try again.");
+        }
         return;
       }
 
@@ -288,6 +292,27 @@ export default function ReferralLandingPage() {
                 A representative will contact you within 1 business day.
               </p>
             </form>
+          </div>
+        )}
+
+        {/* ── Duplicate ─────────────────────────────────────────────── */}
+        {step === "duplicate" && (
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-10 text-center space-y-5">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/25 flex items-center justify-center mx-auto">
+              <AlertCircle className="h-8 w-8 text-amber-400" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-black text-white">Already Submitted</h1>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                We already have a pending request with the phone number or email you provided.
+                Our representative will be in touch with you soon — no need to submit again.
+              </p>
+            </div>
+            <div className="pt-4 border-t border-white/5">
+              <p className="text-[10px] text-zinc-600">
+                Action Auto Utah · Powered by Suprah AI
+              </p>
+            </div>
           </div>
         )}
 
