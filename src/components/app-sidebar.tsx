@@ -56,6 +56,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -197,6 +198,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const { isCustomer } = useOrg();
   const { avatarUrl } = useProfileContext();
+  const { totalUnread } = useSupraSpaceMessenger();
 
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
@@ -246,6 +248,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
                     >
                       New
+                    </Badge>
+                  )}
+                  {item.title === 'Suprah Space' && totalUnread > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-500 text-white border-none group-data-[collapsible=icon]:hidden"
+                    >
+                      {totalUnread > 99 ? '99+' : totalUnread}
                     </Badge>
                   )}
                 </Link>

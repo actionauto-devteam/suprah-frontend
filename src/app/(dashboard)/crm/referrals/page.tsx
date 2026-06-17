@@ -289,13 +289,13 @@ interface PreCallModalProps {
 }
 
 function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps) {
-  const [loading, setLoading]   = React.useState(false);
+  const [step, setStep]         = React.useState<"setup" | "loading" | "ready" | "error">("setup");
   const [callData, setCallData] = React.useState<CallData | null>(null);
   const [error, setError]       = React.useState("");
   const [copied, setCopied]     = React.useState(false);
 
   const prepareCall = async () => {
-    setLoading(true);
+    setStep("loading");
     setError("");
     try {
       const res = await apiClient.post(
@@ -304,15 +304,12 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCallData(res.data?.data);
+      setStep("ready");
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to create call room.");
-    } finally {
-      setLoading(false);
+      setStep("error");
     }
   };
-
-  // Prepare the room as soon as the modal opens
-  React.useEffect(() => { prepareCall(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const copyLink = () => {
     if (!callData) return;
@@ -353,26 +350,69 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-4">
 
-          {/* Preparing */}
-          {loading && (
+          {/* ── Step 1: Setup ───────────────────────────── */}
+          {step === "setup" && (
+            <>
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                You&apos;re about to call <span className="font-semibold text-zinc-300">{lead.name}</span> at {lead.phone}.
+                Click Start Call to prepare the room.
+              </p>
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  className="flex-1 h-10 rounded-xl border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={prepareCall}
+                  className={cn(
+                    "flex-1 h-10 rounded-xl font-bold text-sm gap-2 text-white",
+                    lead.requestType === "voice"
+                      ? "bg-emerald-600 hover:bg-emerald-500"
+                      : "bg-blue-600 hover:bg-blue-500"
+                  )}
+                >
+                  {lead.requestType === "voice"
+                    ? <Phone className="h-3.5 w-3.5" />
+                    : <Video className="h-3.5 w-3.5" />}
+                  Start Call
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* ── Step 2: Loading ─────────────────────────── */}
+          {step === "loading" && (
             <div className="flex flex-col items-center gap-3 py-6">
               <Loader2 className="h-7 w-7 text-primary animate-spin" />
               <p className="text-xs text-zinc-500">Preparing call room…</p>
             </div>
           )}
 
-          {/* Error */}
-          {error && !loading && (
-            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5">
-              <AlertCircle className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-red-400">{error}</p>
-            </div>
+          {/* ── Step 3: Error ───────────────────────────── */}
+          {step === "error" && (
+            <>
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5">
+                <AlertCircle className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-400">{error}</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setStep("setup")}
+                className="w-full h-10 rounded-xl border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
+              >
+                Back
+              </Button>
+            </>
           )}
 
-          {/* Ready */}
-          {callData && !loading && (
+          {/* ── Step 4: Ready ───────────────────────────── */}
+          {step === "ready" && callData && (
             <>
               {/* Email sent notice */}
               {callData.leadEmail ? (
@@ -386,7 +426,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
                 <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
                   <AlertCircle className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
                   <p className="text-[11px] text-amber-400 leading-relaxed">
-                    No email on file for this lead — share the link manually.
+                    No email on file — share the link manually.
                   </p>
                 </div>
               )}
@@ -409,7 +449,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
                   </button>
                 </div>
                 <p className="text-[10px] text-zinc-600">
-                  Call the lead at {lead.phone}, then share this link so they can join.
+                  Call {lead.name} at {lead.phone}, then share this link so they can join.
                 </p>
               </div>
 
@@ -430,15 +470,6 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
             </>
           )}
 
-          {error && !loading && (
-            <Button
-              variant="outline"
-              onClick={prepareCall}
-              className="w-full h-10 rounded-xl border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
-            >
-              Retry
-            </Button>
-          )}
         </div>
       </div>
     </div>
@@ -633,8 +664,8 @@ export default function ReferralsPage() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [filter, setFilter] = React.useState<"all" | LeadStatus>("all");
   const [convertTarget, setConvertTarget] = React.useState<ReferralLead | null>(null);
-  const [callTarget, setCallTarget] = React.useState<ReferralLead | null>(null);
-  const [activeCall, setActiveCall] = React.useState<CallData | null>(null);
+  const [callTarget, setCallTarget]       = React.useState<ReferralLead | null>(null);
+  const [activeCall, setActiveCall]       = React.useState<CallData | null>(null);
   const [mounted, setMounted] = React.useState(false);
 
   // Auth check
@@ -860,6 +891,7 @@ export default function ReferralsPage() {
           onClose={() => setActiveCall(null)}
         />
       )}
+
     </>
   );
 }
