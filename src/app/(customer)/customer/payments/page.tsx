@@ -78,15 +78,20 @@ const STATUS_META: Record<
 function InvoiceCard({
   inv,
   paying,
+  cancelling,
   onPay,
+  onCancel,
 }: {
   inv: PaymentInvoice;
   paying: boolean;
+  cancelling: boolean;
   onPay: () => void;
+  onCancel: () => void;
 }) {
   const meta = STATUS_META[inv.status];
   const Icon = meta.icon;
   const payable = inv.status === "pending" || inv.status === "failed";
+  const cancellable = inv.status === "pending" || inv.status === "failed" || inv.status === "processing";
   const productName =
     typeof inv.aftermarketProductId === "object" ? inv.aftermarketProductId?.name : undefined;
 
@@ -147,8 +152,20 @@ function InvoiceCard({
               </Button>
             </a>
           )}
+          {cancellable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+              disabled={cancelling || paying}
+              className="rounded-xl gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
+              {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+              Cancel
+            </Button>
+          )}
           {payable && (
-            <Button size="sm" onClick={onPay} disabled={paying} className="rounded-xl gap-1.5">
+            <Button size="sm" onClick={onPay} disabled={paying || cancelling} className="rounded-xl gap-1.5">
               {paying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
               Pay {money(inv.amount)}
             </Button>
@@ -175,11 +192,12 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: any; label: string
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-function CustomerPaymentsContent() {
+export default function CustomerPaymentsPage() {
   const router = useRouter();
   const params = useSearchParams();
 
   const [payingId, setPayingId] = React.useState<string | null>(null);
+  const [cancellingId, setCancellingId] = React.useState<string | null>(null);
   const [banner, setBanner] = React.useState<{ kind: "success" | "info" | "error"; text: string } | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
@@ -215,6 +233,26 @@ function CustomerPaymentsContent() {
       }
     },
     []
+  );
+
+  const cancelInvoice = React.useCallback(
+    async (paymentId: string) => {
+      if (!window.confirm("Cancel this invoice? You won't be charged. This can't be undone.")) return;
+      setCancellingId(paymentId);
+      setBanner(null);
+      try {
+        await apiClient.post(`/api/payments/${paymentId}/cancel-mine`);
+        setBanner({ kind: "info", text: "Invoice cancelled." });
+        refetch();
+      } catch (e: any) {
+        setBanner({ kind: "error", text: e?.response?.data?.message || "Could not cancel this invoice." });
+        // If it was already paid, refetch so the UI reflects the real status.
+        refetch();
+      } finally {
+        setCancellingId(null);
+      }
+    },
+    [refetch]
   );
 
   // Handle return from Stripe + Buy Now hand-off.
@@ -303,7 +341,14 @@ function CustomerPaymentsContent() {
                 To pay · {outstanding.length}
               </p>
               {outstanding.map((inv) => (
-                <InvoiceCard key={inv._id} inv={inv} paying={payingId === inv._id} onPay={() => payInvoice(inv._id)} />
+                <InvoiceCard
+                  key={inv._id}
+                  inv={inv}
+                  paying={payingId === inv._id}
+                  cancelling={cancellingId === inv._id}
+                  onPay={() => payInvoice(inv._id)}
+                  onCancel={() => cancelInvoice(inv._id)}
+                />
               ))}
             </section>
           )}
@@ -312,20 +357,19 @@ function CustomerPaymentsContent() {
             <section className="space-y-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">History</p>
               {history.map((inv) => (
-                <InvoiceCard key={inv._id} inv={inv} paying={false} onPay={() => {}} />
+                <InvoiceCard
+                  key={inv._id}
+                  inv={inv}
+                  paying={false}
+                  cancelling={false}
+                  onPay={() => {}}
+                  onCancel={() => {}}
+                />
               ))}
             </section>
           )}
         </div>
       )}
     </div>
-  );
-}
-
-export default function CustomerPaymentsPage() {
-  return (
-    <React.Suspense>
-      <CustomerPaymentsContent />
-    </React.Suspense>
   );
 }
