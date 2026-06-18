@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -401,7 +401,7 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, disableActions,
+  onReact, onVotePoll, onRsvp, nameFor, disableActions, members = [],
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -412,6 +412,7 @@ function Bubble({
   onRsvp: (id: string, r: 'going' | 'maybe' | 'declined') => void;
   nameFor: (id: string) => string;
   disableActions?: boolean;
+  members?: Array<{ _id: string; fullName: string; avatar?: string }>;
 }) {
   const [hov, setHov] = React.useState(false);
   const [reactOpen, setReactOpen] = React.useState(false);
@@ -593,9 +594,24 @@ function Bubble({
 
         <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
           <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>
-          {isOwn && (message.readBy.length > 1
-            ? <CheckCheck className="h-3 w-3" style={{ color: 'var(--positive)' }} />
-            : <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />)}
+          {isOwn && (() => {
+            const seenByOthers = (members as Array<{_id:string;fullName:string;avatar?:string}>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id));
+            if (seenByOthers.length === 0) return <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />;
+            return (
+              <div className="flex items-center" style={{ gap: 2 }}>
+                {seenByOthers.slice(0, 5).map(m => (
+                  <div key={m._id} title={m.fullName}
+                    className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
+                    style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
+                    {m.avatar
+                      ? <img src={m.avatar} alt="" className="w-full h-full object-cover" />
+                      : m.fullName[0]?.toUpperCase()}
+                  </div>
+                ))}
+                {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -1184,6 +1200,17 @@ export default function SupraSpacePage() {
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
+  const msgSeenByMembers = React.useMemo(() => {
+    const lastSeen: Record<string, string> = {};
+    activeMsgs.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== uid) lastSeen[id] = m._id; }); });
+    const result: Record<string, {_id:string;fullName:string;avatar?:string}[]> = {};
+    (activeConv?.members || []).forEach(member => {
+      if (member._id === uid) return;
+      const lastMsgId = lastSeen[member._id];
+      if (lastMsgId) { if (!result[lastMsgId]) result[lastMsgId] = []; result[lastMsgId].push(member); }
+    });
+    return result;
+  }, [activeMsgs, activeConv, uid]);
   const isAdmin = !!(activeConv && (activeConv.admins || []).map(String).includes(uid));
   const isReportGroup = activeConv?.name === 'Online Team Report';
 
@@ -1801,7 +1828,7 @@ export default function SupraSpacePage() {
   return (
     <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
       {/* Topbar */}
-      <header className="ss4-topbar shrink-0 z-40" style={{ minHeight: 52 }}>
+      <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
         <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
           <div className="flex items-center gap-3">
             {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
@@ -1986,7 +2013,7 @@ export default function SupraSpacePage() {
                       <React.Fragment key={msg._id}>
                         {showDate && <DateSep date={msg.createdAt} />}
                         <div id={`ss4-msg-${msg._id}`}>
-                          <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} />
+                          <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} />
                         </div>
                         {pinEvents.find(e => e.msgId === msg._id) && (() => {
                           const ev = pinEvents.find(e => e.msgId === msg._id)!;

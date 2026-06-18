@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
 import { apiClient } from '@/lib/api-client';
+import { useCrmToken } from '@/hooks/useCrmToken';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
 
@@ -87,37 +88,13 @@ const MAX_OPEN = 3;
 // ─── Provider ──────────────────────────────────────────────────────────────────
 
 export function SupraSpaceMessengerProvider({ children }: { children: React.ReactNode }) {
-  const [crmToken, setCrmToken]           = React.useState<string | null>(null);
-  const [crmUserId, setCrmUserId]         = React.useState<string | null>(null);
+  const crmToken                          = useCrmToken();
+  const crmUserId                         = crmToken ? decodeCrmUserId(crmToken) : null;
   const [conversations, setConversations] = React.useState<SSConv[]>([]);
   const [socket, setSocket]               = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected]     = React.useState(false);
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
   const [minimizedChats, setMinimizedChats] = React.useState<Set<string>>(new Set());
-
-  // ── Read CRM token from localStorage ────────────────────────────────────────
-  React.useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null;
-    if (token) {
-      setCrmToken(token);
-      setCrmUserId(decodeCrmUserId(token));
-    }
-
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key !== 'crm_token') return;
-      if (e.newValue) {
-        setCrmToken(e.newValue);
-        setCrmUserId(decodeCrmUserId(e.newValue));
-      } else {
-        setCrmToken(null);
-        setCrmUserId(null);
-        setConversations([]);
-        setOpenChats([]);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
 
   // ── Fetch conversations when CRM token is available ──────────────────────────
   React.useEffect(() => {
