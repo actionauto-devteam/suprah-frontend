@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ArrowRight, ArrowLeft, TrendingDown, MessageCircle, Car } from "lucide-react";
+import { ArrowRight, ArrowLeft, TrendingDown, MessageCircle, Car, Gavel, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 interface TradeInEstimatorModalProps {
@@ -27,12 +27,20 @@ interface TradeInEstimatorModalProps {
 }
 
 type Condition = "Excellent" | "Good" | "Fair" | "Poor";
+type TitleStatus = "Clean" | "Rebuilt" | "Salvage" | "Lien";
 
 const CONDITION_OPTIONS: Array<{ value: Condition; label: string; desc: string }> = [
   { value: "Excellent", label: "Excellent", desc: "Like new, no damage" },
   { value: "Good",      label: "Good",      desc: "Minor wear, runs great" },
   { value: "Fair",      label: "Fair",      desc: "Noticeable wear or repairs needed" },
   { value: "Poor",      label: "Poor",      desc: "Major repairs required" },
+];
+
+const TITLE_OPTIONS: Array<{ value: TitleStatus; label: string }> = [
+  { value: "Clean", label: "Clean title" },
+  { value: "Rebuilt", label: "Rebuilt title" },
+  { value: "Salvage", label: "Salvage title" },
+  { value: "Lien", label: "Active lien" },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -42,6 +50,8 @@ function calculateEstimate(
   year: number,
   mileage: number,
   condition: Condition,
+  titleStatus: TitleStatus,
+  hasAccidentHistory: boolean,
 ): { low: number; high: number } {
   const age = Math.max(0, CURRENT_YEAR - year);
 
@@ -64,10 +74,27 @@ function calculateEstimate(
     Poor:      0.65,
   };
 
-  const adjusted = Math.max(500, (depreciated - mileagePenalty) * conditionMultipliers[condition]);
+  // Title issues and accident history hit resale value independently of
+  // general "condition" — a salvage-title car in excellent cosmetic shape
+  // is still worth far less than a clean-title equivalent.
+  const titleMultipliers: Record<TitleStatus, number> = {
+    Clean:   1.00,
+    Lien:    1.00, // a lien just means payoff is deducted from proceeds, not a value hit
+    Rebuilt: 0.75,
+    Salvage: 0.40,
+  };
+  const accidentMultiplier = hasAccidentHistory ? 0.88 : 1.00;
 
-  const low  = Math.max(500, Math.round((adjusted * 0.90) / 500) * 500);
-  const high = Math.max(low + 500, Math.round((adjusted * 1.10) / 500) * 500);
+  const adjusted = Math.max(
+    300,
+    (depreciated - mileagePenalty) * conditionMultipliers[condition] * titleMultipliers[titleStatus] * accidentMultiplier,
+  );
+
+  // Wider band than a typical "real" appraisal tool on purpose — this estimator
+  // has no access to live market comps, so we'd rather be honest about the
+  // uncertainty than imply false precision.
+  const low  = Math.max(300, Math.round((adjusted * 0.85) / 100) * 100);
+  const high = Math.max(low + 200, Math.round((adjusted * 1.15) / 100) * 100);
 
   return { low, high };
 }
@@ -79,11 +106,13 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
   const [model, setModel] = React.useState("");
   const [mileage, setMileage] = React.useState("");
   const [condition, setCondition] = React.useState<Condition>("Good");
+  const [titleStatus, setTitleStatus] = React.useState<TitleStatus>("Clean");
+  const [hasAccidentHistory, setHasAccidentHistory] = React.useState(false);
 
   const estimate = React.useMemo(() => {
     if (step !== 2) return null;
-    return calculateEstimate(Number(year), Number(mileage) || 0, condition);
-  }, [step, year, mileage, condition]);
+    return calculateEstimate(Number(year), Number(mileage) || 0, condition, titleStatus, hasAccidentHistory);
+  }, [step, year, mileage, condition, titleStatus, hasAccidentHistory]);
 
   const step1Valid = year && make.trim() && model.trim() && mileage;
 
@@ -93,6 +122,8 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
       setStep(1);
       setMake(""); setModel(""); setMileage("");
       setCondition("Good");
+      setTitleStatus("Clean");
+      setHasAccidentHistory(false);
     }, 300);
   };
 
@@ -195,6 +226,54 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Title Status</Label>
+                <Select value={titleStatus} onValueChange={(v) => setTitleStatus(v as TitleStatus)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TITLE_OPTIONS.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Accident History</Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setHasAccidentHistory(false)}
+                    className={cn(
+                      "h-9 rounded-md border text-xs font-semibold transition-all",
+                      !hasAccidentHistory ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground hover:border-primary/40",
+                    )}
+                  >
+                    None
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHasAccidentHistory(true)}
+                    className={cn(
+                      "h-9 rounded-md border text-xs font-semibold transition-all",
+                      hasAccidentHistory ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground hover:border-primary/40",
+                    )}
+                  >
+                    Yes
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-xl bg-muted/40 p-2.5">
+              <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Heads up — this tool only gives a rough, automated ballpark. It&apos;s not an appraisal and not a guaranteed offer.
+              </p>
+            </div>
+
             <div className="flex gap-3 pt-1">
               <Button variant="outline" className="flex-1" onClick={resetAndClose}>
                 Cancel
@@ -221,7 +300,7 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
                 </p>
               </div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">
-                Estimated Trade-In Value
+                Rough Estimated Range
               </p>
               <p className="text-4xl font-black text-foreground tabular-nums">
                 ${estimate.low.toLocaleString()}
@@ -229,13 +308,17 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
                 ${estimate.high.toLocaleString()}
               </p>
               <p className="text-xs text-muted-foreground">
-                Based on current market conditions for your vehicle
+                {titleStatus !== "Clean" && `${titleStatus} title`}
+                {titleStatus !== "Clean" && hasAccidentHistory && " · "}
+                {hasAccidentHistory && "Reported accident history"}
+                {(titleStatus !== "Clean" || hasAccidentHistory) && " factored in"}
               </p>
             </div>
 
-            <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-3">
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed text-center">
-                This is a rough estimate for guidance. Actual trade-in value is confirmed at time of inspection by our team — it could be higher!
+            <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-3 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                <strong>This is not an appraisal and not a real offer.</strong> It&apos;s a rough, automated estimate from the few details you entered — it does not see your car, its true condition, or live market comps. The actual trade-in value can only be confirmed in person by our team, and may come in higher or lower than this range.
               </p>
             </div>
 
@@ -254,6 +337,18 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
                   Close
                 </Button>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-dashed border-border bg-muted/30 p-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
+                Want more than an estimate? List your car in our Auction Marketplace and let real buyers make offers on it.
+              </p>
+              <Link href="/customer/auction/new" onClick={() => onOpenChange(false)}>
+                <Button variant="outline" className="w-full gap-2">
+                  <Gavel className="h-3.5 w-3.5" />
+                  Sell It in the Auction Listing
+                </Button>
+              </Link>
             </div>
           </div>
         )}

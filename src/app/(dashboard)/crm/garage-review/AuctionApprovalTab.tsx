@@ -25,12 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import {
   fetchReviewListings,
   approveListing,
@@ -192,14 +187,19 @@ function ListingDetailDialog({
   const [notes, setNotes] = React.useState("");
   const [rejecting, setRejecting] = React.useState(false);
   const [reason, setReason] = React.useState("");
+  const [confirmingApprove, setConfirmingApprove] = React.useState(false);
 
   const approveMutation = useMutation({
     mutationFn: () => approveListing(token, listing.id, notes || undefined),
     onSuccess: (updated) => {
       toast.success("Listing approved and added to inventory");
+      setConfirmingApprove(false);
       onUpdated(updated);
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || "Failed to approve listing"),
+    onError: (error: any) => {
+      setConfirmingApprove(false);
+      toast.error(error?.response?.data?.message || "Failed to approve listing");
+    },
   });
 
   const rejectMutation = useMutation({
@@ -384,22 +384,14 @@ function ListingDetailDialog({
                       >
                         <X className="h-3.5 w-3.5" /> Reject
                       </Button>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex-1">
-                              <Button
-                                className="w-full gap-1.5 rounded-xl font-bold"
-                                disabled
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Approve &amp; Add to Inventory
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>Work in progress — coming soon</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Button
+                        className="flex-1 gap-1.5 rounded-xl font-bold"
+                        disabled={isBusy}
+                        onClick={() => setConfirmingApprove(true)}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Approve &amp; Add to Inventory
+                      </Button>
                     </>
                   ) : (
                     <>
@@ -448,6 +440,18 @@ function ListingDetailDialog({
           )}
         </div>
       </DialogContent>
+
+      <ConfirmationModal
+        isOpen={confirmingApprove}
+        onClose={() => setConfirmingApprove(false)}
+        onConfirm={() => approveMutation.mutate()}
+        isLoading={approveMutation.isPending}
+        variant="warning"
+        title="Add this vehicle to inventory?"
+        description={`This will create a new permanent inventory record for the ${getListingTitle(listing)} (VIN ${listing.vin || "—"}) and cannot be undone from here. Double-check the VIN, year, and mileage above before confirming.`}
+        confirmText="Approve & Add"
+        cancelText="Cancel"
+      />
     </Dialog>
   );
 }
