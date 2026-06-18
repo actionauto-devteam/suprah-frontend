@@ -241,7 +241,7 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                                                 {/* Shipment Section */}
                                                 <div className="space-y-3 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200/50 dark:border-white/5">
                                                     <div className="flex items-center justify-between">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-1.5">
+                                                        <p className="text-[10px] f8ont-black uppercase tracking-widest text-blue-600 flex items-center gap-1.5">
                                                             <Truck className="w-3 h-3" /> Shipment Proof
                                                         </p>
                                                         {entry.shipmentInfo && (

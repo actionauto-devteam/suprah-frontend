@@ -14,17 +14,15 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
   const { isSupported, isSubscribed, subscribe, isLoading } = useCrmWebPush();
   const [showPrompt, setShowPrompt] = useState(false);
 
-  const isAdminOrManager = role === "admin" || role === "manager";
-
   useEffect(() => {
-    if (!isAdminOrManager || !isSupported || isSubscribed || isLoading) return;
+    if (!role || !isSupported || isSubscribed || isLoading) return;
 
     const dismissed = sessionStorage.getItem("crm_push_prompt_dismissed");
     if (dismissed) return;
 
     const timer = setTimeout(() => setShowPrompt(true), 5000);
     return () => clearTimeout(timer);
-  }, [isAdminOrManager, isSupported, isSubscribed, isLoading]);
+  }, [role, isSupported, isSubscribed, isLoading]);
 
   const handleDismiss = () => {
     setShowPrompt(false);
@@ -63,10 +61,10 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
 
             <div className="flex-1 pr-4">
               <h3 className="text-sm font-bold tracking-tight text-zinc-100">
-                Enable Admin Alerts
+                Enable Notifications
               </h3>
               <p className="mt-1 text-xs text-zinc-400 leading-normal">
-                Get notified on any device when an agent goes idle or exceeds their break limit — even when the app is closed.
+                Get notified on any device when you receive messages or are mentioned — even when the app is closed.
               </p>
             </div>
           </div>
@@ -74,7 +72,7 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
           <div className="mt-5 flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
               <ShieldAlert className="h-3 w-3" />
-              CRM Admin Push
+              SupraSpace Push
             </div>
             <div className="flex gap-2">
               <Button

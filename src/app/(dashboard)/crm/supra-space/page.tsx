@@ -12,6 +12,7 @@ import {
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
+  MoreHorizontal,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -149,6 +150,7 @@ if (typeof document !== 'undefined') {
     @keyframes ss4-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4;} 40%{transform:translateY(-4px);opacity:1;} }
     .ss4-typing-dot { animation:ss4-dot-bounce 1.4s ease-in-out infinite; }
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
+    .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
     .ss4-scroll::-webkit-scrollbar { width:4px; }
     .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
@@ -215,10 +217,15 @@ const fmtDuration = (s: number) => {
   return `${m}:${ss.toString().padStart(2, '0')}`;
 };
 
-function renderMessageContent(content: string): React.ReactNode[] {
-  return content.split(/(\*\*[^*\n]+\*\*)/g).map((part, i) => {
+function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
+  return content.split(/(\*\*[^*\n]+\*\*|@\w+)/g).map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+    }
+    if (/^@\w+/.test(part)) {
+      return isOwn
+        ? <span key={i} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{part}</span>
+        : <span key={i} className="font-bold" style={{ color: 'var(--accent-text)' }}>{part}</span>;
     }
     return part;
   });
@@ -396,11 +403,34 @@ function Bubble({
 }) {
   const [hov, setHov] = React.useState(false);
   const [reactOpen, setReactOpen] = React.useState(false);
-  const reactRef = React.useRef<HTMLDivElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  const [mobileMenu, setMobileMenu] = React.useState(false);
+  const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      setMobileMenu(true);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+    }, 500);
+  };
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+
+  const currentUserFirstName = nameFor(uid).split(' ')[0].toLowerCase();
+  const isMentioned = !isOwn && !!message.content && (
+    message.content.includes('@all') ||
+    message.content.toLowerCase().includes(`@${currentUserFirstName}`)
+  );
 
   React.useEffect(() => {
     if (!reactOpen) return;
-    const h = (e: MouseEvent) => { if (reactRef.current && !reactRef.current.contains(e.target as Node)) setReactOpen(false); };
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setReactOpen(false);
+        setHov(false);
+      }
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [reactOpen]);
@@ -418,8 +448,10 @@ function Bubble({
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
 
   return (
-    <div className={cn('flex gap-2.5 px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse')}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}>
+    <div className={cn('flex gap-2.5 px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => { if (!reactOpen) setHov(false); }}
+      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}
+      onContextMenu={e => e.preventDefault()}>
       {showAvatar ? (
         <div className={cn('h-8 w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender.avatar
@@ -430,7 +462,10 @@ function Bubble({
 
       <div className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
         {showAvatar && !isOwn && (
-          <span className="px-1 font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender.fullName}</span>
+          <div className="flex items-center gap-1.5 px-1">
+            <span className="font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender.fullName}</span>
+            {isPinned && <span className="px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 9, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>📌 Pinned</span>}
+          </div>
         )}
 
         {message.replyTo && (
@@ -441,8 +476,46 @@ function Bubble({
         )}
 
         {message.content ? (
-          <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
-            <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content)}</p>
+          <div className="relative w-fit">
+            <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+              <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
+            </div>
+            {hov && !disableActions && (
+              <div ref={menuRef} className={cn('absolute -top-8 z-20 flex items-center rounded-xl', isOwn ? 'right-0' : 'left-0')}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}>
+                {SS4_REACTIONS.slice(0, 3).map(emoji => (
+                  <button key={emoji} onClick={() => onReact(message._id, emoji)}
+                    className="h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
+                    {emoji}
+                  </button>
+                ))}
+                <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-2)' }} />
+                <button onClick={() => onReply(message)} className="ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
+                {onPin && (
+                  <button onClick={() => onPin(message._id)} className="ss4-icon-btn h-7 w-7" title={isPinned ? 'Unpin' : 'Pin'}
+                    style={{ color: isPinned ? 'var(--accent)' : undefined }}>
+                    <Pin className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {isOwn && (
+                  <button onClick={() => onDelete(message._id)} className="ss4-icon-btn h-7 w-7 hover:text-[var(--danger)]" title="Delete">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <div className="relative">
+                  <button onClick={() => setReactOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="More reactions">
+                    <SmilePlus className="h-3.5 w-3.5" />
+                  </button>
+                  {reactOpen && (
+                    <div className={cn('absolute bottom-full mb-1 ss4-react-pop z-20', isOwn ? 'right-0' : 'left-0')}>
+                      {SS4_REACTIONS.map(e => (
+                        <button key={e} onClick={() => { onReact(message._id, e); setReactOpen(false); }}>{e}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -514,37 +587,48 @@ function Bubble({
         </div>
       </div>
 
-      {hov && !disableActions && (
-        <div ref={reactRef} className={cn('ss4-msg-actions absolute top-0 flex items-center gap-0.5 px-1 py-1 z-10', isOwn ? 'right-16' : 'left-16')}>
-          <div className="relative">
-            <button onClick={() => setReactOpen(v => !v)} className="ss4-icon-btn p-1.5" title="React"><SmilePlus className="h-3.5 w-3.5" /></button>
-            {reactOpen && (
-              <div className="absolute bottom-full mb-1 left-0 ss4-react-pop z-20">
-                {SS4_REACTIONS.map(e => (
-                  <button key={e} onClick={() => { onReact(message._id, e); setReactOpen(false); }}>{e}</button>
-                ))}
+      {mobileMenu && !disableActions && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/60 md:hidden" onClick={() => setMobileMenu(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden rounded-t-2xl overflow-hidden"
+            style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-1)', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
+            {message.content && (
+              <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{message.sender.fullName}</p>
+                <p className="text-xs line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>{message.content}</p>
               </div>
             )}
+            <div className="flex justify-around px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+              {SS4_REACTIONS.map(e => (
+                <button key={e} onClick={() => { onReact(message._id, e); setMobileMenu(false); }}
+                  className="text-2xl p-1 active:scale-90 transition-transform">{e}</button>
+              ))}
+            </div>
+            <div className="py-1">
+              <button onClick={() => { onReply(message); setMobileMenu(false); }}
+                className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                <Reply className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Reply
+              </button>
+              {onPin && (
+                <button onClick={() => { onPin(message._id); setMobileMenu(false); }}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                  <Pin className="h-5 w-5 shrink-0" style={{ color: isPinned ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                  {isPinned ? 'Unpin message' : 'Pin message'}
+                </button>
+              )}
+              {isOwn && (
+                <button onClick={() => { onDelete(message._id); setMobileMenu(false); }}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--danger,#f87171)' }}>
+                  <Trash2 className="h-5 w-5 shrink-0" /> Delete message
+                </button>
+              )}
+              <button onClick={() => setMobileMenu(false)}
+                className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-secondary)' }}>
+                <X className="h-5 w-5 shrink-0" /> Cancel
+              </button>
+            </div>
           </div>
-          <button onClick={() => onReply(message)} className="ss4-icon-btn p-1.5" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
-          {onPin && (
-            <button onClick={() => onPin(message._id)} className="p-1.5 rounded-lg transition-all"
-              style={{ color: isPinned ? 'var(--accent)' : 'var(--text-tertiary)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-muted)'; e.currentTarget.style.color = 'var(--accent)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = isPinned ? 'var(--accent)' : 'var(--text-tertiary)'; }}
-              title={isPinned ? 'Unpin' : 'Pin'}>
-              <Pin className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {isOwn && (
-            <button onClick={() => onDelete(message._id)} className="p-1.5 rounded-lg transition-all" style={{ color: 'var(--text-tertiary)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-muted)'; e.currentTarget.style.color = 'var(--danger)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-              title="Delete">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+        </>
       )}
     </div>
   );
@@ -1041,6 +1125,7 @@ export default function SupraSpacePage() {
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned'>('members');
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
+  const [pinEvents, setPinEvents] = React.useState<Array<{id: string; pinnerName: string; msgId: string}>>([]);
   const [editingGcName, setEditingGcName] = React.useState(false);
   const [gcNameInput, setGcNameInput] = React.useState('');
   const [emojiOpen, setEmojiOpen] = React.useState(false);
@@ -1075,7 +1160,13 @@ export default function SupraSpacePage() {
 
   const endRef = React.useRef<HTMLDivElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // @mention state
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+  const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
+  const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
 
@@ -1373,12 +1464,34 @@ export default function SupraSpacePage() {
   const removePendingFile = (i: number) => setPendingFiles(prev => prev.filter((_, idx) => idx !== i));
 
   const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+    const val = e.target.value;
+    setInput(val);
+    // Detect @mention trigger
+    const cursor = e.target.selectionStart ?? val.length;
+    const beforeCursor = val.slice(0, cursor);
+    const mentionMatch = beforeCursor.match(/@(\w*)$/);
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1]);
+      setMentionAnchor(cursor - mentionMatch[0].length);
+      setMentionIdx(0);
+    } else {
+      setMentionQuery(null);
+      setMentionAnchor(-1);
+    }
     if (!activeId) return;
     sendTypingStart(activeId);
     if (typingRef.current) clearTimeout(typingRef.current);
     typingRef.current = setTimeout(() => sendTypingStop(activeId!), 2000);
   };
+
+  const insertMention = React.useCallback((name: string) => {
+    const before = input.slice(0, mentionAnchor);
+    const after = input.slice(mentionAnchor + 1 + (mentionQuery?.length ?? 0));
+    setInput(`${before}@${name} ${after}`);
+    setMentionQuery(null);
+    setMentionAnchor(-1);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [input, mentionAnchor, mentionQuery]);
 
   const startRecording = async () => {
     try {
@@ -1458,7 +1571,16 @@ export default function SupraSpacePage() {
     catch { patchMsg(activeId, msgId, { isDeleted: false } as any); }
   };
   const handlePinToggle = (msgId: string) => {
-    setPinnedMsgIds(prev => { const n = new Set(prev); n.has(msgId) ? n.delete(msgId) : n.add(msgId); return n; });
+    const alreadyPinned = pinnedMsgIds.has(msgId);
+    setPinnedMsgIds(prev => { const n = new Set(prev); alreadyPinned ? n.delete(msgId) : n.add(msgId); return n; });
+    if (alreadyPinned) {
+      toast('Message unpinned');
+      setPinEvents(pe => pe.filter(e => e.msgId !== msgId));
+    } else {
+      toast.success('Message pinned');
+      const pinnerName = activeConv?.members.find(m => m._id === uid)?.fullName || 'You';
+      setPinEvents(pe => [...pe, { id: 'pin-' + msgId, pinnerName, msgId }]);
+    }
   };
 
   const togglePinConv = async (c: SSConversation) => {
@@ -1575,6 +1697,25 @@ export default function SupraSpacePage() {
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
   const themeStyle = themeVars(activeConv?.theme);
+
+  const mentionOptions = React.useMemo(() => {
+    if (mentionQuery === null || !activeConv) return [];
+    const q = mentionQuery.toLowerCase();
+    const memberOpts = activeConv.members
+      .filter(m => m._id !== uid)
+      .map(m => ({
+        id: m._id,
+        name: m.fullName.split(' ')[0].toLowerCase(),
+        fullName: m.fullName,
+        avatar: m.avatar as string | undefined,
+      }));
+    const allOpt = activeConv.type === 'group'
+      ? [{ id: 'all', name: 'all', fullName: 'Notify all members', avatar: undefined as string | undefined }]
+      : [];
+    const opts = [...allOpt, ...memberOpts];
+    if (!q) return opts;
+    return opts.filter(o => o.name.startsWith(q) || o.fullName.toLowerCase().includes(q));
+  }, [mentionQuery, activeConv, uid]);
   const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
   const visibleConvos = convos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
@@ -1646,7 +1787,7 @@ export default function SupraSpacePage() {
   );
 
   return (
-    <div className={cn('ss4 flex flex-col h-full overflow-hidden')} data-theme={theme}>
+    <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
       {/* Topbar */}
       <header className="ss4-topbar shrink-0 z-40" style={{ minHeight: 52 }}>
         <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
@@ -1798,6 +1939,25 @@ export default function SupraSpacePage() {
                   <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
                 )}
 
+                {/* Pinned message banner */}
+                {(() => {
+                  const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted);
+                  if (pinnedMsgs.length === 0) return null;
+                  const latest = pinnedMsgs[pinnedMsgs.length - 1];
+                  return (
+                    <div className="shrink-0 flex items-center gap-2.5 px-4 py-2 transition-colors"
+                      style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
+                      <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                      <div className="min-w-0 flex-1 cursor-pointer"
+                        onClick={() => document.getElementById(`ss4-msg-${latest._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                        <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Message{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
+                        <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender.fullName}: {latest.content || String.fromCodePoint(128206)+' Attachment'}</p>
+                      </div>
+                      <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
+                    </div>
+                  );
+                })()}
+
                 {/* Messages */}
                 <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll" style={wallpaper ? { backgroundImage: wallpaper } : undefined}>
                   {hasMore[activeId] && (
@@ -1816,6 +1976,19 @@ export default function SupraSpacePage() {
                         <div id={`ss4-msg-${msg._id}`}>
                           <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} />
                         </div>
+                        {pinEvents.find(e => e.msgId === msg._id) && (() => {
+                          const ev = pinEvents.find(e => e.msgId === msg._id)!;
+                          return (
+                            <div className="flex items-center justify-center px-4 py-1.5 my-0.5">
+                              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
+                                <span style={{ fontSize: 14 }}>⭐</span>
+                                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                                  <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </React.Fragment>
                     );
                   })}
@@ -1832,7 +2005,7 @@ export default function SupraSpacePage() {
                 </div>
 
                 {/* Input */}
-                <div className="shrink-0 px-3 sm:px-4 pb-2 pt-2 space-y-1.5">
+                <div className="shrink-0 px-3 sm:px-4 pb-24 md:pb-2 pt-2 space-y-1.5">
                   {replyTo && (
                     <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                       <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
@@ -1860,8 +2033,40 @@ export default function SupraSpacePage() {
                     </div>
                   ) : (
                     <div className="ss4-input-wrap flex flex-col">
+                      {mentionQuery !== null && mentionOptions.length > 0 && (
+                        <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                          {mentionOptions.map((opt, idx) => (
+                            <button key={opt.id}
+                              onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
+                              className={cn('w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors',
+                                idx === mentionIdx ? 'bg-[var(--accent-muted)]' : 'hover:bg-[var(--bg-hover)]'
+                              )}>
+                              {opt.id === 'all'
+                                ? <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}>
+                                    <Users className="h-3 w-3" style={{ color: 'var(--accent)' }} />
+                                  </div>
+                                : <div className={cn('h-6 w-6 rounded-full flex items-center justify-center overflow-hidden text-white font-semibold shrink-0', getAvaColor(opt.fullName))} style={{ fontSize: 9 }}>
+                                    {opt.avatar ? <img src={opt.avatar} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
+                                  </div>
+                              }
+                              <div className="min-w-0 flex items-baseline gap-1.5">
+                                <span className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>@{opt.name}</span>
+                                <span className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{opt.fullName}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
-                        <textarea value={input} onChange={handleTyping} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
+                        <textarea ref={textareaRef} value={input} onChange={handleTyping} onKeyDown={e => {
+                          if (mentionQuery !== null && mentionOptions.length > 0) {
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
+                            if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
+                            if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
+                            if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
+                          }
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                        }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
                       </div>
                       <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
                         <div className="flex items-center gap-0.5">

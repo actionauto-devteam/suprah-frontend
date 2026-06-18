@@ -37,6 +37,7 @@ export default function ReferralLandingPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [emailError, setEmailError] = React.useState("");
 
   // Validate referral code on mount
   React.useEffect(() => {
@@ -62,6 +63,7 @@ export default function ReferralLandingPage() {
 
     setSubmitting(true);
     setError("");
+    setEmailError("");
 
     try {
       const res = await fetch("/api/referral-leads/request", {
@@ -80,7 +82,12 @@ export default function ReferralLandingPage() {
 
       if (!res.ok) {
         if (res.status === 409) {
-          setStep("duplicate");
+          const msg: string = body?.message || "";
+          if (msg.toLowerCase().includes("already exists")) {
+            setEmailError("An account with this email already exists. Please use a different email.");
+          } else {
+            setStep("duplicate");
+          }
         } else {
           setError(body?.message || "Something went wrong. Please try again.");
         }
@@ -222,18 +229,21 @@ export default function ReferralLandingPage() {
                 </label>
                 <Input
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
                   placeholder="john@example.com"
                   type="email"
                   inputMode="email"
                   required
                   className={cn(
                     "h-11 rounded-xl bg-white/[0.04] border-white/8 text-white placeholder:text-zinc-700 focus-visible:border-primary/50 focus-visible:ring-0",
-                    !email.trim() && submitted && "border-red-500/60 focus-visible:border-red-500/60",
+                    ((!email.trim() && submitted) || emailError) && "border-red-500/60 focus-visible:border-red-500/60",
                   )}
                 />
                 {!email.trim() && submitted && (
                   <p className="text-[11px] text-red-400">Email address is required.</p>
+                )}
+                {emailError && (
+                  <p className="text-[11px] text-red-400">{emailError}</p>
                 )}
                 <p className="text-[10px] text-zinc-600">
                   We&apos;ll send your call invitation link here so you can join with one tap.

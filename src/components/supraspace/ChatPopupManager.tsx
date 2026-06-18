@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { X, Minus, Send, Loader2, MessageCircle } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { X, Minus, Send, Loader2, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -42,16 +43,39 @@ function msgTime(dateStr: string): string {
   });
 }
 
-function renderContent(msg: SSMessage): string {
-  const map: Record<string, string> = {
-    image: '📷 Photo',
-    voice: '🎤 Voice message',
-    gif:   '🎬 GIF',
-    file:  '📎 File',
-    poll:  '📊 Poll',
-    event: '📅 Event',
-  };
-  return map[msg.type] ?? msg.content ?? '';
+const MEDIA_LABELS: Record<string, string> = {
+  image: '📷 Photo',
+  voice: '🎤 Voice message',
+  gif:   '🎬 GIF',
+  file:  '📎 File',
+  poll:  '📊 Poll',
+  event: '📅 Event',
+};
+
+function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
+  const label = MEDIA_LABELS[msg.type];
+  if (label) return label;
+  const text = msg.content ?? '';
+  const parts = text.split(/(@\w+)/g);
+  if (parts.length === 1) return text;
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^@\w+/.test(part) ? (
+          <span
+            key={i}
+            className="font-bold"
+            style={isOwn
+              ? { color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }
+              : { color: '#60a5fa' }
+            }
+          >
+            {part}
+          </span>
+        ) : part
+      )}
+    </>
+  );
 }
 
 // ─── Single popup ─────────────────────────────────────────────────────────────
@@ -79,9 +103,67 @@ function ChatPopup({
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef  = React.useRef<HTMLInputElement>(null);
 
+  // @mention state
+  const [mentionQuery,  setMentionQuery]  = React.useState<string | null>(null);
+  const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
+  const [mentionIdx,    setMentionIdx]    = React.useState(0);
+
+  const [hovMsg, setHovMsg] = React.useState<string | null>(null);
+  const [menuMsg, setMenuMsg] = React.useState<string | null>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!menuMsg) return;
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuMsg(null); setHovMsg(null);
+      }
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [menuMsg]);
+
+  const handleReact = async (messageId: string, emoji: string) => {
+    setMenuMsg(null); setHovMsg(null);
+    try {
+      await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+    } catch { /* best-effort */ }
+  };
+
   const displayName = getDisplayName(conv, crmUserId);
   const avatarSrc   = getAvatarSrc(conv, crmUserId);
   const rightPx     = POPUP_RIGHT + stackIndex * (POPUP_W + POPUP_GAP);
+
+  const mentionOptions = React.useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    const allOpt = conv.type === 'group'
+      ? [{ id: 'all', name: 'all', fullName: 'Notify all members' }]
+      : [];
+    const memberOpts = conv.members
+      .filter(m => m._id !== crmUserId)
+      .map(m => ({ id: m._id, name: m.fullName.split(' ')[0].toLowerCase(), fullName: m.fullName }));
+    const opts = [...allOpt, ...memberOpts];
+    if (!q) return opts;
+    return opts.filter(o => o.name.startsWith(q) || o.fullName.toLowerCase().includes(q));
+  }, [mentionQuery, conv, crmUserId]);
+
+  const insertMention = React.useCallback((name: string) => {
+    const before = input.slice(0, mentionAnchor);
+    const after  = input.slice(mentionAnchor + 1 + (mentionQuery?.length ?? 0));
+    const next   = `${before}@${name} ${after}`;
+    setInput(next);
+    setMentionQuery(null);
+    setMentionAnchor(-1);
+    setTimeout(() => {
+      if (inputRef.current) {
+        const pos = before.length + name.length + 2;
+        inputRef.current.setSelectionRange(pos, pos);
+        inputRef.current.focus();
+      }
+    }, 0);
+  }, [input, mentionAnchor, mentionQuery]);
 
   // Fetch messages when first opened or un-minimized
   React.useEffect(() => {
@@ -143,6 +225,8 @@ function ChatPopup({
     const text = input.trim();
     if (!text || sending || !crmToken) return;
     setInput('');
+    setMentionQuery(null);
+    setMentionAnchor(-1);
     setSending(true);
     try {
       const r = await apiClient.post(
@@ -151,13 +235,35 @@ function ChatPopup({
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any
       );
       const sent: SSMessage = r.data?.data;
-      if (sent) setMessages((prev) => [...prev, sent]);
+      // Guard against socket delivering the same message before the API response lands
+      if (sent) setMessages((prev) => prev.find((m) => m._id === sent._id) ? prev : [...prev, sent]);
     } catch { /* ignored */ } finally {
       setSending(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInput(val);
+    const cursor = e.target.selectionStart ?? val.length;
+    const match  = val.slice(0, cursor).match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionAnchor(cursor - match[0].length);
+      setMentionIdx(0);
+    } else {
+      setMentionQuery(null);
+      setMentionAnchor(-1);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionQuery !== null && mentionOptions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
+      if (e.key === 'Escape')    { setMentionQuery(null); setMentionAnchor(-1); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -224,31 +330,68 @@ function ChatPopup({
                 </p>
               </div>
             ) : (
-              messages.map((msg) => {
+              messages.map((msg, idx) => {
                 if (msg.isDeleted) return null;
                 const isOwn = msg.sender?._id === crmUserId;
+                const isHov = hovMsg === msg._id;
+                const isMenuOpen = menuMsg === msg._id;
+                const prevVisible = messages.slice(0, idx).findLast(m => !m.isDeleted);
+                const showName = conv.type === 'group' && !isOwn &&
+                  (!prevVisible || prevVisible.sender?._id !== msg.sender?._id);
                 return (
                   <div
                     key={msg._id}
-                    className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}
+                    className={cn('flex flex-col', isOwn ? 'items-end' : 'items-start')}
+                    onMouseEnter={() => setHovMsg(msg._id)}
+                    onMouseLeave={() => { if (menuMsg !== msg._id) setHovMsg(null); }}
                   >
-                    <div
-                      className={cn(
-                        'max-w-[76%] px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed break-words',
-                        isOwn
-                          ? 'bg-blue-500 text-white rounded-br-sm'
-                          : 'bg-muted text-foreground rounded-bl-sm'
-                      )}
-                    >
-                      {renderContent(msg)}
+                    {showName && (
+                      <span className="px-1 mb-0.5 text-[10px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
+                        {msg.sender?.fullName}
+                      </span>
+                    )}
+                    <div className="relative max-w-[76%]">
                       <div
                         className={cn(
-                          'text-[9px] mt-0.5',
-                          isOwn ? 'text-white/60 text-right' : 'text-muted-foreground'
+                          'px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed break-words',
+                          isOwn
+                            ? 'bg-blue-500 text-white rounded-br-sm'
+                            : 'bg-muted text-foreground rounded-bl-sm'
                         )}
                       >
-                        {msgTime(msg.createdAt)}
+                        {renderContent(msg, isOwn)}
+                        <div
+                          className={cn(
+                            'text-[9px] mt-0.5',
+                            isOwn ? 'text-white/60 text-right' : 'text-muted-foreground'
+                          )}
+                        >
+                          {msgTime(msg.createdAt)}
+                        </div>
                       </div>
+                      {isHov && (
+                        <div className={cn('absolute -top-2.5 z-20', isOwn ? '-left-2.5' : '-right-2.5')}>
+                          <button
+                            className="h-5 w-5 rounded-full flex items-center justify-center"
+                            style={{ background: 'var(--surface-2,#23242a)', color: 'var(--text-secondary)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)', border: '1px solid var(--border,rgba(255,255,255,0.08))' }}
+                            onClick={(e) => { e.stopPropagation(); setMenuMsg(isMenuOpen ? null : msg._id); }}
+                            title="React"
+                          >
+                            <MoreHorizontal className="h-3 w-3" />
+                          </button>
+                          {isMenuOpen && (
+                            <div ref={menuRef} className={cn('absolute bottom-full mb-1 flex items-center gap-0.5 px-1.5 py-1 rounded-xl', isOwn ? 'right-0' : 'left-0')}
+                              style={{ background: 'var(--surface-1,#1a1b1e)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+                              {['❤️', '😂', '👍', '😮', '😢', '🎉'].map(emoji => (
+                                <button key={emoji}
+                                  className="hover:bg-white/10 rounded px-1 py-0.5 text-sm transition-colors leading-none"
+                                  onClick={() => handleReact(msg._id, emoji)}
+                                >{emoji}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -258,28 +401,49 @@ function ChatPopup({
           </div>
 
           {/* Input bar */}
-          <div className="shrink-0 flex items-center gap-2 px-2 py-2 border-t border-border/50 bg-card">
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              className="flex-1 text-[12px] bg-muted/50 rounded-full px-3 py-1.5 outline-none placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-blue-500/40 min-w-0"
-            />
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 rounded-full shrink-0 text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
-              disabled={!input.trim() || sending}
-              onClick={handleSend}
-            >
-              {sending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Send className="size-3.5" />
-              )}
-            </Button>
+          <div className="shrink-0 border-t border-border/50 bg-card">
+            {/* @mention dropdown */}
+            {mentionQuery !== null && mentionOptions.length > 0 && (
+              <div className="px-1 pt-1 pb-0.5 border-b border-border/40 max-h-32 overflow-y-auto">
+                {mentionOptions.map((opt, idx) => (
+                  <button
+                    key={opt.id}
+                    onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-2 py-1 rounded-md text-left text-[11px] transition-colors',
+                      idx === mentionIdx ? 'bg-blue-500/15 text-blue-400' : 'hover:bg-muted/60 text-foreground'
+                    )}
+                  >
+                    <span className="font-semibold text-blue-400">@{opt.name}</span>
+                    <span className="text-muted-foreground truncate">{opt.fullName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-2 py-2">
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
+                placeholder="Type a message..."
+                className="flex-1 text-[12px] bg-muted/50 rounded-full px-3 py-1.5 outline-none placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-blue-500/40 min-w-0"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 rounded-full shrink-0 text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
+                disabled={!input.trim() || sending}
+                onClick={handleSend}
+              >
+                {sending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Send className="size-3.5" />
+                )}
+              </Button>
+            </div>
           </div>
         </>
       )}
@@ -292,8 +456,10 @@ function ChatPopup({
 export function ChatPopupManager() {
   const { conversations, openChats, minimizedChats, closeChatPopup, toggleMinimize } =
     useSupraSpaceMessenger();
+  const pathname = usePathname();
 
   if (openChats.length === 0) return null;
+  if (pathname === '/crm/supra-space') return null;
 
   return (
     <>

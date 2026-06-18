@@ -127,14 +127,12 @@ interface ConvertModalProps {
 }
 
 function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) {
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  const [email, setEmail] = React.useState(lead.email || "");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [result, setResult] = React.useState<{
     name: string;
     email: string;
-    tempPassword?: string;
   } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -146,7 +144,7 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
     try {
       const res = await apiClient.post(
         `/api/referral-leads/crm-leads/${lead._id}/convert`,
-        { email: email.trim(), ...(password.trim() ? { password: password.trim() } : {}) },
+        { email: email.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = res.data?.data;
@@ -191,21 +189,18 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
                 <CheckCircle2 className="h-7 w-7 text-emerald-400" />
               </div>
               <div>
-                <p className="text-base font-bold text-white mb-1">Account Created</p>
+                <p className="text-base font-bold text-white mb-1">Account Created!</p>
                 <p className="text-sm text-zinc-400">{result.name}</p>
                 <p className="text-sm text-zinc-400">{result.email}</p>
               </div>
-              {result.tempPassword && (
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-left">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1">
-                    Temporary Password — Share with customer
-                  </p>
-                  <p className="font-mono text-sm text-white break-all">{result.tempPassword}</p>
-                  <p className="text-[10px] text-zinc-500 mt-2">
-                    The customer should change this after first login.
-                  </p>
-                </div>
-              )}
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-left">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">
+                  Email Sent to Customer
+                </p>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Login credentials have been sent directly to <span className="text-white font-medium">{result.email}</span>. The customer can log in using their email and the temporary password provided in the email.
+                </p>
+              </div>
               <Button
                 onClick={onClose}
                 className="w-full h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"
@@ -217,7 +212,7 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
             // Form state
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Create a customer account for this lead. A referral record will be linked automatically so the $100 reward fires when they make a payment.
+                Verify the customer email below and click <strong className="text-zinc-300">Create Account</strong>. A temporary password will be sent directly to the customer via email — you won't see it.
               </p>
 
               <div className="space-y-1.5">
@@ -234,17 +229,9 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-                  Password <span className="text-zinc-600 font-normal normal-case tracking-normal">(leave blank to auto-generate)</span>
-                </label>
-                <Input
-                  type="text"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Leave blank to auto-generate"
-                  className="h-10 rounded-xl bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 focus-visible:border-emerald-500/50 focus-visible:ring-0"
-                />
+              <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Password</p>
+                <p className="text-xs text-zinc-400">A temporary password will be auto-generated and sent <strong className="text-zinc-300">directly to the customer's email</strong> for security. You will not see it.</p>
               </div>
 
               {error && (

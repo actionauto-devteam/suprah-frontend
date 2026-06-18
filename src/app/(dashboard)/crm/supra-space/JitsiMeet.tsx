@@ -25,6 +25,10 @@ export function JitsiMeet({
   onError,
 }: JitsiMeetProps) {
   const resolvedDomain = domain || process.env.NEXT_PUBLIC_JITSI_DOMAIN || '8x8.vc';
+  // Guard: only close when the user has actually entered the conference.
+  // videoConferenceLeft can fire during a failed join attempt (JWT error, room
+  // rejected, etc.), which would kick users back before the call ever starts.
+  const hasJoined = React.useRef(false);
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
@@ -77,8 +81,8 @@ export function JitsiMeet({
             }
           }
           externalApi.addEventListeners({
-            readyToClose: onClose,
-            videoConferenceLeft: onClose,
+            videoConferenceJoined: () => { hasJoined.current = true; },
+            videoConferenceLeft: () => { if (hasJoined.current) onClose(); },
           });
         }}
         onReadyToClose={onClose}
