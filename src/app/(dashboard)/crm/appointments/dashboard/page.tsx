@@ -72,6 +72,22 @@ interface DashboardStats {
   cancelled?: number;
 }
 
+// ─── Surface tokens ─────────────────────────────────────────────────────────
+// One card recipe, used everywhere, so every panel sits on the same layered
+// surface. Soft double shadow + hairline ring reads as "floating glass" without
+// shouting. Radius is generous (rounded-2xl) for the modern, rounded geometry.
+
+const CARD =
+  "rounded-2xl border border-border/60 bg-card " +
+  "shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-16px_rgba(16,24,40,0.12)] " +
+  "ring-1 ring-black/[0.015] dark:ring-white/[0.02]";
+
+// Glassy header bar shared by every panel — content scrolls cleanly beneath it.
+const PANEL_HEADER =
+  "flex items-center justify-between gap-2 px-5 py-3.5 border-b border-border/60 " +
+  "bg-gradient-to-b from-muted/40 to-muted/10 " +
+  "backdrop-blur supports-[backdrop-filter]:bg-card/50";
+
 // ─── Token map ────────────────────────────────────────────────────────────────
 // Single source of truth for status color. Drives badges + the status strip so
 // a "confirmed" pill and the strip's confirmed segment can never drift apart.
@@ -82,23 +98,23 @@ const STATUS_TONE: Record<
 > = {
   scheduled: {
     dot: "bg-sky-500",
-    bar: "bg-sky-500",
+    bar: "bg-gradient-to-b from-sky-400 to-sky-500",
     badge: "bg-sky-500/10 text-sky-700 border-sky-500/25 dark:text-sky-400",
   },
   confirmed: {
     dot: "bg-teal-500",
-    bar: "bg-teal-500",
+    bar: "bg-gradient-to-b from-teal-400 to-teal-500",
     badge: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
   },
   completed: {
     dot: "bg-emerald-500",
-    bar: "bg-emerald-500",
+    bar: "bg-gradient-to-b from-emerald-400 to-emerald-500",
     badge: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
   },
   cancelled: {
-    dot: "bg-red-500",
-    bar: "bg-red-500",
-    badge: "bg-red-500/10 text-red-700 border-red-500/25 dark:text-red-400",
+    dot: "bg-rose-500",
+    bar: "bg-gradient-to-b from-rose-400 to-rose-500",
+    badge: "bg-rose-500/10 text-rose-700 border-rose-500/25 dark:text-rose-400",
   },
 };
 
@@ -140,7 +156,7 @@ function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); 
 function labelFromKey(key: string) { return key.split(/[-_\s]+/).map(capitalize).join(" "); }
 
 const pill =
-  "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border";
+  "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border";
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={cn(pill, statusBadgeClass(status))}>{capitalize(status)}</span>;
@@ -160,7 +176,7 @@ function SourceBadge({ source }: { source: string }) {
 
 // Shared eyebrow + section-header treatment (reused across every panel) ──────────
 
-const EYEBROW = "text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground";
+const EYEBROW = "text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground";
 
 function SectionHeader({
   icon, title, count, children,
@@ -171,12 +187,15 @@ function SectionHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-border bg-muted/20">
-      <div className="flex items-center gap-2 text-[12px] font-semibold text-muted-foreground">
-        <span className="text-primary">{icon}</span>
+    <div className={PANEL_HEADER}>
+      <div className="flex items-center gap-2.5 text-[12.5px] font-semibold text-foreground/80">
+        {/* Icon sits in a small accent tile — anchors each panel with a spot of color */}
+        <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+          {icon}
+        </span>
         <span>{title}</span>
         {count != null && (
-          <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
             {count}
           </span>
         )}
@@ -186,9 +205,10 @@ function SectionHeader({
   );
 }
 
-// ─── Signature: the day's status strip ──────────────────────────────────────────
-// Replaces five identical stat cards with one proportional bar. A service desk
-// reads "what's my mix today" in a single glance instead of summing five boxes.
+// ─── Signature: the day's status command bar ────────────────────────────────────
+// Replaces five identical stat cards with one proportional, animated bar. A
+// service desk reads "what's my mix today" in a single glance. The headline count
+// carries an accent glow to make it the unmistakable hero of the page.
 
 function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLabel: string }) {
   const segments = [
@@ -200,14 +220,34 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
   const total = stats.total ?? 0;
   const sum = segments.reduce((s, x) => s + x.value, 0);
 
+  // Grow the bar from 0 → target on mount / data change. Respects reduced motion.
+  const [grown, setGrown] = React.useState(false);
+  React.useEffect(() => {
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setGrown(true); return; }
+    setGrown(false);
+    const id = window.requestAnimationFrame(() => setGrown(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [sum, contextLabel]);
+
+  const pct = (v: number) => (sum === 0 ? 0 : Math.round((v / sum) * 100));
+
   return (
-    <div className="rounded-xl border bg-card px-5 py-4 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+    <div className={cn(CARD, "relative overflow-hidden px-5 py-5")}>
+      {/* Ambient accent wash anchored to the headline */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-12 -top-16 size-48 rounded-full bg-primary/10 blur-3xl"
+      />
+
+      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
         {/* Headline count */}
         <div className="shrink-0">
-          <p className={cn(EYEBROW, "mb-1")}>{contextLabel}</p>
+          <p className={cn(EYEBROW, "mb-1.5 text-primary/80")}>{contextLabel}</p>
           <div className="flex items-baseline gap-2">
-            <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight">
+            <span className="bg-gradient-to-br from-foreground to-foreground/55 bg-clip-text text-[42px] font-extrabold leading-none tracking-tight tabular-nums text-transparent">
               {total.toLocaleString()}
             </span>
             <span className="text-[12px] font-medium text-muted-foreground">
@@ -216,32 +256,36 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
           </div>
         </div>
 
-        <div className="hidden sm:block w-px self-stretch bg-border" />
+        <div className="hidden h-12 w-px self-center bg-gradient-to-b from-transparent via-border to-transparent sm:block" />
 
         {/* Proportional bar + legend */}
-        <div className="flex-1 min-w-0">
-          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="min-w-0 flex-1">
+          <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted p-px ring-1 ring-inset ring-black/[0.03]">
             {sum === 0 ? (
-              <div className="h-full w-full bg-muted" />
+              <div className="h-full w-full rounded-full bg-muted" />
             ) : (
               segments.map((seg) =>
                 seg.value > 0 ? (
                   <div
                     key={seg.key}
-                    className={cn("h-full transition-all", STATUS_TONE[seg.key].bar)}
-                    style={{ width: `${(seg.value / sum) * 100}%` }}
+                    className={cn(
+                      "h-full rounded-full transition-[width] duration-700 ease-out",
+                      STATUS_TONE[seg.key].bar
+                    )}
+                    style={{ width: grown ? `${(seg.value / sum) * 100}%` : "0%" }}
                     title={`${seg.label}: ${seg.value}`}
                   />
                 ) : null
               )
             )}
           </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+          <div className="mt-3.5 flex flex-wrap gap-x-6 gap-y-2.5">
             {segments.map((seg) => (
               <div key={seg.key} className="flex items-center gap-1.5">
-                <span className={cn("size-2 rounded-full", STATUS_TONE[seg.key].dot)} />
+                <span className={cn("size-2 rounded-full ring-2 ring-background", STATUS_TONE[seg.key].dot)} />
                 <span className="text-[11.5px] font-medium text-muted-foreground">{seg.label}</span>
-                <span className="text-[12.5px] font-bold tabular-nums">{seg.value.toLocaleString()}</span>
+                <span className="text-[13px] font-bold tabular-nums text-foreground">{seg.value.toLocaleString()}</span>
+                <span className="text-[10.5px] font-medium tabular-nums text-muted-foreground/60">{pct(seg.value)}%</span>
               </div>
             ))}
           </div>
@@ -259,16 +303,22 @@ function QuickChip({ label, active, onClick }: { label: string; active: boolean;
       type="button"
       onClick={onClick}
       className={cn(
-        "h-7 px-3 rounded border text-[11.5px] font-medium transition-all whitespace-nowrap",
+        "h-8 rounded-lg border px-3 text-[11.5px] font-medium whitespace-nowrap transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
         active
-          ? "bg-primary/10 border-primary/40 text-primary font-semibold"
-          : "bg-muted/50 border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5"
+          ? "border-primary/40 bg-gradient-to-b from-primary/15 to-primary/10 text-primary font-semibold shadow-sm"
+          : "border-border bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
       )}
     >
       {label}
     </button>
   );
 }
+
+// Shared field-control look (inputs / selects) ──────────────────────────────────
+const FIELD =
+  "h-9 rounded-lg border border-border bg-muted/40 px-2.5 text-[13px] text-foreground " +
+  "outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20";
 
 // ─── Post card ────────────────────────────────────────────────────────────────
 
@@ -279,9 +329,9 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
   deleting: boolean;
 }) {
   return (
-    <div className="group rounded-xl border bg-card/60 px-4 py-3.5 shadow-sm transition-colors hover:border-border/80">
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border", getBadgeClass(POST_TYPE_BADGE, post.type))}>
+    <div className="group rounded-xl border border-border/60 bg-card/60 px-4 py-3.5 transition-all hover:border-primary/30 hover:bg-card hover:shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", getBadgeClass(POST_TYPE_BADGE, post.type))}>
           {post.type}
         </span>
         <span className="text-[11px] text-muted-foreground/60">
@@ -292,7 +342,7 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
             type="button"
             onClick={() => onDelete(post._id)}
             disabled={deleting}
-            className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-border bg-transparent text-muted-foreground text-[11px] font-medium opacity-0 transition-all hover:border-destructive hover:text-destructive hover:bg-destructive/5 disabled:opacity-50 group-hover:opacity-100 focus-visible:opacity-100"
+            className="ml-auto inline-flex h-6 items-center gap-1 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium text-muted-foreground opacity-0 transition-all hover:border-destructive hover:bg-destructive/5 hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
             aria-label="Delete post"
             title="Delete post"
           >
@@ -300,8 +350,8 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
           </button>
         )}
       </div>
-      <p className="text-[13px] font-bold text-foreground mb-1">{post.title}</p>
-      <p className="text-[12.5px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
+      <p className="mb-1 text-[13px] font-bold text-foreground">{post.title}</p>
+      <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-muted-foreground">{post.content}</p>
     </div>
   );
 }
@@ -321,34 +371,35 @@ function AppointmentRow({ apt, onOpen }: {
 
   return (
     <tr
-      className="group border-b border-border transition-colors last:border-0 hover:bg-muted/40 cursor-pointer"
+      className="group cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-primary/[0.035]"
       onClick={() => onOpen(apt._id)}
     >
-      {/* Status spine — a thin colored edge makes the table scannable by state */}
-      <td className="w-[18%] py-3 pr-3.5 pl-0 align-middle">
+      {/* Status spine — a thin colored edge makes the table scannable by state.
+          It widens slightly on hover to reward the pointer. */}
+      <td className="w-[18%] py-3 pl-0 pr-3.5 align-middle">
         <div className="flex items-stretch gap-3">
-          <span className={cn("w-0.75 shrink-0 rounded-full", tone)} />
+          <span className={cn("w-1 shrink-0 rounded-full transition-all group-hover:w-1.5", tone)} />
           <div className="min-w-0">
-            <div className="font-semibold text-[13px] truncate">{name}</div>
-            <div className="text-[11.5px] text-muted-foreground truncate">{apt.customerBooking.email}</div>
+            <div className="truncate text-[13px] font-semibold">{name}</div>
+            <div className="truncate text-[11.5px] text-muted-foreground">{apt.customerBooking.email}</div>
           </div>
         </div>
       </td>
-      <td className="px-3.5 py-3 align-middle w-[11%]">
-        <span className="font-mono text-[12px] tabular-nums text-foreground/80 whitespace-nowrap">{apt.customerBooking.phone}</span>
+      <td className="w-[11%] px-3.5 py-3 align-middle">
+        <span className="whitespace-nowrap font-mono text-[12px] tabular-nums text-foreground/80">{apt.customerBooking.phone}</span>
       </td>
-      <td className="px-3.5 py-3 align-middle w-[8%]">
+      <td className="w-[8%] px-3.5 py-3 align-middle">
         <div className="font-mono text-[13px] font-medium tabular-nums">{format(start, "HH:mm")}</div>
-        <div className="text-[11px] text-muted-foreground tabular-nums">{dur} min</div>
+        <div className="text-[11px] tabular-nums text-muted-foreground">{dur} min</div>
       </td>
-      <td className="px-3.5 py-3 align-middle w-[11%]">
+      <td className="w-[11%] px-3.5 py-3 align-middle">
         <TypeBadge type={displayType} />
       </td>
-      <td className="px-3.5 py-3 align-middle w-[17%]">
+      <td className="w-[17%] px-3.5 py-3 align-middle">
         {apt.vehicles && apt.vehicles.length > 0 ? (
           <div className="flex flex-col gap-1">
             {apt.vehicles.slice(0, 2).map((v: any, i: number) => (
-              <span key={v._id || i} className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium bg-primary/8 text-primary border border-primary/20">
+              <span key={v._id || i} className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2 py-0.5 text-[11px] font-medium text-primary">
                 <Car className="h-3 w-3 shrink-0" />
                 <span className="truncate">{v.year} {v.make} {v.model}</span>
               </span>
@@ -358,24 +409,24 @@ function AppointmentRow({ apt, onOpen }: {
             )}
           </div>
         ) : (
-          <span className="text-[12px] text-muted-foreground/40 italic">None</span>
+          <span className="text-[12px] italic text-muted-foreground/40">None</span>
         )}
       </td>
-      <td className="px-3.5 py-3 align-middle w-[13%]">
-        <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground truncate">
+      <td className="w-[13%] px-3.5 py-3 align-middle">
+        <span className="flex items-center gap-1.5 truncate text-[12.5px] text-muted-foreground">
           <Users className="h-3 w-3 shrink-0 opacity-60" />
           <span className="truncate">{apt.crmUser?.fullName || "—"}</span>
         </span>
       </td>
-      <td className="px-3.5 py-3 align-middle w-[9%]">
+      <td className="w-[9%] px-3.5 py-3 align-middle">
         <SourceBadge source={apt.source} />
       </td>
-      <td className="px-3.5 py-3 align-middle w-[9%]">
+      <td className="w-[9%] px-3.5 py-3 align-middle">
         <StatusBadge status={apt.status} />
       </td>
-      <td className="px-3.5 py-3 align-middle w-[4%] text-center" onClick={(e) => e.stopPropagation()}>
+      <td className="w-[4%] px-3.5 py-3 text-center align-middle" onClick={(e) => e.stopPropagation()}>
         <button
-          className="inline-flex items-center gap-1 h-6 px-2 rounded border border-border bg-transparent text-muted-foreground text-[11px] font-medium transition-all hover:border-primary hover:text-primary hover:bg-primary/5"
+          className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium text-muted-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary"
           onClick={() => onOpen(apt._id)}
           aria-label={`View appointment for ${name}`}
         >
@@ -591,25 +642,31 @@ function AppointmentDashboard() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background text-foreground antialiased">
-      <div className="mx-auto max-w-390 px-4 sm:px-7 pb-16 pt-6 flex flex-col gap-4">
+    <div className="relative min-h-screen bg-background text-foreground antialiased">
+      {/* Ambient atmosphere — faint accent fields give the page depth without noise */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-32 -top-40 size-[36rem] rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -right-32 top-0 size-[30rem] rounded-full bg-sky-500/5 blur-3xl" />
+      </div>
+
+      <div className="mx-auto flex max-w-390 flex-col gap-4 px-4 pb-16 pt-6 sm:px-7">
 
         {/* ── Page header ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              className="size-8 shrink-0 flex items-center justify-center bg-card border border-border rounded-md text-muted-foreground hover:border-primary hover:text-primary hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-all hover:border-primary hover:text-primary hover:ring-2 hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               onClick={() => router.back()}
               aria-label="Go back"
             >
-              <ArrowLeft size={14} strokeWidth={2} />
+              <ArrowLeft size={15} strokeWidth={2} />
             </button>
             <div className="min-w-0">
-              <div className={cn(EYEBROW, "text-primary mb-0.5")}>Operations Center</div>
-              <div className="text-base sm:text-[19px] font-bold tracking-tight leading-tight truncate">Service Hub</div>
+              <div className={cn(EYEBROW, "mb-0.5 text-primary")}>Operations Center</div>
+              <div className="truncate text-lg font-bold leading-tight tracking-tight sm:text-[20px]">Service Hub</div>
             </div>
           </div>
-          <Button size="sm" onClick={() => router.push("/crm/appointments")} className="bg-primary hover:bg-primary/90 gap-1.5 shrink-0">
+          <Button size="sm" onClick={() => router.push("/crm/appointments")} className="shrink-0 gap-1.5 bg-primary hover:bg-primary/90">
             <FileText size={13} strokeWidth={2} />
             <span className="hidden xs:inline">Go to Appointments</span>
             <span className="xs:hidden">Appointments</span>
@@ -621,21 +678,21 @@ function AppointmentDashboard() {
         {statsData && <StatusStrip stats={statsData as DashboardStats} contextLabel={displayDate} />}
 
         {/* ── Filter toolbar ── */}
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm">
+        <div className={cn(CARD, "flex flex-wrap items-end gap-3 px-4 py-3.5")}>
           {/* Date / Month */}
           <div className="flex flex-col gap-1.5">
             <span className={EYEBROW}>{viewMode === "month" ? "Month" : "Date"}</span>
             {viewMode === "month" ? (
               <input
                 type="month"
-                className="h-8.5 w-40 px-2.5 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer scheme-light-dark"
+                className={cn(FIELD, "w-40 cursor-pointer scheme-light-dark")}
                 value={selectedMonth}
                 onChange={(e) => handleMonthChange(e.target.value)}
               />
             ) : (
               <input
                 type="date"
-                className="h-8.5 w-40 px-2.5 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer scheme-light-dark"
+                className={cn(FIELD, "w-40 cursor-pointer scheme-light-dark")}
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
               />
@@ -655,13 +712,13 @@ function AppointmentDashboard() {
             </div>
           </div>
 
-          <div className="hidden sm:block w-px h-8 bg-border self-end" />
+          <div className="hidden h-9 w-px self-end bg-border sm:block" />
 
           {/* Status */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-32">
+          <div className="flex min-w-32 flex-1 flex-col gap-1.5">
             <span className={EYEBROW}>Status</span>
             <select
-              className="h-8.5 w-full sm:w-36 px-2.5 pr-7 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+              className={cn(FIELD, "w-full cursor-pointer appearance-none pr-7 sm:w-36")}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -674,10 +731,10 @@ function AppointmentDashboard() {
           </div>
 
           {/* Type */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-32">
+          <div className="flex min-w-32 flex-1 flex-col gap-1.5">
             <span className={EYEBROW}>Type</span>
             <select
-              className="h-8.5 w-full sm:w-36 px-2.5 pr-7 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+              className={cn(FIELD, "w-full cursor-pointer appearance-none pr-7 sm:w-36")}
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
             >
@@ -691,15 +748,15 @@ function AppointmentDashboard() {
             </select>
           </div>
 
-          <div className="hidden sm:block w-px h-8 bg-border self-end" />
+          <div className="hidden h-9 w-px self-end bg-border sm:block" />
 
           {/* Search */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-1.5">
             <span className={EYEBROW}>Search</span>
             <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" strokeWidth={2} />
+              <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" strokeWidth={2} />
               <Input
-                className="h-8.5 pl-8 bg-muted/50 text-[13px] border-border focus:border-primary w-full sm:max-w-55"
+                className="h-9 w-full rounded-lg border-border bg-muted/40 pl-8 text-[13px] focus:border-primary sm:max-w-55"
                 placeholder="Name, email, phone…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -710,25 +767,25 @@ function AppointmentDashboard() {
 
         {/* ── Error ── */}
         {error && (
-          <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/8 px-4 py-3 text-[13px] text-destructive">
+          <div className="flex items-center gap-2.5 rounded-xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-[13px] text-destructive">
             <AlertCircle size={14} strokeWidth={2} className="shrink-0" />
             {error instanceof Error ? error.message : "Couldn't load appointments. Try refreshing."}
           </div>
         )}
 
         {/* ── Table card ── */}
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className={cn(CARD, "overflow-hidden")}>
 
           <SectionHeader
             icon={<CalendarDays size={13} strokeWidth={2} />}
             title={displayDate}
             count={!isLoading && appointmentsData?.count != null ? appointmentsData.count : undefined}
           >
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
               <Download size={12} strokeWidth={2} />
               Export CSV
             </Button>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => refetch()} disabled={isLoading}>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw size={12} strokeWidth={2} className={cn(isLoading && "animate-spin")} />
               Refresh
             </Button>
@@ -742,20 +799,20 @@ function AppointmentDashboard() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
-                <Calendar size={20} strokeWidth={1.5} />
+              <div className="flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted to-muted/40 text-muted-foreground shadow-inner">
+                <Calendar size={22} strokeWidth={1.5} />
               </div>
               <div>
                 <p className="text-[14.5px] font-semibold text-foreground/80">No appointments here</p>
-                <p className="mt-0.5 text-[13px] max-w-xs">
+                <p className="mt-0.5 max-w-xs text-[13px]">
                   {showFiltersActive ? "Adjust the search or filters to widen the view." : `Nothing booked for ${displayDate}.`}
                 </p>
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto overflow-y-auto max-h-130 [scrollbar-width:thin] [scrollbar-color:hsl(var(--border))_transparent]">
-              <table className="w-full border-collapse table-fixed min-w-240">
-                <thead className="sticky top-0 z-10 bg-card">
+            <div className="max-h-130 overflow-x-auto overflow-y-auto [scrollbar-color:hsl(var(--border))_transparent] [scrollbar-width:thin]">
+              <table className="w-full min-w-240 table-fixed border-collapse">
+                <thead className="sticky top-0 z-10 bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/65">
                   <tr className="border-b border-border">
                     {[
                       ["Customer",  "18%"],
@@ -772,7 +829,7 @@ function AppointmentDashboard() {
                         key={label}
                         style={{ width }}
                         className={cn(
-                          "px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-left whitespace-nowrap bg-muted/30",
+                          "whitespace-nowrap px-3.5 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground",
                           !label && "text-center"
                         )}
                       >
@@ -792,10 +849,10 @@ function AppointmentDashboard() {
 
           {/* Table footer */}
           {!isLoading && filtered.length > 0 && (
-            <div className="flex items-center justify-between gap-2 px-5 py-2.5 border-t border-border bg-muted/20 text-[11.5px] text-muted-foreground">
+            <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-5 py-2.5 text-[11.5px] text-muted-foreground">
               <span>
-                Showing <strong className="text-foreground/70 font-semibold tabular-nums">{filtered.length}</strong> of{" "}
-                <strong className="text-foreground/70 font-semibold tabular-nums">{appointmentsData?.count ?? 0}</strong> appointments
+                Showing <strong className="font-semibold tabular-nums text-foreground/70">{filtered.length}</strong> of{" "}
+                <strong className="font-semibold tabular-nums text-foreground/70">{appointmentsData?.count ?? 0}</strong> appointments
               </span>
               <span>{displayDate}</span>
             </div>
@@ -804,7 +861,7 @@ function AppointmentDashboard() {
 
         {/* ── Post management (admin) ── */}
         {(isAdmin || isPostsLoading || posts.length > 0) && (
-          <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className={cn(CARD, "overflow-hidden")}>
             <SectionHeader
               icon={<Megaphone size={13} strokeWidth={2} />}
               title="Announcements & Updates"
@@ -814,7 +871,7 @@ function AppointmentDashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 gap-1.5 text-xs"
+                  className="h-8 gap-1.5 rounded-lg text-xs"
                   onClick={() => setShowPostComposer((v) => !v)}
                 >
                   <Plus size={12} strokeWidth={2} />
@@ -825,20 +882,20 @@ function AppointmentDashboard() {
 
             {/* Composer form */}
             {showPostComposer && isAdmin && (
-              <form onSubmit={handleCreatePost} className="border-b border-border p-4 space-y-3 bg-muted/10">
+              <form onSubmit={handleCreatePost} className="space-y-3 border-b border-border/60 bg-muted/10 p-4">
                 <div className="flex flex-wrap gap-3">
                   <Input
                     placeholder="Post title…"
                     value={postTitle}
                     onChange={(e) => setPostTitle(e.target.value)}
                     maxLength={160}
-                    className="flex-1 min-w-52 h-8.5 text-[13px] bg-background"
+                    className="h-9 min-w-52 flex-1 rounded-lg bg-background text-[13px]"
                     required
                   />
                   <select
                     value={postType}
                     onChange={(e) => setPostType(e.target.value as DashboardPost["type"])}
-                    className="h-8.5 w-40 px-2.5 pr-7 bg-background border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+                    className={cn(FIELD, "w-40 cursor-pointer appearance-none bg-background pr-7")}
                   >
                     <option value="event">Event</option>
                     <option value="news">News</option>
@@ -852,7 +909,7 @@ function AppointmentDashboard() {
                   onChange={(e) => setPostContent(e.target.value)}
                   maxLength={5000}
                   rows={3}
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                  className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-[13px] text-foreground outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/20"
                   required
                 />
                 <div className="flex justify-end gap-2">
@@ -878,7 +935,7 @@ function AppointmentDashboard() {
                 Loading posts…
               </div>
             ) : posts.length > 0 ? (
-              <div className="p-4 space-y-2.5">
+              <div className="space-y-2.5 p-4">
                 {posts.map((post) => (
                   <PostCard
                     key={post._id}
@@ -890,7 +947,7 @@ function AppointmentDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="px-5 py-4 text-[13px] text-muted-foreground/50 italic">Nothing posted yet.</p>
+              <p className="px-5 py-4 text-[13px] italic text-muted-foreground/50">Nothing posted yet.</p>
             )}
           </div>
         )}

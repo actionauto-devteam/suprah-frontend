@@ -39,6 +39,21 @@ interface Summary {
 const PAGE_SIZES = [10, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 10;
 
+// Shared card + glassy header recipe — matches the dashboard panels exactly.
+const CARD =
+  "rounded-2xl border border-border/60 bg-card " +
+  "shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-16px_rgba(16,24,40,0.12)] " +
+  "ring-1 ring-black/[0.015] dark:ring-white/[0.02]";
+
+const PANEL_HEADER =
+  "flex items-center justify-between gap-2 px-5 py-3.5 border-b border-border/60 " +
+  "bg-gradient-to-b from-muted/40 to-muted/10 " +
+  "backdrop-blur supports-[backdrop-filter]:bg-card/50";
+
+const FIELD =
+  "h-8 rounded-lg border border-border bg-muted/40 px-2 text-[12px] text-foreground " +
+  "outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20";
+
 const VEHICLE_STATUS_BADGE: Record<string, string> = {
   sold:           "bg-green-500/10 text-green-700 border-green-500/25 dark:text-green-400",
   "test-driven":  "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
@@ -55,7 +70,7 @@ function VehicleStatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border",
+        "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border",
         VEHICLE_STATUS_BADGE[status] ?? "bg-muted text-muted-foreground border-border",
       )}
     >
@@ -136,14 +151,16 @@ export function VehicleHistory({
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), pageCount));
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+    <div className={cn(CARD, "overflow-hidden")}>
       {/* Section header */}
-      <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-border bg-muted/20">
-        <div className="flex items-center gap-2 text-[12px] font-semibold text-muted-foreground">
-          <Car size={13} strokeWidth={2} className="text-primary" />
+      <div className={PANEL_HEADER}>
+        <div className="flex items-center gap-2.5 text-[12.5px] font-semibold text-foreground/80">
+          <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+            <Car size={13} strokeWidth={2} />
+          </span>
           <span>Vehicle History</span>
           {!isLoading && (
-            <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
               {summary.total}
             </span>
           )}
@@ -152,7 +169,7 @@ export function VehicleHistory({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="h-7 w-32 px-2 pr-6 bg-muted/50 border border-border rounded-md text-foreground text-[12px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+            className={cn(FIELD, "w-32 cursor-pointer appearance-none pr-6")}
           >
             <option value="all">All Vehicles</option>
             <option value="sold">Sold</option>
@@ -162,7 +179,7 @@ export function VehicleHistory({
           <Button
             variant="outline"
             size="sm"
-            className="h-7 gap-1.5 text-xs"
+            className="h-8 gap-1.5 rounded-lg text-xs"
             onClick={() => refetch()}
             disabled={isFetching}
           >
@@ -174,14 +191,14 @@ export function VehicleHistory({
 
       {/* Summary chips */}
       {!isLoading && summary.total > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-5 py-2.5 border-b border-border bg-muted/10 text-[11.5px]">
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-green-500/25 bg-green-500/10 px-2 py-0.5 font-semibold text-green-700 dark:text-green-400">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-muted/10 px-5 py-2.5 text-[11.5px]">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-green-500/25 bg-green-500/10 px-2 py-0.5 font-semibold text-green-700 dark:text-green-400">
             <ShoppingBag size={11} strokeWidth={2} /> {summary.sold} Sold
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-400">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-400">
             <Gauge size={11} strokeWidth={2} /> {summary.testDriven} Test Driven
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 font-semibold text-blue-700 dark:text-blue-400">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 font-semibold text-blue-700 dark:text-blue-400">
             <CheckCircle2 size={11} strokeWidth={2} /> {summary.available} Available
           </span>
         </div>
@@ -189,7 +206,7 @@ export function VehicleHistory({
 
       {/* Error */}
       {error && (
-        <div className="px-5 py-2.5 text-[12px] text-destructive bg-destructive/8 border-b border-destructive/20">
+        <div className="border-b border-destructive/20 bg-destructive/8 px-5 py-2.5 text-[12px] text-destructive">
           {error instanceof Error ? error.message : "Couldn't load vehicle history. Try refreshing."}
         </div>
       )}
@@ -202,21 +219,21 @@ export function VehicleHistory({
         </div>
       ) : vehicles.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
-            <Car size={20} strokeWidth={1.5} />
+          <div className="flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted to-muted/40 text-muted-foreground shadow-inner">
+            <Car size={22} strokeWidth={1.5} />
           </div>
           <div>
             <p className="text-[14.5px] font-semibold text-foreground/80">No vehicle records</p>
-            <p className="mt-0.5 text-[13px] max-w-xs">
+            <p className="mt-0.5 max-w-xs text-[13px]">
               Test-drive and sale activity will show up here as it happens.
             </p>
           </div>
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--border))_transparent]">
-            <table className="w-full border-collapse table-fixed min-w-200">
-              <thead>
+          <div className="overflow-x-auto [scrollbar-color:hsl(var(--border))_transparent] [scrollbar-width:thin]">
+            <table className="w-full min-w-200 table-fixed border-collapse">
+              <thead className="sticky top-0 z-10 bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/65">
                 <tr className="border-b border-border">
                   {[
                     ["Vehicle",     "26%"],
@@ -229,7 +246,7 @@ export function VehicleHistory({
                     <th
                       key={label}
                       style={{ width }}
-                      className="px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-left whitespace-nowrap bg-muted/30"
+                      className="whitespace-nowrap px-3.5 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
                     >
                       {label}
                     </th>
@@ -240,10 +257,10 @@ export function VehicleHistory({
                 {pageVehicles.map((v) => (
                   <tr
                     key={v._id}
-                    className="border-b border-border transition-colors last:border-0 hover:bg-muted/40"
+                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-primary/[0.035]"
                   >
                     <td className="px-3.5 py-3 align-middle">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-[13px]">
+                      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold">
                         <Car className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                         <span className="truncate">
                           {[v.year, v.make, v.model].filter(Boolean).join(" ") || "Unknown vehicle"}
@@ -251,7 +268,7 @@ export function VehicleHistory({
                       </span>
                     </td>
                     <td className="px-3.5 py-3 align-middle">
-                      <div className="font-mono text-[11.5px] tabular-nums text-foreground/80 truncate">
+                      <div className="truncate font-mono text-[11.5px] tabular-nums text-foreground/80">
                         {v.vin || "—"}
                       </div>
                       {v.stockNumber && (
@@ -261,7 +278,7 @@ export function VehicleHistory({
                     <td className="px-3.5 py-3 align-middle">
                       <VehicleStatusBadge status={v.status} />
                       {v.sold && v.soldAt && (
-                        <div className="mt-0.5 text-[10.5px] text-muted-foreground tabular-nums">
+                        <div className="mt-0.5 text-[10.5px] tabular-nums text-muted-foreground">
                           {format(new Date(v.soldAt), "MMM d, yyyy")}
                         </div>
                       )}
@@ -277,7 +294,7 @@ export function VehicleHistory({
                       </span>
                     </td>
                     <td className="px-3.5 py-3 align-middle">
-                      <span className="text-[12px] text-muted-foreground tabular-nums">
+                      <span className="text-[12px] tabular-nums text-muted-foreground">
                         {v.lastActivityAt
                           ? format(new Date(v.lastActivityAt), "MMM d, yyyy · HH:mm")
                           : "—"}
@@ -290,21 +307,21 @@ export function VehicleHistory({
           </div>
 
           {/* ── Pagination footer ── */}
-          <div className="flex flex-col gap-3 px-5 py-3 border-t border-border bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
             {/* Range + page size */}
             <div className="flex items-center gap-3 text-[11.5px] text-muted-foreground">
               <span>
                 Showing{" "}
-                <strong className="text-foreground/70 font-semibold tabular-nums">{rangeFrom}–{rangeTo}</strong>{" "}
-                of <strong className="text-foreground/70 font-semibold tabular-nums">{vehicles.length}</strong>
+                <strong className="font-semibold tabular-nums text-foreground/70">{rangeFrom}–{rangeTo}</strong>{" "}
+                of <strong className="font-semibold tabular-nums text-foreground/70">{vehicles.length}</strong>
               </span>
-              <span className="hidden sm:inline text-border">·</span>
+              <span className="hidden text-border sm:inline">·</span>
               <label className="flex items-center gap-1.5">
                 <span className="hidden sm:inline">Rows</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="h-7 px-2 pr-6 bg-muted/50 border border-border rounded-md text-foreground text-[12px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+                  className={cn(FIELD, "cursor-pointer appearance-none pr-6")}
                 >
                   {PAGE_SIZES.map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -320,7 +337,7 @@ export function VehicleHistory({
                   type="button"
                   onClick={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="inline-flex items-center justify-center size-7 rounded-md border border-border bg-transparent text-muted-foreground transition-all hover:border-primary hover:text-primary hover:bg-primary/5 disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-transparent text-muted-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:pointer-events-none disabled:opacity-40"
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={14} strokeWidth={2} />
@@ -328,7 +345,7 @@ export function VehicleHistory({
 
                 {getPageItems(currentPage, pageCount).map((item, i) =>
                   item === "…" ? (
-                    <span key={`gap-${i}`} className="px-1.5 text-[12px] text-muted-foreground/60 select-none">…</span>
+                    <span key={`gap-${i}`} className="select-none px-1.5 text-[12px] text-muted-foreground/60">…</span>
                   ) : (
                     <button
                       key={item}
@@ -336,10 +353,10 @@ export function VehicleHistory({
                       onClick={() => goToPage(item)}
                       aria-current={item === currentPage ? "page" : undefined}
                       className={cn(
-                        "inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-md border text-[12px] font-medium tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        "inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[12px] font-medium tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                         item === currentPage
-                          ? "bg-primary/10 border-primary/40 text-primary font-semibold"
-                          : "border-border bg-transparent text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5",
+                          ? "border-primary/40 bg-gradient-to-b from-primary/15 to-primary/10 text-primary font-semibold shadow-sm"
+                          : "border-border bg-transparent text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
                       )}
                     >
                       {item}
@@ -351,7 +368,7 @@ export function VehicleHistory({
                   type="button"
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === pageCount}
-                  className="inline-flex items-center justify-center size-7 rounded-md border border-border bg-transparent text-muted-foreground transition-all hover:border-primary hover:text-primary hover:bg-primary/5 disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-transparent text-muted-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:pointer-events-none disabled:opacity-40"
                   aria-label="Next page"
                 >
                   <ChevronRight size={14} strokeWidth={2} />
