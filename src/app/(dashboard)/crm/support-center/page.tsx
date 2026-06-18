@@ -17,7 +17,7 @@ type SupportTab = "concerns" | "calls" | "aftermarket";
 
 const VALID_TABS: SupportTab[] = ["concerns", "calls", "aftermarket"];
 
-export default function SupportCenterPage() {
+function SupportCenterView() {
   const router = useRouter();
   const params = useSearchParams();
   const { getToken } = useAuth();
@@ -226,5 +226,13 @@ export default function SupportCenterPage() {
         </div>
       </div>
     </TooltipProvider>
+  );
+}
+
+export default function SupportCenterPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <SupportCenterView />
+    </React.Suspense>
   );
 }

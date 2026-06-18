@@ -192,7 +192,7 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: any; label: string
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function CustomerPaymentsPage() {
+function PaymentsView() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -371,5 +371,19 @@ export default function CustomerPaymentsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CustomerPaymentsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <PaymentsView />
+    </React.Suspense>
   );
 }
