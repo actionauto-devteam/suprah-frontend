@@ -4,9 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
-  ArrowLeft, Calendar, CalendarDays, Car, CheckCircle2, ChevronRight,
-  Clock, Download, Eye, FileText, Loader2, Plus, RefreshCw, Search,
-  TrendingUp, Users, XCircle, AlertCircle, Megaphone, Trash2,
+  ArrowLeft, Calendar, CalendarDays, Car, ChevronRight,
+  Download, Eye, FileText, Loader2, Plus, RefreshCw, Search,
+  Users, AlertCircle, Megaphone, Trash2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
@@ -64,13 +64,42 @@ interface DashboardPost {
   createdAt: Date | string;
 }
 
-// ─── Badge helpers ────────────────────────────────────────────────────────────
+interface DashboardStats {
+  total?: number;
+  scheduled?: number;
+  confirmed?: number;
+  completed?: number;
+  cancelled?: number;
+}
 
-const STATUS_BADGE: Record<string, string> = {
-  scheduled: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  confirmed: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
-  completed: "bg-green-500/10 text-green-700 border-green-500/25 dark:text-green-400",
-  cancelled: "bg-red-500/10 text-red-700 border-red-500/25 dark:text-red-400",
+// ─── Token map ────────────────────────────────────────────────────────────────
+// Single source of truth for status color. Drives badges + the status strip so
+// a "confirmed" pill and the strip's confirmed segment can never drift apart.
+
+const STATUS_TONE: Record<
+  string,
+  { dot: string; bar: string; badge: string }
+> = {
+  scheduled: {
+    dot: "bg-sky-500",
+    bar: "bg-sky-500",
+    badge: "bg-sky-500/10 text-sky-700 border-sky-500/25 dark:text-sky-400",
+  },
+  confirmed: {
+    dot: "bg-teal-500",
+    bar: "bg-teal-500",
+    badge: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
+  },
+  completed: {
+    dot: "bg-emerald-500",
+    bar: "bg-emerald-500",
+    badge: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
+  },
+  cancelled: {
+    dot: "bg-red-500",
+    bar: "bg-red-500",
+    badge: "bg-red-500/10 text-red-700 border-red-500/25 dark:text-red-400",
+  },
 };
 
 const TYPE_BADGE: Record<string, string> = {
@@ -103,48 +132,120 @@ function getBadgeClass(map: Record<string, string>, key: string) {
   return map[key.toLowerCase()] ?? "bg-muted text-muted-foreground border-border";
 }
 
+function statusBadgeClass(status: string) {
+  return STATUS_TONE[status.toLowerCase()]?.badge ?? "bg-muted text-muted-foreground border-border";
+}
+
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function labelFromKey(key: string) { return key.split(/[-_\s]+/).map(capitalize).join(" "); }
 
+const pill =
+  "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border";
+
 function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border", getBadgeClass(STATUS_BADGE, status))}>
-      {capitalize(status)}
-    </span>
-  );
+  return <span className={cn(pill, statusBadgeClass(status))}>{capitalize(status)}</span>;
 }
 
 function TypeBadge({ type }: { type: string }) {
   return (
-    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border", getBadgeClass(TYPE_BADGE, type.toLowerCase().replace(/[\s_]+/g, "-")))}>
+    <span className={cn(pill, getBadgeClass(TYPE_BADGE, type.toLowerCase().replace(/[\s_]+/g, "-")))}>
       {labelFromKey(type)}
     </span>
   );
 }
 
 function SourceBadge({ source }: { source: string }) {
+  return <span className={cn(pill, getBadgeClass(SOURCE_BADGE, source))}>{capitalize(source)}</span>;
+}
+
+// Shared eyebrow + section-header treatment (reused across every panel) ──────────
+
+const EYEBROW = "text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground";
+
+function SectionHeader({
+  icon, title, count, children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  count?: number | null;
+  children?: React.ReactNode;
+}) {
   return (
-    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border", getBadgeClass(SOURCE_BADGE, source))}>
-      {capitalize(source)}
-    </span>
+    <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-border bg-muted/20">
+      <div className="flex items-center gap-2 text-[12px] font-semibold text-muted-foreground">
+        <span className="text-primary">{icon}</span>
+        <span>{title}</span>
+        {count != null && (
+          <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+            {count}
+          </span>
+        )}
+      </div>
+      {children && <div className="flex items-center gap-2">{children}</div>}
+    </div>
   );
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
+// ─── Signature: the day's status strip ──────────────────────────────────────────
+// Replaces five identical stat cards with one proportional bar. A service desk
+// reads "what's my mix today" in a single glance instead of summing five boxes.
 
-function StatCard({ label, value, accentColor, icon }: {
-  label: string;
-  value: number;
-  accentColor: string;
-  icon: React.ReactNode;
-}) {
+function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLabel: string }) {
+  const segments = [
+    { key: "scheduled", label: "Scheduled", value: stats.scheduled ?? 0 },
+    { key: "confirmed", label: "Confirmed", value: stats.confirmed ?? 0 },
+    { key: "completed", label: "Completed", value: stats.completed ?? 0 },
+    { key: "cancelled", label: "Cancelled", value: stats.cancelled ?? 0 },
+  ];
+  const total = stats.total ?? 0;
+  const sum = segments.reduce((s, x) => s + x.value, 0);
+
   return (
-    <div className="relative overflow-hidden rounded-xl border bg-card px-4 py-4 shadow-sm transition-all hover:shadow-md hover:border-border/80">
-      <div className={cn("absolute top-0 left-0 right-0 h-0.75 rounded-t-xl", accentColor)} />
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">{label}</p>
-      <p className="text-[30px] font-bold leading-none tabular-nums">{value.toLocaleString()}</p>
-      <div className={cn("absolute bottom-2.5 right-3 opacity-[0.08]", accentColor.replace("bg-", "text-"))}>
-        {icon}
+    <div className="rounded-xl border bg-card px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+        {/* Headline count */}
+        <div className="shrink-0">
+          <p className={cn(EYEBROW, "mb-1")}>{contextLabel}</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight">
+              {total.toLocaleString()}
+            </span>
+            <span className="text-[12px] font-medium text-muted-foreground">
+              appointment{total === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+
+        <div className="hidden sm:block w-px self-stretch bg-border" />
+
+        {/* Proportional bar + legend */}
+        <div className="flex-1 min-w-0">
+          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            {sum === 0 ? (
+              <div className="h-full w-full bg-muted" />
+            ) : (
+              segments.map((seg) =>
+                seg.value > 0 ? (
+                  <div
+                    key={seg.key}
+                    className={cn("h-full transition-all", STATUS_TONE[seg.key].bar)}
+                    style={{ width: `${(seg.value / sum) * 100}%` }}
+                    title={`${seg.label}: ${seg.value}`}
+                  />
+                ) : null
+              )
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+            {segments.map((seg) => (
+              <div key={seg.key} className="flex items-center gap-1.5">
+                <span className={cn("size-2 rounded-full", STATUS_TONE[seg.key].dot)} />
+                <span className="text-[11.5px] font-medium text-muted-foreground">{seg.label}</span>
+                <span className="text-[12.5px] font-bold tabular-nums">{seg.value.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -178,7 +279,7 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
   deleting: boolean;
 }) {
   return (
-    <div className="rounded-xl border bg-card/60 px-4 py-3.5 shadow-sm">
+    <div className="group rounded-xl border bg-card/60 px-4 py-3.5 shadow-sm transition-colors hover:border-border/80">
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border", getBadgeClass(POST_TYPE_BADGE, post.type))}>
           {post.type}
@@ -191,7 +292,7 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
             type="button"
             onClick={() => onDelete(post._id)}
             disabled={deleting}
-            className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-border bg-transparent text-muted-foreground text-[11px] font-medium transition-all hover:border-destructive hover:text-destructive hover:bg-destructive/5 disabled:opacity-50"
+            className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-border bg-transparent text-muted-foreground text-[11px] font-medium opacity-0 transition-all hover:border-destructive hover:text-destructive hover:bg-destructive/5 disabled:opacity-50 group-hover:opacity-100 focus-visible:opacity-100"
             aria-label="Delete post"
             title="Delete post"
           >
@@ -216,22 +317,29 @@ function AppointmentRow({ apt, onOpen }: {
   const dur   = Math.round((end.getTime() - start.getTime()) / 60000);
   const name  = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
   const displayType = apt.type === "other" && apt.customTypeDetails ? apt.customTypeDetails : apt.type;
+  const tone  = STATUS_TONE[apt.status]?.dot ?? "bg-border";
 
   return (
     <tr
-      className="border-b border-border transition-colors last:border-0 hover:bg-muted/30 cursor-pointer"
+      className="group border-b border-border transition-colors last:border-0 hover:bg-muted/40 cursor-pointer"
       onClick={() => onOpen(apt._id)}
     >
-      <td className="px-3.5 py-3 align-middle w-[18%]">
-        <div className="font-semibold text-[13px] truncate">{name}</div>
-        <div className="text-[11.5px] text-muted-foreground truncate">{apt.customerBooking.email}</div>
+      {/* Status spine — a thin colored edge makes the table scannable by state */}
+      <td className="w-[18%] py-3 pr-3.5 pl-0 align-middle">
+        <div className="flex items-stretch gap-3">
+          <span className={cn("w-0.75 shrink-0 rounded-full", tone)} />
+          <div className="min-w-0">
+            <div className="font-semibold text-[13px] truncate">{name}</div>
+            <div className="text-[11.5px] text-muted-foreground truncate">{apt.customerBooking.email}</div>
+          </div>
+        </div>
       </td>
       <td className="px-3.5 py-3 align-middle w-[11%]">
-        <span className="font-mono text-[12px] text-foreground/80 whitespace-nowrap">{apt.customerBooking.phone}</span>
+        <span className="font-mono text-[12px] tabular-nums text-foreground/80 whitespace-nowrap">{apt.customerBooking.phone}</span>
       </td>
       <td className="px-3.5 py-3 align-middle w-[8%]">
-        <div className="font-mono text-[13px] font-medium">{format(start, "HH:mm")}</div>
-        <div className="text-[11px] text-muted-foreground">{dur} min</div>
+        <div className="font-mono text-[13px] font-medium tabular-nums">{format(start, "HH:mm")}</div>
+        <div className="text-[11px] text-muted-foreground tabular-nums">{dur} min</div>
       </td>
       <td className="px-3.5 py-3 align-middle w-[11%]">
         <TypeBadge type={displayType} />
@@ -478,6 +586,8 @@ function AppointmentDashboard() {
     } catch (e) { console.error("Export failed:", e); }
   };
 
+  const showFiltersActive = statusFilter !== "all" || typeFilter !== "all" || searchQuery.trim() !== "";
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -488,14 +598,14 @@ function AppointmentDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              className="size-8 shrink-0 flex items-center justify-center bg-card border border-border rounded-md text-muted-foreground hover:border-primary hover:text-primary hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer"
+              className="size-8 shrink-0 flex items-center justify-center bg-card border border-border rounded-md text-muted-foreground hover:border-primary hover:text-primary hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               onClick={() => router.back()}
               aria-label="Go back"
             >
               <ArrowLeft size={14} strokeWidth={2} />
             </button>
             <div className="min-w-0">
-              <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-primary mb-0.5">Operations Center</div>
+              <div className={cn(EYEBROW, "text-primary mb-0.5")}>Operations Center</div>
               <div className="text-base sm:text-[19px] font-bold tracking-tight leading-tight truncate">Service Hub</div>
             </div>
           </div>
@@ -507,20 +617,199 @@ function AppointmentDashboard() {
           </Button>
         </div>
 
-        {/* ── Post management (admin) — ALWAYS FIRST ── */}
+        {/* ── Day status strip ── */}
+        {statsData && <StatusStrip stats={statsData as DashboardStats} contextLabel={displayDate} />}
+
+        {/* ── Filter toolbar ── */}
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm">
+          {/* Date / Month */}
+          <div className="flex flex-col gap-1.5">
+            <span className={EYEBROW}>{viewMode === "month" ? "Month" : "Date"}</span>
+            {viewMode === "month" ? (
+              <input
+                type="month"
+                className="h-8.5 w-40 px-2.5 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer scheme-light-dark"
+                value={selectedMonth}
+                onChange={(e) => handleMonthChange(e.target.value)}
+              />
+            ) : (
+              <input
+                type="date"
+                className="h-8.5 w-40 px-2.5 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer scheme-light-dark"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+              />
+            )}
+          </div>
+
+          {/* Quick chips */}
+          <div className="flex flex-col gap-1.5">
+            <span className={EYEBROW}>Quick select</span>
+            <div className="flex items-center gap-1.5">
+              <QuickChip label="Today"      active={viewMode === "day" && selectedDate === today}            onClick={() => handleDateChange(today)} />
+              <QuickChip label="Tomorrow"   active={viewMode === "day" && selectedDate === tomorrow}         onClick={() => handleDateChange(tomorrow)} />
+              <QuickChip label="This Month" active={viewMode === "month" && selectedMonth === currentMonth}  onClick={() => handleMonthChange(currentMonth)} />
+              {(viewMode !== "day" || selectedDate !== today) && (
+                <QuickChip label="Reset" active={false} onClick={() => handleDateChange(today)} />
+              )}
+            </div>
+          </div>
+
+          <div className="hidden sm:block w-px h-8 bg-border self-end" />
+
+          {/* Status */}
+          <div className="flex flex-col gap-1.5 flex-1 min-w-32">
+            <span className={EYEBROW}>Status</span>
+            <select
+              className="h-8.5 w-full sm:w-36 px-2.5 pr-7 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Type */}
+          <div className="flex flex-col gap-1.5 flex-1 min-w-32">
+            <span className={EYEBROW}>Type</span>
+            <select
+              className="h-8.5 w-full sm:w-36 px-2.5 pr-7 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="appointment">Appointment</option>
+              <option value="test-drive">Test Drive</option>
+              <option value="phone-call">Phone Call</option>
+              <option value="meeting">Meeting</option>
+              <option value="event">Event</option>
+              <option value="task">Task</option>
+            </select>
+          </div>
+
+          <div className="hidden sm:block w-px h-8 bg-border self-end" />
+
+          {/* Search */}
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
+            <span className={EYEBROW}>Search</span>
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" strokeWidth={2} />
+              <Input
+                className="h-8.5 pl-8 bg-muted/50 text-[13px] border-border focus:border-primary w-full sm:max-w-55"
+                placeholder="Name, email, phone…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Error ── */}
+        {error && (
+          <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/8 px-4 py-3 text-[13px] text-destructive">
+            <AlertCircle size={14} strokeWidth={2} className="shrink-0" />
+            {error instanceof Error ? error.message : "Couldn't load appointments. Try refreshing."}
+          </div>
+        )}
+
+        {/* ── Table card ── */}
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+
+          <SectionHeader
+            icon={<CalendarDays size={13} strokeWidth={2} />}
+            title={displayDate}
+            count={!isLoading && appointmentsData?.count != null ? appointmentsData.count : undefined}
+          >
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
+              <Download size={12} strokeWidth={2} />
+              Export CSV
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => refetch()} disabled={isLoading}>
+              <RefreshCw size={12} strokeWidth={2} className={cn(isLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </SectionHeader>
+
+          {/* Table body */}
+          {isLoading ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
+              <Loader2 size={22} strokeWidth={2} className="animate-spin text-primary" />
+              <p className="text-sm">Loading appointments…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
+                <Calendar size={20} strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-[14.5px] font-semibold text-foreground/80">No appointments here</p>
+                <p className="mt-0.5 text-[13px] max-w-xs">
+                  {showFiltersActive ? "Adjust the search or filters to widen the view." : `Nothing booked for ${displayDate}.`}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto overflow-y-auto max-h-130 [scrollbar-width:thin] [scrollbar-color:hsl(var(--border))_transparent]">
+              <table className="w-full border-collapse table-fixed min-w-240">
+                <thead className="sticky top-0 z-10 bg-card">
+                  <tr className="border-b border-border">
+                    {[
+                      ["Customer",  "18%"],
+                      ["Phone",     "11%"],
+                      ["Time",       "8%"],
+                      ["Type",      "11%"],
+                      ["Vehicles",  "17%"],
+                      ["Booked By", "13%"],
+                      ["Source",     "9%"],
+                      ["Status",     "9%"],
+                      ["",           "4%"],
+                    ].map(([label, width]) => (
+                      <th
+                        key={label}
+                        style={{ width }}
+                        className={cn(
+                          "px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-left whitespace-nowrap bg-muted/30",
+                          !label && "text-center"
+                        )}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((apt) => (
+                    <AppointmentRow key={apt._id} apt={apt} onOpen={handleOpenDetailsModal} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Table footer */}
+          {!isLoading && filtered.length > 0 && (
+            <div className="flex items-center justify-between gap-2 px-5 py-2.5 border-t border-border bg-muted/20 text-[11.5px] text-muted-foreground">
+              <span>
+                Showing <strong className="text-foreground/70 font-semibold tabular-nums">{filtered.length}</strong> of{" "}
+                <strong className="text-foreground/70 font-semibold tabular-nums">{appointmentsData?.count ?? 0}</strong> appointments
+              </span>
+              <span>{displayDate}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Post management (admin) ── */}
         {(isAdmin || isPostsLoading || posts.length > 0) && (
           <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-            {/* Section header */}
-            <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-border bg-muted/20">
-              <div className="flex items-center gap-2 text-[12px] font-semibold text-muted-foreground">
-                <Megaphone size={13} strokeWidth={2} className="text-primary" />
-                <span>Announcements &amp; Updates</span>
-                {posts.length > 0 && (
-                  <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold">
-                    {posts.length}
-                  </span>
-                )}
-              </div>
+            <SectionHeader
+              icon={<Megaphone size={13} strokeWidth={2} />}
+              title="Announcements & Updates"
+              count={posts.length > 0 ? posts.length : undefined}
+            >
               {isAdmin && (
                 <Button
                   variant="outline"
@@ -532,7 +821,7 @@ function AppointmentDashboard() {
                   {showPostComposer ? "Cancel" : "Add Post"}
                 </Button>
               )}
-            </div>
+            </SectionHeader>
 
             {/* Composer form */}
             {showPostComposer && isAdmin && (
@@ -601,7 +890,7 @@ function AppointmentDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="px-5 py-4 text-[13px] text-muted-foreground/50 italic">No posts yet.</p>
+              <p className="px-5 py-4 text-[13px] text-muted-foreground/50 italic">Nothing posted yet.</p>
             )}
           </div>
         )}
@@ -609,210 +898,7 @@ function AppointmentDashboard() {
         {/* ── Team Chat (real-time, all users) ── */}
         <AppointmentChat currentUserId={currentUserId} isAdmin={isAdmin} />
 
-        {/* ── Stats row ── */}
-        {statsData && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatCard label="Total"     value={statsData.total     ?? 0} accentColor="bg-blue-500"    icon={<TrendingUp   size={38} strokeWidth={1.5} />} />
-            <StatCard label="Scheduled" value={statsData.scheduled ?? 0} accentColor="bg-sky-500"     icon={<Clock        size={38} strokeWidth={1.5} />} />
-            <StatCard label="Confirmed" value={statsData.confirmed ?? 0} accentColor="bg-teal-500"    icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
-            <StatCard label="Completed" value={statsData.completed ?? 0} accentColor="bg-emerald-500" icon={<CheckCircle2 size={38} strokeWidth={1.5} />} />
-            <StatCard label="Cancelled" value={statsData.cancelled ?? 0} accentColor="bg-red-500"     icon={<XCircle      size={38} strokeWidth={1.5} />} />
-          </div>
-        )}
-
-        {/* ── Filter toolbar ── */}
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm">
-          {/* Date / Month */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              {viewMode === "month" ? "Month" : "Date"}
-            </span>
-            {viewMode === "month" ? (
-              <input
-                type="month"
-                className="h-8.5 w-40 px-2.5 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer scheme-light-dark"
-                value={selectedMonth}
-                onChange={(e) => handleMonthChange(e.target.value)}
-              />
-            ) : (
-              <input
-                type="date"
-                className="h-8.5 w-40 px-2.5 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer scheme-light-dark"
-                value={selectedDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-              />
-            )}
-          </div>
-
-          {/* Quick chips */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Quick select</span>
-            <div className="flex items-center gap-1.5">
-              <QuickChip label="Today"      active={viewMode === "day" && selectedDate === today}            onClick={() => handleDateChange(today)} />
-              <QuickChip label="Tomorrow"   active={viewMode === "day" && selectedDate === tomorrow}         onClick={() => handleDateChange(tomorrow)} />
-              <QuickChip label="This Month" active={viewMode === "month" && selectedMonth === currentMonth}  onClick={() => handleMonthChange(currentMonth)} />
-              {(viewMode !== "day" || selectedDate !== today) && (
-                <QuickChip label="Reset" active={false} onClick={() => handleDateChange(today)} />
-              )}
-            </div>
-          </div>
-
-          <div className="hidden sm:block w-px h-8 bg-border self-end" />
-
-          {/* Status */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-32">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</span>
-            <select
-              className="h-8.5 w-full sm:w-36 px-2.5 pr-7 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Statuses</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-
-          {/* Type */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-32">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Type</span>
-            <select
-              className="h-8.5 w-full sm:w-36 px-2.5 pr-7 bg-muted/50 border border-border rounded-md text-foreground text-[13px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="appointment">Appointment</option>
-              <option value="test-drive">Test Drive</option>
-              <option value="phone-call">Phone Call</option>
-              <option value="meeting">Meeting</option>
-              <option value="event">Event</option>
-              <option value="task">Task</option>
-            </select>
-          </div>
-
-          <div className="hidden sm:block w-px h-8 bg-border self-end" />
-
-          {/* Search */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-0 w-full">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Search</span>
-            <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" strokeWidth={2} />
-              <Input
-                className="h-8.5 pl-8 bg-muted/50 text-[13px] border-border focus:border-primary w-full sm:max-w-55"
-                placeholder="Name, email, phone…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Error ── */}
-        {error && (
-          <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/8 px-4 py-3 text-[13px] text-destructive">
-            <AlertCircle size={14} strokeWidth={2} className="shrink-0" />
-            {error instanceof Error ? error.message : "Failed to load appointments. Please try again."}
-          </div>
-        )}
-
-        {/* ── Table card ── */}
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-
-          {/* Table header */}
-          <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-border bg-muted/20">
-            <div className="flex items-center gap-2 text-[12px] font-semibold text-muted-foreground">
-              <CalendarDays size={13} strokeWidth={2} className="text-primary" />
-              <span>{displayDate}</span>
-              {!isLoading && appointmentsData?.count != null && (
-                <span className="rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                  {appointmentsData.count} total
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
-                <Download size={12} strokeWidth={2} />
-                Export CSV
-              </Button>
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => refetch()} disabled={isLoading}>
-                <RefreshCw size={12} strokeWidth={2} className={cn(isLoading && "animate-spin")} />
-                Refresh
-              </Button>
-            </div>
-          </div>
-
-          {/* Table body */}
-          {isLoading ? (
-            <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-              <Loader2 size={22} strokeWidth={2} className="animate-spin text-primary" />
-              <p className="text-sm">Loading appointments…</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
-                <Calendar size={20} strokeWidth={1.5} />
-              </div>
-              <div>
-                <p className="text-[14.5px] font-semibold text-foreground/80">No Appointments Found</p>
-                <p className="mt-0.5 text-[13px] max-w-xs">
-                  {searchQuery ? "Try adjusting your search or filters." : `No appointments scheduled for ${displayDate}.`}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto overflow-y-auto max-h-130 [scrollbar-width:thin] [scrollbar-color:hsl(var(--border))_transparent]">
-              <table className="w-full border-collapse table-fixed min-w-240">
-                <thead>
-                  <tr className="border-b border-border">
-                    {[
-                      ["Customer",  "18%"],
-                      ["Phone",     "11%"],
-                      ["Time",       "8%"],
-                      ["Type",      "11%"],
-                      ["Vehicles",  "17%"],
-                      ["Booked By", "13%"],
-                      ["Source",     "9%"],
-                      ["Status",     "9%"],
-                      ["",           "4%"],
-                    ].map(([label, width]) => (
-                      <th
-                        key={label}
-                        style={{ width }}
-                        className={cn(
-                          "px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-left whitespace-nowrap",
-                          !label && "text-center"
-                        )}
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((apt) => (
-                    <AppointmentRow key={apt._id} apt={apt} onOpen={handleOpenDetailsModal} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Table footer */}
-          {!isLoading && filtered.length > 0 && (
-            <div className="flex items-center justify-between gap-2 px-5 py-2.5 border-t border-border bg-muted/20 text-[11.5px] text-muted-foreground">
-              <span>
-                Showing <strong className="text-foreground/70 font-semibold">{filtered.length}</strong> of{" "}
-                <strong className="text-foreground/70 font-semibold">{appointmentsData?.count ?? 0}</strong> appointments
-              </span>
-              <span>{displayDate}</span>
-            </div>
-          )}
-        </div>
-
-        {/* ── Vehicle History (below appointments) ── */}
+        {/* ── Vehicle History ── */}
         <VehicleHistory />
 
       </div>
