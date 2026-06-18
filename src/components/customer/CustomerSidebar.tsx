@@ -15,6 +15,7 @@ import {
   Zap,
   User,
   Star,
+  Crown,
   ChevronRight,
   Tag,
   Sparkles,
@@ -22,6 +23,7 @@ import {
   Car,
   Heart,
 } from "lucide-react";
+import { useMyMembership } from "@/hooks/api/useMembership";
 import { useAuthActions, useUser } from "@/providers/AuthProvider";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -98,6 +100,12 @@ const navSections = [
         hoverTooltip: "Shop parts and accessories for your vehicle.",
       },
       {
+        title: "Membership",
+        url: "/customer/membership",
+        icon: Crown,
+        hoverTooltip: "Your tier, points, and member benefits.",
+      },
+      {
         title: "Payments",
         url: "/customer/payments",
         icon: CreditCard,
@@ -150,6 +158,7 @@ export function CustomerSidebar() {
   const pathname = usePathname();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(pathname.startsWith("/customer/shop"));
+  const { data: membership } = useMyMembership();
 
   const resolvedAvatar = resolveImageUrl(
     avatarUrl !== null ? avatarUrl : user?.imageUrl,
@@ -205,9 +214,16 @@ export function CustomerSidebar() {
                 {user?.primaryEmailAddress?.emailAddress}
               </p>
             </div>
-            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-              Member
-            </span>
+            <Link
+              href="/customer/membership"
+              className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-colors"
+              style={{
+                color: membership?.currentTier.colorTheme.primary ?? "#16a34a",
+                background: `${membership?.currentTier.colorTheme.primary ?? "#16a34a"}1a`,
+              }}
+            >
+              ✦ {membership?.currentTier.name ?? "Member"}
+            </Link>
           </div>
         </div>
         <div className="hidden group-data-[collapsible=icon]:block">

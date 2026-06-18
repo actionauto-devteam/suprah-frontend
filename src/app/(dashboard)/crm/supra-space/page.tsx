@@ -257,6 +257,15 @@ const getConvAvatar = (c: SSConversation, uid: string) =>
 const avaColors = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal'];
 const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % avaColors.length];
 
+function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: string; size?: number }) {
+  const [broken, setBroken] = React.useState(false);
+  React.useEffect(() => { setBroken(false); }, [src]);
+  if (src && !broken) {
+    return <img src={src} alt="" className="w-full h-full object-cover" onError={() => setBroken(true)} />;
+  }
+  return <span className="text-white font-bold" style={{ fontSize: size }}>{(name || '?').trim().charAt(0).toUpperCase() || '#'}</span>;
+}
+
 interface CrmUser { _id: string; fullName: string; username: string; avatar?: string; role: string }
 
 function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
@@ -675,8 +684,8 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
         <div className="ss4-vcall-screen flex flex-col items-center justify-center" style={{ height: 260 }}>
           <div className="flex flex-col items-center gap-4 relative z-10">
             <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring', getAvaColor(name))}>
-              {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" />
-                : conv.type === 'group' ? <Hash className="h-7 w-7 text-white opacity-70" />
+              {conv.type === 'group' ? <GroupAvatarFace src={avatar} name={name} size={24} />
+                : avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" />
                   : <span className="text-white font-bold" style={{ fontSize: 24 }}>{ini(name)}</span>}
             </div>
             <div className="flex flex-col items-center gap-1.5">
@@ -1743,7 +1752,7 @@ export default function SupraSpacePage() {
       <div className={cn('ss4-conv group flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active')} onClick={() => setActiveId(conv._id)}>
         <div className="relative shrink-0">
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-            {cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : conv.type === 'group' ? <Hash className="h-3.5 w-3.5 text-white opacity-70" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+            {conv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
           </div>
           {conv.type === 'direct' && online ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
             : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
@@ -1912,7 +1921,7 @@ export default function SupraSpacePage() {
                   <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
                     <div className="relative shrink-0">
                       <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                        {getConvAvatar(activeConv, uid) ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" /> : activeConv.type === 'group' ? <Hash className="h-3.5 w-3.5 text-white opacity-70" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                        {activeConv.type === 'group' ? <GroupAvatarFace src={getConvAvatar(activeConv, uid)} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
                       </div>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -2145,7 +2154,7 @@ export default function SupraSpacePage() {
                   <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                     <div className="relative">
                       <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                        {cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : activeConv.type === 'group' ? <Hash className="h-7 w-7 text-white opacity-70" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
+                        {activeConv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                       </div>
                       {activeConv.type === 'group' && isAdmin && (
                         <>

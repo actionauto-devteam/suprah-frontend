@@ -40,6 +40,22 @@ export default function SupportCenterPage() {
     staleTime: 10_000,
   });
 
+  const { data: openConcerns = 0 } = useQuery({
+    queryKey: ["concern-open-count"],
+    queryFn: async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const r = await apiClient.get("/api/customer-concern/crm/conversations", headers);
+        const convs: any[] = r.data?.data || [];
+        return convs.filter((c: any) => !c.metadata?.resolved).length;
+      } catch {
+        return 0;
+      }
+    },
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
   const { data: callsPending = 0 } = useQuery({
     queryKey: ["calls-pending"],
     queryFn: async () => {
@@ -66,84 +82,98 @@ export default function SupportCenterPage() {
     icon: React.ReactNode;
     count: number;
   }> = [
-    { id: "concerns", label: "Concerns", icon: <MessageCircle className="h-4 w-4" />, count: concernUnread },
-    { id: "calls", label: "Calls", icon: <PhoneCall className="h-4 w-4" />, count: callsPending },
+    { id: "concerns", label: "Concerns", icon: <MessageCircle className="h-3.5 w-3.5" />, count: concernUnread },
+    { id: "calls", label: "Calls", icon: <PhoneCall className="h-3.5 w-3.5" />, count: callsPending },
   ];
 
   return (
     <TooltipProvider>
-      <div className="relative flex h-full min-h-screen w-full flex-col overflow-hidden bg-zinc-100 dark:bg-zinc-950 transition-colors duration-300">
-        {/* Decorative background blobs */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-          <div className="absolute -top-64 -left-64 h-150 w-150 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
-          <div className="absolute top-1/3 -right-48 h-125 w-125 rounded-full bg-blue-500/5 dark:bg-blue-500/4 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-100 w-100 rounded-full bg-emerald-400/3 dark:bg-emerald-400/2 blur-3xl" />
-        </div>
-
-        <div className="relative z-10 flex w-full flex-1 flex-col gap-4 px-4 py-6 sm:px-6 sm:py-6">
-          {/* Header */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex h-full min-h-screen w-full flex-col bg-background">
+        <div className="flex w-full flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
+          {/* Console header */}
+          <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => router.push("/crm/dashboard")}
-                className="h-9 w-9 shrink-0 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 hover:border-emerald-500/40 hover:bg-emerald-500/5 p-0 transition-all"
+                className="h-9 w-9 shrink-0 rounded-[10px] border border-border p-0 hover:border-primary/40 hover:bg-primary/5"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
-                <Headset className="h-5 w-5 text-white" />
-                <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+                <Headset className="h-4.5 w-4.5 text-primary" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Support Center</h1>
-                <p className="text-sm text-muted-foreground">
-                  Manage customer concerns and call requests in one place
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground font-mono">
+                  support console
                 </p>
+                <h1 className="text-xl font-bold tracking-tight sm:text-2xl leading-tight">Support Center</h1>
               </div>
             </div>
 
-            {/* Segmented tab switcher */}
-            <div className="flex w-full gap-1 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm p-1 sm:w-auto">
-              {tabs.map((tab) => {
-                const active = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "relative flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 sm:flex-none sm:px-5",
-                      active
-                        ? "bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/40"
-                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
-                    )}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                    {tab.count > 0 && (
-                      <span
-                        className={cn(
-                          "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums transition-colors",
-                          active
-                            ? "bg-white/20 text-white"
-                            : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                        )}
-                      >
-                        {tab.count > 99 ? "99+" : tab.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+            {/* Live stat strip */}
+            <div className="flex items-center gap-4 font-mono">
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-chart-2/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-chart-2" />
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  <span className="font-bold text-foreground">{openConcerns}</span> open
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-1.5 w-1.5">
+                  {callsPending > 0 && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-chart-4/60" />
+                  )}
+                  <span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", callsPending > 0 ? "bg-chart-4" : "bg-muted-foreground/40")} />
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  <span className="font-bold text-foreground">{callsPending}</span> pending calls
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Tab nav — underline style */}
+          <div className="flex gap-6 border-b border-border -mt-1">
+            {tabs.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "relative flex items-center gap-2 pb-3 text-sm font-bold transition-colors border-b-2 -mb-px",
+                    active
+                      ? "text-foreground border-primary"
+                      : "text-muted-foreground border-transparent hover:text-foreground/80"
+                  )}
+                >
+                  {tab.icon}
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span
+                      className={cn(
+                        "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums font-mono",
+                        active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {tab.count > 99 ? "99+" : tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Tab content */}
           <div
-            className="min-h-0 flex-1 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-3 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none sm:p-4"
-            style={{ height: "calc(100vh - 12.5rem)", minHeight: 480 }}
+            className="min-h-0 flex-1"
+            style={{ height: "calc(100vh - 13rem)", minHeight: 480 }}
           >
             {activeTab === "concerns" ? <CustomersConcernTab /> : <CustomerCallsTab />}
           </div>

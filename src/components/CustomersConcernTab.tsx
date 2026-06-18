@@ -21,8 +21,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
@@ -119,6 +117,10 @@ function fmtSize(b: number) {
   return b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 }
 
+function caseTag(n?: number | null) {
+  return n != null ? `CASE-${String(n).padStart(4, "0")}` : "CASE-NEW";
+}
+
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const GROUP_GAP_MS = 3 * 60 * 1000;
@@ -135,6 +137,34 @@ function sameGroup(a?: ConcernMessage, b?: ConcernMessage) {
   return Math.abs(new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) < GROUP_GAP_MS;
 }
 
+// ─── Squircle avatar (shared visual unit) ──────────────────────────────────────
+
+function Squircle({
+  label,
+  tone = "neutral",
+  size = "md",
+  muted = false,
+}: {
+  label: string;
+  tone?: "primary" | "neutral" | "chart2";
+  size?: "sm" | "md" | "lg";
+  muted?: boolean;
+}) {
+  const sizeCls = size === "lg" ? "h-11 w-11 text-sm" : size === "sm" ? "h-7 w-7 text-[10px]" : "h-9 w-9 text-xs";
+  const toneCls = muted
+    ? "bg-muted text-muted-foreground"
+    : tone === "primary"
+      ? "bg-primary text-primary-foreground"
+      : tone === "chart2"
+        ? "bg-chart-2 text-white"
+        : "bg-foreground/85 text-background";
+  return (
+    <div className={cn("shrink-0 rounded-[10px] flex items-center justify-center font-bold tracking-tight", sizeCls, toneCls)}>
+      {ini(label)}
+    </div>
+  );
+}
+
 // ─── Date separator ───────────────────────────────────────────────────────────
 
 function DateSep({ date }: { date: string }) {
@@ -146,11 +176,10 @@ function DateSep({ date }: { date: string }) {
       : format(d, "EEEE, MMM d, yyyy");
   return (
     <div className="flex items-center gap-3 my-5 px-5">
-      <div className="flex-1 h-px bg-border/40" />
-      <span className="text-[10px] font-medium text-muted-foreground/60 bg-muted px-2.5 py-0.5 rounded-full border border-border/30">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 font-mono">
         {label}
       </span>
-      <div className="flex-1 h-px bg-border/40" />
+      <div className="flex-1 h-px bg-border" />
     </div>
   );
 }
@@ -159,7 +188,7 @@ function fmtDate(d: string) {
   return format(new Date(d), "MMM d, yyyy");
 }
 
-// ─── Message bubble (CRM view) ────────────────────────────────────────────────
+// ─── Message row (transcript style, not chat-bubble) ───────────────────────────
 
 function ConcernBubble({
   message,
@@ -189,75 +218,44 @@ function ConcernBubble({
       : "";
 
   return (
-    <div
-      className={cn(
-        "flex gap-2.5 px-5",
-        groupStart ? "pt-2" : "pt-0.5",
-        isOwn && !isCustomer && "flex-row-reverse"
-      )}
-    >
-      {/* Avatar */}
-      <div className="h-7 w-7 shrink-0">
+    <div className={cn("flex gap-3 px-5", groupStart ? "pt-3" : "pt-0.5")}>
+      <div className="w-7 shrink-0">
         {groupStart && (
-          <div
-            className={cn(
-              "h-7 w-7 rounded-full flex items-center justify-center mt-0.5 text-[10px] font-bold text-white shadow-sm",
-              isCustomer
-                ? "bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-900/20"
-                : isOwn
-                  ? "bg-linear-to-br from-violet-500 to-violet-700 shadow-violet-900/20"
-                  : "bg-linear-to-br from-teal-500 to-teal-700 shadow-teal-900/20"
-            )}
-          >
-            {ini(senderName)}
-          </div>
+          <Squircle label={senderName} size="sm" tone={isCustomer ? "chart2" : "primary"} muted={!isCustomer && !isOwn} />
         )}
       </div>
 
-      <div
-        className={cn(
-          "flex flex-col gap-0.5 max-w-[72%]",
-          (isOwn && !isCustomer) && "items-end"
-        )}
-      >
-        {/* Sender label */}
+      <div className="flex flex-col gap-1 min-w-0 flex-1 max-w-[80%]">
         {groupStart && (
-          <div className="flex items-center gap-1.5 px-0.5">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {senderName}
-            </span>
-            {isCustomer && (
-              <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-blue-500/30 text-blue-600 bg-blue-500/5">
-                Customer
-              </Badge>
-            )}
-            {roleTag && (
-              <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
-                {roleTag}
-              </Badge>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] font-semibold text-foreground">{senderName}</span>
+            {isCustomer ? (
+              <span className="text-[9px] font-bold uppercase tracking-wide text-chart-2 font-mono">customer</span>
+            ) : (
+              roleTag && (
+                <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground font-mono">{roleTag}</span>
+              )
             )}
           </div>
         )}
 
-        {/* Text bubble */}
         {message.content && (
           <div
             className={cn(
-              "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word",
+              "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3.5 py-2 text-sm leading-relaxed wrap-break-word",
               isCustomer
-                ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-foreground rounded-tl-sm"
+                ? "border-l-chart-2 bg-chart-2/6 text-foreground"
                 : isOwn
-                  ? "bg-linear-to-br from-violet-500 to-violet-700 text-white rounded-tr-sm shadow-sm shadow-violet-900/10"
-                  : "bg-muted border border-border/40 text-foreground rounded-tl-sm"
+                  ? "border-l-primary bg-primary/[0.07] text-foreground"
+                  : "border-l-border bg-muted/50 text-foreground"
             )}
           >
             {message.content}
           </div>
         )}
 
-        {/* Attachments */}
         {message.attachments?.length > 0 && (
-          <div className="flex flex-col gap-1.5 mt-0.5">
+          <div className="flex flex-col gap-1.5">
             {message.attachments
               .filter((a) => a.mimeType?.startsWith("image/") || a.mimeType?.startsWith("video/"))
               .map((att, i) => {
@@ -268,20 +266,20 @@ function ConcernBubble({
                     onClick={() =>
                       onOpenMedia({ src: att.url, type: isVideo ? "video" : "image", name: att.originalName })
                     }
-                    className="block rounded-xl overflow-hidden"
+                    className="block rounded-lg overflow-hidden border border-border"
                     style={{ maxWidth: 240 }}
                   >
                     {isVideo ? (
                       <video
                         src={att.url}
-                        className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                        className="object-cover hover:opacity-90 transition-opacity"
                         style={{ maxHeight: 200, maxWidth: 240, display: "block" }}
                       />
                     ) : (
                       <img
                         src={att.url}
                         alt={att.originalName}
-                        className="rounded-xl object-cover hover:opacity-90 transition-opacity"
+                        className="object-cover hover:opacity-90 transition-opacity"
                         style={{ maxHeight: 200, maxWidth: 240, display: "block" }}
                       />
                     )}
@@ -295,39 +293,28 @@ function ConcernBubble({
                   key={i}
                   href={att.url}
                   download={att.originalName}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80",
-                    isCustomer
-                      ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40"
-                      : "bg-muted border border-border/40"
-                  )}
+                  className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2 no-underline transition-colors hover:bg-muted"
                   style={{ maxWidth: 260 }}
                 >
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium truncate">{att.originalName}</p>
-                    <p className="text-[10px] opacity-50">{fmtSize(att.size)}</p>
+                    <p className="text-[10px] text-muted-foreground/70 font-mono">{fmtSize(att.size)}</p>
                   </div>
-                  <Download className="h-3 w-3 shrink-0 opacity-50" />
+                  <Download className="h-3 w-3 shrink-0 text-muted-foreground/60" />
                 </a>
               ))}
           </div>
         )}
 
-        {/* Meta */}
         {groupEnd && (
-          <div
-            className={cn(
-              "flex items-center gap-1 px-0.5",
-              (isOwn && !isCustomer) && "flex-row-reverse"
-            )}
-          >
-            <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+          <div className="flex items-center gap-1 px-0.5">
+            <span className="text-[10px] text-muted-foreground/50 tabular-nums font-mono">
               {fmtFull(message.createdAt)}
             </span>
             {!isCustomer && isOwn &&
               (message.readBy?.length > 1 ? (
-                <CheckCheck className="h-3 w-3 text-violet-500" />
+                <CheckCheck className="h-3 w-3 text-primary" />
               ) : (
                 <Check className="h-3 w-3 text-muted-foreground/40" />
               ))}
@@ -352,7 +339,7 @@ function ConversationItem({
   const isResolved = conv.metadata?.resolved;
   const preview =
     conv.lastMessage?.content?.slice(0, 80) ||
-    (conv.lastMessage ? "📎 Attachment" : "No messages yet");
+    (conv.lastMessage ? "Attachment" : "No messages yet");
   const senderPrefix =
     conv.lastMessage?.metadata?.isCustomerMessage === false
       ? "You: "
@@ -362,62 +349,33 @@ function ConversationItem({
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-start gap-3 px-3 py-3 text-left rounded-xl transition-all relative",
-        isActive
-          ? "bg-violet-500/8 ring-1 ring-violet-500/20"
-          : "hover:bg-muted/60"
+        "w-full flex items-start gap-3 px-3 py-3 text-left transition-colors relative border-l-[3px]",
+        isActive ? "bg-primary/6 border-l-primary" : "border-l-transparent hover:bg-muted/50"
       )}
     >
-      {/* Active indicator */}
-      {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-linear-to-b from-violet-500 to-violet-700 rounded-r" />
-      )}
-
-      {/* Avatar */}
-      <div
-        className={cn(
-          "h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5 shadow-sm",
-          isResolved
-            ? "bg-muted-foreground/40"
-            : "bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-900/20"
-        )}
-      >
-        {ini(conv.metadata?.customerName || conv.name)}
-      </div>
+      <Squircle label={conv.metadata?.customerName || conv.name} tone="chart2" muted={!!isResolved} />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <p
-              className={cn(
-                "text-sm font-semibold truncate",
-                conv.unreadCount > 0 && "font-bold"
-              )}
-            >
+            <p className={cn("text-sm truncate", conv.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
               {conv.metadata?.customerName || conv.name}
             </p>
-            {conv.metadata?.caseNumber != null && (
-              <span className="shrink-0 text-[10px] font-medium text-muted-foreground/70 tabular-nums">
-                #{conv.metadata.caseNumber}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {conv.unreadCount > 0 && (
-              <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[9px] font-bold flex items-center justify-center px-1">
+              <span className="h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
                 {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
               </span>
             )}
-            <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+            <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">
               {fmtRelative(conv.lastMessageAt)}
             </span>
           </div>
         </div>
-        {conv.metadata?.customerEmail && (
-          <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
-            {conv.metadata.customerEmail}
-          </p>
-        )}
+        <p className="text-[10px] font-mono font-semibold tracking-wide text-muted-foreground/60 mt-0.5">
+          {caseTag(conv.metadata?.caseNumber)}
+        </p>
         <p
           className={cn(
             "text-xs text-muted-foreground truncate mt-0.5",
@@ -427,12 +385,9 @@ function ConversationItem({
           {senderPrefix}{preview}
         </p>
         {isResolved && (
-          <Badge
-            variant="outline"
-            className="mt-1 h-4 px-1.5 text-[9px] border-emerald-500/30 text-emerald-600 bg-emerald-500/5"
-          >
-            Resolved
-          </Badge>
+          <span className="inline-block mt-1.5 text-[9px] font-bold uppercase tracking-wide text-primary font-mono">
+            ✓ resolved
+          </span>
         )}
       </div>
     </button>
@@ -448,12 +403,12 @@ function PendingFile({ file, onRemove }: { file: File; onRemove: () => void }) {
     if (isImg) { const u = URL.createObjectURL(file); setPreview(u); return () => URL.revokeObjectURL(u); }
   }, [file, isImg]);
   return (
-    <div className="relative flex flex-col rounded-lg overflow-hidden shrink-0 border border-border/40 bg-muted" style={{ width: 60 }}>
+    <div className="relative flex flex-col rounded-md overflow-hidden shrink-0 border border-border bg-muted" style={{ width: 60 }}>
       {preview
         ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 44 }} />
         : <div className="flex items-center justify-center" style={{ height: 44 }}><FileText className="h-4 w-4 text-muted-foreground" /></div>}
       <p className="px-1 text-[9px] text-muted-foreground truncate">{file.name}</p>
-      <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-background/80 flex items-center justify-center"><X className="h-2 w-2" /></button>
+      <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-background/90 flex items-center justify-center border border-border"><X className="h-2 w-2" /></button>
     </div>
   );
 }
@@ -700,35 +655,33 @@ export function CustomersConcernTab() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-background">
+    <div className="flex h-full min-h-0 overflow-hidden border border-border bg-background">
       {/* ── Left: conversation list ── */}
       <div
         className={cn(
-          "flex flex-col border-r border-border/50 shrink-0 overflow-hidden",
+          "flex flex-col border-r border-border shrink-0 overflow-hidden",
           activeId ? "hidden md:flex md:w-72 lg:w-80" : "w-full md:w-72 lg:w-80"
         )}
       >
         {/* List header */}
-        <div className="relative overflow-hidden p-3 space-y-2.5 border-b border-border/50 shrink-0">
-          <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-violet-500/8 blur-2xl pointer-events-none" />
-          <div className="relative flex items-center justify-between">
+        <div className="p-3 space-y-2.5 border-b border-border shrink-0">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-violet-500 to-violet-700 shadow-sm shadow-violet-900/20 dark:shadow-violet-900/40">
-                <MessageCircle className="h-3.5 w-3.5 text-white" />
-                <div className="absolute inset-0 rounded-xl ring-1 ring-violet-400/30" />
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <MessageCircle className="h-3.5 w-3.5 text-primary" />
               </div>
               <p className="font-bold text-sm tracking-tight">Concerns</p>
               {totalUnread > 0 && (
-                <Badge className="h-4.5 min-w-4.5 rounded-full text-[9px] font-bold px-1.5 bg-violet-600 hover:bg-violet-600">
+                <span className="h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold px-1.5 flex items-center justify-center">
                   {totalUnread > 99 ? "99+" : totalUnread}
-                </Badge>
+                </span>
               )}
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => refetchConvs()}
-              className="h-7 w-7 p-0 rounded-lg hover:bg-violet-500/10 hover:text-violet-600"
+              className="h-7 w-7 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
@@ -741,26 +694,26 @@ export function CustomersConcernTab() {
               placeholder="Search customers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/40 border-border/40 rounded-xl focus-visible:ring-violet-500/30 focus-visible:border-violet-500/40"
+              className="pl-8 h-8 text-xs bg-muted/40 border-border rounded-xl focus-visible:ring-primary/30 focus-visible:border-primary/40"
             />
           </div>
 
-          {/* Filter pills */}
-          <div className="flex gap-1">
+          {/* Filter — underline style */}
+          <div className="flex gap-3 border-b border-border -mb-px">
             {(["open", "resolved", "all"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "flex-1 h-6 rounded-lg text-[11px] font-semibold transition-all capitalize",
+                  "pb-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors border-b-2",
                   filter === f
-                    ? "bg-linear-to-br from-violet-500 to-violet-700 text-white shadow-sm shadow-violet-900/20"
-                    : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                    ? "text-primary border-primary"
+                    : "text-muted-foreground border-transparent hover:text-foreground"
                 )}
               >
                 {f}
                 {f === "open" && openCount > 0 && (
-                  <span className="ml-1 opacity-70">· {openCount}</span>
+                  <span className="ml-1 font-mono opacity-70">{openCount}</span>
                 )}
               </button>
             ))}
@@ -768,15 +721,15 @@ export function CustomersConcernTab() {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+        <div className="flex-1 overflow-y-auto divide-y divide-border/60" style={{ scrollbarWidth: "thin" }}>
           {loadingConvs ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : filteredConvs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
-              <div className="relative h-12 w-12 rounded-2xl bg-violet-500/10 flex items-center justify-center ring-1 ring-violet-500/15">
-                <MessageCircle className="h-5 w-5 text-violet-400" />
+              <div className="h-12 w-12 rounded-[10px] bg-muted flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-muted-foreground/50" />
               </div>
               <p className="text-xs text-muted-foreground">
                 {search ? "No results found" : filter === "resolved" ? "No resolved concerns yet" : "No open concerns"}
@@ -799,8 +752,8 @@ export function CustomersConcernTab() {
       <div className={cn("flex flex-col flex-1 min-w-0 overflow-hidden", !activeId && "hidden md:flex")}>
         {!activeId ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-            <div className="relative h-16 w-16 rounded-2xl bg-linear-to-br from-violet-500/15 to-violet-700/10 flex items-center justify-center ring-1 ring-violet-500/15">
-              <MessageCircle className="h-7 w-7 text-violet-400" />
+            <div className="h-14 w-14 rounded-[12px] bg-muted flex items-center justify-center">
+              <MessageCircle className="h-6 w-6 text-muted-foreground/50" />
             </div>
             <div>
               <p className="font-semibold text-sm">Select a concern</p>
@@ -812,113 +765,91 @@ export function CustomersConcernTab() {
         ) : (
           <>
             {/* Thread header */}
-            <div className="relative shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card">
-              <div className="absolute -top-10 right-10 h-28 w-28 rounded-full bg-violet-500/6 blur-2xl pointer-events-none -z-10" />
+            <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
               <button
                 onClick={() => setActiveId(null)}
-                className="md:hidden h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted"
+                className="md:hidden h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted"
               >
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
 
-              <div
-                className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm shadow-blue-900/20"
-              >
-                {ini(activeConv?.metadata?.customerName || "")}
-              </div>
+              <Squircle label={activeConv?.metadata?.customerName || ""} tone="chart2" size="lg" />
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-sm truncate">
                     {activeConv?.metadata?.customerName || "Customer"}
                   </p>
-                  {activeConv?.metadata?.caseNumber != null && (
-                    <span className="text-[11px] font-medium text-muted-foreground/70 tabular-nums shrink-0">
-                      Case #{activeConv.metadata.caseNumber}
-                    </span>
-                  )}
                   {activeConv?.metadata?.resolved && (
-                    <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-emerald-500/30 text-emerald-600 bg-emerald-500/5 shrink-0">
-                      Resolved
-                    </Badge>
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-primary font-mono shrink-0">resolved</span>
                   )}
                 </div>
-                {activeConv?.metadata?.customerEmail && (
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {activeConv.metadata.customerEmail}
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-mono font-semibold tracking-wide text-muted-foreground/60">
+                    {caseTag(activeConv?.metadata?.caseNumber)}
                   </p>
-                )}
+                  {activeConv?.metadata?.customerEmail && (
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      · {activeConv.metadata.customerEmail}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Resolve / reopen button */}
               <div className="flex items-center gap-1.5 shrink-0">
                 {activeConv?.metadata?.resolved ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleResolve(false)}
-                        disabled={resolvingId === activeId}
-                        className="h-7 px-2.5 text-xs gap-1.5 border-amber-500/30 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                      >
-                        {resolvingId === activeId ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <RotateCcw className="h-3 w-3" />
-                        )}
-                        Reopen
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Reopen this concern</TooltipContent>
-                  </Tooltip>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResolve(false)}
+                    disabled={resolvingId === activeId}
+                    className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                  >
+                    {resolvingId === activeId ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3 w-3" />
+                    )}
+                    Reopen
+                  </Button>
                 ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        onClick={() => handleResolve(true)}
-                        disabled={resolvingId === activeId}
-                        className="h-7 px-2.5 text-xs gap-1.5 rounded-lg bg-linear-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 shadow-sm shadow-emerald-900/20"
-                      >
-                        {resolvingId === activeId ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="h-3 w-3" />
-                        )}
-                        Resolve
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Mark as resolved</TooltipContent>
-                  </Tooltip>
+                  <Button
+                    size="sm"
+                    onClick={() => handleResolve(true)}
+                    disabled={resolvingId === activeId}
+                    className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                  >
+                    {resolvingId === activeId ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3 w-3" />
+                    )}
+                    Resolve
+                  </Button>
                 )}
 
                 <div className="relative">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowHistory((v) => !v)}
-                        className={cn(
-                          "h-7 px-2 text-xs gap-1.5 relative",
-                          showHistory && "bg-muted"
-                        )}
-                      >
-                        <History className="h-3.5 w-3.5 text-muted-foreground" />
-                        History
-                        {relatedCases.length > 0 && (
-                          <span className="h-4 min-w-4 rounded-full bg-muted-foreground/20 text-[9px] font-bold flex items-center justify-center px-1">
-                            {relatedCases.length}
-                          </span>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>This customer's other cases</TooltipContent>
-                  </Tooltip>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowHistory((v) => !v)}
+                    className={cn(
+                      "h-7 px-2 text-xs gap-1.5 rounded-xl",
+                      showHistory && "bg-muted"
+                    )}
+                  >
+                    <History className="h-3.5 w-3.5 text-muted-foreground" />
+                    History
+                    {relatedCases.length > 0 && (
+                      <span className="h-4 min-w-4 rounded-full bg-muted-foreground/20 text-[9px] font-bold flex items-center justify-center px-1">
+                        {relatedCases.length}
+                      </span>
+                    )}
+                  </Button>
 
                   {showHistory && (
-                    <div className="absolute right-0 top-full mt-1.5 w-72 max-h-80 overflow-y-auto rounded-xl border border-border/50 bg-popover shadow-lg z-20 p-1.5">
+                    <div className="absolute right-0 top-full mt-1.5 w-72 max-h-80 overflow-y-auto rounded-[10px] border border-border bg-popover shadow-lg z-20 p-1.5">
                       {relatedCases.length === 0 ? (
                         <p className="text-xs text-muted-foreground px-2.5 py-4 text-center">
                           No other cases for this customer.
@@ -928,25 +859,17 @@ export function CustomersConcernTab() {
                           <button
                             key={c._id}
                             onClick={() => { setActiveId(c._id); setShowHistory(false); }}
-                            className="w-full flex flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted/60 transition-colors"
+                            className="w-full flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-muted/60 transition-colors"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-semibold">
-                                Case #{c.caseNumber ?? "—"}
+                              <span className="text-xs font-mono font-bold">
+                                {caseTag(c.caseNumber)}
                               </span>
                               <div className="flex items-center gap-1.5 shrink-0">
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "h-4 px-1.5 text-[9px]",
-                                    c.resolved
-                                      ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5"
-                                      : "border-blue-500/30 text-blue-600 bg-blue-500/5"
-                                  )}
-                                >
-                                  {c.resolved ? "Resolved" : "Open"}
-                                </Badge>
-                                <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                <span className={cn("text-[9px] font-bold uppercase tracking-wide font-mono", c.resolved ? "text-primary" : "text-chart-2")}>
+                                  {c.resolved ? "resolved" : "open"}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">
                                   {fmtRelative(c.lastMessageAt || c.createdAt)}
                                 </span>
                               </div>
@@ -964,7 +887,7 @@ export function CustomersConcernTab() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+            <div className="flex-1 min-h-0 overflow-y-auto py-3" style={{ scrollbarWidth: "thin" }}>
               {hasMore && (
                 <div className="flex justify-center pb-3">
                   <button
@@ -974,9 +897,9 @@ export function CustomersConcernTab() {
                       await fetchMessages(activeId, messages[0]?.createdAt);
                       setLoadingMsgs(false);
                     }}
-                    className="text-[11px] text-muted-foreground px-3 py-1 rounded-full bg-muted/50 hover:bg-muted transition-colors"
+                    className="text-[11px] font-mono text-muted-foreground px-3 py-1 rounded-full bg-muted/50 hover:bg-muted transition-colors"
                   >
-                    {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "↑ Load earlier"}
+                    {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "↑ load earlier"}
                   </button>
                 </div>
               )}
@@ -987,8 +910,8 @@ export function CustomersConcernTab() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-                  <div className="relative h-12 w-12 rounded-2xl bg-violet-500/10 flex items-center justify-center ring-1 ring-violet-500/15">
-                    <MessageCircle className="h-5 w-5 text-violet-400" />
+                  <div className="h-12 w-12 rounded-[10px] bg-muted flex items-center justify-center">
+                    <MessageCircle className="h-5 w-5 text-muted-foreground/50" />
                   </div>
                   <p className="text-sm font-medium">No messages yet</p>
                   <p className="text-xs text-muted-foreground">
@@ -1020,7 +943,7 @@ export function CustomersConcernTab() {
             </div>
 
             {/* Reply input */}
-            <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border/50 space-y-1.5">
+            <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border space-y-1.5">
               {/* Pending files row */}
               {pendingFiles.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto pb-0.5">
@@ -1038,7 +961,7 @@ export function CustomersConcernTab() {
               )}
 
               {activeConv?.metadata?.resolved ? (
-                <div className="flex items-center justify-center py-2.5 rounded-xl bg-muted/40 border border-border/30">
+                <div className="flex items-center justify-center py-2.5 rounded-xl bg-muted/40 border border-border">
                   <p className="text-xs text-muted-foreground">
                     This case is resolved. Customer can start a new conversation anytime.{" "}
                     <button onClick={() => handleResolve(false)} className="underline hover:text-foreground transition-colors">
@@ -1047,7 +970,7 @@ export function CustomersConcernTab() {
                   </p>
                 </div>
               ) : (
-                <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2 focus-within:border-violet-500/50 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all">
+                <div className="flex items-end gap-2 rounded-[10px] border border-border bg-muted/20 px-3 py-2 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
                   <textarea
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
@@ -1074,7 +997,7 @@ export function CustomersConcernTab() {
                       className={cn(
                         "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
                         reply.trim() || pendingFiles.length > 0
-                          ? "bg-linear-to-br from-violet-500 to-violet-700 hover:from-violet-600 hover:to-violet-800 text-white shadow-sm shadow-violet-900/20"
+                          ? "bg-primary hover:bg-primary/90 text-primary-foreground"
                           : "bg-muted text-muted-foreground/40 cursor-not-allowed"
                       )}
                     >

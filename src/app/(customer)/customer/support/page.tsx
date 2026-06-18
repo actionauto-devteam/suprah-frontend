@@ -21,7 +21,6 @@ import {
   Loader2,
   CheckCheck,
   Check,
-  ChevronDown,
   FileText,
   Download,
   Headset,
@@ -37,6 +36,12 @@ import {
   AttachmentLightbox,
   type LightboxAttachment,
 } from "@/components/chat/AttachmentLightbox";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -415,100 +420,128 @@ function PendingFileItem({
   );
 }
 
-// ─── Chat header ──────────────────────────────────────────────────────────────
+// ─── Conversation list panel ────────────────────────────────────────────────
 
-function CaseHistoryPanel({
+function ConversationListPanel({
   cases,
   activeCaseId,
   onSelect,
-  onClose,
+  onNewCase,
+  canStartNew,
+  creatingCase,
+  className,
 }: {
   cases: ConcernCase[];
   activeCaseId: string | null;
   onSelect: (id: string) => void;
-  onClose: () => void;
+  onNewCase: () => void;
+  canStartNew: boolean;
+  creatingCase: boolean;
+  className?: string;
 }) {
   return (
-    <div className="absolute right-3 top-full z-20 mt-1.5 w-72 max-h-80 overflow-y-auto rounded-2xl border border-border/50 bg-card shadow-xl">
-      <div className="px-3 py-2 border-b border-border/40">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-          Your conversations
+    <div className={cn("flex flex-col min-h-0", className)}>
+      <div className="flex items-center justify-between gap-2 px-3.5 py-3 border-b border-border/40 shrink-0">
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Conversations
         </p>
+        <button
+          onClick={onNewCase}
+          disabled={!canStartNew || creatingCase}
+          title="Start a new conversation"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {creatingCase ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Plus className="h-3 w-3" />
+          )}
+          New
+        </button>
       </div>
-      {cases.length === 0 ? (
-        <p className="px-3 py-4 text-xs text-muted-foreground">
-          No conversations yet.
-        </p>
-      ) : (
-        cases.map((c) => (
-          <button
-            key={c._id}
-            onClick={() => {
-              onSelect(c._id);
-              onClose();
-            }}
-            className={cn(
-              "flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted/60",
-              c._id === activeCaseId && "bg-violet-500/8",
-            )}
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold">
-                  Case #{c.caseNumber}
-                </span>
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-                    c.resolved
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                  )}
-                >
-                  {c.resolved ? "Resolved" : "Open"}
-                </span>
+
+      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+        {cases.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <p className="text-xs text-muted-foreground">No conversations yet.</p>
+            <button
+              onClick={onNewCase}
+              disabled={creatingCase}
+              className="mt-2 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-30"
+            >
+              Start one
+            </button>
+          </div>
+        ) : (
+          cases.map((c) => (
+            <button
+              key={c._id}
+              onClick={() => onSelect(c._id)}
+              className={cn(
+                "flex w-full items-start gap-2 rounded-xl px-3 py-2.5 mx-2 my-0.5 text-left transition-colors hover:bg-muted/50",
+                c._id === activeCaseId &&
+                  "bg-violet-500/8 ring-1 ring-violet-500/20",
+              )}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold">
+                    Case #{c.caseNumber}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                      c.resolved
+                        ? "bg-muted text-muted-foreground"
+                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                    )}
+                  >
+                    {c.resolved ? "Resolved" : "Open"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                  {c.lastMessage || "No messages yet"}
+                </p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                  {c.lastMessageAt ? fmtDate(c.lastMessageAt) : fmtDate(c.createdAt)}
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {c.lastMessage || "No messages yet"}
-              </p>
-              <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                {c.lastMessageAt ? fmtDate(c.lastMessageAt) : fmtDate(c.createdAt)}
-              </p>
-            </div>
-            {c.unreadCount > 0 && (
-              <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[10px] font-bold flex items-center justify-center px-1 shrink-0 mt-0.5">
-                {c.unreadCount > 9 ? "9+" : c.unreadCount}
-              </span>
-            )}
-          </button>
-        ))
-      )}
+              {c.unreadCount > 0 && (
+                <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[10px] font-bold flex items-center justify-center px-1 shrink-0 mt-0.5">
+                  {c.unreadCount > 9 ? "9+" : c.unreadCount}
+                </span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }
+
+// ─── Chat header ──────────────────────────────────────────────────────────────
 
 function ChatHeader({
   onClose,
   isResolved,
   caseNumber,
   cases,
-  activeCaseId,
-  onSelectCase,
   onNewCase,
+  onOpenConversations,
   canStartNew,
   creatingCase,
+  historyHiddenOnDesktop,
 }: {
   onClose?: () => void;
   isResolved: boolean;
   caseNumber: number | null;
   cases: ConcernCase[];
-  activeCaseId: string | null;
-  onSelectCase: (id: string) => void;
   onNewCase: () => void;
+  onOpenConversations: () => void;
   canStartNew: boolean;
   creatingCase: boolean;
+  historyHiddenOnDesktop?: boolean;
 }) {
-  const [showHistory, setShowHistory] = React.useState(false);
   const totalUnread = cases.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   return (
@@ -538,7 +571,7 @@ function ChatHeader({
               <CheckCheck className="h-3 w-3" /> Resolved
             </span>
           ) : (
-            "Our team typically replies within a few hours"
+            "Replies within a few hours"
           )}
         </p>
       </div>
@@ -547,7 +580,7 @@ function ChatHeader({
         onClick={onNewCase}
         disabled={!canStartNew || creatingCase}
         title="Start a new conversation"
-        className="h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed md:hidden"
       >
         {creatingCase ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -557,9 +590,12 @@ function ChatHeader({
       </button>
 
       <button
-        onClick={() => setShowHistory((v) => !v)}
-        title="Conversation history"
-        className="relative h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        onClick={onOpenConversations}
+        title="Conversations"
+        className={cn(
+          "relative h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+          historyHiddenOnDesktop && "md:hidden",
+        )}
       >
         <History className="h-4 w-4" />
         {totalUnread > 0 && (
@@ -574,17 +610,8 @@ function ChatHeader({
           onClick={onClose}
           className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted transition-colors"
         >
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <X className="h-4 w-4 text-muted-foreground" />
         </button>
-      )}
-
-      {showHistory && (
-        <CaseHistoryPanel
-          cases={cases}
-          activeCaseId={activeCaseId}
-          onSelect={onSelectCase}
-          onClose={() => setShowHistory(false)}
-        />
       )}
     </div>
   );
@@ -616,6 +643,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   } | null>(null);
   const [unread, setUnread] = React.useState(0);
   const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
+  const [mobileSheetOpen, setMobileSheetOpen] = React.useState(false);
 
   const endRef = React.useRef<HTMLDivElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -911,15 +939,14 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : !activeCaseId ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
-          <div className="relative h-14 w-14 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/40">
-            <MessageCircle className="h-6 w-6 text-white" />
-            <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30" />
+        <div className="flex flex-col items-start gap-3 px-5 sm:px-6 py-10 max-w-sm">
+          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+            <MessageCircle className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
             <p className="font-bold text-sm">How can we help?</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-60">
-              Start a conversation and our support team will get back to you.
+            <p className="text-xs text-muted-foreground mt-1">
+              Start a conversation and our team will get back to you.
             </p>
           </div>
           <button
@@ -936,15 +963,14 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
           </button>
         </div>
       ) : messages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
-          <div className="relative h-14 w-14 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/40">
-            <MessageCircle className="h-6 w-6 text-white" />
-            <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30" />
+        <div className="flex flex-col items-start gap-3 px-5 sm:px-6 py-10 max-w-sm">
+          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+            <MessageCircle className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
             <p className="font-bold text-sm">How can we help?</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-60">
-              Send us a message and our support team will get back to you.
+            <p className="text-xs text-muted-foreground mt-1">
+              Send us a message and our team will get back to you.
             </p>
           </div>
         </div>
@@ -1113,9 +1139,8 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
               isResolved={isResolved}
               caseNumber={activeCase?.caseNumber ?? null}
               cases={cases}
-              activeCaseId={activeCaseId}
-              onSelectCase={loadCase}
               onNewCase={handleNewCase}
+              onOpenConversations={() => setMobileSheetOpen(true)}
               canStartNew={canStartNew}
               creatingCase={creatingCase}
             />
@@ -1123,6 +1148,25 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             {inputBar}
           </div>
         )}
+        <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+          <SheetContent side="left" className="w-[85vw] sm:w-80 p-0">
+            <SheetHeader className="px-4 pt-4 pb-2 border-b border-border/40">
+              <SheetTitle className="text-sm">Conversations</SheetTitle>
+            </SheetHeader>
+            <ConversationListPanel
+              cases={cases}
+              activeCaseId={activeCaseId}
+              onSelect={(id) => {
+                loadCase(id);
+                setMobileSheetOpen(false);
+              }}
+              onNewCase={handleNewCase}
+              canStartNew={canStartNew}
+              creatingCase={creatingCase}
+              className="flex-1"
+            />
+          </SheetContent>
+        </Sheet>
         <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
       </>
     );
@@ -1131,19 +1175,52 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   // ── Page mode ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full min-h-0 rounded-2xl border border-border/50 bg-background overflow-hidden">
-      <ChatHeader
-        isResolved={isResolved}
-        caseNumber={activeCase?.caseNumber ?? null}
+    <div className="flex h-full min-h-0 gap-3">
+      <ConversationListPanel
         cases={cases}
         activeCaseId={activeCaseId}
-        onSelectCase={loadCase}
+        onSelect={loadCase}
         onNewCase={handleNewCase}
         canStartNew={canStartNew}
         creatingCase={creatingCase}
+        className="hidden md:flex w-70 lg:w-80 shrink-0 rounded-2xl border border-border/50 bg-card"
       />
-      {chatBody}
-      {inputBar}
+
+      <div className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border/50 bg-background overflow-hidden">
+        <ChatHeader
+          isResolved={isResolved}
+          caseNumber={activeCase?.caseNumber ?? null}
+          cases={cases}
+          onNewCase={handleNewCase}
+          onOpenConversations={() => setMobileSheetOpen(true)}
+          canStartNew={canStartNew}
+          creatingCase={creatingCase}
+          historyHiddenOnDesktop
+        />
+        {chatBody}
+        {inputBar}
+      </div>
+
+      <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+        <SheetContent side="left" className="w-[85vw] sm:w-80 p-0">
+          <SheetHeader className="px-4 pt-4 pb-2 border-b border-border/40">
+            <SheetTitle className="text-sm">Conversations</SheetTitle>
+          </SheetHeader>
+          <ConversationListPanel
+            cases={cases}
+            activeCaseId={activeCaseId}
+            onSelect={(id) => {
+              loadCase(id);
+              setMobileSheetOpen(false);
+            }}
+            onNewCase={handleNewCase}
+            canStartNew={canStartNew}
+            creatingCase={creatingCase}
+            className="flex-1"
+          />
+        </SheetContent>
+      </Sheet>
+
       <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
@@ -1153,62 +1230,27 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
 export default function CustomerSupportPage() {
   return (
-    <div className="relative flex h-[calc(100dvh-8rem)] flex-col gap-4">
-      {/* Decorative background blobs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute -top-48 -right-32 h-100 w-100 rounded-full bg-violet-500/5 dark:bg-violet-500/4 blur-3xl" />
-        <div className="absolute bottom-0 -left-32 h-80 w-80 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
-      </div>
-
-      {/* ─── Hero header ─────────────────────────────────────────────── */}
-      <div className="relative z-10 shrink-0 overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-violet-500 via-violet-400 to-violet-500/0" />
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-violet-500/8 to-transparent pointer-events-none" />
-        <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-violet-400/6 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-20 h-32 w-32 rounded-full bg-violet-500/4 blur-2xl pointer-events-none" />
-
-        <div
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-[72px] sm:text-[96px] font-black text-violet-500/5 uppercase leading-none select-none pointer-events-none tracking-tight"
-          aria-hidden
-        >
-          HELP
+    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-3">
+      {/* ─── Page header ─────────────────────────────────────────────── */}
+      <div className="shrink-0 flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3">
+        <div className="h-9 w-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+          <Headset className="h-4.5 w-4.5 text-violet-500" />
         </div>
-
-        <div className="relative px-5 py-5 sm:px-7 sm:py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2.5 min-w-0">
-              <div className="flex items-center gap-2">
-                <Headset className="h-3 w-3 text-violet-500 shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-violet-500/80">
-                  Help Center
-                </span>
-              </div>
-
-              <div>
-                <h1 className="text-3xl xs:text-4xl sm:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
-                  Live <span className="text-violet-500">Support</span>
-                </h1>
-                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
-                  Send us a message — we&apos;ll get back to you as soon as possible.
-                </p>
-              </div>
-            </div>
-
-            <div className="shrink-0">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/8 px-3 py-1.5 text-xs font-bold text-violet-600 dark:text-violet-400">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-500" />
-                </span>
-                Team online
-              </span>
-            </div>
-          </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg sm:text-xl font-bold leading-tight">Support</h1>
+          <p className="text-xs text-muted-foreground">We usually reply within a few hours.</p>
         </div>
+        <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/8 px-2.5 py-1 text-[11px] font-bold text-violet-600 dark:text-violet-400 shrink-0">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-violet-500" />
+          </span>
+          Team online
+        </span>
       </div>
 
       {/* ─── Chat ─────────────────────────────────────────────────────── */}
-      <div className="relative z-10 flex-1 min-h-0">
+      <div className="flex-1 min-h-0">
         <CustomerConcernChat mode="page" />
       </div>
     </div>

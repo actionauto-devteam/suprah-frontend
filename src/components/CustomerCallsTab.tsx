@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
@@ -98,14 +97,44 @@ function ini(name: string) {
 }
 
 const STATUS_BADGE: Record<CallStatus, { label: string; cls: string }> = {
-  idle: { label: "Idle", cls: "border-border/40 text-muted-foreground bg-muted/40" },
-  requested: { label: "Requested", cls: "border-blue-500/30 text-blue-600 bg-blue-500/5" },
-  preparing: { label: "Preparing", cls: "border-amber-500/30 text-amber-600 bg-amber-500/5" },
-  about_to_start: { label: "Starting", cls: "border-emerald-500/30 text-emerald-600 bg-emerald-500/5" },
-  in_progress: { label: "In call", cls: "border-emerald-500/40 text-emerald-700 bg-emerald-500/10" },
-  ended: { label: "Ended", cls: "border-border/40 text-muted-foreground bg-muted/40" },
-  declined: { label: "Declined", cls: "border-red-500/30 text-red-600 bg-red-500/5" },
+  idle: { label: "idle", cls: "text-muted-foreground" },
+  requested: { label: "requested", cls: "text-chart-2" },
+  preparing: { label: "preparing", cls: "text-chart-4" },
+  about_to_start: { label: "starting", cls: "text-chart-4" },
+  in_progress: { label: "in call", cls: "text-primary" },
+  ended: { label: "ended", cls: "text-muted-foreground" },
+  declined: { label: "declined", cls: "text-destructive" },
 };
+
+const STATUS_RAIL: Record<CallStatus, string> = {
+  idle: "border-l-transparent",
+  requested: "border-l-chart-2",
+  preparing: "border-l-chart-4",
+  about_to_start: "border-l-chart-4",
+  in_progress: "border-l-primary",
+  ended: "border-l-transparent",
+  declined: "border-l-destructive",
+};
+
+// ─── Squircle avatar (shared visual unit, mirrors Concerns tab) ───────────────
+
+function Squircle({
+  label,
+  tone = "neutral",
+  size = "md",
+}: {
+  label: string;
+  tone?: "primary" | "neutral" | "chart2";
+  size?: "sm" | "md" | "lg";
+}) {
+  const sizeCls = size === "lg" ? "h-11 w-11 text-sm" : size === "sm" ? "h-7 w-7 text-[10px]" : "h-9 w-9 text-xs";
+  const toneCls = tone === "primary" ? "bg-primary text-primary-foreground" : tone === "chart2" ? "bg-chart-2 text-white" : "bg-foreground/85 text-background";
+  return (
+    <div className={cn("shrink-0 rounded-[10px] flex items-center justify-center font-bold tracking-tight", sizeCls, toneCls)}>
+      {ini(label)}
+    </div>
+  );
+}
 
 // ─── Conversation list item ───────────────────────────────────────────────────
 
@@ -121,45 +150,41 @@ function CallListItem({
   const mode = conv.metadata?.callMode || "video";
   const status = (conv.metadata?.callStatus as CallStatus) || "idle";
   const badge = STATUS_BADGE[status] ?? STATUS_BADGE.idle;
+  const rail = STATUS_RAIL[status] ?? STATUS_RAIL.idle;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-start gap-3 px-3 py-3 text-left rounded-xl transition-all relative",
-        isActive ? "bg-amber-500/8 ring-1 ring-amber-500/20" : "hover:bg-muted/60"
+        "w-full flex items-start gap-3 px-3 py-3 text-left transition-colors relative border-l-[3px]",
+        isActive ? cn("bg-primary/6", rail) : cn(rail, "hover:bg-muted/50")
       )}
     >
-      {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-linear-to-b from-amber-500 to-orange-600 rounded-r" />
-      )}
-      <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white mt-0.5 bg-linear-to-br from-blue-500 to-blue-700 shadow-sm shadow-blue-900/20">
-        {ini(conv.metadata?.customerName || conv.name)}
-      </div>
+      <Squircle label={conv.metadata?.customerName || conv.name} tone="chart2" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-1">
-          <p className={cn("text-sm font-semibold truncate flex-1", conv.unreadCount > 0 && "font-bold")}>
+          <p className={cn("text-sm truncate flex-1", conv.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
             {conv.metadata?.customerName || conv.name}
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
             {conv.unreadCount > 0 && (
-              <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-amber-500 to-orange-600 text-white text-[9px] font-bold flex items-center justify-center px-1">
+              <span className="h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
                 {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
               </span>
             )}
-            <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+            <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">
               {fmtRelative(conv.lastMessageAt)}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 mt-1">
-          <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-1 capitalize">
+        <div className="flex items-center gap-2 mt-1">
+          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70 font-mono">
             {mode === "voice" ? <Phone className="h-2.5 w-2.5" /> : <Video className="h-2.5 w-2.5" />}
             {mode}
-          </Badge>
-          <Badge variant="outline" className={cn("h-4 px-1.5 text-[9px]", badge.cls)}>
+          </span>
+          <span className={cn("text-[10px] font-bold uppercase tracking-wide font-mono", badge.cls)}>
             {badge.label}
-          </Badge>
+          </span>
         </div>
       </div>
     </button>
@@ -168,51 +193,38 @@ function CallListItem({
 
 // ─── Status timeline row ──────────────────────────────────────────────────────
 
-function TimelineRow({ msg, crmUserId }: { msg: CallMessage; crmUserId: string }) {
+function TimelineRow({ msg }: { msg: CallMessage }) {
   const isCustomer = msg.metadata?.isCustomerMessage === true;
   const senderName = isCustomer
     ? msg.metadata?.customerName || "Customer"
     : msg.metadata?.crmUserName || "Support";
 
   return (
-    <div className={cn("flex gap-2.5 px-5 py-1", !isCustomer && "flex-row-reverse")}>
-      <div
-        className={cn(
-          "h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-white shadow-sm",
-          isCustomer
-            ? "bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-900/20"
-            : "bg-linear-to-br from-amber-500 to-orange-600 shadow-amber-900/20"
-        )}
-      >
-        {ini(senderName)}
+    <div className="flex gap-3 px-5 py-1.5">
+      <div className="w-7 shrink-0">
+        <Squircle label={senderName} size="sm" tone={isCustomer ? "chart2" : "primary"} />
       </div>
-      <div className={cn("flex flex-col gap-0.5 max-w-[72%]", !isCustomer && "items-end")}>
-        <div className="flex items-center gap-1.5 px-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">{senderName}</span>
+      <div className="flex flex-col gap-1 min-w-0 flex-1 max-w-[80%]">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] font-semibold text-foreground">{senderName}</span>
           {isCustomer ? (
-            <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-blue-500/30 text-blue-600 bg-blue-500/5">
-              Customer
-            </Badge>
+            <span className="text-[9px] font-bold uppercase tracking-wide text-chart-2 font-mono">customer</span>
           ) : (
             msg.metadata?.crmUserRole && (
-              <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
-                {msg.metadata.crmUserRole}
-              </Badge>
+              <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground font-mono">{msg.metadata.crmUserRole}</span>
             )
           )}
         </div>
         <div
           className={cn(
-            "rounded-2xl px-3.5 py-2 text-sm leading-relaxed wrap-break-word flex items-start gap-2",
-            isCustomer
-              ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-foreground rounded-tl-sm"
-              : "bg-linear-to-br from-amber-500 to-orange-600 text-white rounded-tr-sm shadow-sm shadow-amber-900/10"
+            "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3.5 py-2 text-sm leading-relaxed wrap-break-word flex items-start gap-2",
+            isCustomer ? "border-l-chart-2 bg-chart-2/6 text-foreground" : "border-l-chart-4 bg-chart-4/8 text-foreground"
           )}
         >
-          {!isCustomer && <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5 opacity-80" />}
+          {!isCustomer && <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5 text-chart-4" />}
           <span>{msg.content}</span>
         </div>
-        <span className="text-[10px] text-muted-foreground/50 tabular-nums px-0.5">
+        <span className="text-[10px] text-muted-foreground/50 tabular-nums font-mono">
           {fmtFull(msg.createdAt)}
         </span>
       </div>
@@ -429,30 +441,28 @@ export function CustomerCallsTab() {
   const callLive = activeStatus === "in_progress";
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-background">
+    <div className="flex h-full min-h-0 overflow-hidden border border-border bg-background">
       {/* ── Left: request list ── */}
       <div
         className={cn(
-          "flex flex-col border-r border-border/50 shrink-0 overflow-hidden",
+          "flex flex-col border-r border-border shrink-0 overflow-hidden",
           activeId ? "hidden md:flex md:w-72 lg:w-80" : "w-full md:w-72 lg:w-80"
         )}
       >
-        <div className="relative overflow-hidden p-3 space-y-2.5 border-b border-border/50 shrink-0">
-          <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-amber-500/8 blur-2xl pointer-events-none" />
-          <div className="relative flex items-center justify-between">
+        <div className="p-3 space-y-2.5 border-b border-border shrink-0">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-amber-500 to-orange-600 shadow-sm shadow-amber-900/20 dark:shadow-amber-900/40">
-                <PhoneCall className="h-3.5 w-3.5 text-white" />
-                <div className="absolute inset-0 rounded-xl ring-1 ring-amber-400/30" />
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-chart-4/15">
+                <PhoneCall className="h-3.5 w-3.5 text-chart-4" />
               </div>
               <p className="font-bold text-sm tracking-tight">Calls</p>
               {totalUnread > 0 && (
-                <Badge className="h-4.5 min-w-4.5 rounded-full text-[9px] font-bold px-1.5 bg-amber-600 hover:bg-amber-600">
+                <span className="h-4.5 min-w-4.5 rounded-full bg-chart-4 text-white text-[9px] font-bold px-1.5 flex items-center justify-center">
                   {totalUnread > 99 ? "99+" : totalUnread}
-                </Badge>
+                </span>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-7 w-7 p-0 rounded-lg hover:bg-amber-500/10 hover:text-amber-600">
+            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-7 w-7 p-0 rounded-xl hover:bg-chart-4/10 hover:text-chart-4">
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -462,20 +472,20 @@ export function CustomerCallsTab() {
               placeholder="Search customers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/40 border-border/40 rounded-xl focus-visible:ring-amber-500/30 focus-visible:border-amber-500/40"
+              className="pl-8 h-8 text-xs bg-muted/40 border-border rounded-xl focus-visible:ring-chart-4/30 focus-visible:border-chart-4/40"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+        <div className="flex-1 overflow-y-auto divide-y divide-border/60" style={{ scrollbarWidth: "thin" }}>
           {loadingConvs ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
-              <div className="relative h-12 w-12 rounded-2xl bg-amber-500/10 flex items-center justify-center ring-1 ring-amber-500/15">
-                <PhoneCall className="h-5 w-5 text-amber-400" />
+              <div className="h-12 w-12 rounded-[10px] bg-muted flex items-center justify-center">
+                <PhoneCall className="h-5 w-5 text-muted-foreground/50" />
               </div>
               <p className="text-xs text-muted-foreground">
                 {search ? "No results found" : "No incoming call requests"}
@@ -498,8 +508,8 @@ export function CustomerCallsTab() {
       <div className={cn("flex flex-col flex-1 min-w-0 overflow-hidden", !activeId && "hidden md:flex")}>
         {!activeId ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-            <div className="relative h-16 w-16 rounded-2xl bg-linear-to-br from-amber-500/15 to-orange-600/10 flex items-center justify-center ring-1 ring-amber-500/15">
-              <PhoneCall className="h-7 w-7 text-amber-400" />
+            <div className="h-14 w-14 rounded-[12px] bg-muted flex items-center justify-center">
+              <PhoneCall className="h-6 w-6 text-muted-foreground/50" />
             </div>
             <div>
               <p className="font-semibold text-sm">Select a call request</p>
@@ -511,76 +521,62 @@ export function CustomerCallsTab() {
         ) : (
           <>
             {/* Header */}
-            <div className="relative shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card overflow-hidden">
-              <div className="absolute -top-10 right-10 h-28 w-28 rounded-full bg-amber-500/6 blur-2xl pointer-events-none -z-10" />
+            <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
               <button
                 onClick={() => setActiveId(null)}
-                className="md:hidden h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted"
+                className="md:hidden h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted"
               >
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
-              <div className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm shadow-blue-900/20">
-                {ini(activeConv?.metadata?.customerName || "")}
-              </div>
+              <Squircle label={activeConv?.metadata?.customerName || ""} tone="chart2" size="lg" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-sm truncate">
                     {activeConv?.metadata?.customerName || "Customer"}
                   </p>
-                  <Badge
-                    variant="outline"
-                    className={cn("h-4 px-1.5 text-[9px] shrink-0", STATUS_BADGE[activeStatus]?.cls)}
-                  >
+                  <span className={cn("text-[9px] font-bold uppercase tracking-wide font-mono shrink-0", STATUS_BADGE[activeStatus]?.cls)}>
                     {STATUS_BADGE[activeStatus]?.label}
-                  </Badge>
-                  <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-1 shrink-0 capitalize">
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70 font-mono">
                     {activeConv?.metadata?.callMode === "voice" ? (
                       <Phone className="h-2.5 w-2.5" />
                     ) : (
                       <Video className="h-2.5 w-2.5" />
                     )}
                     {activeConv?.metadata?.callMode || "video"}
-                  </Badge>
+                  </span>
+                  {activeConv?.metadata?.customerEmail && (
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      · {activeConv.metadata.customerEmail}
+                    </p>
+                  )}
                 </div>
-                {activeConv?.metadata?.customerEmail && (
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {activeConv.metadata.customerEmail}
-                  </p>
-                )}
               </div>
 
               {/* Call actions */}
               <div className="flex items-center gap-1.5 shrink-0">
                 {callLive ? (
                   <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          onClick={handleJoinCall}
-                          className="h-7 px-2.5 text-xs gap-1.5 rounded-lg bg-linear-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 shadow-sm shadow-emerald-900/20"
-                        >
-                          <PhoneCall className="h-3 w-3" />
-                          Join
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Re-join the live call</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleEndCall}
-                          disabled={endingCall}
-                          className="h-7 px-2.5 text-xs gap-1.5 border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-                        >
-                          {endingCall ? <Loader2 className="h-3 w-3 animate-spin" /> : <PhoneOff className="h-3 w-3" />}
-                          End
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>End the call</TooltipContent>
-                    </Tooltip>
+                    <Button
+                      size="sm"
+                      onClick={handleJoinCall}
+                      className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                    >
+                      <PhoneCall className="h-3 w-3" />
+                      Join
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleEndCall}
+                      disabled={endingCall}
+                      className="h-7 px-2.5 text-xs gap-1.5 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10"
+                    >
+                      {endingCall ? <Loader2 className="h-3 w-3 animate-spin" /> : <PhoneOff className="h-3 w-3" />}
+                      End
+                    </Button>
                   </>
                 ) : (
                   <Tooltip>
@@ -589,7 +585,7 @@ export function CustomerCallsTab() {
                         size="sm"
                         onClick={handleStartCall}
                         disabled={startingCall}
-                        className="h-7 px-2.5 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                        className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
                       >
                         {startingCall ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -607,7 +603,7 @@ export function CustomerCallsTab() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-xl">
                       <Users className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
                   </TooltipTrigger>
@@ -626,15 +622,15 @@ export function CustomerCallsTab() {
             </div>
 
             {/* Timeline */}
-            <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+            <div className="flex-1 min-h-0 overflow-y-auto py-3" style={{ scrollbarWidth: "thin" }}>
               {loadingMsgs && messages.length === 0 ? (
                 <div className="flex justify-center py-16">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-                  <div className="relative h-12 w-12 rounded-2xl bg-amber-500/10 flex items-center justify-center ring-1 ring-amber-500/15">
-                    <Clock className="h-5 w-5 text-amber-400" />
+                  <div className="h-12 w-12 rounded-[10px] bg-muted flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-muted-foreground/50" />
                   </div>
                   <p className="text-sm font-medium">No activity yet</p>
                   <p className="text-xs text-muted-foreground">
@@ -642,13 +638,13 @@ export function CustomerCallsTab() {
                   </p>
                 </div>
               ) : (
-                messages.map((m) => <TimelineRow key={m._id} msg={m} crmUserId={crmUserId} />)
+                messages.map((m) => <TimelineRow key={m._id} msg={m} />)
               )}
               <div ref={endRef} />
             </div>
 
             {/* Predefined status sender (one-way) */}
-            <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border/50 space-y-2">
+            <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border space-y-2">
               {notice && (
                 <p
                   className={cn(
@@ -659,8 +655,8 @@ export function CustomerCallsTab() {
                   {notice.text}
                 </p>
               )}
-              <p className="text-[11px] font-medium text-muted-foreground px-1">
-                Send a status update to the customer
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 font-mono">
+                Send a status update
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map((preset) => (
@@ -669,8 +665,8 @@ export function CustomerCallsTab() {
                     onClick={() => handleSendPreset(preset.key)}
                     disabled={sendingPreset !== null}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-amber-500/8 hover:border-amber-500/30 hover:text-amber-700 dark:hover:text-amber-400 disabled:opacity-50",
-                      preset.key === "declined" && "border-red-500/20 text-red-600 hover:bg-red-50 hover:border-red-500/30 hover:text-red-600 dark:hover:bg-red-950/20"
+                      "flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-chart-4/10 hover:border-chart-4/40 disabled:opacity-50",
+                      preset.key === "declined" && "border-destructive/20 text-destructive hover:bg-destructive/10 hover:border-destructive/30"
                     )}
                   >
                     {sendingPreset === preset.key ? (

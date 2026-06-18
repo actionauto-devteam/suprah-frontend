@@ -9,7 +9,7 @@ import {
     DollarSign,
     Calendar,
     Wrench,
-    MapPin,
+    Crown,
     Gift,
     Wallet,
     Bell,
@@ -43,7 +43,7 @@ export const driverNav: BottomNavItem[] = [
 
 export const customerNav: BottomNavItem[] = [
     { label: "Home", href: "/customer", icon: Wrench },
-    { label: "Network", href: "/customer/network", icon: MapPin },
+    { label: "Rewards", href: "/customer/membership", icon: Crown },
     { label: "Shop", href: "/customer/shop", icon: Car, isCenter: true },
     { label: "Refer", href: "/customer/refer", icon: Gift },
     { label: "Wallet", href: "/customer/payments", icon: Wallet },

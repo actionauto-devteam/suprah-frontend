@@ -24,12 +24,12 @@ import { resolveImageUrl, cn } from "@/lib/utils";
 
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
-function getOriginalPrice(vehicleId: string, price: number): number {
-  const hash = vehicleId
-    .split("")
-    .reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
-  const pct = 1.08 + (hash % 12) * 0.01;
-  return Math.round((price * pct) / 500) * 500;
+function getMemberPricing(vehicle: Vehicle) {
+  const price = vehicle.price || 0;
+  const memberPrice = vehicle.memberPrice ?? price;
+  const discountPct = vehicle.memberDiscountPercent ?? 0;
+  const hasDiscount = discountPct > 0 && memberPrice < price;
+  return { price, memberPrice, discountPct, hasDiscount, tierName: vehicle.tierName };
 }
 
 interface CarInventoryCardProps {
@@ -254,12 +254,7 @@ export function CarInventoryCard({
     : null;
   const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
   const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
-  const originalPrice =
-    vehicle.marketPrice && vehicle.marketPrice > vehicle.price
-      ? vehicle.marketPrice
-      : getOriginalPrice(vehicle.id, vehicle.price);
-  const savingsAmt = originalPrice - vehicle.price;
-  const savingsPct = Math.round((savingsAmt / originalPrice) * 100);
+  const { price, memberPrice, discountPct, hasDiscount, tierName } = getMemberPricing(vehicle);
 
   if (viewMode === "list") {
     return (
@@ -330,17 +325,25 @@ export function CarInventoryCard({
         </div>
 
         <div className="hidden sm:flex flex-col items-end justify-center gap-0.5 pr-4 pl-2 py-2 shrink-0 border-l border-border/30 min-w-35">
-          <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
-            ${originalPrice.toLocaleString()}
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-lg font-black text-primary tabular-nums">
-              ${vehicle.price.toLocaleString()}
+          {hasDiscount ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
+                  ${price.toLocaleString()}
+                </span>
+                <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                  {tierName} −{discountPct}%
+                </span>
+              </div>
+              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                ${memberPrice.toLocaleString()}
+              </span>
+            </>
+          ) : (
+            <span className="text-lg font-black text-foreground tabular-nums">
+              ${price.toLocaleString()}
             </span>
-            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
-              -{savingsPct}%
-            </span>
-          </div>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -352,12 +355,20 @@ export function CarInventoryCard({
         </div>
 
         <div className="sm:hidden flex flex-col items-end justify-center pr-3 pl-1 py-2 shrink-0 gap-0.5">
-          <span className="text-[10px] text-muted-foreground/60 line-through tabular-nums">
-            ${originalPrice.toLocaleString()}
-          </span>
-          <span className="text-sm font-black text-primary tabular-nums">
-            ${vehicle.price.toLocaleString()}
-          </span>
+          {hasDiscount ? (
+            <>
+              <span className="text-[10px] text-muted-foreground/60 line-through tabular-nums">
+                ${price.toLocaleString()}
+              </span>
+              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                ${memberPrice.toLocaleString()}
+              </span>
+            </>
+          ) : (
+            <span className="text-sm font-black text-foreground tabular-nums">
+              ${price.toLocaleString()}
+            </span>
+          )}
         </div>
 
         <button
@@ -444,17 +455,25 @@ export function CarInventoryCard({
         </div>
 
         <div className="mt-auto pt-1 border-t border-border/30">
-          <div className="flex items-baseline gap-2 mb-0.5">
+          {hasDiscount ? (
+            <>
+              <div className="flex items-baseline gap-2 mb-0.5">
+                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  ${memberPrice.toLocaleString()}
+                </span>
+                <span className="text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                  {tierName} −{discountPct}%
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
+                ${price.toLocaleString()} retail
+              </span>
+            </>
+          ) : (
             <span className="text-xl font-black text-foreground tabular-nums">
-              ${vehicle.price.toLocaleString()}
+              ${price.toLocaleString()}
             </span>
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
-              -{savingsPct}%
-            </span>
-          </div>
-          <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
-            ${originalPrice.toLocaleString()}
-          </span>
+          )}
         </div>
       </div>
 

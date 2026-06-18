@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   PhoneOff,
   Headset,
+  Check,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
@@ -125,49 +126,171 @@ function StatusToastCard({ toast, onClose }: { toast: StatusToast; onClose: () =
   );
 }
 
-// ─── Mode chooser card ────────────────────────────────────────────────────────
+// ─── Status stepper ───────────────────────────────────────────────────────────
 
-function ModeCard({
+function statusStepIndex(status: CallStatus): number {
+  switch (status) {
+    case "requested":
+      return 0;
+    case "preparing":
+      return 1;
+    case "about_to_start":
+    case "in_progress":
+      return 2;
+    case "ended":
+    case "declined":
+      return 3;
+    default:
+      return -1;
+  }
+}
+
+function CallStatusStepper({ status }: { status: CallStatus }) {
+  const declined = status === "declined";
+  const steps = ["Requested", "Preparing", "Live", declined ? "Declined" : "Ended"];
+  const current = statusStepIndex(status);
+
+  return (
+    <div className="flex items-center">
+      {steps.map((label, i) => {
+        const isLast = i === steps.length - 1;
+        const completed = current > i && !(declined && isLast);
+        const active = current === i;
+        return (
+          <React.Fragment key={label}>
+            <div className="flex flex-col items-center gap-1.5">
+              <div
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors shrink-0",
+                  completed && "border-emerald-500 bg-emerald-500 text-white",
+                  active && !declined && "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                  active && declined && "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400",
+                  !completed && !active && "border-border text-muted-foreground/50",
+                )}
+              >
+                {completed ? <Check className="h-4 w-4" /> : i + 1}
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] font-medium whitespace-nowrap",
+                  active ? "text-foreground" : "text-muted-foreground/70",
+                )}
+              >
+                {label}
+              </span>
+            </div>
+            {!isLast && (
+              <div
+                className={cn(
+                  "h-0.5 flex-1 mx-1 mb-4 rounded-full transition-colors",
+                  current > i ? "bg-emerald-500" : "bg-border",
+                )}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Mode toggle ────────────────────────────────────────────────────────────
+
+function CallModeToggle({
   mode,
-  selected,
-  onSelect,
+  onChange,
+  disabled,
 }: {
   mode: CallMode;
-  selected: boolean;
-  onSelect: () => void;
+  onChange: (m: CallMode) => void;
+  disabled?: boolean;
 }) {
-  const isVoice = mode === "voice";
+  return (
+    <div className="inline-flex self-start rounded-xl border border-border/60 bg-muted/40 p-1">
+      {(["voice", "video"] as CallMode[]).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          disabled={disabled}
+          aria-pressed={mode === m}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all",
+            mode === m
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+            disabled && "opacity-60 cursor-not-allowed",
+          )}
+        >
+          {m === "voice" ? <Phone className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
+          {m === "voice" ? "Voice" : "Video"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Primary call action ──────────────────────────────────────────────────────
+
+function CallActionButton({
+  mode,
+  canRequest,
+  canJoin,
+  requesting,
+  joining,
+  onRequest,
+  onJoin,
+}: {
+  mode: CallMode;
+  canRequest: boolean;
+  canJoin: boolean;
+  requesting: boolean;
+  joining: boolean;
+  onRequest: () => void;
+  onJoin: () => void;
+}) {
+  const ModeIcon = mode === "voice" ? Phone : Video;
+
+  if (canJoin) {
+    return (
+      <button
+        onClick={onJoin}
+        disabled={joining}
+        className="relative flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/30 transition-transform hover:scale-105 disabled:opacity-70"
+      >
+        <span className="absolute inset-0 rounded-full ring-2 ring-emerald-400/40 animate-ping" />
+        <span
+          className="absolute inset-0 rounded-full ring-2 ring-emerald-400/25 animate-ping"
+          style={{ animationDelay: "0.6s" }}
+        />
+        {joining ? (
+          <Loader2 className="relative h-8 w-8 animate-spin" />
+        ) : (
+          <ModeIcon className="relative h-8 w-8" />
+        )}
+      </button>
+    );
+  }
+
+  if (!canRequest) {
+    return (
+      <div className="flex h-28 w-28 sm:h-32 sm:w-32 flex-col items-center justify-center gap-1.5 rounded-full bg-muted text-muted-foreground">
+        <Loader2 className="h-7 w-7 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        "relative flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border p-5 sm:p-6 transition-all overflow-hidden",
-        selected
-          ? "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-500/10 shadow-lg shadow-emerald-900/10 dark:shadow-emerald-900/30"
-          : "border-border/60 hover:border-emerald-500/30 bg-card hover:bg-muted/40"
-      )}
+      onClick={onRequest}
+      disabled={requesting}
+      className="flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20 transition-transform hover:scale-105 disabled:opacity-60"
     >
-      {selected && (
-        <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/30 pointer-events-none" />
+      {requesting ? (
+        <Loader2 className="h-8 w-8 animate-spin" />
+      ) : (
+        <ModeIcon className="h-8 w-8" />
       )}
-      <div
-        className={cn(
-          "relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all",
-          selected
-            ? "bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20"
-            : "bg-muted text-muted-foreground"
-        )}
-      >
-        {isVoice ? <Phone className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-      </div>
-      <div className="text-center">
-        <p className="font-semibold text-sm">{isVoice ? "Voice Call" : "Video Call"}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {isVoice ? "Audio only" : "Audio and video"}
-        </p>
-      </div>
     </button>
   );
 }
@@ -352,76 +475,47 @@ export default function CustomerCallCenterPage() {
 
   const isLive = status === "in_progress" || status === "about_to_start";
 
+  const actionLabel = canJoin
+    ? `Join ${mode === "voice" ? "Voice" : "Video"} Call`
+    : !canRequest
+      ? "Waiting for the team…"
+      : `Request ${mode === "voice" ? "Voice" : "Video"} Call`;
+
   return (
-    <div className="relative flex h-full flex-col gap-4">
-      {/* Decorative background blobs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute -top-48 -right-32 h-100 w-100 rounded-full bg-amber-500/5 dark:bg-amber-500/4 blur-3xl" />
-        <div className="absolute bottom-0 -left-32 h-80 w-80 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
-      </div>
-
-      {/* ─── Hero header ─────────────────────────────────────────────── */}
-      <div className="relative z-10 shrink-0 overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-amber-500 via-amber-400 to-amber-500/0" />
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-amber-500/8 to-transparent pointer-events-none" />
-        <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-amber-400/6 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-20 h-32 w-32 rounded-full bg-amber-500/4 blur-2xl pointer-events-none" />
-
-        <div
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-[72px] sm:text-[96px] font-black text-amber-500/5 uppercase leading-none select-none pointer-events-none tracking-tight"
-          aria-hidden
+    <div className="flex h-full flex-col gap-3">
+      {/* ─── Page header ─────────────────────────────────────────────── */}
+      <div className="shrink-0 flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3">
+        <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+          <Headset className="h-4.5 w-4.5 text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg sm:text-xl font-bold leading-tight">Call Center</h1>
+          <p className="text-xs text-muted-foreground">Connect live with our team.</p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold shrink-0",
+            isLive
+              ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400"
+              : "border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400",
+          )}
         >
-          CALLS
-        </div>
-
-        <div className="relative px-5 py-5 sm:px-7 sm:py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2.5 min-w-0">
-              <div className="flex items-center gap-2">
-                <Headset className="h-3 w-3 text-amber-500 shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500/80">
-                  Live Assistance
-                </span>
-              </div>
-
-              <div>
-                <h1 className="text-3xl xs:text-4xl sm:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
-                  Call <span className="text-amber-500">Center</span>
-                </h1>
-                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
-                  Start a voice or video call — we&apos;ll keep you posted with live updates.
-                </p>
-              </div>
-            </div>
-
-            <div className="shrink-0">
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold",
-                  isLive
-                    ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400"
-                    : "border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400"
-                )}
-              >
-                <span className="relative flex h-2 w-2">
-                  <span
-                    className={cn(
-                      "animate-ping absolute inline-flex h-full w-full rounded-full opacity-60",
-                      isLive ? "bg-emerald-400" : "bg-amber-400"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "relative inline-flex h-2 w-2 rounded-full",
-                      isLive ? "bg-emerald-500" : "bg-amber-500"
-                    )}
-                  />
-                </span>
-                {meta.label}
-              </span>
-            </div>
-          </div>
-        </div>
+          <span className="relative flex h-1.5 w-1.5">
+            <span
+              className={cn(
+                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-60",
+                isLive ? "bg-emerald-400" : "bg-amber-400",
+              )}
+            />
+            <span
+              className={cn(
+                "relative inline-flex h-1.5 w-1.5 rounded-full",
+                isLive ? "bg-emerald-500" : "bg-amber-500",
+              )}
+            />
+          </span>
+          {meta.label}
+        </span>
       </div>
 
       {/* One-way status toasts (top-right) */}
@@ -431,132 +525,99 @@ export default function CustomerCallCenterPage() {
         ))}
       </div>
 
-      <div className="relative z-10 flex-1 min-h-0">
-        <div className="mx-auto flex max-w-xl flex-col gap-6 rounded-2xl border border-border/50 bg-background p-5 sm:p-6 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              {/* Current status banner */}
-              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3">
-                <div className="relative shrink-0 h-9 w-9 rounded-xl bg-muted flex items-center justify-center">
-                  <span className={meta.tone}>{meta.icon}</span>
-                  {isLive && (
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-card" />
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground">Current status</p>
-                  <p className={cn("text-sm font-semibold", meta.tone)}>{meta.label}</p>
-                </div>
-              </div>
-
-              {/* Mode chooser */}
-              <div>
-                <p className="text-sm font-medium mb-3">Choose how you&apos;d like to connect</p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <ModeCard mode="voice" selected={mode === "voice"} onSelect={() => setMode("voice")} />
-                  <ModeCard mode="video" selected={mode === "video"} onSelect={() => setMode("video")} />
-                </div>
-              </div>
-
-              {/* Notice */}
-              {notice && (
-                <p
-                  className={cn(
-                    "text-xs px-1",
-                    notice.kind === "error" ? "text-destructive" : "text-muted-foreground"
-                  )}
-                >
-                  {notice.text}
-                </p>
-              )}
-
-              {/* Actions */}
-              <div className="flex flex-col gap-2">
-                {canJoin ? (
-                  <button
-                    onClick={handleJoin}
-                    disabled={joining}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition-all hover:from-emerald-600 hover:to-emerald-800 disabled:opacity-60"
-                  >
-                    {joining ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <PhoneCall className="h-4 w-4" />
-                    )}
-                    Join {mode === "voice" ? "Voice" : "Video"} Call
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleRequest}
-                    disabled={requesting || !canRequest}
-                    className={cn(
-                      "flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all",
-                      canRequest
-                        ? "bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-600 hover:to-emerald-800"
-                        : "bg-muted text-muted-foreground/60 cursor-not-allowed"
-                    )}
-                  >
-                    {requesting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : mode === "voice" ? (
-                      <Phone className="h-4 w-4" />
-                    ) : (
-                      <Video className="h-4 w-4" />
-                    )}
-                    {canRequest
-                      ? `Request ${mode === "voice" ? "Voice" : "Video"} Call`
-                      : "Waiting for the team…"}
-                  </button>
-                )}
-              </div>
-
-              {/* Read-only status timeline */}
-              {timeline.length > 0 && (
-                <div className="border-t border-border/50 pt-4">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Updates</p>
-                  <div className="space-y-2 max-h-56 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-                    {timeline.map((m) => {
-                      const fromStaff = m.metadata?.isCustomerMessage === false;
-                      return (
-                        <div
-                          key={m._id}
-                          className="flex items-start gap-2.5 rounded-xl bg-muted/40 px-3 py-2"
-                        >
-                          <div className="shrink-0 mt-0.5 h-6 w-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                            <Bell className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm leading-snug">{m.content}</p>
-                            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                              {fromStaff && m.metadata?.crmUserName
-                                ? `${m.metadata.crmUserName} · `
-                                : ""}
-                              {fmtTime(m.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* One-way notice */}
-              <p className="text-[11px] text-center text-muted-foreground/70">
-                Updates from our team are shown here automatically. This is a notification-only
-                channel — please use the call to talk with us.
-              </p>
-            </>
-          )}
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      </div>
+      ) : (
+        <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_360px] gap-3">
+          {/* Left: status + mode + call action */}
+          <div className="flex flex-col gap-5 rounded-2xl border border-border/50 bg-card p-5 sm:p-6">
+            <CallStatusStepper status={status} />
+
+            <CallModeToggle mode={mode} onChange={setMode} disabled={!canRequest} />
+
+            {notice && (
+              <p
+                className={cn(
+                  "text-xs px-1",
+                  notice.kind === "error" ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                {notice.text}
+              </p>
+            )}
+
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4">
+              <CallActionButton
+                mode={mode}
+                canRequest={canRequest}
+                canJoin={canJoin}
+                requesting={requesting}
+                joining={joining}
+                onRequest={handleRequest}
+                onJoin={handleJoin}
+              />
+              <button
+                onClick={canJoin ? handleJoin : handleRequest}
+                disabled={joining || requesting || (!canRequest && !canJoin)}
+                className={cn(
+                  "text-sm font-semibold transition-colors",
+                  canRequest || canJoin
+                    ? "text-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
+                    : "text-muted-foreground cursor-not-allowed",
+                )}
+              >
+                {actionLabel}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-center text-muted-foreground/70">
+              Updates from our team appear automatically. To talk, use the call itself.
+            </p>
+          </div>
+
+          {/* Right: activity / updates feed */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-card p-4 sm:p-5 lg:max-h-full">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground shrink-0">
+              Updates
+            </p>
+            <div
+              className="flex-1 min-h-32 lg:min-h-0 space-y-2 overflow-y-auto"
+              style={{ scrollbarWidth: "thin" }}
+            >
+              {timeline.length === 0 ? (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  No updates yet.
+                </p>
+              ) : (
+                timeline.map((m) => {
+                  const fromStaff = m.metadata?.isCustomerMessage === false;
+                  return (
+                    <div
+                      key={m._id}
+                      className="flex items-start gap-2.5 rounded-xl bg-muted/40 px-3 py-2"
+                    >
+                      <div className="shrink-0 mt-0.5 h-6 w-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                        <Bell className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-snug">{m.content}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                          {fromStaff && m.metadata?.crmUserName
+                            ? `${m.metadata.crmUserName} · `
+                            : ""}
+                          {fmtTime(m.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

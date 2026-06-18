@@ -615,7 +615,10 @@ export function VehicleDetailView({
     );
   };
 
-  const monthly = Math.floor(vehicle.price / 60);
+  const memberPrice = vehicle.memberPrice ?? vehicle.price;
+  const hasMemberDiscount =
+    !isAdmin && (vehicle.memberDiscountPercent ?? 0) > 0 && memberPrice < vehicle.price;
+  const monthly = Math.floor((hasMemberDiscount ? memberPrice : vehicle.price) / 60);
   const profit = isAdmin && vehicle.cost ? vehicle.price - vehicle.cost : null;
   const profitPct =
     profit && vehicle.cost ? Math.round((profit / vehicle.cost) * 100) : null;
@@ -735,8 +738,13 @@ export function VehicleDetailView({
                 </div>
               </div>
               <div className="block text-right lg:hidden">
-                <p className="text-3xl font-black text-primary">
-                  ${vehicle.price?.toLocaleString()}
+                {hasMemberDiscount && (
+                  <p className="text-sm font-medium text-muted-foreground/60 line-through">
+                    ${vehicle.price?.toLocaleString()}
+                  </p>
+                )}
+                <p className={cn("text-3xl font-black", hasMemberDiscount ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                  ${(hasMemberDiscount ? memberPrice : vehicle.price)?.toLocaleString()}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   ~${monthly.toLocaleString()}/mo
@@ -770,8 +778,13 @@ export function VehicleDetailView({
                 )}
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-xl font-black text-primary">
-                  ${vehicle.price?.toLocaleString()}
+                {hasMemberDiscount && (
+                  <p className="text-[11px] font-medium text-muted-foreground/60 line-through">
+                    ${vehicle.price?.toLocaleString()}
+                  </p>
+                )}
+                <p className={cn("text-xl font-black", hasMemberDiscount ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                  ${(hasMemberDiscount ? memberPrice : vehicle.price)?.toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground">~${monthly}/mo</p>
               </div>
@@ -1269,11 +1282,21 @@ export function VehicleDetailView({
             <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20 dark:bg-zinc-900/40">
               <div className="px-5 pt-5 pb-4">
                 <p className="mb-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
-                  Our Price
+                  {hasMemberDiscount ? `${vehicle.tierName} Member Price` : "Our Price"}
                 </p>
-                <p className="text-4xl font-black tracking-tight text-primary">
-                  ${vehicle.price?.toLocaleString()}
+                {hasMemberDiscount && (
+                  <p className="text-base font-semibold text-muted-foreground/60 line-through">
+                    ${vehicle.price?.toLocaleString()}
+                  </p>
+                )}
+                <p className={cn("text-4xl font-black tracking-tight", hasMemberDiscount ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                  ${(hasMemberDiscount ? memberPrice : vehicle.price)?.toLocaleString()}
                 </p>
+                {hasMemberDiscount && (
+                  <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+                    You save ${(vehicle.price - memberPrice).toLocaleString()} · −{vehicle.memberDiscountPercent}%
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-muted-foreground">
                   ~
                   <span className="font-semibold text-foreground">

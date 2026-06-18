@@ -8,6 +8,10 @@ export interface Vehicle {
   model: string;
   trim?: string;
   price: number;
+  memberPrice?: number;
+  memberSavings?: number;
+  memberDiscountPercent?: number;
+  tierName?: string;
   mileage: number;
   vin: string;
   image: string;
