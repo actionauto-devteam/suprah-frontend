@@ -1,8 +1,8 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, MoreHorizontal } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, MoreHorizontal, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -98,6 +98,7 @@ function ChatPopup({
   const { crmUserId, crmToken, socket, markAsRead } = useSupraSpaceMessenger();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
   const [loading,  setLoading]  = React.useState(true);
+  const [fetchError, setFetchError] = React.useState(false);
   const [input,    setInput]    = React.useState('');
   const [sending,  setSending]  = React.useState(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
@@ -131,6 +132,17 @@ function ChatPopup({
     } catch { /* best-effort */ }
   };
 
+  const msgSeenByMembers = React.useMemo(() => {
+    const lastSeen: Record<string, string> = {};
+    messages.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== crmUserId) lastSeen[id] = m._id; }); });
+    const result: Record<string, {_id:string;fullName:string;avatar?:string}[]> = {};
+    conv.members.forEach(member => {
+      if (member._id === crmUserId) return;
+      const lastMsgId = lastSeen[member._id];
+      if (lastMsgId) { if (!result[lastMsgId]) result[lastMsgId] = []; result[lastMsgId].push(member); }
+    });
+    return result;
+  }, [messages, conv.members, crmUserId]);
   const displayName = getDisplayName(conv, crmUserId);
   const avatarSrc   = getAvatarSrc(conv, crmUserId);
   const rightPx     = POPUP_RIGHT + stackIndex * (POPUP_W + POPUP_GAP);
@@ -165,25 +177,29 @@ function ChatPopup({
     }, 0);
   }, [input, mentionAnchor, mentionQuery]);
 
-  // Fetch messages when first opened or un-minimized
-  React.useEffect(() => {
-    if (!crmToken) return;
+  // Fetch messages — use context token or fall back to localStorage directly
+  const fetchMessages = React.useCallback(async () => {
+    const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
+    if (!effectiveToken) return;
     setLoading(true);
-    apiClient
-      .get(`/api/supraspace/conversations/${conv._id}/messages`, {
-        headers: { Authorization: `Bearer ${crmToken}` },
+    setFetchError(false);
+    try {
+      const r = await apiClient.get(`/api/supraspace/conversations/${conv._id}/messages`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` },
         params: { limit: 40 },
-        _skipAuthRefresh: true,
-      } as any)
-      .then((r) => {
-        setMessages(r.data?.data ?? []);
-        markAsRead(conv._id);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  // Only re-fetch when conv changes or token changes — not on every minimize toggle
+      });
+      setMessages(r.data?.data ?? []);
+      markAsRead(conv._id);
+    } catch (err: any) {
+      console.error('[ChatPopup] messages fetch failed:', err?.response?.status, err?.response?.data ?? err?.message);
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conv._id, crmToken]);
+
+  React.useEffect(() => { fetchMessages(); }, [fetchMessages]);
 
   // Mark as read when un-minimized
   React.useEffect(() => {
@@ -323,11 +339,14 @@ function ChatPopup({
                 <Loader2 className="size-5 animate-spin text-muted-foreground" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <MessageCircle className="size-6 text-muted-foreground/30 mb-2" />
+              <div className="flex flex-col items-center justify-center h-full text-center gap-2">
+                <MessageCircle className="size-6 text-muted-foreground/30" />
                 <p className="text-[11px] text-muted-foreground">
-                  No messages yet
+                  {fetchError ? 'Failed to load messages' : 'No messages yet'}
                 </p>
+                {fetchError && (
+                  <button onClick={fetchMessages} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">Retry</button>
+                )}
               </div>
             ) : (
               messages.map((msg, idx) => {
@@ -336,7 +355,7 @@ function ChatPopup({
                 const isHov = hovMsg === msg._id;
                 const isMenuOpen = menuMsg === msg._id;
                 const prevVisible = messages.slice(0, idx).findLast(m => !m.isDeleted);
-                const showName = conv.type === 'group' && !isOwn &&
+                const showName = !isOwn &&
                   (!prevVisible || prevVisible.sender?._id !== msg.sender?._id);
                 return (
                   <div
@@ -360,14 +379,29 @@ function ChatPopup({
                         )}
                       >
                         {renderContent(msg, isOwn)}
-                        <div
-                          className={cn(
-                            'text-[9px] mt-0.5',
-                            isOwn ? 'text-white/60 text-right' : 'text-muted-foreground'
-                          )}
-                        >
-                          {msgTime(msg.createdAt)}
-                        </div>
+                        {isOwn ? (
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="text-[9px] text-white/60">{msgTime(msg.createdAt)}</span>
+                            {(() => {
+                              const seenMembers = msgSeenByMembers[msg._id] || [];
+                              if (seenMembers.length === 0) return <Check className="h-2.5 w-2.5 text-white/50" />;
+                              return (
+                                <div className="flex items-center" style={{ gap: 1 }}>
+                                  {seenMembers.slice(0, 3).map(m => (
+                                    <div key={m._id} title={m.fullName}
+                                      className="h-3 w-3 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-white"
+                                      style={{ fontSize: 5, background: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.4)' }}>
+                                      {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : m.fullName[0]?.toUpperCase()}
+                                    </div>
+                                  ))}
+                                  {seenMembers.length > 3 && <span className="text-[8px] text-white/60">+{seenMembers.length - 3}</span>}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <div className="text-[9px] mt-0.5 text-muted-foreground">{msgTime(msg.createdAt)}</div>
+                        )}
                       </div>
                       {isHov && (
                         <div className={cn('absolute -top-2.5 z-20', isOwn ? '-left-2.5' : '-right-2.5')}>
@@ -428,7 +462,7 @@ function ChatPopup({
                 onKeyDown={handleKeyDown}
                 onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                 placeholder="Type a message..."
-                className="flex-1 text-[12px] bg-muted/50 rounded-full px-3 py-1.5 outline-none placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-blue-500/40 min-w-0"
+                className="flex-1 text-[12px] bg-muted/50 rounded-full px-3 py-1.5 outline-none placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-blue-500/40 min-w-0" style={{ fontSize: 16 }}
               />
               <Button
                 size="icon"
