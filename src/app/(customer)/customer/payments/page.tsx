@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -175,7 +175,7 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: any; label: string
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function CustomerPaymentsPage() {
+function CustomerPaymentsContent() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -319,5 +319,13 @@ export default function CustomerPaymentsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CustomerPaymentsPage() {
+  return (
+    <React.Suspense>
+      <CustomerPaymentsContent />
+    </React.Suspense>
   );
 }
