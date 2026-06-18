@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 
@@ -259,7 +259,7 @@ function DashboardLayoutContent({
         )}
         <main className="relative flex-1 overflow-hidden bg-background pb-24 md:pb-0">
           {isCrmRoute && (
-            <div className="absolute left-3 top-3 z-40">
+            <div className={pathname === '/crm/supra-space' ? 'absolute left-3 top-3 z-40 hidden md:block' : 'absolute left-3 top-3 z-40'}>
               <SidebarTrigger className="h-8 w-8 rounded-lg border border-border/50 bg-card/95 p-0 shadow-sm backdrop-blur hover:bg-card" />
             </div>
           )}

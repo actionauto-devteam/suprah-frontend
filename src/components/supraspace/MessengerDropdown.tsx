@@ -1,8 +1,9 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { MessageCircle, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -65,6 +66,7 @@ function previewText(conv: SSConv): string {
 export function MessengerDropdown() {
   const { conversations, totalUnread, crmUserId, openChatPopup } =
     useSupraSpaceMessenger();
+  const router = useRouter();
 
   return (
     <DropdownMenu>
@@ -152,7 +154,13 @@ export function MessengerDropdown() {
                     'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50',
                     isUnread && 'bg-blue-500/5 hover:bg-blue-500/10'
                   )}
-                  onClick={() => openChatPopup(conv._id)}
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                      router.push("/crm/supra-space?convId=" + conv._id);
+                    } else {
+                      openChatPopup(conv._id);
+                    }
+                  }}
                 >
                   {/* Avatar with unread dot */}
                   <div className="relative shrink-0">

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
@@ -147,6 +147,19 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
         ...prev,
         [conversationId]: (prev[conversationId] || []).filter((t) => t.userId !== userId),
       }));
+    });
+
+    socket.on('messages:read', ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      setMsgs((prev) => {
+        const convMsgs = prev[conversationId];
+        if (!convMsgs) return prev;
+        return {
+          ...prev,
+          [conversationId]: convMsgs.map((m) =>
+            (m.readBy || []).includes(userId) ? m : { ...m, readBy: [...(m.readBy || []), userId] }
+          ),
+        };
+      });
     });
 
     return () => {

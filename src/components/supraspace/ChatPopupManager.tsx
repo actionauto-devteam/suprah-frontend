@@ -227,6 +227,21 @@ function ChatPopup({
     return () => { socket.off('message:new', handler); };
   }, [socket, conv._id, isMinimized, markAsRead]);
 
+  // Real-time seen status
+  React.useEffect(() => {
+    if (!socket) return;
+    const handler = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      if (conversationId !== conv._id) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          (m.readBy || []).includes(userId) ? m : { ...m, readBy: [...(m.readBy || []), userId] }
+        )
+      );
+    };
+    socket.on('messages:read', handler);
+    return () => { socket.off('messages:read', handler); };
+  }, [socket, conv._id]);
+
   // Auto-scroll to newest message
   React.useEffect(() => {
     if (!isMinimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -491,9 +506,18 @@ export function ChatPopupManager() {
   const { conversations, openChats, minimizedChats, closeChatPopup, toggleMinimize } =
     useSupraSpaceMessenger();
   const pathname = usePathname();
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   if (openChats.length === 0) return null;
   if (pathname === '/crm/supra-space') return null;
+  if (isMobile) return null;
 
   return (
     <>
