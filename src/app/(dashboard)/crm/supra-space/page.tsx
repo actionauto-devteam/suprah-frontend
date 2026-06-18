@@ -187,6 +187,9 @@ if (typeof document !== 'undefined') {
     .ss4-poll-opt:hover { border-color:var(--accent); }
     .ss4-poll-fill { position:absolute; left:0; top:0; bottom:0; background:var(--accent-muted); transition:width .35s ease; }
     .ss4-voice-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:14px; }
+    @media (max-width:767px) {
+      .ss4 input, .ss4 textarea { font-size: 16px !important; }
+    }
   `;
 }
 
