@@ -149,19 +149,6 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       }));
     });
 
-    socket.on('messages:read', ({ conversationId, userId }: { conversationId: string; userId: string }) => {
-      setMsgs((prev) => {
-        const convMsgs = prev[conversationId];
-        if (!convMsgs) return prev;
-        return {
-          ...prev,
-          [conversationId]: convMsgs.map((m) =>
-            (m.readBy || []).includes(userId) ? m : { ...m, readBy: [...(m.readBy || []), userId] }
-          ),
-        };
-      });
-    });
-
     return () => {
       socket.removeAllListeners();
       socket.disconnect();
