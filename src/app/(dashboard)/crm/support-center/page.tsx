@@ -1,184 +1,99 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Headset, MessageCircle, PhoneCall } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { CustomersConcernTab } from "@/components/CustomersConcernTab";
-import { CustomerCallsTab } from "@/components/CustomerCallsTab";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
-import { useAuth } from "@/providers/AuthProvider";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { MessageCircle, Package, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
+import { CustomersConcernTab } from "@/components/CustomersConcernTab";
+import { AftermarketInquiriesTab } from "@/components/AftermarketInquiriesTab";
 
-type SupportTab = "concerns" | "calls";
+type TabKey = "concerns" | "aftermarket";
 
 export default function SupportCenterPage() {
   const router = useRouter();
-  const { getToken } = useAuth();
-  const [activeTab, setActiveTab] = React.useState<SupportTab>("concerns");
+  const params = useSearchParams();
 
-  const getAuthHeaders = async () => {
-    const token = await getToken();
-    return { headers: { Authorization: `Bearer ${token}` } };
+  const initial = (params.get("tab") as TabKey) || "concerns";
+  const [tab, setTab] = React.useState<TabKey>(initial);
+
+  // Keep tab in sync if the URL changes (e.g. clicking a notification).
+  React.useEffect(() => {
+    const t = params.get("tab") as TabKey | null;
+    if (t && (t === "concerns" || t === "aftermarket")) setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
+  const changeTab = (t: TabKey) => {
+    setTab(t);
+    router.replace(`/crm/support-center?tab=${t}`);
   };
 
-  const { data: concernUnread = 0 } = useQuery({
-    queryKey: ["concern-unread"],
+  // Open-inquiry badge for the Aftermarket tab.
+  const { data: openCount = 0 } = useQuery({
+    queryKey: ["aftermarket-open-count"],
     queryFn: async () => {
-      try {
-        const headers = await getAuthHeaders();
-        const r = await apiClient.get("/api/customer-concern/crm/conversations", headers);
-        const convs: any[] = r.data?.data || [];
-        return convs.reduce((n: number, c: any) => n + (c.unreadCount || 0), 0);
-      } catch {
-        return 0;
-      }
+      const r = await apiClient.get("/api/crm/aftermarket/inquiries/unread-count");
+      return (r.data?.data?.openCount ?? 0) as number;
     },
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
-  const { data: openConcerns = 0 } = useQuery({
-    queryKey: ["concern-open-count"],
-    queryFn: async () => {
-      try {
-        const headers = await getAuthHeaders();
-        const r = await apiClient.get("/api/customer-concern/crm/conversations", headers);
-        const convs: any[] = r.data?.data || [];
-        return convs.filter((c: any) => !c.metadata?.resolved).length;
-      } catch {
-        return 0;
-      }
-    },
-    refetchInterval: 15_000,
-    staleTime: 10_000,
-  });
-
-  const { data: callsPending = 0 } = useQuery({
-    queryKey: ["calls-pending"],
-    queryFn: async () => {
-      try {
-        const headers = await getAuthHeaders();
-        const r = await apiClient.get("/api/customer-call/crm/conversations", headers);
-        const convs: any[] = r.data?.data || [];
-        return convs.filter(
-          (c: any) =>
-            !c.metadata?.resolved &&
-            ["requested", "preparing", "about_to_start"].includes(c.metadata?.callStatus)
-        ).length;
-      } catch {
-        return 0;
-      }
-    },
-    refetchInterval: 15_000,
-    staleTime: 10_000,
-  });
-
-  const tabs: Array<{
-    id: SupportTab;
-    label: string;
-    icon: React.ReactNode;
-    count: number;
-  }> = [
-    { id: "concerns", label: "Concerns", icon: <MessageCircle className="h-3.5 w-3.5" />, count: concernUnread },
-    { id: "calls", label: "Calls", icon: <PhoneCall className="h-3.5 w-3.5" />, count: callsPending },
+  const TABS: Array<{ key: TabKey; label: string; icon: any; badge?: number }> = [
+    { key: "concerns", label: "Concerns", icon: MessageCircle },
+    { key: "aftermarket", label: "Aftermarket", icon: Package, badge: openCount },
   ];
 
   return (
-    <TooltipProvider>
-      <div className="flex h-full min-h-screen w-full flex-col bg-background">
-        <div className="flex w-full flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
-          {/* Console header */}
-          <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/crm/dashboard")}
-                className="h-9 w-9 shrink-0 rounded-[10px] border border-border p-0 hover:border-primary/40 hover:bg-primary/5"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
-                <Headset className="h-4.5 w-4.5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground font-mono">
-                  support console
-                </p>
-                <h1 className="text-xl font-bold tracking-tight sm:text-2xl leading-tight">Support Center</h1>
-              </div>
-            </div>
-
-            {/* Live stat strip */}
-            <div className="flex items-center gap-4 font-mono">
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-chart-2/60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-chart-2" />
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  <span className="font-bold text-foreground">{openConcerns}</span> open
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  {callsPending > 0 && (
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-chart-4/60" />
-                  )}
-                  <span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", callsPending > 0 ? "bg-chart-4" : "bg-muted-foreground/40")} />
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  <span className="font-bold text-foreground">{callsPending}</span> pending calls
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tab nav — underline style */}
-          <div className="flex gap-6 border-b border-border -mt-1">
-            {tabs.map((tab) => {
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "relative flex items-center gap-2 pb-3 text-sm font-bold transition-colors border-b-2 -mb-px",
-                    active
-                      ? "text-foreground border-primary"
-                      : "text-muted-foreground border-transparent hover:text-foreground/80"
-                  )}
-                >
-                  {tab.icon}
-                  {tab.label}
-                  {tab.count > 0 && (
-                    <span
-                      className={cn(
-                        "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums font-mono",
-                        active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {tab.count > 99 ? "99+" : tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tab content */}
-          <div
-            className="min-h-0 flex-1"
-            style={{ height: "calc(100vh - 13rem)", minHeight: 480 }}
-          >
-            {activeTab === "concerns" ? <CustomersConcernTab /> : <CustomerCallsTab />}
-          </div>
+    <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
+      {/* Page header */}
+      <div className="flex items-center gap-2.5 px-4 md:px-6 pt-4 pb-3 shrink-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+          <Headphones className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h1 className="font-bold text-lg tracking-tight">Support Center</h1>
+          <p className="text-xs text-muted-foreground">Customer concerns & aftermarket inquiries</p>
         </div>
       </div>
-    </TooltipProvider>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-5 px-4 md:px-6 border-b border-border shrink-0">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => changeTab(t.key)}
+              className={cn(
+                "pb-2.5 -mb-px text-sm font-bold uppercase tracking-wide border-b-2 transition-colors inline-flex items-center gap-2",
+                active ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+              {!!t.badge && t.badge > 0 && (
+                <span className="h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold px-1.5 flex items-center justify-center">
+                  {t.badge > 99 ? "99+" : t.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Panel */}
+      <div className="flex-1 min-h-0 p-4 md:p-6">
+        {tab === "concerns" && <CustomersConcernTab />}
+        {tab === "aftermarket" && (
+          <AftermarketInquiriesTab
+            onRespond={() => changeTab("concerns")}
+          />
+        )}
+      </div>
+    </div>
   );
 }

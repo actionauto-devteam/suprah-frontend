@@ -106,7 +106,7 @@ const navSections = [
         hoverTooltip: "Your tier, points, and member benefits.",
       },
       {
-        title: "Payments",
+        title: "Suprah Pay",
         url: "/customer/payments",
         icon: CreditCard,
         hoverTooltip: "View and pay your invoices.",
