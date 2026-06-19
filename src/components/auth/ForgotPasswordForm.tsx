@@ -250,7 +250,7 @@ export function ForgotPasswordForm() {
                       required
                     />
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 sm:p-3 space-y-2">
+                  <div className="rounded-xl border border-white/10 bg-white/2 p-2.5 sm:p-3 space-y-2">
                     <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                       Password Requirements
                     </p>

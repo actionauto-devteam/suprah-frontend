@@ -16,9 +16,10 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
-  const saved = localStorage.getItem('theme') as Theme;
-  if (saved === 'light' || saved === 'dark') return saved;
+  // Always 'dark' here so the first client render matches the server-rendered
+  // markup (the blocking inline script in layout.tsx already applies the real
+  // saved theme class to <html> before paint, so there's no visual flash —
+  // this only governs React state used by theme-aware components).
   return 'dark';
 }
 
@@ -61,6 +62,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
   const { user } = useUser();
   const hasLocalSave = typeof window !== 'undefined' && localStorage.getItem('theme') !== null;
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved !== 'light' && saved !== 'dark') return;
+
+    const rafId = window.requestAnimationFrame(() => {
+      setThemeState(saved);
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
 
   useEffect(() => {
     if (hasLocalSave) return;

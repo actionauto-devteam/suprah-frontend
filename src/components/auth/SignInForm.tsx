@@ -115,17 +115,16 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
   };
 
   return (
-    <div className="w-full space-y-7">
-      <div className="space-y-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-400/80">
+    <div className="w-full space-y-6 sm:space-y-7">
+      <div className="space-y-2.5 sm:space-y-3">
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 sm:text-base">
           Action Auto Utah
         </p>
-        <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          Welcome back <span className="text-2xl sm:text-3xl">{"\uD83D\uDC4B"}</span>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl md:text-5xl">
+          Welcome back<span className="text-emerald-500">!</span>
         </h1>
-        <p className="max-w-md text-sm font-normal leading-6 text-zinc-400 sm:text-base sm:leading-7">
-          Sign in to manage deals, inventory, reports, and team activity from
-          one workspace.
+        <p className="max-w-md text-sm font-normal leading-6 text-muted-foreground sm:text-base sm:leading-7">
+          Sign in to your workspace.
         </p>
       </div>
 
@@ -136,10 +135,14 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
               Email
             </Label>
             <div className="relative group">
-              <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-emerald-400" />
+              <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 transition-colors group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400" />
               <Input
                 id="email"
                 type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder="Example@email.com"
                 className={`${AUTH_INPUT_CLASS} pl-10`}
                 value={email}
@@ -151,7 +154,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
           </div>
 
           <div className="space-y-2">
-            <div className="ml-1 flex items-center justify-between">
+            <div className="ml-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <Label
                 htmlFor="password"
                 className={AUTH_LABEL_CLASS.replace(" ml-1", "")}
@@ -160,13 +163,13 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
               </Label>
               <Link
                 href="/forgot-password"
-                className="text-xs font-semibold text-emerald-400 transition-colors hover:text-emerald-300"
+                className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-colors hover:text-emerald-500 dark:hover:text-emerald-300"
               >
                 Forgot Password?
               </Link>
             </div>
             <div className="relative group">
-              <Lock className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-emerald-400" />
+              <Lock className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 transition-colors group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400" />
               <PasswordInput
                 id="password"
                 placeholder="At least 8 characters"
@@ -186,7 +189,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-medium leading-5 text-red-300"
+              className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium leading-5 text-destructive"
             >
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
@@ -196,7 +199,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
         <Button
           type="submit"
-          className={`${AUTH_PRIMARY_BUTTON_CLASS} h-13 text-base transition-all active:scale-[0.98]`}
+          className={`${AUTH_PRIMARY_BUTTON_CLASS} h-13 touch-manipulation text-base transition-all active:scale-[0.98]`}
           disabled={isLoading}
         >
           {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Sign In"}
@@ -205,10 +208,10 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
       <div className="relative py-2">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-white/8" />
+          <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-[#0a0a0a] px-4 font-semibold tracking-widest text-zinc-500">
+          <span className="bg-card px-4 font-semibold tracking-widest text-muted-foreground">
             Or
           </span>
         </div>
@@ -217,7 +220,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
       <Button
         variant="outline"
         type="button"
-        className={`flex h-12 items-center justify-center gap-3 font-semibold transition-all ${AUTH_SECONDARY_BUTTON_CLASS}`}
+        className={`flex w-full h-12 touch-manipulation items-center justify-center gap-3 font-semibold transition-all ${AUTH_SECONDARY_BUTTON_CLASS}`}
         onClick={handleGoogleLogin}
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">

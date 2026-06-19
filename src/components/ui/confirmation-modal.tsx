@@ -40,7 +40,7 @@ export function ConfirmationModal({
   variant = 'primary',
   isLoading = false,
 }: ConfirmationModalProps) {
-  
+
   const getVariantStyles = () => {
     switch (variant) {
       case 'danger':
@@ -74,7 +74,7 @@ export function ConfirmationModal({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent className="max-w-[400px] rounded-2xl gap-6 p-6">
+      <AlertDialogContent className="max-w-100 rounded-2xl gap-6 p-6">
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className={cn(
@@ -101,13 +101,13 @@ export function ConfirmationModal({
             </Button>
           </AlertDialogCancel>
           <AlertDialogAction asChild>
-            <Button 
+            <Button
               onClick={(e) => {
                 e.preventDefault();
                 onConfirm();
               }}
               disabled={isLoading}
-              className={cn("rounded-xl font-bold uppercase tracking-widest text-[10px] min-w-[100px] shadow-lg", styles.button, styles.ring)}
+              className={cn("rounded-xl font-bold uppercase tracking-widest text-[10px] min-w-25 shadow-lg", styles.button, styles.ring)}
             >
               {isLoading ? <Loader2 className="size-3.5 animate-spin mr-2" /> : null}
               {confirmText}

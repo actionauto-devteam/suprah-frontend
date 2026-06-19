@@ -5,9 +5,9 @@ import { Loader2 } from "lucide-react";
 export default function SignInPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
+            <div className="min-h-dvh bg-background flex flex-col items-center justify-center gap-4">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-                <p className="text-sm font-medium text-emerald-500/60 uppercase tracking-widest italic animate-pulse">
+                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500/60 uppercase tracking-widest italic animate-pulse">
                     Preparing secure sign in...
                 </p>
             </div>

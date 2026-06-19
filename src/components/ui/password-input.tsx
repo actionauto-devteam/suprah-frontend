@@ -33,7 +33,7 @@ function PasswordInput({
         aria-label={showPassword ? "Hide password" : "Show password"}
         aria-pressed={showPassword}
         disabled={disabled}
-        className="absolute right-3 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center text-zinc-500 dark:text-zinc-400 transition-opacity disabled:opacity-50"
+        className="absolute right-0 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 touch-manipulation items-center justify-center text-zinc-500 dark:text-zinc-400 transition-opacity disabled:opacity-50"
       >
         <span className="relative block h-4 w-4">
           <Eye

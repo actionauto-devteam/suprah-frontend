@@ -219,9 +219,7 @@ function SupportCenterView() {
           >
             {activeTab === "concerns" && <CustomersConcernTab />}
             {activeTab === "calls" && <CustomerCallsTab />}
-            {activeTab === "aftermarket" && (
-              <AftermarketInquiriesTab onRespond={() => setActiveTab("concerns")} />
-            )}
+            {activeTab === "aftermarket" && <AftermarketInquiriesTab />}
           </div>
         </div>
       </div>

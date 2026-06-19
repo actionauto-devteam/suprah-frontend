@@ -13,13 +13,17 @@ import {
   Trash2,
   X,
   Receipt,
-  MessageSquare,
   Mail,
   Phone,
   Clock,
   CheckCircle2,
   CircleDot,
   Tag,
+  Send,
+  Paperclip,
+  Check,
+  CheckCheck,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -449,6 +453,230 @@ function InvoiceBuilder({
   );
 }
 
+// ─── Embedded reply thread (stays inside the Aftermarket tab — never the
+// general Concerns inbox — reuses the same concern messaging endpoints) ──────
+
+interface ThreadMessage {
+  _id: string;
+  content: string;
+  createdAt: string;
+  attachments: Array<{ url: string; originalName: string; mimeType: string; size: number }>;
+  readBy: string[];
+  sender?: { _id: string; fullName: string; avatar?: string; isCustomer?: boolean };
+  metadata?: { isCustomerMessage?: boolean; customerName?: string; crmUserName?: string; crmUserRole?: string };
+}
+
+const THREAD_MAX_FILES = 5;
+const THREAD_MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+function fmtSize(b: number) {
+  return b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+}
+
+function ThreadBubble({ msg, crmUserId }: { msg: ThreadMessage; crmUserId: string }) {
+  const isCustomer = msg.metadata?.isCustomerMessage === true || msg.sender?.isCustomer === true;
+  const isOwn = !isCustomer && msg.sender?._id === crmUserId;
+  const senderName = isCustomer
+    ? msg.metadata?.customerName || msg.sender?.fullName || "Customer"
+    : msg.metadata?.crmUserName || msg.sender?.fullName || "Support";
+
+  return (
+    <div className="flex gap-2.5 px-1 py-1">
+      <Squircle label={senderName} size="sm" tone={isCustomer ? "chart2" : "primary"} />
+      <div className="flex flex-col gap-1 min-w-0 flex-1 max-w-[85%]">
+        <span className="text-[11px] font-semibold text-foreground">{senderName}</span>
+        {msg.content && (
+          <div
+            className={cn(
+              "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3 py-2 text-sm leading-relaxed wrap-break-word",
+              isCustomer ? "border-l-chart-2 bg-chart-2/6 text-foreground" : isOwn ? "border-l-primary bg-primary/7 text-foreground" : "border-l-border bg-muted/50 text-foreground"
+            )}
+          >
+            {msg.content}
+          </div>
+        )}
+        {msg.attachments?.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {msg.attachments.map((att, i) =>
+              att.mimeType?.startsWith("image/") ? (
+                <img key={i} src={att.url} alt={att.originalName} className="rounded-lg border border-border object-cover" style={{ maxHeight: 180, maxWidth: 220 }} />
+              ) : (
+                <a key={i} href={att.url} download={att.originalName} className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 no-underline" style={{ maxWidth: 240 }}>
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium truncate">{att.originalName}</p>
+                    <p className="text-[9px] text-muted-foreground/70 font-mono">{fmtSize(att.size)}</p>
+                  </div>
+                  <Download className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                </a>
+              )
+            )}
+          </div>
+        )}
+        <span className="text-[10px] text-muted-foreground/50 tabular-nums font-mono flex items-center gap-1">
+          {fmtFull(msg.createdAt)}
+          {!isCustomer && isOwn && (msg.readBy?.length > 1 ? <CheckCheck className="h-2.5 w-2.5 text-primary" /> : <Check className="h-2.5 w-2.5 text-muted-foreground/40" />)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function InquiryThread({ conversationId }: { conversationId: string }) {
+  const queryClient = useQueryClient();
+  const [messages, setMessages] = React.useState<ThreadMessage[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [reply, setReply] = React.useState("");
+  const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
+  const [sending, setSending] = React.useState(false);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const endRef = React.useRef<HTMLDivElement>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const noticeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const crmToken = useCrmToken();
+  const { socket } = useSupraSpaceSocket(crmToken);
+
+  React.useEffect(() => {
+    let active = true;
+    setLoading(true);
+    apiClient
+      .get(`/api/customer-concern/crm/conversations/${conversationId}/messages`, { params: { limit: 50 } })
+      .then((r) => { if (active) setMessages(r.data?.data || []); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [conversationId]);
+
+  React.useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  React.useEffect(() => {
+    if (!socket) return;
+    const onMsg = ({ conversationId: cid, message }: { conversationId: string; message: ThreadMessage }) => {
+      if (cid !== conversationId) return;
+      setMessages((p) => (p.find((m) => m._id === message._id) ? p : [...p, message]));
+    };
+    socket.on("message:new", onMsg);
+    return () => { socket.off("message:new", onMsg); };
+  }, [socket, conversationId]);
+
+  const showNotice = (text: string) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(text);
+    noticeTimer.current = setTimeout(() => setNotice(null), 3500);
+  };
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+    const selected = Array.from(files);
+    if (pendingFiles.length + selected.length > THREAD_MAX_FILES) {
+      showNotice(`Up to ${THREAD_MAX_FILES} files allowed.`);
+      return;
+    }
+    for (const f of selected) {
+      if (f.size > THREAD_MAX_FILE_SIZE) { showNotice(`${f.name} exceeds 25 MB.`); return; }
+    }
+    setPendingFiles((p) => [...p, ...selected]);
+  };
+
+  const handleSend = async () => {
+    const hasText = Boolean(reply.trim());
+    const hasFiles = pendingFiles.length > 0;
+    if ((!hasText && !hasFiles) || sending) return;
+
+    setSending(true);
+    const content = reply.trim();
+    const files = pendingFiles;
+    setReply("");
+    setPendingFiles([]);
+
+    try {
+      let r;
+      if (hasFiles) {
+        const formData = new FormData();
+        if (content) formData.append("content", content);
+        files.forEach((f) => formData.append("files", f));
+        r = await apiClient.post(`/api/customer-concern/crm/conversations/${conversationId}/reply-upload`, formData);
+      } else {
+        r = await apiClient.post(`/api/customer-concern/crm/conversations/${conversationId}/reply`, { content });
+      }
+      if (r.data?.data) {
+        setMessages((p) => (p.find((m) => m._id === r.data.data._id) ? p : [...p, r.data.data]));
+      }
+      queryClient.invalidateQueries({ queryKey: ["aftermarket-inquiries"] });
+    } catch {
+      setReply(content);
+      setPendingFiles(files);
+      showNotice("Failed to send reply. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const crmUserId = React.useMemo(() => {
+    try { return JSON.parse(atob(localStorage.getItem("crm_token")?.split(".")[1] || ""))?.id || ""; }
+    catch { return ""; }
+  }, [crmToken]);
+
+  return (
+    <div className="rounded-[12px] border border-border overflow-hidden flex flex-col">
+      <div className="px-4 py-2.5 border-b border-border bg-muted/30">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground font-mono">Conversation</p>
+      </div>
+      <div className="flex-1 max-h-80 overflow-y-auto px-3 py-2 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+        ) : messages.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">No replies yet.</p>
+        ) : (
+          messages.map((m) => <ThreadBubble key={m._id} msg={m} crmUserId={crmUserId} />)
+        )}
+        <div ref={endRef} />
+      </div>
+      <div className="px-3 pb-3 pt-2 border-t border-border space-y-1.5">
+        {pendingFiles.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {pendingFiles.map((f, i) => (
+              <span key={i} className="flex items-center gap-1 text-[10px] bg-muted rounded-md px-2 py-1">
+                {f.name}
+                <button onClick={() => setPendingFiles((p) => p.filter((_, idx) => idx !== i))}><X className="h-2.5 w-2.5" /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        {notice && <p className="text-[11px] text-destructive px-1">{notice}</p>}
+        <div className="flex items-end gap-2 rounded-[10px] border border-border bg-muted/20 px-3 py-2 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
+          <textarea
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Reply to customer…"
+            rows={1}
+            className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-7 max-h-24 py-0.5 placeholder:text-muted-foreground/50"
+          />
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={() => fileRef.current?.click()} className="h-7 w-7 rounded-[8px] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <input ref={fileRef} type="file" multiple accept="*/*" className="sr-only" onChange={(e) => { handleFileSelect(e.target.files); e.currentTarget.value = ""; }} />
+            <button
+              onClick={handleSend}
+              disabled={(!reply.trim() && pendingFiles.length === 0) || sending}
+              className={cn(
+                "h-7 w-7 rounded-[8px] flex items-center justify-center transition-all",
+                reply.trim() || pendingFiles.length > 0 ? "bg-primary hover:bg-primary/90 text-primary-foreground" : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+              )}
+            >
+              {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Detail panel ────────────────────────────────────────────────────────────
 
 function InfoRow({ icon: Icon, children }: { icon: any; children: React.ReactNode }) {
@@ -462,11 +690,9 @@ function InfoRow({ icon: Icon, children }: { icon: any; children: React.ReactNod
 
 function DetailPanel({
   inquiryId,
-  onRespond,
   onChanged,
 }: {
   inquiryId: string;
-  onRespond?: (conversationId: string) => void;
   onChanged: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -575,6 +801,8 @@ function DetailPanel({
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{inquiry.question}</p>
         </div>
 
+        {inquiry.conversationId && <InquiryThread conversationId={inquiry.conversationId} />}
+
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {invoice ? (
@@ -597,12 +825,6 @@ function DetailPanel({
           ) : (
             <Button size="sm" onClick={() => setShowBuilder(true)} className="rounded-xl gap-1.5">
               <Receipt className="h-3.5 w-3.5" /> Create invoice
-            </Button>
-          )}
-
-          {inquiry.conversationId && onRespond && (
-            <Button variant="outline" size="sm" onClick={() => onRespond(inquiry.conversationId!)} className="rounded-xl gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5" /> Respond
             </Button>
           )}
 
@@ -666,12 +888,7 @@ function DetailPanel({
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export function AftermarketInquiriesTab({
-  onRespond,
-}: {
-  /** Optional: jump to the support conversation for an inquiry (e.g. switch to the Concerns tab). */
-  onRespond?: (conversationId: string) => void;
-}) {
+export function AftermarketInquiriesTab() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = React.useState("");
@@ -819,7 +1036,6 @@ export function AftermarketInquiriesTab({
             </div>
             <DetailPanel
               inquiryId={activeId}
-              onRespond={onRespond}
               onChanged={() => queryClient.invalidateQueries({ queryKey: ["aftermarket-inquiries"] })}
             />
           </>
