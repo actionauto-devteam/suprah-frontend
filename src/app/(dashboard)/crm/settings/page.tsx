@@ -18,10 +18,12 @@ import {
   Moon,
   Sun,
   HeartHandshake,
-
   Fingerprint,
-
+  Volume2,
+  VolumeX,
+  Bell,
 } from "lucide-react";
+import { isSoundEnabled, setSoundEnabled as setGlobalSoundEnabled } from "@/lib/notification-sound";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -115,6 +117,12 @@ export default function CrmSettingsPage() {
 
   const isAdmin = user?.role === "admin";
   const { theme, setTheme } = useTheme();
+  const [soundOn, setSoundOn] = React.useState(true);
+  React.useEffect(() => { setSoundOn(isSoundEnabled()); }, []);
+  const handleSoundToggle = (checked: boolean) => {
+    setGlobalSoundEnabled(checked);
+    setSoundOn(checked);
+  };
 
   if (isLoading) {
     return (
@@ -417,6 +425,46 @@ export default function CrmSettingsPage() {
                     onCheckedChange={(checked) =>
                       setTheme(checked ? "dark" : "light")
                     }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Notification Sounds card */}
+            <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30">
+                <div className="h-8 w-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  {soundOn ? (
+                    <Volume2 className="h-4 w-4 text-blue-500" />
+                  ) : (
+                    <VolumeX className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Notification Sounds</p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                    Audio alerts for messages and calls
+                  </p>
+                </div>
+              </div>
+              <div className="px-6 py-5">
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="crm-sound"
+                    className="flex items-center gap-3 cursor-pointer"
+                  >
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <span className="text-sm font-semibold">Enable Sounds</span>
+                      <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                        Play a ding on new messages and a ringtone on incoming calls
+                      </p>
+                    </div>
+                  </Label>
+                  <Switch
+                    id="crm-sound"
+                    checked={soundOn}
+                    onCheckedChange={handleSoundToggle}
                   />
                 </div>
               </div>

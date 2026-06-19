@@ -22,8 +22,9 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupraSpaceSocket';
+import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
-import { cn } from '@/lib/utils';
+import { cn, resolveImageUrl } from '@/lib/utils';
 import { JitsiMeet } from './JitsiMeet';
 // ── NEW: calling ──
 import { useCall, CallSession } from '@/hooks/useCall';
@@ -221,11 +222,11 @@ const fmtDuration = (s: number) => {
 };
 
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
-  return content.split(/(\*\*[^*\n]+\*\*|@\w+)/g).map((part, i) => {
+  return content.split(/(\*\*[^*\n]+\*\*|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g).map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
     }
-    if (/^@\w+/.test(part)) {
+    if (/^@/.test(part)) {
       return isOwn
         ? <span key={i} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{part}</span>
         : <span key={i} className="font-bold" style={{ color: 'var(--accent-text)' }}>{part}</span>;
@@ -261,10 +262,11 @@ const avaColors = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal'];
 const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % avaColors.length];
 
 function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: string; size?: number }) {
+  const resolved = resolveImageUrl(src);
   const [broken, setBroken] = React.useState(false);
-  React.useEffect(() => { setBroken(false); }, [src]);
-  if (src && !broken) {
-    return <img src={src} alt="" className="w-full h-full object-cover" onError={() => setBroken(true)} />;
+  React.useEffect(() => { setBroken(false); }, [resolved]);
+  if (resolved && !broken) {
+    return <img src={resolved} alt="" className="w-full h-full object-cover" onError={() => setBroken(true)} />;
   }
   return <span className="text-white font-bold" style={{ fontSize: size }}>{(name || '?').trim().charAt(0).toUpperCase() || '#'}</span>;
 }
@@ -415,6 +417,7 @@ function Bubble({
   members?: Array<{ _id: string; fullName: string; avatar?: string }>;
 }) {
   const [hov, setHov] = React.useState(false);
+  const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
   const [reactOpen, setReactOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [mobileMenu, setMobileMenu] = React.useState(false);
@@ -430,9 +433,14 @@ function Bubble({
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   };
 
-  const currentUserFirstName = nameFor(uid).split(' ')[0].toLowerCase();
+  const _nameParts = nameFor(uid).trim().split(/\s+/);
+  const currentUserMention = (_nameParts.length >= 2
+    ? `@${_nameParts[0]} ${_nameParts[_nameParts.length - 1]}`
+    : `@${_nameParts[0]}`).toLowerCase();
+  const currentUserFirstName = _nameParts[0].toLowerCase();
   const isMentioned = !isOwn && !!message.content && (
     message.content.includes('@all') ||
+    message.content.toLowerCase().includes(currentUserMention) ||
     message.content.toLowerCase().includes(`@${currentUserFirstName}`)
   );
 
@@ -468,7 +476,7 @@ function Bubble({
       {showAvatar ? (
         <div className={cn('h-8 w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender.avatar
-            ? <img src={message.sender.avatar} alt="" className="w-full h-full object-cover" />
+            ? <img src={resolveImageUrl(message.sender.avatar)} alt="" className="w-full h-full object-cover" />
             : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(message.sender.fullName)}</span>}
         </div>
       ) : <div className="w-8 shrink-0" />}
@@ -581,12 +589,40 @@ function Bubble({
           <div className={cn('flex flex-wrap gap-1 mt-0.5', isOwn && 'justify-end')}>
             {message.reactions.map(r => {
               const mine = (r.users || []).includes(uid);
-              const who = (r.users || []).map(nameFor).filter(Boolean).join(', ');
+              const whoArr = (r.users || []).map(nameFor).filter(Boolean);
+              const popId = message._id + ':' + r.emoji;
+              const isPopOpen = openReactPop === popId;
               return (
-                <button key={r.emoji} title={who} onClick={() => onReact(message._id, r.emoji)}
-                  className={cn('ss4-reaction-chip', mine && 'ss4-reaction-mine')}>
-                  <span>{r.emoji}</span><span className="ss4-mono" style={{ fontSize: 10 }}>{r.users.length}</span>
-                </button>
+                <div key={r.emoji} className="relative"
+                  onMouseEnter={() => setOpenReactPop(popId)}
+                  onMouseLeave={() => setOpenReactPop(null)}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
+                        setOpenReactPop(isPopOpen ? null : popId);
+                      } else {
+                        onReact(message._id, r.emoji);
+                      }
+                    }}
+                    className={cn('ss4-reaction-chip', mine && 'ss4-reaction-mine')}
+                  >
+                    <span>{r.emoji}</span>
+                    <span className="ss4-mono" style={{ fontSize: 10 }}>{r.users.length}</span>
+                  </button>
+                  {isPopOpen && whoArr.length > 0 && (
+                    <div
+                      className={cn('absolute z-50 bottom-full mb-1.5 px-3 py-2 rounded-xl text-[11px] min-w-[110px] max-w-[190px]', isOwn ? 'right-0' : 'left-0')}
+                      style={{ background: 'var(--bg-elevated,#1a1b1e)', border: '1px solid var(--border-2,rgba(255,255,255,0.1))', boxShadow: '0 4px 16px rgba(0,0,0,0.35)', pointerEvents: 'none' }}
+                    >
+                      <div className="text-sm text-center mb-1">{r.emoji}</div>
+                      <div>
+                        {whoArr.map((name, i) => (<div key={i} className="text-foreground/80 leading-tight truncate">{name}</div>))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -604,7 +640,7 @@ function Bubble({
                     className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
                     style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
                     {m.avatar
-                      ? <img src={m.avatar} alt="" className="w-full h-full object-cover" />
+                      ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" />
                       : m.fullName[0]?.toUpperCase()}
                   </div>
                 ))}
@@ -703,8 +739,8 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
         <div className="ss4-vcall-screen flex flex-col items-center justify-center" style={{ height: 260 }}>
           <div className="flex flex-col items-center gap-4 relative z-10">
             <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring', getAvaColor(name))}>
-              {conv.type === 'group' ? <GroupAvatarFace src={avatar} name={name} size={24} />
-                : avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+              {conv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(avatar)} name={name} size={24} />
+                : avatar ? <img src={resolveImageUrl(avatar)} alt="" className="w-full h-full object-cover" />
                   : <span className="text-white font-bold" style={{ fontSize: 24 }}>{ini(name)}</span>}
             </div>
             <div className="flex flex-col items-center gap-1.5">
@@ -1130,6 +1166,8 @@ export default function SupraSpacePage() {
 
   const [convos, setConvos] = React.useState<SSConversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const activeIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const [msgs, setMsgs] = React.useState<Record<string, SSMessage[]>>({});
   const [loadingMsgs, setLoadingMsgs] = React.useState(false);
@@ -1197,17 +1235,34 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
+  const { markAsRead: ctxMarkAsRead } = useSupraSpaceMessenger();
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
   const msgSeenByMembers = React.useMemo(() => {
+    // Build fresh avatar/name from message sender data (more up-to-date than conv.members)
+    const freshAvatar: Record<string, string | undefined> = {};
+    const freshName: Record<string, string | undefined> = {};
+    activeMsgs.forEach(m => {
+      if (m.sender?._id && !freshAvatar[m.sender._id]) {
+        freshAvatar[m.sender._id] = m.sender.avatar;
+        freshName[m.sender._id] = m.sender.fullName;
+      }
+    });
     const lastSeen: Record<string, string> = {};
     activeMsgs.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== uid) lastSeen[id] = m._id; }); });
     const result: Record<string, {_id:string;fullName:string;avatar?:string}[]> = {};
     (activeConv?.members || []).forEach(member => {
       if (member._id === uid) return;
       const lastMsgId = lastSeen[member._id];
-      if (lastMsgId) { if (!result[lastMsgId]) result[lastMsgId] = []; result[lastMsgId].push(member); }
+      if (lastMsgId) {
+        if (!result[lastMsgId]) result[lastMsgId] = [];
+        result[lastMsgId].push({
+          ...member,
+          avatar: freshAvatar[member._id] ?? member.avatar,
+          fullName: freshName[member._id] ?? member.fullName,
+        });
+      }
     });
     return result;
   }, [activeMsgs, activeConv, uid]);
@@ -1370,7 +1425,18 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     if (!socket) return;
-    const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => appendMessageLocal(conversationId, message);
+    const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
+      appendMessageLocal(conversationId, message);
+      if (conversationId === activeIdRef.current) {
+        ctxMarkAsRead(conversationId);
+        setConvos(prev => prev.map(c => {
+          if (c._id !== conversationId || !c.lastMessage) return c;
+          const rb = c.lastMessage.readBy || [];
+          if (rb.includes(uid)) return c;
+          return { ...c, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+        }));
+      }
+    };
     const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
     const onNew = (c: SSConversation) => setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
@@ -1429,6 +1495,13 @@ export default function SupraSpacePage() {
         .finally(() => setLoadingMsgs(false));
     }
     markRead(activeId);
+    ctxMarkAsRead(activeId);
+    setConvos(prev => prev.map(c => {
+      if (c._id !== activeId || !c.lastMessage) return c;
+      const rb = c.lastMessage.readBy || [];
+      if (rb.includes(uid)) return c;
+      return { ...c, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+    }));
     call.refreshStatus(activeId);
   }, [activeId, token]); // eslint-disable-line
 
@@ -1519,17 +1592,19 @@ export default function SupraSpacePage() {
   const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInput(val);
-    // Detect @mention trigger
+    // Detect @mention trigger (anchor-based so names with spaces work)
     const cursor = e.target.selectionStart ?? val.length;
-    const beforeCursor = val.slice(0, cursor);
-    const mentionMatch = beforeCursor.match(/@(\w*)$/);
-    if (mentionMatch) {
-      setMentionQuery(mentionMatch[1]);
-      setMentionAnchor(cursor - mentionMatch[0].length);
-      setMentionIdx(0);
+    if (mentionAnchor >= 0) {
+      if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
+        setMentionQuery(null); setMentionAnchor(-1);
+      } else {
+        const q = val.slice(mentionAnchor + 1, cursor);
+        if (q.includes('  ')) { setMentionQuery(null); setMentionAnchor(-1); }
+        else { setMentionQuery(q); setMentionIdx(0); }
+      }
     } else {
-      setMentionQuery(null);
-      setMentionAnchor(-1);
+      const match = val.slice(0, cursor).match(/@(\w*)$/);
+      if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
     }
     if (!activeId) return;
     sendTypingStart(activeId);
@@ -1758,7 +1833,7 @@ export default function SupraSpacePage() {
       .filter(m => m._id !== uid)
       .map(m => ({
         id: m._id,
-        name: m.fullName.split(' ')[0].toLowerCase(),
+        name: (() => { const p = m.fullName.trim().split(/\s+/); return p.length >= 2 ? `${p[0]} ${p[p.length - 1]}` : p[0]; })(),
         fullName: m.fullName,
         avatar: m.avatar as string | undefined,
       }));
@@ -1767,7 +1842,7 @@ export default function SupraSpacePage() {
       : [];
     const opts = [...allOpt, ...memberOpts];
     if (!q) return opts;
-    return opts.filter(o => o.name.startsWith(q) || o.fullName.toLowerCase().includes(q));
+    return opts.filter(o => o.name.toLowerCase().startsWith(q) || o.fullName.toLowerCase().includes(q));
   }, [mentionQuery, activeConv, uid]);
   const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
@@ -1793,10 +1868,10 @@ export default function SupraSpacePage() {
       : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && conv.lastMessage && conv.lastMessage.sender?._id !== uid ? `${(conv.lastMessage.sender?.fullName || '').split(' ')[0]}: ` : '';
     return (
-      <div className={cn('ss4-conv group flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active')} onClick={() => setActiveId(conv._id)}>
+      <div className={cn('ss4-conv group flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5')} onClick={() => setActiveId(conv._id)}>
         <div className="relative shrink-0">
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-            {conv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+            {conv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
           </div>
           {conv.type === 'direct' && online ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
             : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
@@ -1807,7 +1882,7 @@ export default function SupraSpacePage() {
             <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold')} style={{ fontSize: 12.5 }}>{cName}</p>
             <span className="shrink-0" style={{ fontSize: 9.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
           </div>
-          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11, fontWeight: isUnread ? 500 : 400 }}>{senderPrefix}{lastPreview}</p>
+          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
           <div className={cn('flex items-center shrink-0', isAct ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
@@ -1965,7 +2040,7 @@ export default function SupraSpacePage() {
                   <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
                     <div className="relative shrink-0">
                       <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                        {activeConv.type === 'group' ? <GroupAvatarFace src={getConvAvatar(activeConv, uid)} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={getConvAvatar(activeConv, uid)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                        {activeConv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
                       </div>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -2103,8 +2178,8 @@ export default function SupraSpacePage() {
                                   </div>
                               }
                               <div className="min-w-0 flex items-baseline gap-1.5">
-                                <span className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>@{opt.name}</span>
-                                <span className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{opt.fullName}</span>
+                                <span className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>@{opt.id === 'all' ? opt.name : opt.fullName}</span>
+                                {opt.id === 'all' && <span className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{opt.fullName}</span>}
                               </div>
                             </button>
                           ))}
