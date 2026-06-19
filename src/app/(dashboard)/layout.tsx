@@ -260,7 +260,10 @@ function DashboardLayoutContent({
         <main
           className={cn(
             "relative bg-background pb-24 md:pb-0",
-            isCrmRoute ? "h-dvh overflow-hidden" : "flex-1 overflow-hidden"
+            // CRM: keep the fixed app-shell height (h-dvh) but allow main to scroll
+            // its own overflow. This prevents content from being clipped-and-unreachable
+            // when a CRM page doesn't supply its own internal scroll container.
+            isCrmRoute ? "h-dvh overflow-y-auto" : "flex-1 overflow-hidden"
           )}
         >
           {isCrmRoute && (
