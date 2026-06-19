@@ -322,6 +322,15 @@ export default function CrmProfilePage() {
           newAvatarUrl = `${av}?v=${Date.now()}`;
           setMainAvatar(newAvatarUrl);
         }
+
+        // Sync the same photo to CrmUser so SupraSpace/Messenger shows the updated avatar
+        if (crmToken) {
+          const crmFormData = new FormData();
+          crmFormData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
+          await apiClient.patch("/api/crm/me/avatar", crmFormData, {
+            headers: { Authorization: `Bearer ${crmToken}`, "Content-Type": "multipart/form-data" },
+          });
+        }
       } catch (avatarErr: unknown) {
         const apiError = avatarErr as ApiError;
         const status = apiError.response?.status;

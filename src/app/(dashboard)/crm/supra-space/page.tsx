@@ -28,6 +28,7 @@ import { cn, resolveImageUrl } from '@/lib/utils';
 import { JitsiMeet } from './JitsiMeet';
 // ── NEW: calling ──
 import { useCall, CallSession } from '@/hooks/useCall';
+import { stopCallSound } from '@/lib/notification-sound';
 import { CallBanner } from './CallBanner';
 import { IncomingCallModal } from './IncomingCallModal';
 import { CallExperience } from './CallExperience';
@@ -2424,7 +2425,7 @@ export default function SupraSpacePage() {
         <IncomingCallModal
           call={call.incoming}
           onJoin={() => handleJoinCall(call.incoming!.meetingId)}
-          onDismiss={() => call.setIncoming(null)}
+          onDismiss={() => { stopCallSound(); call.setIncoming(null); }}
         />
       )}
       {activeMeeting && (
