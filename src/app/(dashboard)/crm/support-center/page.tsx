@@ -119,10 +119,10 @@ function SupportCenterView() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full min-h-screen w-full flex-col bg-background">
-        <div className="flex w-full flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
+      <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+        <div className="flex w-full min-h-0 flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
           {/* Console header */}
-          <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="shrink-0 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 variant="ghost"
@@ -180,7 +180,7 @@ function SupportCenterView() {
           </div>
 
           {/* Tab nav — underline style */}
-          <div className="flex gap-6 border-b border-border -mt-1">
+          <div className="shrink-0 flex gap-6 border-b border-border -mt-1">
             {tabs.map((tab) => {
               const active = activeTab === tab.id;
               return (
@@ -213,10 +213,7 @@ function SupportCenterView() {
           </div>
 
           {/* Tab content */}
-          <div
-            className="min-h-0 flex-1"
-            style={{ height: "calc(100vh - 13rem)", minHeight: 480 }}
-          >
+          <div className="min-h-0 flex-1" style={{ minHeight: 360 }}>
             {activeTab === "concerns" && <CustomersConcernTab />}
             {activeTab === "calls" && <CustomerCallsTab />}
             {activeTab === "aftermarket" && <AftermarketInquiriesTab />}

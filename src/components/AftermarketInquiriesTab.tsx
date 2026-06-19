@@ -13,9 +13,7 @@ import {
   Trash2,
   X,
   Receipt,
-  Mail,
   Phone,
-  Clock,
   CheckCircle2,
   CircleDot,
   Tag,
@@ -620,11 +618,11 @@ function InquiryThread({ conversationId }: { conversationId: string }) {
   }, [crmToken]);
 
   return (
-    <div className="rounded-[12px] border border-border overflow-hidden flex flex-col">
-      <div className="px-4 py-2.5 border-b border-border bg-muted/30">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="shrink-0 px-4 py-2.5 border-b border-border bg-muted/30">
         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground font-mono">Conversation</p>
       </div>
-      <div className="flex-1 max-h-80 overflow-y-auto px-3 py-2 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5" style={{ scrollbarWidth: "thin" }}>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
         ) : messages.length === 0 ? (
@@ -634,7 +632,7 @@ function InquiryThread({ conversationId }: { conversationId: string }) {
         )}
         <div ref={endRef} />
       </div>
-      <div className="px-3 pb-3 pt-2 border-t border-border space-y-1.5">
+      <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border space-y-1.5">
         {pendingFiles.length > 0 && (
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {pendingFiles.map((f, i) => (
@@ -733,142 +731,156 @@ function DetailPanel({
   const isVideo = product?.media?.mediaType === "video" || product?.media?.mimeType?.startsWith("video/");
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-      <div className="p-5 space-y-5 max-w-2xl">
-        {/* Product card */}
-        <div className="rounded-[12px] border border-border overflow-hidden">
-          {mediaUrl ? (
-            isVideo ? (
-              <video src={mediaUrl} controls className="w-full max-h-56 object-cover bg-muted" />
-            ) : (
-              <img src={mediaUrl} alt={product?.name} className="w-full max-h-56 object-cover bg-muted" />
-            )
-          ) : (
-            <div className="w-full h-32 bg-muted flex items-center justify-center">
-              <Package className="h-8 w-8 text-muted-foreground/40" />
-            </div>
-          )}
-          <div className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-bold text-sm tracking-tight truncate">{product?.name || inquiry.productName}</p>
-                <p className="text-[10px] font-mono font-semibold tracking-wide text-muted-foreground/60 mt-0.5">
-                  {inquiryTag(inquiry._id)}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-sm font-bold tabular-nums font-mono text-primary">
-                  {product?.price != null ? money(product.price) : "No price"}
-                </p>
-                {product?.price == null && (
-                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground/60 font-mono">quote required</p>
-                )}
-              </div>
-            </div>
-            {product?.description && (
-              <p className="text-xs text-muted-foreground mt-2 leading-relaxed line-clamp-3">{product.description}</p>
-            )}
-            {product?.file?.url && (
-              <a
-                href={product.file.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline mt-2"
-              >
-                <FileText className="h-3 w-3" /> {product.file.fileName || "Attached file"}
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Customer + status */}
-        <div className="flex items-start gap-3">
-          <Squircle label={customerName} tone="chart2" size="lg" src={customer?.imageUrl || customer?.avatar} />
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">{customerName}</p>
-              <StatusPill status={inquiry.status} />
-            </div>
-            <InfoRow icon={Mail}>{customer?.email || inquiry.customerEmail}</InfoRow>
-            {customer?.phone && <InfoRow icon={Phone}>{customer.phone}</InfoRow>}
-            <InfoRow icon={Clock}>Inquired {fmtFull(inquiry.createdAt)}</InfoRow>
-          </div>
-        </div>
-
-        {/* The question */}
-        <div className="rounded-r-lg rounded-l-[3px] border-l-[3px] border-l-chart-2 bg-chart-2/6 px-4 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-chart-2 font-mono mb-1">Inquiry</p>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{inquiry.question}</p>
-        </div>
-
-        {inquiry.conversationId && <InquiryThread conversationId={inquiry.conversationId} />}
-
-        {/* Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          {invoice ? (
-            <div className="flex-1 min-w-[200px] rounded-[10px] border border-border bg-muted/30 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
-                    {invoice.invoiceNumber || "Invoice"}
-                  </p>
-                  <p className="text-sm font-bold tabular-nums font-mono mt-0.5">{money(invoice.amount)}</p>
+    <div className="flex-1 min-h-0 flex flex-col">
+      {/* Compact info strip — capped height, scrolls internally if it overflows, never steals room from the conversation below */}
+      <div className="shrink-0 overflow-y-auto" style={{ maxHeight: 280, scrollbarWidth: "thin" }}>
+        <div className="p-4 space-y-3">
+          {/* Product card */}
+          <div className="rounded-[10px] border border-border overflow-hidden">
+            <div className="flex items-stretch">
+              {mediaUrl ? (
+                isVideo ? (
+                  <video src={mediaUrl} controls className="w-24 h-24 shrink-0 object-cover bg-muted" />
+                ) : (
+                  <img src={mediaUrl} alt={product?.name} className="w-24 h-24 shrink-0 object-cover bg-muted" />
+                )
+              ) : (
+                <div className="w-24 h-24 shrink-0 bg-muted flex items-center justify-center">
+                  <Package className="h-6 w-6 text-muted-foreground/40" />
                 </div>
-                <span className={cn(
-                  "text-[9px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full",
-                  invoice.status === "succeeded" ? "bg-primary/15 text-primary" : "bg-chart-2/15 text-chart-2"
-                )}>
-                  {invoice.status === "succeeded" ? "paid" : invoice.status}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <Button size="sm" onClick={() => setShowBuilder(true)} className="rounded-xl gap-1.5">
-              <Receipt className="h-3.5 w-3.5" /> Create invoice
-            </Button>
-          )}
-
-          {/* Status quick-toggle */}
-          <div className="flex items-center gap-1 ml-auto">
-            {(["open", "answered", "closed"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => changeStatus(s)}
-                disabled={statusBusy || inquiry.status === s}
-                className={cn(
-                  "text-[10px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-lg transition-colors",
-                  inquiry.status === s ? "bg-primary/15 text-primary cursor-default" : "text-muted-foreground/60 hover:text-foreground hover:bg-muted"
-                )}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* History */}
-        {history.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
-              History · {history.length}
-            </p>
-            <div className="rounded-[10px] border border-border divide-y divide-border/60 overflow-hidden">
-              {history.map((h) => (
-                <div key={h._id} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+              )}
+              <div className="p-3 min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium truncate">{h.productName}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{h.question}</p>
+                    <p className="font-bold text-sm tracking-tight truncate">{product?.name || inquiry.productName}</p>
+                    <p className="text-[10px] font-mono font-semibold tracking-wide text-muted-foreground/60">
+                      {inquiryTag(inquiry._id)}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <StatusPill status={h.status} />
-                    <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">{fmtRelative(h.createdAt)}</span>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold tabular-nums font-mono text-primary">
+                      {product?.price != null ? money(product.price) : "No price"}
+                    </p>
+                    {product?.price == null && (
+                      <p className="text-[9px] uppercase tracking-wide text-muted-foreground/60 font-mono">quote required</p>
+                    )}
                   </div>
                 </div>
+                {product?.description && (
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-2">{product.description}</p>
+                )}
+                {product?.file?.url && (
+                  <a
+                    href={product.file.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline mt-1"
+                  >
+                    <FileText className="h-3 w-3" /> {product.file.fileName || "Attached file"}
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Customer + status */}
+          <div className="flex items-center gap-2.5">
+            <Squircle label={customerName} tone="chart2" src={customer?.imageUrl || customer?.avatar} />
+            <div className="min-w-0 flex-1 flex items-center gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-sm truncate">{customerName}</p>
+                  <StatusPill status={inquiry.status} />
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{customer?.email || inquiry.customerEmail}</p>
+              </div>
+              {customer?.phone && <InfoRow icon={Phone}>{customer.phone}</InfoRow>}
+            </div>
+          </div>
+
+          {/* The question */}
+          <div className="rounded-r-lg rounded-l-[3px] border-l-[3px] border-l-chart-2 bg-chart-2/6 px-3.5 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-chart-2 font-mono mb-1">Inquiry</p>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{inquiry.question}</p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            {invoice ? (
+              <div className="flex-1 min-w-50 rounded-[10px] border border-border bg-muted/30 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
+                      {invoice.invoiceNumber || "Invoice"}
+                    </p>
+                    <p className="text-sm font-bold tabular-nums font-mono">{money(invoice.amount)}</p>
+                  </div>
+                  <span className={cn(
+                    "text-[9px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full",
+                    invoice.status === "succeeded" ? "bg-primary/15 text-primary" : "bg-chart-2/15 text-chart-2"
+                  )}>
+                    {invoice.status === "succeeded" ? "paid" : invoice.status}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <Button size="sm" onClick={() => setShowBuilder(true)} className="rounded-xl gap-1.5">
+                <Receipt className="h-3.5 w-3.5" /> Create invoice
+              </Button>
+            )}
+
+            <div className="flex items-center gap-1 ml-auto">
+              {(["open", "answered", "closed"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => changeStatus(s)}
+                  disabled={statusBusy || inquiry.status === s}
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-lg transition-colors",
+                    inquiry.status === s ? "bg-primary/15 text-primary cursor-default" : "text-muted-foreground/60 hover:text-foreground hover:bg-muted"
+                  )}
+                >
+                  {s}
+                </button>
               ))}
             </div>
           </div>
-        )}
+
+          {/* History */}
+          {history.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
+                History · {history.length}
+              </p>
+              <div className="rounded-[10px] border border-border divide-y divide-border/60 overflow-hidden">
+                {history.map((h) => (
+                  <div key={h._id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate">{h.productName}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{h.question}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusPill status={h.status} />
+                      <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">{fmtRelative(h.createdAt)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Conversation — fills all remaining height, scrolls and auto-scrolls on its own */}
+      {inquiry.conversationId ? (
+        <div className="flex-1 min-h-0 border-t border-border">
+          <InquiryThread conversationId={inquiry.conversationId} />
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 border-t border-border flex items-center justify-center">
+          <p className="text-xs text-muted-foreground">No conversation thread for this inquiry.</p>
+        </div>
+      )}
 
       {showBuilder && (
         <InvoiceBuilder
