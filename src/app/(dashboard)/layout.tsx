@@ -156,9 +156,15 @@ function DashboardLayoutContent({
   }
 
   return (
-    <SidebarProvider>
+    // On CRM routes, lock the OUTERMOST shell (the provider wrapper) to the viewport
+    // with overflow-hidden. The wrapper is normally `min-h-svh` (growable), which let
+    // the document scroll. Capping it here means the body can never scroll, so `main`
+    // becomes the single scroll container. We do NOT hardcode h-dvh on SidebarInset —
+    // the inset variant adds m-2 margins, and a fixed height + margins overflowed the
+    // viewport. Instead SidebarInset fills the capped wrapper via flex stretch.
+    <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className={cn(isCrmRoute && "min-h-0 overflow-hidden")}>
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
             <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
@@ -260,10 +266,21 @@ function DashboardLayoutContent({
         <main
           className={cn(
             "relative bg-background pb-24 md:pb-0",
-            // CRM: keep the fixed app-shell height (h-dvh) but allow main to scroll
-            // its own overflow. This prevents content from being clipped-and-unreachable
-            // when a CRM page doesn't supply its own internal scroll container.
-            isCrmRoute ? "h-dvh overflow-y-auto" : "flex-1 overflow-hidden"
+            // CRM: fill the capped shell (flex-1) and be the SINGLE scroll container.
+            // min-h-0 lets the flex child shrink below its content height so it scrolls
+            // instead of forcing its parent to grow.
+            // Subtle, thin scrollbar (matches the sidebar): faint thumb at rest, firmer
+            // on hover. Still fully scrollable.
+            //   Firefox      -> scrollbar-width: thin + faint scrollbar-color
+            //   WebKit/Blink -> 6px bar, transparent track, low-opacity rounded thumb
+            isCrmRoute
+              ? "flex-1 min-h-0 overflow-y-auto " +
+                "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
+                "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 " +
+                "[&::-webkit-scrollbar-track]:bg-transparent " +
+                "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 " +
+                "[&::-webkit-scrollbar-thumb:hover]:bg-border"
+              : "flex-1 overflow-hidden"
           )}
         >
           {isCrmRoute && (

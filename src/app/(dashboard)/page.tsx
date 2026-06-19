@@ -93,7 +93,9 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-svh p-4">
+      // min-h-full (relative to the scrolling `main`) instead of min-h-svh
+      // so the error state fills the container without using viewport units.
+      <div className="flex items-center justify-center min-h-full p-4">
         <div className="text-center p-8 border border-destructive/20 bg-destructive/5 rounded-3xl backdrop-blur-sm max-w-sm w-full">
           <p className="text-destructive font-black tracking-tight text-lg mb-2">
             System Down
@@ -114,7 +116,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8 container mx-auto min-h-screen pb-28 md:pb-12 animate-in fade-in duration-500">
+    // min-h-full = 100% of the scrolling `main` (which has a definite h-dvh),
+    // NOT min-h-screen (100vh). Using viewport units here forced the page to be
+    // a full window tall regardless of `main`, which made the document scroll on
+    // top of `main`'s scroll — the source of the second scrollbar.
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8 container mx-auto min-h-full pb-28 md:pb-12 animate-in fade-in duration-500">
 
       {/* ── Header ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3">

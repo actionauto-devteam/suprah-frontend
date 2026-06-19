@@ -279,7 +279,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-2">
+      {/* Subtle, thin scrollbar: faint thumb at rest, firmer on hover. The nav still
+          scrolls as before — this just gives a little visibility instead of fully
+          hiding the bar.
+            Firefox      -> scrollbar-width: thin + faint scrollbar-color
+            WebKit/Blink -> 6px bar, transparent track, low-opacity rounded thumb */}
+      <SidebarContent className="p-2 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 [&::-webkit-scrollbar-thumb:hover]:bg-border">
         <SidebarMenu>
           {activeNavMain.map((item) => {
             const isActive =
