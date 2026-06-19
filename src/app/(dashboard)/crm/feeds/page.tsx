@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -191,6 +191,7 @@ function ReactionBar({
 }) {
   const [showPicker, setShowPicker] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [openReactPop, setOpenReactPop] = React.useState<string | null>(null)
   const pickerRef = React.useRef<HTMLDivElement>(null)
   const btnRef = React.useRef<HTMLButtonElement>(null)
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -289,10 +290,36 @@ function ReactionBar({
               .map(([type, data]) => {
                 const meta = REACTION_MAP[type as ReactionType]
                 if (!meta) return null
+                const popId = targetId + ':' + type
+                const isPopOpen = openReactPop === popId
+                const whoArr = summary[type as ReactionType]?.users || []
                 return (
-                  <span key={type} title={tooltipFor(type as ReactionType)} className={`text-[11px] font-bold cursor-default transition-colors tabular-nums ${myReaction === type ? meta.color : "text-muted-foreground/60 hover:text-muted-foreground/80"}`}>
-                    {data.count}
-                  </span>
+                  <div key={type} className="relative"
+                    onMouseEnter={() => setOpenReactPop(popId)}
+                    onMouseLeave={() => setOpenReactPop(null)}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
+                          setOpenReactPop(isPopOpen ? null : popId)
+                        }
+                      }}
+                      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums cursor-default transition-colors ${myReaction === type ? meta.color : 'text-muted-foreground/60 hover:text-muted-foreground/80'}`}
+                    >
+                      <span>{meta.emoji}</span>
+                      <span>{data.count}</span>
+                    </button>
+                    {isPopOpen && whoArr.length > 0 && (
+                      <div
+                        className="absolute z-50 bottom-full mb-1.5 px-3 py-2 rounded-xl text-[11px] min-w-[110px] max-w-[200px] left-0"
+                        style={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', pointerEvents: 'none' }}
+                      >
+                        <div className="text-sm text-center mb-1">{meta.emoji}</div>
+                        {whoArr.map((name, i) => (<div key={i} className="text-foreground/80 leading-tight truncate">{name}</div>))}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
           </div>

@@ -200,7 +200,7 @@ export function MessengerDropdown() {
                       className={cn(
                         'text-[11px] truncate mt-0.5',
                         isUnread
-                          ? 'text-foreground/70 font-medium'
+                          ? 'text-foreground font-semibold'
                           : 'text-muted-foreground'
                       )}
                     >

@@ -2,6 +2,7 @@
 import * as React from 'react';
 import type { Socket } from 'socket.io-client';
 import { apiClient } from '@/lib/api-client';
+import { playCallSound, stopCallSound } from '@/lib/notification-sound';
 
 export interface JitsiPayload {
   domain: string;
@@ -38,7 +39,7 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
 
     const onStarted = (c: LiveCall) => {
       setLiveCalls((p) => ({ ...p, [c.conversationId]: { ...c, participantCount: 1 } }));
-      if (c.initiatedBy !== uid) setIncoming(c);
+      if (c.initiatedBy !== uid) { setIncoming(c); playCallSound(); }
     };
     const onCount = ({ conversationId, participantCount }: any) =>
       setLiveCalls((p) =>
@@ -50,7 +51,7 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
         delete n[conversationId];
         return n;
       });
-      setIncoming((cur) => (cur?.conversationId === conversationId ? null : cur));
+      setIncoming((cur) => { if (cur?.conversationId === conversationId) { stopCallSound(); return null; } return cur; });
     };
 
     socket.on('call:started', onStarted);
@@ -117,6 +118,7 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
         { meetingId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      stopCallSound();
       setIncoming(null);
       return r.data?.data as CallSession;
     },

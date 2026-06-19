@@ -4,6 +4,7 @@ import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
+import { playMessageSound } from '@/lib/notification-sound';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
 
@@ -52,10 +53,12 @@ interface MessengerCtxValue {
   openChats: string[];
   minimizedChats: Set<string>;
   socket: Socket | null;
+  myAvatar: string | undefined;
   openChatPopup: (convId: string) => void;
   closeChatPopup: (convId: string) => void;
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
+  refreshConversations: () => void;
 }
 
 const MessengerContext = React.createContext<MessengerCtxValue | null>(null);
@@ -95,9 +98,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const [isConnected, setIsConnected]     = React.useState(false);
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
   const [minimizedChats, setMinimizedChats] = React.useState<Set<string>>(new Set());
+  const [myAvatar, setMyAvatar]           = React.useState<string | undefined>(undefined);
+
+  // ── Fetch current user's own profile (for up-to-date avatar) ─────────────────
+  React.useEffect(() => {
+    if (!crmToken) return;
+    apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${crmToken}` } })
+      .then(r => { const d = r.data?.data || r.data; if (d?.avatar) setMyAvatar(d.avatar); })
+      .catch(() => {});
+  }, [crmToken]);
 
   // ── Fetch conversations when CRM token is available ──────────────────────────
-  React.useEffect(() => {
+  const fetchConversations = React.useCallback(() => {
     if (!crmToken) return;
     apiClient
       .get('/api/supraspace/conversations', {
@@ -109,6 +121,15 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       })
       .catch(() => {});
   }, [crmToken]);
+
+  React.useEffect(() => { fetchConversations(); }, [fetchConversations]);
+
+  // Re-fetch conversations (and member avatars) when the window regains focus
+  React.useEffect(() => {
+    const onFocus = () => fetchConversations();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchConversations]);
 
   // ── Socket connection ─────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -132,7 +153,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       setIsConnected(false);
     });
 
-    // New message → update conversation lastMessage + re-sort
+    // New message → update conversation lastMessage + re-sort + sound
     s.on('message:new', ({ conversationId, message }: { conversationId: string; message: SSLastMessage }) => {
       setConversations((prev) => {
         const updated = prev.map((conv) =>
@@ -142,12 +163,28 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         );
         return sortByLastMessage(updated);
       });
+      if (message.sender?._id !== crmUserId) playMessageSound();
     });
 
     // New conversation was created → prepend if not already in list
     s.on('conversation:new', (conv: SSConv) => {
       setConversations((prev) =>
         prev.find((c) => c._id === conv._id) ? prev : [conv, ...prev]
+      );
+    });
+
+    // Profile updated → patch member avatars in all conversations
+    s.on('user:profile:updated', ({ userId, avatar, fullName }: { userId: string; avatar?: string; fullName?: string }) => {
+      if (userId === crmUserId && avatar) setMyAvatar(avatar);
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          members: conv.members.map((m) =>
+            m._id === userId
+              ? { ...m, ...(avatar ? { avatar } : {}), ...(fullName ? { fullName } : {}) }
+              : m
+          ),
+        }))
       );
     });
 
@@ -228,10 +265,12 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         openChats,
         minimizedChats,
         socket,
+        myAvatar,
         openChatPopup,
         closeChatPopup,
         toggleMinimize,
         markAsRead,
+        refreshConversations: fetchConversations,
       }}
     >
       {children}
