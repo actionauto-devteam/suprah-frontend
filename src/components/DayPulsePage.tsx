@@ -39,7 +39,9 @@ import {
 import { apiClient } from "@/lib/api-client"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 
-// ─── Department definitions ───────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 1 — Department definitions + color tokens
+// ════════════════════════════════════════════════════════════════════════════
 
 export const DEPARTMENTS = [
   { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald" },
@@ -64,26 +66,28 @@ type DayPulseAttachmentSection = "accomplishment" | "blockers" | "inProgress"
 const DEPT_STYLES: Record<string, {
   tab: string; tabActive: string; badge: string; ring: string; glow: string; dot: string
 }> = {
-  emerald: { tab: "text-emerald-400/60 hover:text-emerald-400", tabActive: "text-emerald-400 border-b-2 border-emerald-400", badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", ring: "ring-emerald-500/30", glow: "shadow-emerald-500/10", dot: "bg-emerald-400" },
-  sky: { tab: "text-sky-400/60 hover:text-sky-400", tabActive: "text-sky-400 border-b-2 border-sky-400", badge: "bg-sky-500/10 text-sky-400 border-sky-500/20", ring: "ring-sky-500/30", glow: "shadow-sky-500/10", dot: "bg-sky-400" },
-  amber: { tab: "text-amber-400/60 hover:text-amber-400", tabActive: "text-amber-400 border-b-2 border-amber-400", badge: "bg-amber-500/10 text-amber-400 border-amber-500/20", ring: "ring-amber-500/30", glow: "shadow-amber-500/10", dot: "bg-amber-400" },
-  pink: { tab: "text-pink-400/60 hover:text-pink-400", tabActive: "text-pink-400 border-b-2 border-pink-400", badge: "bg-pink-500/10 text-pink-400 border-pink-500/20", ring: "ring-pink-500/30", glow: "shadow-pink-500/10", dot: "bg-pink-400" },
-  violet: { tab: "text-violet-400/60 hover:text-violet-400", tabActive: "text-violet-400 border-b-2 border-violet-400", badge: "bg-violet-500/10 text-violet-400 border-violet-500/20", ring: "ring-violet-500/30", glow: "shadow-violet-500/10", dot: "bg-violet-400" },
-  blue: { tab: "text-blue-400/60 hover:text-blue-400", tabActive: "text-blue-400 border-b-2 border-blue-400", badge: "bg-blue-500/10 text-blue-400 border-blue-500/20", ring: "ring-blue-500/30", glow: "shadow-blue-500/10", dot: "bg-blue-400" },
-  orange: { tab: "text-orange-400/60 hover:text-orange-400", tabActive: "text-orange-400 border-b-2 border-orange-400", badge: "bg-orange-500/10 text-orange-400 border-orange-500/20", ring: "ring-orange-500/30", glow: "shadow-orange-500/10", dot: "bg-orange-400" },
-  teal: { tab: "text-teal-400/60 hover:text-teal-400", tabActive: "text-teal-400 border-b-2 border-teal-400", badge: "bg-teal-500/10 text-teal-400 border-teal-500/20", ring: "ring-teal-500/30", glow: "shadow-teal-500/10", dot: "bg-teal-400" },
-  rose: { tab: "text-rose-400/60 hover:text-rose-400", tabActive: "text-rose-400 border-b-2 border-rose-400", badge: "bg-rose-500/10 text-rose-400 border-rose-500/20", ring: "ring-rose-500/30", glow: "shadow-rose-500/10", dot: "bg-rose-400" },
-  indigo: { tab: "text-indigo-400/60 hover:text-indigo-400", tabActive: "text-indigo-400 border-b-2 border-indigo-400", badge: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20", ring: "ring-indigo-500/30", glow: "shadow-indigo-500/10", dot: "bg-indigo-400" },
-  lime: { tab: "text-lime-400/60 hover:text-lime-400", tabActive: "text-lime-400 border-b-2 border-lime-400", badge: "bg-lime-500/10 text-lime-400 border-lime-500/20", ring: "ring-lime-500/30", glow: "shadow-lime-500/10", dot: "bg-lime-400" },
-  cyan: { tab: "text-cyan-400/60 hover:text-cyan-400", tabActive: "text-cyan-400 border-b-2 border-cyan-400", badge: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20", ring: "ring-cyan-500/30", glow: "shadow-cyan-500/10", dot: "bg-cyan-400" },
-  fuchsia: { tab: "text-fuchsia-400/60 hover:text-fuchsia-400", tabActive: "text-fuchsia-400 border-b-2 border-fuchsia-400", badge: "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20", ring: "ring-fuchsia-500/30", glow: "shadow-fuchsia-500/10", dot: "bg-fuchsia-400" },
+  emerald: { tab: "text-emerald-400/60 hover:text-emerald-400", tabActive: "text-emerald-400 border-b-2 border-emerald-400", badge: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", ring: "ring-emerald-500/30", glow: "hover:shadow-emerald-500/10", dot: "bg-emerald-400" },
+  sky: { tab: "text-sky-400/60 hover:text-sky-400", tabActive: "text-sky-400 border-b-2 border-sky-400", badge: "bg-sky-500/10 text-sky-500 border-sky-500/20", ring: "ring-sky-500/30", glow: "hover:shadow-sky-500/10", dot: "bg-sky-400" },
+  amber: { tab: "text-amber-400/60 hover:text-amber-400", tabActive: "text-amber-400 border-b-2 border-amber-400", badge: "bg-amber-500/10 text-amber-500 border-amber-500/20", ring: "ring-amber-500/30", glow: "hover:shadow-amber-500/10", dot: "bg-amber-400" },
+  pink: { tab: "text-pink-400/60 hover:text-pink-400", tabActive: "text-pink-400 border-b-2 border-pink-400", badge: "bg-pink-500/10 text-pink-500 border-pink-500/20", ring: "ring-pink-500/30", glow: "hover:shadow-pink-500/10", dot: "bg-pink-400" },
+  violet: { tab: "text-violet-400/60 hover:text-violet-400", tabActive: "text-violet-400 border-b-2 border-violet-400", badge: "bg-violet-500/10 text-violet-500 border-violet-500/20", ring: "ring-violet-500/30", glow: "hover:shadow-violet-500/10", dot: "bg-violet-400" },
+  blue: { tab: "text-blue-400/60 hover:text-blue-400", tabActive: "text-blue-400 border-b-2 border-blue-400", badge: "bg-blue-500/10 text-blue-500 border-blue-500/20", ring: "ring-blue-500/30", glow: "hover:shadow-blue-500/10", dot: "bg-blue-400" },
+  orange: { tab: "text-orange-400/60 hover:text-orange-400", tabActive: "text-orange-400 border-b-2 border-orange-400", badge: "bg-orange-500/10 text-orange-500 border-orange-500/20", ring: "ring-orange-500/30", glow: "hover:shadow-orange-500/10", dot: "bg-orange-400" },
+  teal: { tab: "text-teal-400/60 hover:text-teal-400", tabActive: "text-teal-400 border-b-2 border-teal-400", badge: "bg-teal-500/10 text-teal-500 border-teal-500/20", ring: "ring-teal-500/30", glow: "hover:shadow-teal-500/10", dot: "bg-teal-400" },
+  rose: { tab: "text-rose-400/60 hover:text-rose-400", tabActive: "text-rose-400 border-b-2 border-rose-400", badge: "bg-rose-500/10 text-rose-500 border-rose-500/20", ring: "ring-rose-500/30", glow: "hover:shadow-rose-500/10", dot: "bg-rose-400" },
+  indigo: { tab: "text-indigo-400/60 hover:text-indigo-400", tabActive: "text-indigo-400 border-b-2 border-indigo-400", badge: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20", ring: "ring-indigo-500/30", glow: "hover:shadow-indigo-500/10", dot: "bg-indigo-400" },
+  lime: { tab: "text-lime-400/60 hover:text-lime-400", tabActive: "text-lime-400 border-b-2 border-lime-400", badge: "bg-lime-500/10 text-lime-500 border-lime-500/20", ring: "ring-lime-500/30", glow: "hover:shadow-lime-500/10", dot: "bg-lime-400" },
+  cyan: { tab: "text-cyan-400/60 hover:text-cyan-400", tabActive: "text-cyan-400 border-b-2 border-cyan-400", badge: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20", ring: "ring-cyan-500/30", glow: "hover:shadow-cyan-500/10", dot: "bg-cyan-400" },
+  fuchsia: { tab: "text-fuchsia-400/60 hover:text-fuchsia-400", tabActive: "text-fuchsia-400 border-b-2 border-fuchsia-400", badge: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20", ring: "ring-fuchsia-500/30", glow: "hover:shadow-fuchsia-500/10", dot: "bg-fuchsia-400" },
 }
 
 function getDeptStyle(color: string) {
   return DEPT_STYLES[color] ?? DEPT_STYLES.emerald
 }
 
-// ─── Shared types ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 2 — Shared types, reactions, panel constants, SupraSpace helpers
+// ════════════════════════════════════════════════════════════════════════════
 
 interface DayPulseReport {
   _id: string
@@ -135,16 +139,16 @@ interface ReactionState { summary: ReactionSummary; myReaction: ReactionType | n
 
 const REACTIONS = [
   { type: "like" as ReactionType, emoji: "👍", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love" as ReactionType, emoji: "❤️", label: "Love", color: "text-red-500", bg: "bg-red-500/10 hover:bg-red-500/20 border-red-500/30" },
-  { type: "haha" as ReactionType, emoji: "😂", label: "Haha", color: "text-yellow-500", bg: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30" },
-  { type: "wow" as ReactionType, emoji: "😮", label: "Wow", color: "text-yellow-400", bg: "bg-yellow-400/10 hover:bg-yellow-400/20 border-yellow-400/30" },
+  { type: "love" as ReactionType, emoji: "❤️", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
+  { type: "haha" as ReactionType, emoji: "😂", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
+  { type: "wow" as ReactionType, emoji: "😮", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
   { type: "sad" as ReactionType, emoji: "😢", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
   { type: "angry" as ReactionType, emoji: "😡", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
 
-const PAGE_PANEL = "rounded-2xl border border-border/40 bg-card"
-const PAGE_SECTION = "rounded-2xl border border-border/40 bg-card"
+const PAGE_PANEL = "rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl"
+const PAGE_SECTION = "rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl"
 const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 
 // ─── DayPulse → SupraSpace group chat ─────────────────────────────────────────
@@ -259,10 +263,10 @@ const DAYPULSE_SECTION_CONFIG: Array<{
     {
       key: "blockers",
       label: "Blockers",
-      icon: <AlertCircle className="h-3.5 w-3.5 text-red-500" />,
+      icon: <AlertCircle className="h-3.5 w-3.5 text-rose-500" />,
       placeholder: "What obstacles or dependencies are slowing you down? Who do you need help from?",
-      borderClass: "bg-red-500/5 border-red-500/15",
-      accentClass: "text-red-500",
+      borderClass: "bg-rose-500/5 border-rose-500/15",
+      accentClass: "text-rose-500",
     },
     {
       key: "inProgress",
@@ -274,7 +278,9 @@ const DAYPULSE_SECTION_CONFIG: Array<{
     },
   ]
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 3 — Helpers, attachment grouping, AttachmentPreviewModal
+// ════════════════════════════════════════════════════════════════════════════
 
 function ini(n: string) {
   return n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
@@ -380,15 +386,15 @@ function AttachmentPreviewModal({
   const imageLike = isImageAttachment(attachment)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-border/50 bg-card shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full max-w-2xl rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-border/40 px-5 py-4">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/45">{heading}</p>
-            <h3 className="truncate text-base font-bold text-foreground">{attachment.originalName}</h3>
+            <p className="text-[11px] font-medium text-muted-foreground/50">{heading}</p>
+            <h3 className="truncate text-base font-semibold tracking-tight text-foreground">{attachment.originalName}</h3>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted/60" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -415,16 +421,16 @@ function AttachmentPreviewModal({
           </div>
           <div className="space-y-3">
             <div className="rounded-2xl border border-border/40 bg-muted/15 p-4 space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/45">Details</p>
+              <p className="text-[11px] font-medium text-muted-foreground/50">Details</p>
               <p className="text-sm font-medium text-foreground">{attachment.originalName}</p>
               <p className="text-xs text-muted-foreground/60">{formatBytes(attachment.size)}</p>
               <p className="text-xs text-muted-foreground/60">{attachment.mimeType}</p>
             </div>
             <div className="flex flex-col gap-2">
-              <Button asChild className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button asChild className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white">
                 <a href={attachment.url} target="_blank" rel="noreferrer">Open attachment</a>
               </Button>
-              <Button variant="outline" className="rounded-xl" onClick={onClose}>Close</Button>
+              <Button variant="outline" className="rounded-xl border-border/40" onClick={onClose}>Close</Button>
             </div>
           </div>
         </div>
@@ -433,7 +439,87 @@ function AttachmentPreviewModal({
   )
 }
 
-// ─── Reaction Bar ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 4 — ReactionDetailsModal (who reacted) + ReactionBar + DeleteModal
+// ════════════════════════════════════════════════════════════════════════════
+
+function ReactionDetailsModal({ summary, onClose }: {
+  summary: ReactionSummary; onClose: () => void
+}) {
+  const types = (Object.keys(summary) as ReactionType[])
+    .filter((t) => (summary[t]?.count ?? 0) > 0 && REACTION_MAP[t])
+    .sort((a, b) => summary[b].count - summary[a].count)
+
+  const [tab, setTab] = React.useState<ReactionType | "all">("all")
+
+  const allEntries = types.flatMap((t) =>
+    (summary[t].users || []).map((name) => ({ name, type: t }))
+  )
+  const entries = tab === "all"
+    ? allEntries
+    : (summary[tab]?.users || []).map((name) => ({ name, type: tab }))
+
+  const total = allEntries.length
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+          <h3 className="text-sm font-semibold tracking-tight">
+            Reactions <span className="text-muted-foreground/40 font-normal">· {total}</span>
+          </h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/60" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 px-3 py-2.5 border-b border-border/30 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <button
+            onClick={() => setTab("all")}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+              ${tab === "all" ? "bg-foreground text-background" : "text-muted-foreground/60 hover:bg-muted/50"}`}
+          >
+            All <span className="tabular-nums opacity-70">{total}</span>
+          </button>
+          {types.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+                ${tab === t ? "bg-muted text-foreground ring-1 ring-border/60" : "text-muted-foreground/60 hover:bg-muted/50"}`}
+            >
+              <span className="text-sm leading-none">{REACTION_MAP[t].emoji}</span>
+              <span className="tabular-nums">{summary[t].count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        <div className="max-h-80 overflow-y-auto p-2">
+          {entries.length === 0 ? (
+            <p className="py-10 text-center text-xs text-muted-foreground/50">No reactions yet</p>
+          ) : (
+            entries.map((e, i) => (
+              <div key={`${e.name}-${e.type}-${i}`} className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted/40 transition-colors">
+                <div className="relative shrink-0">
+                  <Avatar className="h-9 w-9 ring-1 ring-border/40">
+                    <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-semibold">{ini(e.name)}</AvatarFallback>
+                  </Avatar>
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-card text-[11px] leading-none ring-1 ring-border/40">
+                    {REACTION_MAP[e.type].emoji}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-foreground/90 truncate">{e.name}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function ReactionBar({
   targetType, targetId, token, reactionState, onReactionChange, compact = false,
@@ -442,6 +528,7 @@ function ReactionBar({
   reactionState: ReactionState; onReactionChange: (s: ReactionState) => void; compact?: boolean
 }) {
   const [showPicker, setShowPicker] = React.useState(false)
+  const [showDetails, setShowDetails] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const pickerRef = React.useRef<HTMLDivElement>(null)
   const btnRef = React.useRef<HTMLButtonElement>(null)
@@ -479,87 +566,88 @@ function ReactionBar({
   const myMeta = myReaction ? REACTION_MAP[myReaction] : null
 
   return (
-    <div className={`flex items-center gap-2 ${compact ? "" : "mt-0.5"}`}>
-      <div className="relative">
-        <button
-          ref={btnRef}
-          disabled={loading}
-          onClick={() => setShowPicker((p) => !p)}
-          onMouseEnter={() => { hoverTimer.current = setTimeout(() => setShowPicker(true), 400) }}
-          onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
-          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150 select-none
-            ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/30 text-muted-foreground/40 hover:border-border/60 hover:text-muted-foreground/70 hover:bg-muted/30"}
-            ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "👍"}</span>}
-          {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
-        </button>
-        {showPicker && (
-          <div
-            ref={pickerRef}
-            className="absolute bottom-full left-0 mb-2 z-50 flex items-center gap-1 rounded-full border border-border/40 bg-card/95 backdrop-blur-xl px-2 py-1.5 shadow-2xl shadow-black/20"
-            onMouseEnter={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
+    <>
+      {showDetails && <ReactionDetailsModal summary={summary} onClose={() => setShowDetails(false)} />}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <button
+            ref={btnRef}
+            disabled={loading}
+            onClick={() => setShowPicker((p) => !p)}
+            onMouseEnter={() => { hoverTimer.current = setTimeout(() => setShowPicker(true), 400) }}
+            onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 select-none
+              ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/40 text-muted-foreground/50 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
+              ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {REACTIONS.map((r) => (
-              <button
-                key={r.type}
-                onClick={() => handleReact(r.type)}
-                title={r.label}
-                className={`group relative flex items-center justify-center rounded-full w-9 h-9 transition-all duration-150 hover:scale-125 active:scale-110
-                  ${myReaction === r.type ? "bg-muted/60 ring-2 ring-current scale-110" : "hover:bg-muted/40"} ${r.color}`}
-              >
-                <span className="text-xl leading-none select-none">{r.emoji}</span>
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-popover border border-border/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity shadow-lg pointer-events-none">
-                  {r.label}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "👍"}</span>}
+            {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
+          </button>
+          {showPicker && (
+            <div
+              ref={pickerRef}
+              className="absolute bottom-full left-0 mb-2 z-50 flex items-center gap-0.5 rounded-full border border-border/40 bg-card/95 backdrop-blur-xl px-2 py-1.5 shadow-2xl shadow-black/20"
+              onMouseEnter={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
+            >
+              {REACTIONS.map((r) => (
+                <button
+                  key={r.type}
+                  onClick={() => handleReact(r.type)}
+                  title={r.label}
+                  className={`group relative flex items-center justify-center rounded-full w-9 h-9 transition-all duration-150 hover:scale-125 active:scale-110
+                    ${myReaction === r.type ? "bg-muted/60 ring-2 ring-current scale-110" : "hover:bg-muted/40"} ${r.color}`}
+                >
+                  <span className="text-xl leading-none select-none">{r.emoji}</span>
+                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover border border-border/40 px-2 py-0.5 text-[9px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity shadow-lg pointer-events-none">
+                    {r.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {total > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDetails(true)}
+            title="See who reacted"
+            className="flex items-center gap-1.5 rounded-full px-1.5 py-0.5 transition-colors hover:bg-muted/40 cursor-pointer"
+          >
+            <div className="flex -space-x-1">
+              {topEmojis.map((emoji, i) => (
+                <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted/70 border border-border/30 text-[11px] leading-none select-none" style={{ zIndex: topEmojis.length - i }}>
+                  {emoji}
                 </span>
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+            <span className="text-xs font-medium text-muted-foreground/60 tabular-nums">{total}</span>
+          </button>
         )}
       </div>
-      {total > 0 && (
-        <div className="flex items-center gap-1">
-          <div className="flex -space-x-1">
-            {topEmojis.map((emoji, i) => (
-              <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted/60 border border-border/30 text-[11px] leading-none select-none" style={{ zIndex: topEmojis.length - i }}>
-                {emoji}
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            {Object.entries(summary).filter(([, v]) => v.count > 0).sort(([, a], [, b]) => b.count - a.count).map(([type, data]) => {
-              const meta = REACTION_MAP[type as ReactionType]
-              if (!meta) return null
-              return (
-                <span key={type} className={`text-[11px] font-semibold cursor-default ${myReaction === type ? meta.color : "text-muted-foreground/40 hover:text-muted-foreground/70"}`}>
-                  {data.count}
-                </span>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
-
-// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
 
 function DeleteModal({ label = "report", onConfirm, onCancel, loading }: {
   label?: string; onConfirm: () => void; onCancel: () => void; loading: boolean
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border/50 bg-card shadow-2xl p-6 space-y-5">
-        <div className="space-y-1.5">
-          <h3 className="text-base font-bold tracking-tight">Delete {label}?</h3>
-          <p className="text-sm text-muted-foreground/60">This action cannot be undone.</p>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 p-6 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+            <Trash2 className="h-4 w-4 text-rose-500" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold tracking-tight">Delete {label}?</h3>
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">This action cannot be undone.</p>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button variant="destructive" className="flex-1 rounded-xl h-10 text-sm font-semibold gap-2" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Delete
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1 rounded-xl h-9 text-xs font-medium border-border/40" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button variant="destructive" className="flex-1 rounded-xl h-9 text-xs font-semibold gap-1.5" onClick={onConfirm} disabled={loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
           </Button>
         </div>
       </div>
@@ -567,7 +655,9 @@ function DeleteModal({ label = "report", onConfirm, onCancel, loading }: {
   )
 }
 
-// ─── Comment Item ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 5 — CommentItem + CommentSection
+// ════════════════════════════════════════════════════════════════════════════
 
 function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionState, onReactionChange }: {
   comment: Comment; currentUser: CrmUser; token: string; postId: string
@@ -589,24 +679,24 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
     <>
       {showDelete && <DeleteModal label="comment" onConfirm={handleDelete} onCancel={() => setShowDelete(false)} loading={deleting} />}
       <div className="group flex items-start gap-2.5">
-        <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-border/30">
+        <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-border/40">
           <AvatarImage src={comment.authorAvatar} />
-          <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(comment.authorName)}</AvatarFallback>
+          <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-semibold">{ini(comment.authorName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="inline-block rounded-2xl rounded-tl-sm bg-muted/40 px-3.5 py-2.5 max-w-full">
+          <div className="inline-block rounded-2xl rounded-tl-md bg-muted/40 px-3.5 py-2.5 max-w-full">
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-              <span className="text-[11px] font-bold leading-none">{comment.authorName}</span>
-              <Badge variant="outline" className={`text-[8px] h-3.5 px-1 rounded-full capitalize font-semibold leading-none border ${ROLE_COLORS[comment.authorRole] ?? ROLE_COLORS.employee}`}>
+              <span className="text-xs font-semibold leading-none">{comment.authorName}</span>
+              <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-full capitalize font-medium leading-none border ${ROLE_COLORS[comment.authorRole] ?? ROLE_COLORS.employee}`}>
                 {comment.authorRole}
               </Badge>
             </div>
             <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{comment.content}</p>
           </div>
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
-            <span className="text-[10px] text-muted-foreground/35 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
+            <span className="text-[10px] text-muted-foreground/50 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
             {canDelete && (
-              <button onClick={() => setShowDelete(true)} className="text-[10px] text-muted-foreground/25 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+              <button onClick={() => setShowDelete(true)} className="text-[10px] text-muted-foreground/30 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 font-medium">
                 Delete
               </button>
             )}
@@ -617,8 +707,6 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
     </>
   )
 }
-
-// ─── Comment Section ──────────────────────────────────────────────────────────
 
 function CommentSection({ reportId, currentUser, token }: {
   reportId: string; currentUser: CrmUser; token: string
@@ -683,20 +771,20 @@ function CommentSection({ reportId, currentUser, token }: {
 
   return (
     <div className="border-t border-border/20 mt-3 pt-3 space-y-3">
-      {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground/30" /></div>}
+      {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" /></div>}
 
       {!loading && shouldCollapse && (
-        <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors">
+        <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-emerald-600 transition-colors">
           <ChevronDown className="h-3.5 w-3.5" /> See {hiddenCount} more {hiddenCount === 1 ? "comment" : "comments"}
         </button>
       )}
       {!loading && comments.length >= COLLAPSE_AT && showAll && (
-        <button onClick={() => setShowAll(false)} className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
+        <button onClick={() => setShowAll(false)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors">
           <ChevronUp className="h-3.5 w-3.5" /> Show less
         </button>
       )}
       {!loading && comments.length === 0 && (
-        <p className="text-xs text-muted-foreground/30 text-center py-1">No comments yet.</p>
+        <p className="text-xs text-muted-foreground/50 text-center py-1">No comments yet.</p>
       )}
       {!loading && visible.map((c) => (
         <CommentItem
@@ -709,44 +797,46 @@ function CommentSection({ reportId, currentUser, token }: {
 
       {/* New comment input */}
       <div className="flex items-start gap-2.5 pt-1">
-        <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-border/30">
+        <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-emerald-500/25">
           <AvatarImage src={currentUser.avatar} />
-          <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(currentUser.fullName)}</AvatarFallback>
+          <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 relative">
-          <div className="rounded-2xl rounded-tl-sm border border-border/40 bg-muted/20 focus-within:border-emerald-500/30 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
+          <div className="rounded-2xl rounded-tl-md border border-border/40 bg-muted/20 focus-within:border-emerald-500/40 focus-within:ring-1 focus-within:ring-emerald-500/15 transition-all">
             <textarea
               ref={inputRef} value={newComment}
               onChange={(e) => { setNewComment(e.target.value); setError("") }}
               onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleSubmit() } }}
               placeholder="Comment on this report…" rows={1} maxLength={1000}
-              className="w-full bg-transparent text-xs leading-relaxed p-2.5 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/25"
-              style={{ minHeight: "36px" }}
+              className="w-full bg-transparent text-xs leading-relaxed p-3 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/40"
+              style={{ minHeight: "38px" }}
             />
-            <div className="flex items-center justify-between px-2.5 pb-2">
+            <div className="flex items-center justify-between px-3 pb-2">
               <div className="relative" ref={emojiRef}>
-                <button type="button" onClick={() => setShowEmoji((p) => !p)} className="text-muted-foreground/25 hover:text-muted-foreground/60 transition-colors">
+                <button type="button" onClick={() => setShowEmoji((p) => !p)} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors">
                   <Smile className="h-3.5 w-3.5" />
                 </button>
                 {showEmoji && (
-                  <div className="absolute bottom-full left-0 mb-2 z-30 shadow-2xl">
+                  <div className="absolute bottom-full left-0 mb-2 z-30 rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
                     <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setNewComment((p) => p + e.emoji); setShowEmoji(false); inputRef.current?.focus() }} height={320} width={280} />
                   </div>
                 )}
               </div>
-              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 hover:text-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Post
               </button>
             </div>
           </div>
-          {error && <p className="text-[10px] text-red-500 mt-1 pl-1">{error}</p>}
+          {error && <p className="text-[10px] text-rose-500 mt-1 pl-1">{error}</p>}
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Report Card ──────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 6 — ReportCard
+// ════════════════════════════════════════════════════════════════════════════
 
 function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reactionState, onReactionChange }: {
   report: DayPulseReport; currentUser: CrmUser; token: string
@@ -809,27 +899,27 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
         />
       )}
 
-      <article className={`group rounded-2xl border border-border/40 bg-card overflow-hidden transition-all duration-200 hover:border-border/50 ${style.glow}`}>
+      <article className={`group rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-border/60 hover:shadow-lg ${style.glow}`}>
 
         {/* ── Header band ── */}
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar className={`h-9 w-9 shrink-0 ring-2 ${style.ring}`}>
               <AvatarImage src={report.authorAvatar} />
-              <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(report.authorName)}</AvatarFallback>
+              <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">{ini(report.authorName)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-[15px] font-semibold truncate leading-none text-foreground">{report.authorName}</p>
-                <Badge variant="outline" className={`text-[8px] h-5 px-2 rounded-full capitalize font-semibold leading-none border ${ROLE_COLORS[report.authorRole] ?? ROLE_COLORS.employee}`}>
+                <p className="text-sm font-semibold tracking-tight truncate leading-none text-foreground">{report.authorName}</p>
+                <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-full capitalize font-medium leading-none border ${ROLE_COLORS[report.authorRole] ?? ROLE_COLORS.employee}`}>
                   {report.authorRole}
                 </Badge>
               </div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <p className="text-[10px] text-muted-foreground/45 cursor-default" title={fullDate(report.createdAt)}>{timeAgo(report.createdAt)}</p>
-                {report.isEdited && <span className="text-[10px] text-muted-foreground/35 italic">(edited)</span>}
+                <p className="text-[10px] text-muted-foreground/50 cursor-default" title={fullDate(report.createdAt)}>{timeAgo(report.createdAt)}</p>
+                {report.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">· edited</span>}
                 {/* Department badge */}
-                <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full border ${style.badge}`}>
+                <span className={`inline-flex items-center gap-0.5 text-[9px] font-semibold px-2 py-0.5 rounded-full border ${style.badge}`}>
                   <Hash className="h-2 w-2" />{dept?.label}
                 </span>
               </div>
@@ -839,18 +929,18 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           {(canEdit || canDelete) && !isEditing && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 rounded-xl border-border/40 shadow-xl p-1">
+              <DropdownMenuContent align="end" className="w-40 rounded-2xl border-border/40 shadow-xl p-1 bg-card/95 backdrop-blur-xl">
                 {canEdit && (
-                  <DropdownMenuItem className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer" onClick={() => { setIsEditing(true); setEditAcc(report.accomplishment); setEditBlk(report.blockers); setEditInp(report.inProgress) }}>
+                  <DropdownMenuItem className="rounded-xl text-xs h-8 gap-2.5 cursor-pointer font-medium" onClick={() => { setIsEditing(true); setEditAcc(report.accomplishment); setEditBlk(report.blockers); setEditInp(report.inProgress) }}>
                     <Pencil className="h-3.5 w-3.5 text-muted-foreground" /> Edit report
                   </DropdownMenuItem>
                 )}
                 {canDelete && (
-                  <DropdownMenuItem className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5" onClick={() => setShowDeleteModal(true)}>
+                  <DropdownMenuItem className="rounded-xl text-xs h-8 gap-2.5 cursor-pointer text-rose-500 focus:text-rose-500 focus:bg-rose-500/5 font-medium" onClick={() => setShowDeleteModal(true)}>
                     <Trash2 className="h-3.5 w-3.5" /> Delete report
                   </DropdownMenuItem>
                 )}
@@ -868,22 +958,22 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
               { label: "In Progress", icon: <Clock3 className="h-3.5 w-3.5" />, value: editInp, onChange: setEditInp, placeholder: "What are you currently working on?" },
             ].map(({ label, icon, value, onChange, placeholder }) => (
               <div key={label}>
-                <label className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/55">{icon}{label}</label>
+                <label className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/60">{icon}{label}</label>
                 <textarea
                   value={value}
                   onChange={(e) => { onChange(e.target.value); setEditError("") }}
                   rows={3} maxLength={5000}
                   placeholder={placeholder}
-                  className="w-full rounded-xl border border-border/50 bg-muted/20 text-sm p-3 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 leading-relaxed placeholder:text-muted-foreground/25"
+                  className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-3 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed placeholder:text-muted-foreground/40"
                 />
               </div>
             ))}
-            {editError && <p className="text-xs text-red-500">{editError}</p>}
+            {editError && <p className="text-xs text-rose-500">{editError}</p>}
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" className="h-8 rounded-xl text-xs gap-1.5" onClick={() => { setIsEditing(false); setEditError("") }} disabled={editLoading}>
+              <Button variant="ghost" size="sm" className="h-8 rounded-xl text-xs gap-1.5 font-medium" onClick={() => { setIsEditing(false); setEditError("") }} disabled={editLoading}>
                 <X className="h-3.5 w-3.5" /> Cancel
               </Button>
-              <Button size="sm" className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5" onClick={handleSave} disabled={editLoading || !editAcc.trim() || !editBlk.trim() || !editInp.trim()}>
+              <Button size="sm" className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5 font-semibold px-4" onClick={handleSave} disabled={editLoading || !editAcc.trim() || !editBlk.trim() || !editInp.trim()}>
                 {editLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save
               </Button>
             </div>
@@ -895,10 +985,10 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
               const sectionAttachments = grouped[key]
 
               return (
-                <div key={label} className={`rounded-xl border p-3.5 ${borderClass}`}>
+                <div key={label} className={`rounded-2xl border p-3.5 ${borderClass}`}>
                   <div className="flex items-center gap-1.5 mb-2">
                     {icon}
-                    <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${accentClass}/80`}>{label}</span>
+                    <span className={`text-[11px] font-semibold ${accentClass}/90`}>{label}</span>
                   </div>
                   <p className="text-sm leading-7 whitespace-pre-wrap wrap-break-word text-foreground/85">{content}</p>
 
@@ -912,7 +1002,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
                             key={attachment.fileKey}
                             type="button"
                             onClick={() => setPreviewAttachment({ attachment, heading: `${label} attachment` })}
-                            className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
+                            className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/60 px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
                           >
                             {imageLike && attachment.thumbnailUrl ? (
                               <img
@@ -943,10 +1033,10 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
             })}
 
             {unassigned.length > 0 ? (
-              <div className="rounded-xl border border-border/40 bg-muted/20 p-3.5">
+              <div className="rounded-2xl border border-border/40 bg-muted/20 p-3.5">
                 <div className="mb-3 flex items-center gap-1.5">
                   <Paperclip className="h-3.5 w-3.5 text-muted-foreground/60" />
-                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Attachments</span>
+                  <span className="text-[11px] font-semibold text-muted-foreground/70">Attachments</span>
                   <Badge variant="outline" className="h-5 rounded-full border-border/40 px-2 text-[9px] font-semibold">
                     {unassigned.length}
                   </Badge>
@@ -959,7 +1049,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
                         href={attachment.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 transition-colors hover:border-border/60 hover:bg-muted/30"
+                        className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/60 px-3 py-2.5 transition-colors hover:border-border/60 hover:bg-muted/30"
                       >
                         {isImageAttachment(attachment) && attachment.thumbnailUrl ? (
                           <img
@@ -997,7 +1087,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           />
           <button
             onClick={() => setShowComments((p) => !p)}
-            className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/45 hover:text-muted-foreground/75 transition-colors"
+            className="flex items-center gap-1.5 rounded-full border border-border/40 bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground/70 hover:text-emerald-600 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
           >
             <MessageCircle className="h-3.5 w-3.5" />
             {showComments ? "Hide comments" : "Comments"}
@@ -1015,7 +1105,9 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
   )
 }
 
-// ─── Report Composer ──────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 7 — ReportComposer
+// ════════════════════════════════════════════════════════════════════════════
 
 function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   currentUser: CrmUser; token: string; selectedDept: DepartmentKey | null; onPosted: (r: DayPulseReport) => void
@@ -1152,7 +1244,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   const deptStyle = getDeptStyle(selectedDeptMeta?.color ?? "emerald")
 
   return (
-    <div className={`rounded-[28px] border bg-card transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}>
+    <div className={`rounded-3xl border bg-card/60 backdrop-blur-xl transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}>
       {previewAttachment && (
         <AttachmentPreviewModal
           attachment={previewAttachment.attachment}
@@ -1167,15 +1259,15 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           onClick={() => setOpen(true)}
           className="w-full flex items-center gap-4 p-5 text-left"
         >
-          <Avatar className="h-10 w-10 shrink-0 ring-2 ring-border/30">
+          <Avatar className="h-10 w-10 shrink-0 ring-1 ring-emerald-500/25">
             <AvatarImage src={currentUser.avatar} />
-            <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(currentUser.fullName)}</AvatarFallback>
+            <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
           </Avatar>
-          <div className="flex-1 rounded-2xl bg-muted/30 border border-border/30 px-4 py-3 text-sm text-muted-foreground/50 hover:bg-muted/50 transition-colors">
-            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground/35">New report</span>
+          <div className="flex-1 rounded-2xl bg-muted/30 border border-border/40 px-4 py-3 text-sm text-muted-foreground/50 hover:bg-muted/50 transition-colors">
+            <span className="mb-0.5 block text-[11px] font-medium text-muted-foreground/40">New report</span>
             File your DayPulse update…
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/45 shrink-0">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/50 shrink-0">
             <CalendarDays className="h-3.5 w-3.5" />
             {date}
           </div>
@@ -1189,7 +1281,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                 <Sparkles className="h-4 w-4 text-emerald-500" />
               </div>
               <div className="min-w-0">
-                <span className="block text-sm font-bold text-foreground">New DayPulse Report</span>
+                <span className="block text-sm font-semibold text-foreground">New DayPulse Report</span>
               </div>
             </div>
             <button onClick={() => { setOpen(false); setError("") }} className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
@@ -1201,12 +1293,12 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Department */}
             <div>
-              <label className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
-                <Hash className="h-3 w-3" /> Department <span className="text-red-500">*</span>
+              <label className="mb-2 flex items-center gap-1 text-[11px] font-medium text-muted-foreground/60">
+                <Hash className="h-3 w-3" /> Department <span className="text-rose-500">*</span>
               </label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className={`w-full flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs font-semibold transition-all
+                  <button className={`w-full flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs font-medium transition-all
                     ${dept ? `${deptStyle.badge} border-current` : "border-border/40 text-muted-foreground/50 hover:border-border/70"}`}
                   >
                     <span className="flex items-center gap-1.5 truncate">
@@ -1215,13 +1307,13 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                     <ChevronDown className="h-3 w-3 shrink-0" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-2xl border-border/40 shadow-xl p-1.5 max-h-64 overflow-y-auto">
+                <DropdownMenuContent className="w-56 rounded-2xl border-border/40 shadow-xl p-1.5 max-h-64 overflow-y-auto bg-card/95 backdrop-blur-xl">
                   {DEPARTMENTS.map((d) => {
                     const s = getDeptStyle(d.color)
                     return (
                       <DropdownMenuItem
                         key={d.key}
-                        className={`rounded-xl text-xs h-9 gap-2 cursor-pointer font-semibold ${dept === d.key ? s.badge : ""}`}
+                        className={`rounded-xl text-xs h-9 gap-2 cursor-pointer font-medium ${dept === d.key ? s.badge : ""}`}
                         onClick={() => setDept(d.key)}
                       >
                         <span>{d.label}</span>
@@ -1234,15 +1326,15 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
 
             {/* Date */}
             <div>
-              <label className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
-                <CalendarDays className="h-3 w-3" /> Report Date <span className="text-red-500">*</span>
+              <label className="mb-2 flex items-center gap-1 text-[11px] font-medium text-muted-foreground/60">
+                <CalendarDays className="h-3 w-3" /> Report Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
                 value={date}
                 max={todayStr()}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-2xl border border-border/40 bg-muted/20 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/40 transition-all text-foreground/80"
+                className="w-full rounded-2xl border border-border/40 bg-muted/20 px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500/40 transition-all text-foreground/80"
               />
             </div>
           </div>
@@ -1256,32 +1348,32 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
             return (
               <div key={label} className="space-y-3">
                 <div>
-                  <label className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">
-                    {icon}{label} <span className="text-red-500">*</span>
+                  <label className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/60">
+                    {icon}{label} <span className="text-rose-500">*</span>
                   </label>
                   <textarea
                     value={value}
                     onChange={(e) => { onChange(e.target.value); setError("") }}
                     rows={3} maxLength={5000}
                     placeholder={placeholder}
-                    className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 leading-relaxed placeholder:text-muted-foreground/25 transition-all"
+                    className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed placeholder:text-muted-foreground/40 transition-all"
                   />
                   <div className="mt-1.5 text-right">
-                    <span className={`text-[9px] tabular-nums ${value.length > 4500 ? "text-red-500" : "text-muted-foreground/25"}`}>{value.length}/5000</span>
+                    <span className={`text-[10px] tabular-nums ${value.length > 4500 ? "text-rose-500" : "text-muted-foreground/40"}`}>{value.length}/5000</span>
                   </div>
                 </div>
 
                 <div className={`rounded-2xl border px-4 py-3 ${borderClass}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/55">Attachments</p>
+                      <p className="text-[11px] font-medium text-muted-foreground/60">Attachments</p>
                       <p className="mt-0.5 text-[10px] text-muted-foreground/40">Up to {MAX_DAYPULSE_ATTACHMENTS_PER_SECTION} files for this section</p>
                     </div>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-9 rounded-xl border-border/40 bg-card text-xs gap-2"
+                      className="h-9 rounded-xl border-border/40 bg-card/60 text-xs gap-2"
                       onClick={() => openAttachmentPicker(key)}
                     >
                       <Paperclip className="h-3.5 w-3.5" />
@@ -1310,7 +1402,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                             })}
                             role="button"
                             tabIndex={0}
-                            className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
+                            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/40 bg-card/60 px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
                           >
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
                               {imageLike ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
@@ -1347,23 +1439,23 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           />
 
           {error && (
-            <div className="flex items-center gap-2 rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3">
-              <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-              <p className="text-xs leading-5 text-red-500">{error}</p>
+            <div className="flex items-center gap-2 rounded-2xl bg-rose-500/10 border border-rose-500/20 px-4 py-3">
+              <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+              <p className="text-xs leading-5 text-rose-500">{error}</p>
             </div>
           )}
 
           <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-border/20">
-            <p className="pt-3 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/25">Ctrl+Enter to submit</p>
+            <p className="pt-3 text-[10px] font-medium text-muted-foreground/40">⌘/Ctrl + Enter to submit</p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="h-10 rounded-xl text-xs px-4" onClick={() => { setOpen(false); setError("") }} disabled={submitting}>
+              <Button variant="ghost" size="sm" className="h-10 rounded-xl text-xs px-4 font-medium" onClick={() => { setOpen(false); setError("") }} disabled={submitting}>
                 Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleSubmit}
                 disabled={submitting || !canSubmit}
-                className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-2 px-5 disabled:opacity-40"
+                className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold gap-2 px-5 disabled:opacity-40"
               >
                 {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 Submit Report
@@ -1376,7 +1468,9 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   )
 }
 
-// ─── Date Navigator ───────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PART 8 — DateNavigator, DeptTabBar, DayPulsePage (main export)
+// ════════════════════════════════════════════════════════════════════════════
 
 function DateNavigator({ selectedDate, onDateChange }: {
   selectedDate: string; onDateChange: (d: string) => void
@@ -1393,7 +1487,7 @@ function DateNavigator({ selectedDate, onDateChange }: {
 
   return (
     <div className="flex items-center gap-2">
-      <button onClick={() => shift(-1)} className="h-7 w-7 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 transition-all">
+      <button onClick={() => shift(-1)} className="h-8 w-8 rounded-full border border-border/40 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 transition-all">
         <ChevronLeft className="h-3.5 w-3.5" />
       </button>
       <div className="flex items-center gap-2">
@@ -1402,10 +1496,10 @@ function DateNavigator({ selectedDate, onDateChange }: {
           value={selectedDate}
           max={today}
           onChange={(e) => onDateChange(e.target.value)}
-          className="rounded-lg border border-border/40 bg-muted/20 px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-foreground/80 transition-all"
+          className="rounded-xl border border-border/40 bg-muted/20 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/25 text-foreground/80 transition-all"
         />
         {!isToday && (
-          <button onClick={() => onDateChange(today)} className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-500 transition-colors">
+          <button onClick={() => onDateChange(today)} className="text-xs font-medium text-emerald-600 hover:text-emerald-500 transition-colors">
             Today
           </button>
         )}
@@ -1413,15 +1507,13 @@ function DateNavigator({ selectedDate, onDateChange }: {
       <button
         onClick={() => shift(1)}
         disabled={selectedDate >= today}
-        className="h-7 w-7 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        className="h-8 w-8 rounded-full border border-border/40 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <ChevronRight className="h-3.5 w-3.5" />
       </button>
     </div>
   )
 }
-
-// ─── Department Tab Bar ───────────────────────────────────────────────────────
 
 function DeptTabBar({ selected, onSelect }: {
   selected: DepartmentKey | null; onSelect: (d: DepartmentKey | null) => void
@@ -1459,12 +1551,12 @@ function DeptTabBar({ selected, onSelect }: {
       <button
         onClick={() => nudge("left")}
         disabled={!canScrollLeft}
-        className="shrink-0 h-8 w-8 rounded-full border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
+        className="shrink-0 h-8 w-8 rounded-full border border-border/40 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
       </button>
 
-      {/* Tab strip — the key: clip here intentionally with overflow-hidden, scroll via JS */}
+      {/* Tab strip — clip here intentionally, scroll via JS */}
       <div
         ref={scrollRef}
         className="flex items-center gap-1.5 flex-1 min-w-0"
@@ -1482,10 +1574,10 @@ function DeptTabBar({ selected, onSelect }: {
           {/* All tab */}
           <button
             onClick={() => onSelect(null)}
-            className={`shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border
+            className={`shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border
               ${selected === null
                 ? "bg-foreground text-background border-foreground"
-                : "border-border/30 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
+                : "border-border/40 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
               }`}
           >
             <Building2 className="h-3 w-3" /> All Teams
@@ -1498,10 +1590,10 @@ function DeptTabBar({ selected, onSelect }: {
               <button
                 key={d.key}
                 onClick={() => onSelect(d.key)}
-                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border
+                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border
                   ${isActive
                     ? `${s.badge} border-current`
-                    : "border-border/30 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
+                    : "border-border/40 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
                   }`}
               >
                 <Hash className="h-2.5 w-2.5 opacity-60" />
@@ -1516,14 +1608,13 @@ function DeptTabBar({ selected, onSelect }: {
       <button
         onClick={() => nudge("right")}
         disabled={!canScrollRight}
-        className="shrink-0 h-8 w-8 rounded-full border border-border/30 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
+        className="shrink-0 h-8 w-8 rounded-full border border-border/40 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
       >
         <ChevronRight className="h-3.5 w-3.5" />
       </button>
     </div>
   )
 }
-// ─── DayPulse Page ────────────────────────────────────────────────────────────
 
 export default function DayPulsePage({ currentUser, token }: {
   currentUser: CrmUser; token: string
@@ -1619,17 +1710,17 @@ export default function DayPulsePage({ currentUser, token }: {
       <section className={`${PAGE_PANEL} p-4 sm:p-5`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/45">CRM Feed Module</p>
+            <p className="text-[11px] font-medium text-muted-foreground/50">CRM Feed Module</p>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">DayPulse</h2>
           </div>
 
           <div className="grid gap-2 sm:min-w-70 sm:grid-cols-2">
             <div className="rounded-2xl border border-border/40 bg-muted/30 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/40">Selected date</p>
+              <p className="text-[11px] font-medium text-muted-foreground/40">Selected date</p>
               <p className="mt-1 text-sm font-medium text-foreground">{formatReportDate(selectedDate)}</p>
             </div>
             <div className="rounded-2xl border border-border/40 bg-muted/30 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/40">Scope</p>
+              <p className="text-[11px] font-medium text-muted-foreground/40">Scope</p>
               <p className="mt-1 text-sm font-medium text-foreground">{deptMeta ? deptMeta.label : "All Teams"}</p>
             </div>
           </div>
@@ -1639,12 +1730,12 @@ export default function DayPulsePage({ currentUser, token }: {
       <section className={`${PAGE_SECTION} p-4 sm:p-5 space-y-4`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-0.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/45">Viewing reports for</p>
+            <p className="text-[11px] font-medium text-muted-foreground/50">Viewing reports for</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <DateNavigator selectedDate={selectedDate} onDateChange={(d) => setSelectedDate(d)} />
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl shrink-0 border border-border/30" onClick={handleRefresh} disabled={refreshing} title="Refresh">
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0 border border-border/40 hover:bg-muted/60" onClick={handleRefresh} disabled={refreshing} title="Refresh">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-emerald-500" : ""}`} />
             </Button>
           </div>
         </div>
@@ -1661,26 +1752,26 @@ export default function DayPulsePage({ currentUser, token }: {
         />
 
         <div className="flex items-center gap-3 pt-1">
-          <div className="flex-1 h-px bg-border/30" />
-          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/30">
+          <div className="flex-1 h-px bg-linear-to-r from-transparent to-border/40" />
+          <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/40">
             {deptMeta ? <><Hash className="h-2.5 w-2.5" /><span>{deptMeta.label}</span></> : "All Teams"}
           </p>
-          <div className="flex-1 h-px bg-border/30" />
+          <div className="flex-1 h-px bg-linear-to-l from-transparent to-border/40" />
         </div>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/30">Loading reports…</p>
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+            <p className="text-xs font-medium text-muted-foreground/50">Loading reports…</p>
           </div>
         ) : reports.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 py-18">
             <div className="flex h-16 w-16 items-center justify-center rounded-3xl border-2 border-dashed border-border/25 bg-muted/10">
-              <CalendarDays className="h-7 w-7 text-muted-foreground/15" />
+              <CalendarDays className="h-7 w-7 text-muted-foreground/20" />
             </div>
             <div className="max-w-md space-y-2 text-center">
-              <p className="text-base font-semibold tracking-tight text-muted-foreground/45">No reports for this day</p>
-              <p className="text-sm leading-6 text-muted-foreground/25">
+              <p className="text-base font-medium tracking-tight text-muted-foreground/60">No reports for this day</p>
+              <p className="text-sm leading-6 text-muted-foreground/40">
                 {selectedDept ? `No #${deptMeta?.label} reports on ${selectedDate}.` : `No reports on ${selectedDate}.`} Be the first to file one!
               </p>
             </div>
@@ -1709,20 +1800,20 @@ export default function DayPulsePage({ currentUser, token }: {
 
         {loadingMore && (
           <div className="flex justify-center py-5">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
           </div>
         )}
 
         {!hasMore && reports.length > 0 && (
           <div className="flex items-center gap-3 py-4">
-            <div className="flex-1 h-px bg-border/20" />
-            <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/25">End of reports</p>
-            <div className="flex-1 h-px bg-border/20" />
+            <div className="flex-1 h-px bg-linear-to-r from-transparent to-border/30" />
+            <p className="text-[11px] font-medium text-muted-foreground/40">End of reports</p>
+            <div className="flex-1 h-px bg-linear-to-l from-transparent to-border/30" />
           </div>
         )}
 
         {hasMore && !loadingMore && (
-          <Button variant="outline" className="w-full h-11 rounded-2xl text-xs gap-2 border-border/30 hover:border-emerald-500/30" onClick={loadMore}>
+          <Button variant="outline" className="w-full h-11 rounded-2xl text-xs font-medium gap-2 border-border/40 hover:border-emerald-500/30 hover:bg-emerald-500/5 hover:text-emerald-600 transition-all" onClick={loadMore}>
             <ChevronDown className="h-4 w-4" /> Load more reports
           </Button>
         )}

@@ -14,14 +14,12 @@ import {
   X,
   Check,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
   Sparkles,
   MessageCircle,
-  ChevronUp,
   Rss,
   BarChart2,
-  Gauge,
-  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -91,9 +89,9 @@ interface ReactionState {
 
 const REACTIONS: { type: ReactionType; emoji: string; label: string; color: string; bg: string }[] = [
   { type: "like", emoji: "👍", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love", emoji: "❤️", label: "Love", color: "text-red-500", bg: "bg-red-500/10 hover:bg-red-500/20 border-red-500/30" },
-  { type: "haha", emoji: "😂", label: "Haha", color: "text-yellow-500", bg: "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30" },
-  { type: "wow", emoji: "😮", label: "Wow", color: "text-yellow-400", bg: "bg-yellow-400/10 hover:bg-yellow-400/20 border-yellow-400/30" },
+  { type: "love", emoji: "❤️", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
+  { type: "haha", emoji: "😂", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
+  { type: "wow", emoji: "😮", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
   { type: "sad", emoji: "😢", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
   { type: "angry", emoji: "😡", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
@@ -145,15 +143,15 @@ function fullDate(dateStr: string): string {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "text-violet-400 bg-violet-500/10 border-violet-500/25",
-  manager: "text-sky-400 bg-sky-500/10 border-sky-500/25",
-  employee: "text-emerald-400 bg-emerald-500/10 border-emerald-500/25",
+  admin: "text-violet-500 bg-violet-500/10 border-violet-500/20",
+  manager: "text-sky-500 bg-sky-500/10 border-sky-500/20",
+  employee: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
 }
 
-const ROLE_STRIPE: Record<string, string> = {
-  admin: "from-violet-500",
-  manager: "from-sky-500",
-  employee: "from-emerald-500",
+const ROLE_DOT: Record<string, string> = {
+  admin: "bg-violet-500",
+  manager: "bg-sky-500",
+  employee: "bg-emerald-500",
 }
 
 function totalReactions(summary: ReactionSummary): number {
@@ -168,15 +166,97 @@ function topReactionEmojis(summary: ReactionSummary): string[] {
     .map(([type]) => REACTION_MAP[type as ReactionType]?.emoji ?? "")
 }
 
-// ─── Speed Stripe Divider ─────────────────────────────────────────────────────
+// ─── Clean gradient divider ───────────────────────────────────────────────────
 
-function SpeedStripe({ className = "" }: { className?: string }) {
+function Divider({ label, className = "" }: { label?: string; className?: string }) {
+  if (!label) {
+    return <div className={`h-px w-full bg-linear-to-r from-transparent via-border/50 to-transparent ${className}`} />
+  }
   return (
-    <div className={`flex items-center ${className}`}>
-      <div className="h-0.5lex-1 bg-linear-to-r from-transparent via-border/40 to-border/40" />
-      <div className="h-0.5 w-8 bg-emerald-500 mx-0.5" />
-      <div className="h-0.5 w-4 bg-emerald-400/60 mx-0.5" />
-      <div className="h-0.5 w-2 bg-emerald-300/30" />
+    <div className={`flex items-center gap-3 ${className}`}>
+      <div className="h-px flex-1 bg-linear-to-r from-transparent to-border/50" />
+      <span className="text-[11px] font-medium text-muted-foreground/50 shrink-0">{label}</span>
+      <div className="h-px flex-1 bg-linear-to-l from-transparent to-border/50" />
+    </div>
+  )
+}
+
+// ─── Reaction Details Modal (who reacted) ──────────────────────────────────────
+
+function ReactionDetailsModal({ summary, onClose }: {
+  summary: ReactionSummary; onClose: () => void
+}) {
+  const types = (Object.keys(summary) as ReactionType[])
+    .filter((t) => (summary[t]?.count ?? 0) > 0 && REACTION_MAP[t])
+    .sort((a, b) => summary[b].count - summary[a].count)
+
+  const [tab, setTab] = React.useState<ReactionType | "all">("all")
+
+  const allEntries = types.flatMap((t) =>
+    (summary[t].users || []).map((name) => ({ name, type: t }))
+  )
+  const entries = tab === "all"
+    ? allEntries
+    : (summary[tab]?.users || []).map((name) => ({ name, type: tab }))
+
+  const total = allEntries.length
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+          <h3 className="text-sm font-semibold tracking-tight">
+            Reactions <span className="text-muted-foreground/40 font-normal">· {total}</span>
+          </h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/60" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 px-3 py-2.5 border-b border-border/30 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <button
+            onClick={() => setTab("all")}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+              ${tab === "all" ? "bg-foreground text-background" : "text-muted-foreground/60 hover:bg-muted/50"}`}
+          >
+            All <span className="tabular-nums opacity-70">{total}</span>
+          </button>
+          {types.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+                ${tab === t ? "bg-muted text-foreground ring-1 ring-border/60" : "text-muted-foreground/60 hover:bg-muted/50"}`}
+            >
+              <span className="text-sm leading-none">{REACTION_MAP[t].emoji}</span>
+              <span className="tabular-nums">{summary[t].count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        <div className="max-h-80 overflow-y-auto p-2">
+          {entries.length === 0 ? (
+            <p className="py-10 text-center text-xs text-muted-foreground/50">No reactions yet</p>
+          ) : (
+            entries.map((e, i) => (
+              <div key={`${e.name}-${e.type}-${i}`} className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted/40 transition-colors">
+                <div className="relative shrink-0">
+                  <Avatar className="h-9 w-9 ring-1 ring-border/40">
+                    <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-semibold">{ini(e.name)}</AvatarFallback>
+                  </Avatar>
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-card text-[11px] leading-none ring-1 ring-border/40">
+                    {REACTION_MAP[e.type].emoji}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-foreground/90 truncate">{e.name}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -190,8 +270,8 @@ function ReactionBar({
   reactionState: ReactionState; onReactionChange: (state: ReactionState) => void; compact?: boolean
 }) {
   const [showPicker, setShowPicker] = React.useState(false)
+  const [showDetails, setShowDetails] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
-  const [openReactPop, setOpenReactPop] = React.useState<string | null>(null)
   const pickerRef = React.useRef<HTMLDivElement>(null)
   const btnRef = React.useRef<HTMLButtonElement>(null)
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -227,105 +307,68 @@ function ReactionBar({
   const topEmojis = topReactionEmojis(summary)
   const myMeta = myReaction ? REACTION_MAP[myReaction] : null
 
-  function tooltipFor(type: ReactionType): string {
-    const users = summary[type]?.users || []
-    if (!users.length) return ""
-    if (users.length <= 3) return users.join(", ")
-    return `${users.slice(0, 3).join(", ")} and ${users.length - 3} more`
-  }
-
   return (
-    <div className={`flex items-center gap-2 ${compact ? "" : "mt-0.5"}`}>
-      <div className="relative">
-        <button
-          ref={btnRef}
-          disabled={loading}
-          onClick={() => setShowPicker((p) => !p)}
-          onMouseEnter={() => { hoverTimer.current = setTimeout(() => setShowPicker(true), 400) }}
-          onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
-          className={`flex items-center gap-1.5 rounded-md border font-semibold transition-all duration-150 select-none
-            ${compact ? "px-2 py-0.5 text-[10px]" : "px-3 py-1.5 text-[11px] tracking-wide"}
-            ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/30 text-muted-foreground/60 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
-            ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "👍"}</span>}
-          {!compact && <span className="uppercase tracking-widest text-[9px]">{myMeta ? myMeta.label : "React"}</span>}
-        </button>
-        {showPicker && (
-          <div
-            ref={pickerRef}
-            className="absolute bottom-full left-0 mb-2 z-50 flex items-center gap-1 rounded-lg border border-emerald-500/20 bg-card/98 backdrop-blur-xl px-2 py-1.5 shadow-2xl shadow-black/30 ring-1 ring-emerald-500/10"
-            onMouseEnter={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
+    <>
+      {showDetails && <ReactionDetailsModal summary={summary} onClose={() => setShowDetails(false)} />}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <button
+            ref={btnRef}
+            disabled={loading}
+            onClick={() => setShowPicker((p) => !p)}
+            onMouseEnter={() => { hoverTimer.current = setTimeout(() => setShowPicker(true), 400) }}
+            onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
+            className={`flex items-center gap-1.5 rounded-full border font-medium transition-all duration-150 select-none
+              ${compact ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-xs"}
+              ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/40 text-muted-foreground/50 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
+              ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {REACTIONS.map((r) => (
-              <button
-                key={r.type}
-                onClick={() => handleReact(r.type)}
-                title={r.label}
-                className={`group relative flex items-center justify-center rounded-md w-9 h-9 transition-all duration-150 hover:scale-125 active:scale-110
-                  ${myReaction === r.type ? "bg-muted/60 ring-2 ring-current scale-110" : "hover:bg-muted/40"} ${r.color}`}
-              >
-                <span className="text-xl leading-none select-none">{r.emoji}</span>
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover border border-border/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity shadow-lg pointer-events-none">
-                  {r.label}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "👍"}</span>}
+            {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
+          </button>
+          {showPicker && (
+            <div
+              ref={pickerRef}
+              className="absolute bottom-full left-0 mb-2 z-50 flex items-center gap-0.5 rounded-full border border-border/40 bg-card/95 backdrop-blur-xl px-2 py-1.5 shadow-2xl shadow-black/25"
+              onMouseEnter={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }}
+            >
+              {REACTIONS.map((r) => (
+                <button
+                  key={r.type}
+                  onClick={() => handleReact(r.type)}
+                  title={r.label}
+                  className={`group relative flex items-center justify-center rounded-full w-9 h-9 transition-all duration-150 hover:scale-125 active:scale-110
+                    ${myReaction === r.type ? "bg-muted/60 ring-2 ring-current scale-110" : "hover:bg-muted/40"} ${r.color}`}
+                >
+                  <span className="text-xl leading-none select-none">{r.emoji}</span>
+                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover border border-border/40 px-2 py-0.5 text-[9px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity shadow-lg pointer-events-none">
+                    {r.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {total > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDetails(true)}
+            title="See who reacted"
+            className="flex items-center gap-1.5 rounded-full px-1.5 py-0.5 transition-colors hover:bg-muted/40 cursor-pointer"
+          >
+            <div className="flex -space-x-1">
+              {topEmojis.map((emoji, i) => (
+                <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted/70 border border-border/30 text-[11px] leading-none select-none" style={{ zIndex: topEmojis.length - i }}>
+                  {emoji}
                 </span>
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+            <span className="text-xs font-medium text-muted-foreground/60 tabular-nums">{total}</span>
+          </button>
         )}
       </div>
-      {total > 0 && (
-        <div className="flex items-center gap-1">
-          <div className="flex -space-x-1">
-            {topEmojis.map((emoji, i) => (
-              <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-muted/60 border border-border/20 text-[11px] leading-none select-none" style={{ zIndex: topEmojis.length - i }}>
-                {emoji}
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            {Object.entries(summary)
-              .filter(([, v]) => v.count > 0)
-              .sort(([, a], [, b]) => b.count - a.count)
-              .map(([type, data]) => {
-                const meta = REACTION_MAP[type as ReactionType]
-                if (!meta) return null
-                const popId = targetId + ':' + type
-                const isPopOpen = openReactPop === popId
-                const whoArr = summary[type as ReactionType]?.users || []
-                return (
-                  <div key={type} className="relative"
-                    onMouseEnter={() => setOpenReactPop(popId)}
-                    onMouseLeave={() => setOpenReactPop(null)}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
-                          setOpenReactPop(isPopOpen ? null : popId)
-                        }
-                      }}
-                      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums cursor-default transition-colors ${myReaction === type ? meta.color : 'text-muted-foreground/60 hover:text-muted-foreground/80'}`}
-                    >
-                      <span>{meta.emoji}</span>
-                      <span>{data.count}</span>
-                    </button>
-                    {isPopOpen && whoArr.length > 0 && (
-                      <div
-                        className="absolute z-50 bottom-full mb-1.5 px-3 py-2 rounded-xl text-[11px] min-w-[110px] max-w-[200px] left-0"
-                        style={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', pointerEvents: 'none' }}
-                      >
-                        <div className="text-sm text-center mb-1">{meta.emoji}</div>
-                        {whoArr.map((name, i) => (<div key={i} className="text-foreground/80 leading-tight truncate">{name}</div>))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
 
@@ -336,26 +379,22 @@ function DeleteModal({ label = "post", onConfirm, onCancel, loading }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm rounded-xl border border-red-500/20 bg-card shadow-2xl shadow-black/40 overflow-hidden">
-        {/* Top accent stripe */}
-        <div className="h-1 w-full bg-linear-to-r from-red-600 via-red-500 to-red-400" />
-        <div className="p-6 space-y-5">
-          <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-              <Trash2 className="h-4 w-4 text-red-500" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-black uppercase tracking-wide">Delete {label}?</h3>
-              <p className="text-xs text-muted-foreground/60 leading-relaxed">This action cannot be undone. The {label} will be permanently removed.</p>
-            </div>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 p-6 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+            <Trash2 className="h-4 w-4 text-rose-500" />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 rounded-lg h-9 text-xs font-semibold border-border/30" onClick={onCancel} disabled={loading}>Cancel</Button>
-            <Button variant="destructive" className="flex-1 rounded-lg h-9 text-xs font-bold gap-1.5 uppercase tracking-wide" onClick={onConfirm} disabled={loading}>
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
-            </Button>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold tracking-tight">Delete {label}?</h3>
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">This can't be undone. The {label} will be permanently removed.</p>
           </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1 rounded-xl h-9 text-xs font-medium border-border/40" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button variant="destructive" className="flex-1 rounded-xl h-9 text-xs font-semibold gap-1.5" onClick={onConfirm} disabled={loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
+          </Button>
         </div>
       </div>
     </div>
@@ -387,24 +426,24 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
     <>
       {showDeleteModal && <DeleteModal label="comment" onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
       <div className="group flex items-start gap-2.5">
-        <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-emerald-500/20">
+        <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-border/40">
           <AvatarImage src={comment.authorAvatar} />
-          <AvatarFallback className="bg-emerald-700 text-white text-[9px] font-black">{ini(comment.authorName)}</AvatarFallback>
+          <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-semibold">{ini(comment.authorName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="inline-block rounded-lg rounded-tl-sm bg-muted/30 border border-border/20 px-3.5 py-2.5 max-w-full">
+          <div className="inline-block rounded-2xl rounded-tl-md bg-muted/40 px-3.5 py-2.5 max-w-full">
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-              <span className="text-[11px] font-black tracking-tight leading-none">{comment.authorName}</span>
-              <Badge variant="outline" className={`text-[8px] h-3.5 px-1.5 rounded-sm font-black leading-none border tracking-widest uppercase ${ROLE_COLORS[comment.authorRole] ?? ROLE_COLORS.employee}`}>
+              <span className="text-xs font-semibold leading-none">{comment.authorName}</span>
+              <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-full capitalize font-medium leading-none border ${ROLE_COLORS[comment.authorRole] ?? ROLE_COLORS.employee}`}>
                 {comment.authorRole}
               </Badge>
             </div>
-            <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/75">{comment.content}</p>
+            <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{comment.content}</p>
           </div>
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
-            <span className="text-[10px] text-muted-foreground/60 cursor-default font-mono" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
+            <span className="text-[10px] text-muted-foreground/50 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
             {canDelete && (
-              <button onClick={() => setShowDeleteModal(true)} className="text-[10px] text-muted-foreground/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 uppercase tracking-wide font-bold">
+              <button onClick={() => setShowDeleteModal(true)} className="text-[10px] text-muted-foreground/30 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 font-medium">
                 Delete
               </button>
             )}
@@ -482,23 +521,20 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   const hiddenCount = comments.length - VISIBLE_WHEN_COLLAPSED
 
   return (
-    <div className="rounded-lg border border-border/20 bg-muted/10 mt-3 p-4 space-y-3">
-      {/* Top thread line accent */}
-      <div className="h-px w-full bg-linear-to-r from-emerald-500/20 via-border/20 to-transparent" />
-
-      {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-emerald-500/40" /></div>}
+    <div className="rounded-2xl border border-border/30 bg-muted/15 mt-3 p-4 space-y-3">
+      {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" /></div>}
       {!loading && shouldCollapse && (
-        <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-emerald-600 transition-colors">
-          <ChevronDown className="h-3.5 w-3.5" /> {hiddenCount} more {hiddenCount === 1 ? "comment" : "comments"}
+        <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-emerald-600 transition-colors">
+          <ChevronDown className="h-3.5 w-3.5" /> Show {hiddenCount} more {hiddenCount === 1 ? "comment" : "comments"}
         </button>
       )}
       {!loading && comments.length >= COLLAPSE_THRESHOLD && showAll && (
-        <button onClick={() => setShowAll(false)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors">
+        <button onClick={() => setShowAll(false)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors">
           <ChevronUp className="h-3.5 w-3.5" /> Show less
         </button>
       )}
       {!loading && comments.length === 0 && (
-        <p className="text-[10px] text-muted-foreground/60 text-center py-1 uppercase tracking-widest font-bold">No comments yet — be the first</p>
+        <p className="text-xs text-muted-foreground/50 text-center py-1">No comments yet — be the first.</p>
       )}
       {!loading && visibleComments.map((comment) => (
         <CommentItem
@@ -513,20 +549,20 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
       <div className="flex items-start gap-2.5 pt-1">
         <Avatar className="h-7 w-7 shrink-0 mt-0.5 ring-1 ring-emerald-500/25">
           <AvatarImage src={currentUser.avatar} />
-          <AvatarFallback className="bg-emerald-700 text-white text-[9px] font-black">{ini(currentUser.fullName)}</AvatarFallback>
+          <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 relative">
-          <div className="rounded-lg border border-border/30 bg-background/60 focus-within:border-emerald-500/40 focus-within:ring-1 focus-within:ring-emerald-500/15 transition-all">
+          <div className="rounded-2xl border border-border/40 bg-background/50 focus-within:border-emerald-500/40 focus-within:ring-1 focus-within:ring-emerald-500/15 transition-all">
             <textarea
               id={inputId}
               ref={inputRef} value={newComment}
               onChange={(e) => { setNewComment(e.target.value); setSubmitError("") }}
               onKeyDown={handleKey}
               placeholder="Leave a comment…" rows={1} maxLength={1000}
-              className="w-full bg-transparent text-xs leading-relaxed p-2.5 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/50"
-              style={{ minHeight: "36px" }}
+              className="w-full bg-transparent text-xs leading-relaxed p-3 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/40"
+              style={{ minHeight: "38px" }}
             />
-            <div className="flex items-center justify-between px-2.5 pb-2">
+            <div className="flex items-center justify-between px-3 pb-2">
               {preferNativeEmoji ? (
                 <button type="button" onClick={() => inputRef.current?.focus()} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" title="Emoji">
                   <Smile className="h-3.5 w-3.5" />
@@ -539,19 +575,19 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
                     </button>
                   </PopoverTrigger>
                   <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
-                    <div className="rounded-xl border border-border/40 bg-card/98 shadow-2xl overflow-hidden">
+                    <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
                       <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setNewComment((p) => p + e.emoji); setShowEmoji(false); inputRef.current?.focus() }} height={320} width={280} />
                     </div>
                   </PopoverContent>
                 </Popover>
               )}
-              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Post
               </button>
             </div>
           </div>
-          {submitError && <p className="text-[10px] text-red-500 mt-1 pl-1">{submitError}</p>}
-          {newComment && !submitError && <p className="text-[9px] text-muted-foreground/50 mt-1 pl-1 font-mono">Ctrl+Enter to post</p>}
+          {submitError && <p className="text-[10px] text-rose-500 mt-1 pl-1">{submitError}</p>}
+          {newComment && !submitError && <p className="text-[10px] text-muted-foreground/40 mt-1 pl-1">⌘/Ctrl + Enter to post</p>}
         </div>
       </div>
     </div>
@@ -583,7 +619,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   const canEdit = isOwner
   const canDelete = isOwner || isAdmin
 
-  const roleStripe = ROLE_STRIPE[post.authorRole] ?? ROLE_STRIPE.employee
+  const roleDot = ROLE_DOT[post.authorRole] ?? ROLE_DOT.employee
 
   React.useEffect(() => {
     if (isEditing) {
@@ -624,50 +660,46 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   return (
     <>
       {showDeleteModal && <DeleteModal label="post" onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
-      <article className="group relative rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-200 hover:border-emerald-500/25 hover:shadow-md hover:shadow-emerald-500/5">
-        {/* Role-colored top accent stripe */}
-        <div className={`h-0.75 w-full bg-linear-to-r ${roleStripe} to-transparent opacity-80`} />
-
+      <article className="group relative rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/5">
         <div className="p-5 space-y-4">
           {/* Header row */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative">
-                <Avatar className="h-10 w-10 shrink-0 ring-2 ring-border/30 ring-offset-2 ring-offset-card">
+                <Avatar className="h-10 w-10 shrink-0 ring-1 ring-border/40">
                   <AvatarImage src={post.authorAvatar} />
-                  <AvatarFallback className="bg-emerald-700 text-white text-xs font-black">{ini(post.authorName)}</AvatarFallback>
+                  <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">{ini(post.authorName)}</AvatarFallback>
                 </Avatar>
-                {/* Online dot */}
-                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-card" />
+                <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ${roleDot} border-2 border-card`} />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-black tracking-tight truncate leading-none">{post.authorName}</p>
-                  <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-sm font-black leading-none border tracking-widest uppercase ${ROLE_COLORS[post.authorRole] ?? ROLE_COLORS.employee}`}>
+                  <p className="text-sm font-semibold tracking-tight truncate leading-none">{post.authorName}</p>
+                  <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-full capitalize font-medium leading-none border ${ROLE_COLORS[post.authorRole] ?? ROLE_COLORS.employee}`}>
                     {post.authorRole}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <p className="text-[10px] text-muted-foreground/60 cursor-default font-mono tracking-tight" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
-                  {post.isEdited && <span className="text-[9px] text-muted-foreground/50 italic font-medium">(edited)</span>}
+                  <p className="text-[10px] text-muted-foreground/55 cursor-default" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
+                  {post.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">· edited</span>}
                 </div>
               </div>
             </div>
             {(canEdit || canDelete) && !isEditing && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40 rounded-xl border-border/30 shadow-xl p-1 bg-card/98 backdrop-blur-xl">
+                <DropdownMenuContent align="end" className="w-40 rounded-2xl border-border/40 shadow-xl p-1 bg-card/95 backdrop-blur-xl">
                   {canEdit && (
-                    <DropdownMenuItem className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer font-semibold" onClick={() => { setIsEditing(true); setEditContent(post.content) }}>
+                    <DropdownMenuItem className="rounded-xl text-xs h-8 gap-2.5 cursor-pointer font-medium" onClick={() => { setIsEditing(true); setEditContent(post.content) }}>
                       <Pencil className="h-3.5 w-3.5 text-muted-foreground" /> Edit post
                     </DropdownMenuItem>
                   )}
                   {canDelete && (
-                    <DropdownMenuItem className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5 font-semibold" onClick={() => setShowDeleteModal(true)}>
+                    <DropdownMenuItem className="rounded-xl text-xs h-8 gap-2.5 cursor-pointer text-rose-500 focus:text-rose-500 focus:bg-rose-500/5 font-medium" onClick={() => setShowDeleteModal(true)}>
                       <Trash2 className="h-3.5 w-3.5" /> Delete post
                     </DropdownMenuItem>
                   )}
@@ -684,55 +716,55 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                   ref={editRef} value={editContent}
                   onChange={(e) => { setEditContent(e.target.value); setEditError("") }}
                   rows={4} maxLength={5000}
-                  className="w-full rounded-lg border border-border/40 bg-muted/20 text-sm p-3 pr-10 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed"
+                  className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-3.5 pr-10 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed"
                 />
                 {preferNativeEmoji ? (
-                  <button type="button" onClick={() => editRef.current?.focus()} className="absolute bottom-2.5 right-2.5 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors" title="Emoji">
+                  <button type="button" onClick={() => editRef.current?.focus()} className="absolute bottom-3 right-3 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors" title="Emoji">
                     <Smile className="h-4 w-4" />
                   </button>
                 ) : (
                   <Popover open={showEmojiEdit} onOpenChange={setShowEmojiEdit}>
                     <PopoverTrigger asChild>
-                      <button type="button" className="absolute bottom-2.5 right-2.5 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors">
+                      <button type="button" className="absolute bottom-3 right-3 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors">
                         <Smile className="h-4 w-4" />
                       </button>
                     </PopoverTrigger>
                     <PopoverContent side="top" align="end" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
-                      <div className="rounded-xl border border-border/40 bg-card/98 shadow-2xl overflow-hidden">
+                      <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
                         <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setEditContent((p) => p + e.emoji); setShowEmojiEdit(false) }} height={380} width={320} />
                       </div>
                     </PopoverContent>
                   </Popover>
                 )}
               </div>
-              {editError && <p className="text-xs text-red-500">{editError}</p>}
+              {editError && <p className="text-xs text-rose-500">{editError}</p>}
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground/60 tabular-nums font-mono">{editContent.length}/5000</span>
+                <span className="text-[10px] text-muted-foreground/55 tabular-nums">{editContent.length}/5000</span>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" className="h-8 rounded-lg text-xs gap-1.5 font-bold" onClick={() => { setIsEditing(false); setEditError("") }} disabled={editLoading}>
+                  <Button variant="ghost" size="sm" className="h-8 rounded-xl text-xs gap-1.5 font-medium" onClick={() => { setIsEditing(false); setEditError("") }} disabled={editLoading}>
                     <X className="h-3.5 w-3.5" /> Cancel
                   </Button>
-                  <Button size="sm" className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5 font-black uppercase tracking-wide px-4" onClick={handleSave} disabled={editLoading || !editContent.trim()}>
+                  <Button size="sm" className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5 font-semibold px-4" onClick={handleSave} disabled={editLoading || !editContent.trim()}>
                     {editLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save
                   </Button>
                 </div>
               </div>
             </div>
           ) : (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{post.content}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/85">{post.content}</p>
           )}
 
           {/* Action row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border/15">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border/20">
             <ReactionBar targetType="post" targetId={post._id} token={token} reactionState={reactionState} onReactionChange={onReactionChange} />
             <button
               type="button"
               onClick={handleFocusComment}
-              className="flex items-center gap-2 rounded-md border border-border/35 bg-muted/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 hover:text-emerald-600 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all duration-150"
+              className="flex items-center gap-2 rounded-full border border-border/40 bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground/70 hover:text-emerald-600 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all duration-150"
             >
               <MessageCircle className="h-3.5 w-3.5" /> Comment
               {comments.length > 0 && (
-                <span className="ml-0.5 rounded-sm bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-600 tabular-nums">
+                <span className="ml-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 tabular-nums">
                   {comments.length}
                 </span>
               )}
@@ -781,26 +813,18 @@ function Composer({ currentUser, token, onPosted }: {
   }
 
   return (
-    <div className={`relative rounded-xl border overflow-hidden bg-card shadow-sm transition-all duration-200 ${isFocused ? "border-emerald-500/35 shadow-emerald-500/10 shadow-md" : "border-border/35"}`}>
-      {/* Top accent stripe */}
-      <div className="h-0.75 w-full bg-linear-to-r from-emerald-600 via-emerald-500 to-emerald-400/40" />
-
-      {/* Panel label */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+    <div className={`relative rounded-3xl border overflow-hidden bg-card/60 backdrop-blur-xl shadow-sm transition-all duration-200 ${isFocused ? "border-emerald-500/35 shadow-lg shadow-emerald-500/10" : "border-border/40"}`}>
+      <div className="flex items-center justify-between px-5 pt-4 pb-1">
         <div className="flex items-center gap-2">
-          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/70">Broadcast Update</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Zap className="h-3 w-3 text-emerald-500/60" />
-          <span className="text-[9px] font-mono text-muted-foreground/60 tracking-tight">Action Auto CRM</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-medium text-muted-foreground/70">Share an update</span>
         </div>
       </div>
 
-      <div className="flex items-start gap-3 px-5 pb-3">
-        <Avatar className="h-9 w-9 shrink-0 mt-1 ring-2 ring-emerald-500/20 ring-offset-2 ring-offset-card">
+      <div className="flex items-start gap-3 px-5 pb-2">
+        <Avatar className="h-9 w-9 shrink-0 mt-1 ring-1 ring-emerald-500/25">
           <AvatarImage src={currentUser.avatar} />
-          <AvatarFallback className="bg-emerald-700 text-white text-xs font-black">{ini(currentUser.fullName)}</AvatarFallback>
+          <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 relative">
           <textarea
@@ -810,25 +834,25 @@ function Composer({ currentUser, token, onPosted }: {
             onKeyDown={handleKey}
             placeholder={`What's happening, ${currentUser.fullName.split(" ")[0]}?`}
             rows={isFocused || content ? 4 : 2} maxLength={5000}
-            className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none placeholder:text-muted-foreground/50 transition-all duration-200"
+            className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none placeholder:text-muted-foreground/40 transition-all duration-200"
           />
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-5 pb-4 border-t border-border/15 pt-3">
+      <div className="flex items-center justify-between px-5 pb-4 border-t border-border/20 pt-3">
         {preferNativeEmoji ? (
-          <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
+          <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
             <Smile className="h-4 w-4" /> Emoji
           </button>
         ) : (
           <Popover open={showEmoji} onOpenChange={setShowEmoji}>
             <PopoverTrigger asChild>
-              <button type="button" className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg px-2.5 py-1.5 transition-colors ${showEmoji ? "bg-emerald-500/10 text-emerald-600" : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40"}`}>
+              <button type="button" className={`flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors ${showEmoji ? "bg-emerald-500/10 text-emerald-600" : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40"}`}>
                 <Smile className="h-4 w-4" /> Emoji
               </button>
             </PopoverTrigger>
             <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
-              <div className="rounded-xl border border-border/40 bg-card/98 shadow-2xl overflow-hidden">
+              <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
                 <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setContent((p) => p + e.emoji); setShowEmoji(false); textareaRef.current?.focus() }} height={380} width={320} />
               </div>
             </PopoverContent>
@@ -836,17 +860,17 @@ function Composer({ currentUser, token, onPosted }: {
         )}
         <div className="flex items-center gap-3">
           {content.length > 0 && (
-            <span className={`text-[10px] tabular-nums font-mono font-semibold transition-colors ${content.length > 4500 ? "text-red-500" : "text-muted-foreground/60"}`}>
+            <span className={`text-[10px] tabular-nums font-medium transition-colors ${content.length > 4500 ? "text-rose-500" : "text-muted-foreground/55"}`}>
               {content.length}/5000
             </span>
           )}
-          <Button onClick={handleSubmit} disabled={loading || !content.trim()} size="sm" className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest gap-2 px-4 disabled:opacity-30 transition-all">
+          <Button onClick={handleSubmit} disabled={loading || !content.trim()} size="sm" className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold gap-2 px-4 disabled:opacity-30 transition-all">
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Post
           </Button>
         </div>
       </div>
-      {error && <p className="text-xs text-red-500 px-5 pb-3">{error}</p>}
-      {content && !error && <p className="text-[9px] text-muted-foreground/50 px-5 pb-3 font-mono">Ctrl+Enter to post</p>}
+      {error && <p className="text-xs text-rose-500 px-5 pb-3">{error}</p>}
+      {content && !error && <p className="text-[10px] text-muted-foreground/40 px-5 pb-3">⌘/Ctrl + Enter to post</p>}
     </div>
   )
 }
@@ -855,7 +879,7 @@ function Composer({ currentUser, token, onPosted }: {
 
 function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) => void }) {
   return (
-    <div className="flex items-center gap-0.5 border-b border-border/25">
+    <div className="flex items-center gap-1 border-b border-border/30">
       {(
         [
           { key: "feeds", label: "Team Feeds", icon: <Rss className="h-3.5 w-3.5" /> },
@@ -865,19 +889,16 @@ function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) 
         <button
           key={key}
           onClick={() => onChange(key)}
-          className={`relative flex items-center gap-1.5 px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-all
+          className={`relative flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-all
             ${active === key
               ? "text-emerald-600"
-              : "text-muted-foreground/70 hover:text-muted-foreground"
+              : "text-muted-foreground/60 hover:text-muted-foreground"
             }`}
         >
           {icon}
           {label}
           {active === key && (
-            <>
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
-              <span className="absolute bottom-0 left-0 w-4 h-0.5 bg-emerald-400/50" />
-            </>
+            <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-emerald-500" />
           )}
         </button>
       ))}
@@ -1102,17 +1123,16 @@ export default function FeedsPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-5">
-          {/* Speedometer-style loader */}
-          <div className="relative h-16 w-16">
-            <div className="absolute inset-0 rounded-full border-4 border-border/10" />
-            <div className="absolute inset-0 rounded-full border-4 border-t-emerald-500 border-r-emerald-500/50 border-b-transparent border-l-transparent animate-spin" />
-            <div className="absolute inset-1.5 rounded-full bg-emerald-500/5 flex items-center justify-center">
-              <Gauge className="h-5 w-5 text-emerald-500/60" />
+          <div className="relative h-14 w-14">
+            <div className="absolute inset-0 rounded-full border-2 border-border/15" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-emerald-500 border-r-emerald-500/40 border-b-transparent border-l-transparent animate-spin" />
+            <div className="absolute inset-2.5 rounded-full bg-emerald-500/5 flex items-center justify-center">
+              <Car className="h-4 w-4 text-emerald-500/70" />
             </div>
           </div>
           <div className="text-center space-y-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/70">Initializing</p>
-            <p className="text-[8px] font-mono text-muted-foreground/50 tracking-widest">Action Auto CRM</p>
+            <p className="text-sm font-medium text-muted-foreground/80">Loading your feed</p>
+            <p className="text-xs text-muted-foreground/50">Action Auto CRM</p>
           </div>
         </div>
       </div>
@@ -1124,31 +1144,18 @@ export default function FeedsPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4 max-w-md px-6 text-center">
-          <div className="relative h-14 w-14">
-            <div className="absolute inset-0 rounded-full border-4 border-border/10" />
-            <div className="absolute inset-0 rounded-full border-4 border-red-500/40 border-t-red-500 border-r-transparent border-b-transparent border-l-transparent" />
-            <div className="absolute inset-1.5 rounded-full bg-red-500/5 flex items-center justify-center">
-              <Gauge className="h-5 w-5 text-red-500/70" />
-            </div>
+          <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+            <X className="h-6 w-6 text-rose-500/70" />
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-muted-foreground/50">Initialization failed</p>
+            <p className="text-sm font-medium text-foreground/80">Initialization failed</p>
             <p className="text-xs text-muted-foreground/60 leading-relaxed">{message}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest"
-              onClick={() => setInitAttempt((v) => v + 1)}
-            >
+            <Button size="sm" className="h-9 rounded-xl text-xs font-medium px-4" onClick={() => setInitAttempt((v) => v + 1)}>
               Retry
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest"
-              onClick={() => router.replace("/crm")}
-            >
+            <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs font-medium px-4" onClick={() => router.replace("/crm")}>
               Sign in
             </Button>
           </div>
@@ -1161,32 +1168,26 @@ export default function FeedsPage() {
     <div className="min-h-screen w-full bg-background">
 
       {/* ── Sticky header ── */}
-      <header className="sticky top-0 z-40 w-full border-b border-border/30 bg-background/95 backdrop-blur-xl">
-        {/* Top micro-stripe */}
-        <div className="h-0.5 w-full bg-linear-to-r from-emerald-600 via-emerald-500/60 to-transparent" />
-
+      <header className="sticky top-0 z-40 w-full border-b border-border/30 bg-background/80 backdrop-blur-xl">
         <div className="flex items-center gap-4 h-14 px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-lg shrink-0 hover:bg-muted/60"
+            className="h-8 w-8 rounded-full shrink-0 hover:bg-muted/60"
             onClick={() => router.push("/crm/dashboard")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
 
           <div className="flex items-center gap-3 flex-1">
-            {/* Logo mark */}
-            <div className="relative h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 shrink-0">
+            <div className="relative h-8 w-8 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 shrink-0">
               <Car className="h-4 w-4 text-white" />
-              {/* Speed stripe on logo */}
-              <div className="absolute right-0 top-1 bottom-1 w-0.5 bg-white/20 rounded-full" />
             </div>
             <div>
-              <p className="text-sm font-black tracking-tight leading-none">
+              <p className="text-sm font-semibold tracking-tight leading-none">
                 {activeTab === "feeds" ? "Team Feeds" : "DayPulse"}
               </p>
-              <p className="text-[8px] uppercase tracking-[0.35em] text-emerald-600 mt-0.5 font-black">Action Auto CRM</p>
+              <p className="text-[11px] text-muted-foreground/50 mt-0.5">Action Auto CRM</p>
             </div>
           </div>
 
@@ -1194,7 +1195,7 @@ export default function FeedsPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-lg shrink-0 hover:bg-muted/60"
+              className="h-8 w-8 rounded-full shrink-0 hover:bg-muted/60"
               onClick={handleRefresh}
               disabled={refreshing}
               title="Refresh"
@@ -1212,24 +1213,24 @@ export default function FeedsPage() {
       {/* ── Main content ── */}
       <main className="relative max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pb-20">
         {/* Ambient background glow */}
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(800px_circle_at_20%_0%,rgba(16,185,129,0.06),transparent_55%),radial-gradient(700px_circle_at_80%_10%,rgba(16,185,129,0.04),transparent_55%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(800px_circle_at_20%_0%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(700px_circle_at_80%_10%,rgba(16,185,129,0.035),transparent_55%)]" />
 
         {/* ── Team Feeds tab ── */}
         {activeTab === "feeds" && (
           <>
             {initError && (
-              <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div className="flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                    <Gauge className="h-4 w-4" />
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+                    <RefreshCw className="h-4 w-4" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-black uppercase tracking-widest text-emerald-700">Feeds not ready</p>
+                    <p className="text-sm font-medium text-emerald-700">Feeds not ready</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">{initError}</p>
                   </div>
                 </div>
                 <div>
-                  <Button variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest" onClick={() => setInitAttempt((v) => v + 1)}>
+                  <Button variant="outline" className="h-8 rounded-xl text-xs font-medium" onClick={() => setInitAttempt((v) => v + 1)}>
                     Retry initialization
                   </Button>
                 </div>
@@ -1239,7 +1240,7 @@ export default function FeedsPage() {
             {newPostCount > 0 && (
               <button
                 onClick={handleRefresh}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/8 py-3 text-[10px] font-black uppercase tracking-widest text-emerald-600 transition-all hover:border-emerald-500/40"
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/10 py-3 text-sm font-medium text-emerald-600 transition-all hover:border-emerald-500/40"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {newPostCount} new {newPostCount === 1 ? "post" : "posts"} — tap to refresh
@@ -1251,33 +1252,20 @@ export default function FeedsPage() {
               setPostReactions((prev) => ({ ...prev, [p._id]: { summary: {}, myReaction: null } }))
             }} />
 
-            {/* Section header with speed stripe */}
-            <div className="flex items-center gap-4">
-              <SpeedStripe className="flex-1" />
-              <div className="flex items-center gap-2 shrink-0">
-                <Gauge className="h-3 w-3 text-muted-foreground/50" />
-                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/70">Latest</p>
-              </div>
-              <div className="flex items-center flex-1">
-                <div className="h-0.5 w-2 bg-emerald-300/30 mr-0.5" />
-                <div className="h-0.5 w-4 bg-emerald-400/60 mr-0.5" />
-                <div className="h-0.5 w-8 bg-emerald-500 mr-0.5" />
-                <div className="h-0.5 flex-1 bg-linear-to-r from-border/40 via-border/20 to-transparent" />
-              </div>
-            </div>
+            <Divider label="Latest" />
 
             {/* Posts list */}
             {posts.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-5 py-24">
                 <div className="relative h-20 w-20">
-                  <div className="absolute inset-0 rounded-xl border-2 border-dashed border-border/20" />
+                  <div className="absolute inset-0 rounded-3xl border-2 border-dashed border-border/25" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Car className="h-8 w-8 text-muted-foreground/10" />
+                    <Car className="h-8 w-8 text-muted-foreground/15" />
                   </div>
                 </div>
                 <div className="text-center space-y-1.5">
-                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/70">Showroom Empty</p>
-                  <p className="text-[10px] text-muted-foreground/60 font-medium">Be the first to post something!</p>
+                  <p className="text-sm font-medium text-muted-foreground/70">Nothing here yet</p>
+                  <p className="text-xs text-muted-foreground/50">Be the first to post something.</p>
                 </div>
               </div>
             ) : (
@@ -1299,29 +1287,20 @@ export default function FeedsPage() {
             {loadingMore && (
               <div className="flex justify-center py-4">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-500/40" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Loading</span>
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+                  <span className="text-xs font-medium text-muted-foreground/60">Loading</span>
                 </div>
               </div>
             )}
 
             {!hasMore && posts.length > 0 && (
-              <div className="flex items-center gap-4 py-4">
-                <SpeedStripe className="flex-1" />
-                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground/60 shrink-0">All caught up</p>
-                <div className="flex items-center flex-1">
-                  <div className="h-0.5 w-2 bg-emerald-300/30 mr-0.5" />
-                  <div className="h-0.5 w-4 bg-emerald-400/60 mr-0.5" />
-                  <div className="h-0.5 w-8 bg-emerald-500 mr-0.5" />
-                  <div className="h-0.5 flex-1 bg-linear-to-r from-border/40 via-border/20 to-transparent" />
-                </div>
-              </div>
+              <Divider label="You're all caught up" className="py-4" />
             )}
 
             {hasMore && !loadingMore && (
               <Button
                 variant="outline"
-                className="w-full rounded-lg h-9 text-[10px] font-black uppercase tracking-widest gap-2 border-border/25 hover:border-emerald-500/30 hover:bg-emerald-500/5 hover:text-emerald-600 transition-all"
+                className="w-full rounded-2xl h-10 text-xs font-medium gap-2 border-border/30 hover:border-emerald-500/30 hover:bg-emerald-500/5 hover:text-emerald-600 transition-all"
                 onClick={loadMore}
               >
                 <ChevronDown className="h-4 w-4" /> Load more
