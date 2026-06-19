@@ -20,7 +20,7 @@ import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
-import { resolveImageUrl } from "@/lib/utils";
+import { resolveImageUrl, cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
 import {
   DropdownMenu,
@@ -257,7 +257,12 @@ function DashboardLayoutContent({
             </div>
           </header>
         )}
-        <main className="relative flex-1 overflow-hidden bg-background pb-24 md:pb-0">
+        <main
+          className={cn(
+            "relative bg-background pb-24 md:pb-0",
+            isCrmRoute ? "h-dvh overflow-hidden" : "flex-1 overflow-hidden"
+          )}
+        >
           {isCrmRoute && (
             <div className={pathname === '/crm/supra-space' ? 'absolute left-3 top-3 z-40 hidden md:block' : 'absolute left-3 top-3 z-40'}>
               <SidebarTrigger className="h-8 w-8 rounded-lg border border-border/50 bg-card/95 p-0 shadow-sm backdrop-blur hover:bg-card" />

@@ -213,7 +213,7 @@ function SupportCenterView() {
           </div>
 
           {/* Tab content */}
-          <div className="min-h-0 flex-1" style={{ minHeight: 360 }}>
+          <div className="min-h-0 flex-1">
             {activeTab === "concerns" && <CustomersConcernTab />}
             {activeTab === "calls" && <CustomerCallsTab />}
             {activeTab === "aftermarket" && <AftermarketInquiriesTab />}

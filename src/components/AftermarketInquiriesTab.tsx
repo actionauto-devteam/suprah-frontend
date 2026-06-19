@@ -654,7 +654,7 @@ function InquiryThread({ conversationId }: { conversationId: string }) {
             className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-7 max-h-24 py-0.5 placeholder:text-muted-foreground/50"
           />
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => fileRef.current?.click()} className="h-7 w-7 rounded-[8px] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <button onClick={() => fileRef.current?.click()} className="h-7 w-7 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               <Paperclip className="h-4 w-4" />
             </button>
             <input ref={fileRef} type="file" multiple accept="*/*" className="sr-only" onChange={(e) => { handleFileSelect(e.target.files); e.currentTarget.value = ""; }} />
@@ -662,7 +662,7 @@ function InquiryThread({ conversationId }: { conversationId: string }) {
               onClick={handleSend}
               disabled={(!reply.trim() && pendingFiles.length === 0) || sending}
               className={cn(
-                "h-7 w-7 rounded-[8px] flex items-center justify-center transition-all",
+                "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
                 reply.trim() || pendingFiles.length > 0 ? "bg-primary hover:bg-primary/90 text-primary-foreground" : "bg-muted text-muted-foreground/40 cursor-not-allowed"
               )}
             >
@@ -733,19 +733,19 @@ function DetailPanel({
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {/* Compact info strip — capped height, scrolls internally if it overflows, never steals room from the conversation below */}
-      <div className="shrink-0 overflow-y-auto" style={{ maxHeight: 280, scrollbarWidth: "thin" }}>
-        <div className="p-4 space-y-3">
+      <div className="shrink-0 overflow-y-auto" style={{ maxHeight: 380, scrollbarWidth: "thin" }}>
+        <div className="p-4 space-y-3.5">
           {/* Product card */}
           <div className="rounded-[10px] border border-border overflow-hidden">
             <div className="flex items-stretch">
               {mediaUrl ? (
                 isVideo ? (
-                  <video src={mediaUrl} controls className="w-24 h-24 shrink-0 object-cover bg-muted" />
+                  <video src={mediaUrl} controls className="w-32 h-32 shrink-0 object-cover bg-muted" />
                 ) : (
-                  <img src={mediaUrl} alt={product?.name} className="w-24 h-24 shrink-0 object-cover bg-muted" />
+                  <img src={mediaUrl} alt={product?.name} className="w-32 h-32 shrink-0 object-cover bg-muted" />
                 )
               ) : (
-                <div className="w-24 h-24 shrink-0 bg-muted flex items-center justify-center">
+                <div className="w-32 h-32 shrink-0 bg-muted flex items-center justify-center">
                   <Package className="h-6 w-6 text-muted-foreground/40" />
                 </div>
               )}
