@@ -41,7 +41,7 @@ import { useUser, useAuthActions } from "@/providers/AuthProvider";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProfileContext } from "@/context/ProfileContext";
-import { resolveImageUrl } from "@/lib/utils";
+import { resolveImageUrl, cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -189,6 +189,30 @@ const customerData = {
   ] satisfies SidebarNavItem[],
 };
 
+// Shared button styling for nav rows: subtle primary tint + glow when active,
+// a small lift on hover. All tokens are theme-native.
+const navItemClass =
+  "group/item relative transition-all duration-200 hover:translate-x-0.5 " +
+  "data-[active=true]:bg-primary/10 data-[active=true]:text-primary " +
+  "data-[active=true]:font-medium data-[active=true]:shadow-sm data-[active=true]:shadow-primary/10";
+
+// Signature element: a glowing rail indicator on the active row.
+function ActiveStrip() {
+  return (
+    <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-gradient-to-b from-primary to-primary/40 shadow-md shadow-primary/50 group-data-[collapsible=icon]:hidden" />
+  );
+}
+
+// Section label with a small digital tick; hidden when collapsed to icons.
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-4 flex items-center gap-2 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 group-data-[collapsible=icon]:hidden">
+      <span className="h-px w-3 bg-gradient-to-r from-primary/60 to-transparent" />
+      {children}
+    </div>
+  );
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
@@ -211,8 +235,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
-      <SidebarHeader className="h-16 border-b flex items-center justify-center px-6">
-        <div className="flex items-center justify-center w-full group-data-[collapsible=icon]:justify-center">
+      {/* Greenish digital ambient — animated, reduced-motion aware */}
+      <style>{`
+        @keyframes green-float   { 0%,100% { transform: translate(0,0); } 50% { transform: translate(8px,-12px); } }
+        @keyframes green-float-2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-10px,10px); } }
+        @keyframes green-pulse   { 0%,100% { opacity: .07; } 50% { opacity: .16; } }
+        @keyframes digital-scan  { 0% { transform: translateY(-25%); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateY(125%); opacity: 0; } }
+        .green-glow-a      { animation: green-float 14s ease-in-out infinite, green-pulse 8s ease-in-out infinite; }
+        .green-glow-b      { animation: green-float-2 16s ease-in-out infinite, green-pulse 10s ease-in-out infinite; }
+        .digital-scan-line { animation: digital-scan 7s linear infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .green-glow-a, .green-glow-b, .digital-scan-line { animation: none; }
+        }
+      `}</style>
+
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* soft green cast over the entire sidebar */}
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.09] via-emerald-500/[0.04] to-emerald-500/[0.12] dark:from-emerald-500/[0.05] dark:via-emerald-500/[0.02] dark:to-emerald-500/[0.07]" />
+        {/* digital grid */}
+        <div className="absolute inset-0 [background-size:24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
+        {/* drifting green glows */}
+        <div className="green-glow-a absolute -left-10 top-16 size-40 rounded-full bg-emerald-400 blur-3xl" />
+        <div className="green-glow-b absolute -right-12 bottom-24 size-44 rounded-full bg-emerald-500 blur-3xl" />
+        {/* sweeping scanline */}
+        <div className="digital-scan-line absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-transparent via-emerald-500/[0.14] to-transparent dark:via-emerald-400/10" />
+      </div>
+
+      <SidebarHeader className="relative flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-border after:to-transparent">
+        {/* soft halo behind the mark */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary opacity-[0.10] blur-2xl"
+        />
+        <div className="relative flex w-full items-center justify-center group-data-[collapsible=icon]:justify-center">
           <Image
             src="/favicon.png"
             alt="Logo"
@@ -223,148 +278,165 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           />
         </div>
       </SidebarHeader>
+
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {activeNavMain.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                asChild
-                tooltip={item.title}
-                isActive={
-                  pathname === item.url || pathname.startsWith(item.url + "/")
-                }
-                className={
-                  item.isNew
-                    ? "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
-                    : ""
-                }
-              >
-                <Link href={item.url}>
-                  <item.icon className={item.isNew ? "animate-pulse" : ""} />
-                  <span className="font-medium">{item.title}</span>
-                  {item.isNew && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
-                    >
-                      New
-                    </Badge>
+          {activeNavMain.map((item) => {
+            const isActive =
+              pathname === item.url || pathname.startsWith(item.url + "/");
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={isActive}
+                  className={cn(
+                    navItemClass,
+                    item.isNew &&
+                      "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
                   )}
-                  {item.title === 'Suprah Space' && totalUnread > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-500 text-white border-none group-data-[collapsible=icon]:hidden"
-                    >
-                      {totalUnread > 99 ? '99+' : totalUnread}
-                    </Badge>
-                  )}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+                >
+                  <Link href={item.url}>
+                    {isActive && <ActiveStrip />}
+                    <item.icon
+                      className={cn(
+                        "transition-transform duration-200 group-hover/item:scale-110",
+                        item.isNew && "animate-pulse",
+                      )}
+                    />
+                    <span className="font-medium tracking-widest">{item.title}</span>
+                    {item.isNew && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                      >
+                        New
+                      </Badge>
+                    )}
+                    {item.title === "Suprah Space" && totalUnread > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-500 text-white border-none group-data-[collapsible=icon]:hidden"
+                      >
+                        {totalUnread > 99 ? "99+" : totalUnread}
+                      </Badge>
+                    )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
 
         {!isCustomer && (
           <>
-            <div className="px-4 py-2 mt-4 text-[11px] font-semibold uppercase text-muted-foreground tracking-wider group-data-[collapsible=icon]:hidden">
-              Services
-            </div>
+            <SectionLabel>Services</SectionLabel>
 
             <SidebarMenu>
-              {data.services.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.title}
-                    isActive={
-                      pathname === item.url ||
-                      pathname.startsWith(item.url + "/")
-                    }
-                  >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {data.services.map((item) => {
+                const isActive =
+                  pathname === item.url || pathname.startsWith(item.url + "/");
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      isActive={isActive}
+                      className={navItemClass}
+                    >
+                      <Link href={item.url}>
+                        {isActive && <ActiveStrip />}
+                        <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
+                        <span className="tracking-widest">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </>
         )}
 
         {!isCustomer && (
           <>
-            <div className="px-4 py-2 mt-4 text-[11px] font-semibold uppercase text-muted-foreground tracking-wider group-data-[collapsible=icon]:hidden">
-              Premium
-            </div>
+            <SectionLabel>Premium</SectionLabel>
             <SidebarMenu>
-              {data.premium.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.title}
-                    isActive={
-                      pathname === item.url ||
-                      pathname.startsWith(item.url + "/")
-                    }
-                    className={
-                      item.isNew
-                        ? "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
-                        : ""
-                    }
-                  >
-                    <Link href={item.url}>
-                      <item.icon
-                        className={item.isNew ? "animate-pulse" : ""}
-                      />
-                      <span className="font-medium">{item.title}</span>
-                      {item.isNew && (
-                        <Badge
-                          variant="secondary"
-                          className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
-                        >
-                          New
-                        </Badge>
+              {data.premium.map((item) => {
+                const isActive =
+                  pathname === item.url || pathname.startsWith(item.url + "/");
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      isActive={isActive}
+                      className={cn(
+                        navItemClass,
+                        item.isNew &&
+                          "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
                       )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                    >
+                      <Link href={item.url}>
+                        {isActive && <ActiveStrip />}
+                        <item.icon
+                          className={cn(
+                            "transition-transform duration-200 group-hover/item:scale-110",
+                            item.isNew && "animate-pulse",
+                          )}
+                        />
+                        <span className="font-medium tracking-widest">{item.title}</span>
+                        {item.isNew && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            New
+                          </Badge>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </>
         )}
 
-        <div className="px-4 py-2 mt-4 text-[11px] font-semibold uppercase text-muted-foreground tracking-wider group-data-[collapsible=icon]:hidden">
-          Account
-        </div>
+        <SectionLabel>Account</SectionLabel>
 
         <SidebarMenu>
-          {data.account.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                asChild
-                tooltip={item.title}
-                isActive={pathname === item.url}
-              >
-                <Link href={item.url}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {data.account.map((item) => {
+            const isActive = pathname === item.url;
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={isActive}
+                  className={navItemClass}
+                >
+                  <Link href={item.url}>
+                    {isActive && <ActiveStrip />}
+                    <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
+                    <span className="tracking-widest">{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="p-4 border-t group-data-[collapsible=icon]:p-2">
+
+      <SidebarFooter className="border-t p-4 group-data-[collapsible=icon]:p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="w-full data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+                  className="w-full rounded-lg border border-transparent transition-colors data-[state=open]:border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
                 >
-                  <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
+                  <Avatar className="h-8 w-8 rounded-lg ring-1 ring-inset ring-border group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
                     <AvatarImage
                       src={resolveImageUrl(
                         avatarUrl !== null ? avatarUrl : user?.imageUrl,
@@ -383,7 +455,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       {user?.primaryEmailAddress?.emailAddress}
                     </span>
                   </div>
-                  <ChevronRight className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
+                  <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
