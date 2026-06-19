@@ -22,30 +22,13 @@ function makeCtx(): AudioContext | null {
   }
 }
 
-// Short two-tone ding for new messages (Discord-style)
 export function playMessageSound(): void {
   if (!isSoundEnabled() || typeof window === 'undefined') return;
-  const ctx = makeCtx();
-  if (!ctx) return;
-  const now = ctx.currentTime;
-
-  const osc  = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(880, now);
-  osc.frequency.linearRampToValueAtTime(1100, now + 0.12);
-
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(0.32, now + 0.02);
-  gain.gain.setValueAtTime(0.32, now + 0.1);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-  osc.start(now);
-  osc.stop(now + 0.45);
-  osc.onended = () => { try { ctx.close(); } catch {} };
+  try {
+    const audio = new Audio('/sounds/notification.wav');
+    audio.volume = 0.6;
+    audio.play().catch(() => { /* autoplay blocked */ });
+  } catch { /* no-op */ }
 }
 
 // Repeating dual-tone ringtone for incoming calls
