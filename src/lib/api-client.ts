@@ -48,6 +48,15 @@ class ApiClient {
     // ── Request interceptor ──────────────────────────────────────────────
     this.client.interceptors.request.use(
       async (config) => {
+        // When sending FormData, remove the default Content-Type: application/json.
+        // Without this, axios's transformRequest JSON-serializes the FormData into {}
+        // so the backend receives an empty JSON body instead of multipart form data.
+        // Deleting the header here lets the browser set the correct
+        // Content-Type: multipart/form-data; boundary=... automatically.
+        if (config.data instanceof FormData) {
+          delete (config.headers as any)["Content-Type"];
+        }
+
         if (typeof window !== "undefined" && !config.headers.Authorization) {
           try {
             const token = (window as any).__AUTH_TOKEN__;

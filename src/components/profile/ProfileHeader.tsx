@@ -129,7 +129,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       const response = await apiClient.patch("/api/profile/avatar", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
         },
       });
       const newUrl = response.data.data.avatar;

@@ -1475,13 +1475,24 @@ export default function SupraSpacePage() {
         };
       });
     };
+    const onProfileUpdated = ({ userId, avatar, fullName }: { userId: string; avatar?: string; fullName?: string }) => {
+      if (avatar) {
+        setAllUsers(prev => prev.map(u => u._id === userId ? { ...u, avatar } : u));
+        setConvos(prev => prev.map(conv => ({
+          ...conv,
+          members: conv.members.map(m => m._id === userId ? { ...m, avatar } : m),
+        })));
+      }
+    };
     socket.on('messages:read', onMsgsRead);
+    socket.on('user:profile:updated', onProfileUpdated);
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
       socket.off('conversation:theme', onConvTheme); socket.off('message:reaction', onReaction);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('messages:read', onMsgsRead);
+      socket.off('user:profile:updated', onProfileUpdated);
     };
   }, [socket, appendMessageLocal, patchMsg, patchConv]);
 
@@ -2274,7 +2285,7 @@ export default function SupraSpacePage() {
                   <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                     <div className="relative">
                       <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                        {activeConv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={cAvatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
+                        {activeConv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                       </div>
                       {activeConv.type === 'group' && isAdmin && (
                         <>

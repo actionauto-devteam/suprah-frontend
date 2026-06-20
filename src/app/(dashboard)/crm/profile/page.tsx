@@ -309,27 +309,37 @@ export default function CrmProfilePage() {
     let newAvatarUrl = mainAvatar;
     if (editAvatarFile) {
       try {
-        const formData = new FormData();
-        formData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
-        const avatarRes = await apiClient.patch("/api/profile/avatar", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        const av =
-          avatarRes.data?.data?.avatar ||
-          avatarRes.data?.data?.user?.avatar ||
-          avatarRes.data?.avatar;
-        if (av) {
-          newAvatarUrl = `${av}?v=${Date.now()}`;
-          setMainAvatar(newAvatarUrl);
-        }
-
-        // Sync the same photo to CrmUser so SupraSpace/Messenger shows the updated avatar
+        // Primary: upload directly to CRM — this updates CrmUser.avatar and
+        // emits user:profile:updated on the SupraSpace socket so avatars refresh live.
         if (crmToken) {
           const crmFormData = new FormData();
           crmFormData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
-          await apiClient.patch("/api/crm/me/avatar", crmFormData, {
-            headers: { Authorization: `Bearer ${crmToken}`, "Content-Type": "multipart/form-data" },
+          const crmRes = await apiClient.patch("/api/crm/me/avatar", crmFormData, {
+            headers: { Authorization: `Bearer ${crmToken}` },
           });
+          const av = crmRes.data?.data?.avatar;
+          if (av) {
+            newAvatarUrl = `${av}?v=${Date.now()}`;
+            setMainAvatar(newAvatarUrl);
+          }
+        }
+
+        // Secondary: also sync to the main platform User account (best-effort;
+        // CRM-only employees who have no platform account will get a 401 here — that's fine).
+        try {
+          const formData = new FormData();
+          formData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
+          const avatarRes = await apiClient.patch("/api/profile/avatar", formData);
+          const av =
+            avatarRes.data?.data?.avatar ||
+            avatarRes.data?.data?.user?.avatar ||
+            avatarRes.data?.avatar;
+          if (av && !newAvatarUrl) {
+            newAvatarUrl = `${av}?v=${Date.now()}`;
+            setMainAvatar(newAvatarUrl);
+          }
+        } catch {
+          // Not critical — user may only have a CRM account
         }
       } catch (avatarErr: unknown) {
         const apiError = avatarErr as ApiError;
