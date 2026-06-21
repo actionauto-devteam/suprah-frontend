@@ -4,7 +4,7 @@ import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
-import { playMessageSound } from '@/lib/notification-sound';
+import { playMessageSound, requestNotifPermission, showBrowserNotification } from '@/lib/notification-sound';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
 
@@ -94,11 +94,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const crmToken                          = useCrmToken();
   const crmUserId                         = crmToken ? decodeCrmUserId(crmToken) : null;
   const [conversations, setConversations] = React.useState<SSConv[]>([]);
+  const conversationsRef                  = React.useRef<SSConv[]>([]);
   const [socket, setSocket]               = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected]     = React.useState(false);
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
   const [minimizedChats, setMinimizedChats] = React.useState<Set<string>>(new Set());
   const [myAvatar, setMyAvatar]           = React.useState<string | undefined>(undefined);
+
+  // Keep ref in sync so socket handlers can read current conversations
+  React.useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
+  // Request OS notification permission once on mount
+  React.useEffect(() => { requestNotifPermission(); }, []);
 
   // ── Fetch current user's own profile (for up-to-date avatar) ─────────────────
   React.useEffect(() => {
@@ -163,7 +170,17 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         );
         return sortByLastMessage(updated);
       });
-      if (message.sender?._id !== crmUserId) playMessageSound();
+      if (message.sender?._id !== crmUserId) {
+        playMessageSound();
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          const conv = conversationsRef.current.find(c => c._id === conversationId);
+          const isGroup = conv?.type === 'group';
+          const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
+          const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
+          const body = isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
+          showBrowserNotification(title, { body, tag: conversationId });
+        }
+      }
     });
 
     // New conversation was created → prepend if not already in list

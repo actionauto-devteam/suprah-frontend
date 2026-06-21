@@ -27,7 +27,7 @@ export function playMessageSound(): void {
   try {
     const audio = new Audio('/sounds/notification.wav');
     audio.volume = 0.6;
-    audio.play().catch(() => { /* autoplay blocked */ });
+    audio.play().catch(() => { /* autoplay blocked in background tab */ });
   } catch { /* no-op */ }
 }
 
@@ -73,4 +73,41 @@ export function playCallSound(): void {
 export function stopCallSound(): void {
   if (_callTimer) { clearTimeout(_callTimer); _callTimer = null; }
   if (_callCtx) { try { _callCtx.close(); } catch {} _callCtx = null; }
+}
+
+// ─── Browser (OS-level) notifications ─────────────────────────────────────────
+// These appear even when the user is on another tab or another window.
+
+export async function requestNotifPermission(): Promise<void> {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission().catch(() => {});
+  }
+}
+
+export function showBrowserNotification(
+  title: string,
+  options: {
+    body?: string;
+    icon?: string;
+    tag?: string;
+    requireInteraction?: boolean;
+    silent?: boolean;
+  } = {}
+): Notification | null {
+  if (typeof Notification === 'undefined') return null;
+  if (Notification.permission !== 'granted') return null;
+  try {
+    const notif = new Notification(title, {
+      icon: options.icon ?? '/favicon.ico',
+      body: options.body,
+      tag: options.tag,
+      requireInteraction: options.requireInteraction ?? false,
+      silent: options.silent ?? false,
+    });
+    notif.onclick = () => { window.focus(); notif.close(); };
+    return notif;
+  } catch {
+    return null;
+  }
 }

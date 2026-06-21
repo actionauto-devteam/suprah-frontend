@@ -13,6 +13,7 @@ import {
   SSConv,
 } from '@/context/SupraSpaceMessengerContext';
 import { SSMessage } from '@/hooks/useSupraSpaceSocket';
+import { EmojiReactionPicker } from './EmojiReactionPicker';
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 const POPUP_W     = 320;
@@ -21,32 +22,14 @@ const POPUP_RIGHT = 16;
 const POPUP_H     = 400;
 const HEADER_H    = 48;
 
-// ─── Emoji data ───────────────────────────────────────────────────────────────
-const EMOJI_CATS = [
-  { key: 'frequent', label: 'Frequently Used', icon: '🕐', emojis: ['❤️','😂','👍','😮','😢','🎉','🔥','👏','😍','🙏','✨','💯','😊','🥰','😎','🤣','💪','🎊','🌟','💕'] },
-  { key: 'smileys',  label: 'Smileys',         icon: '😀', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😇','🥰','😍','🤩','😘','😚','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤔','😐','😑','😶','😏','😒','🙄','😬','😔','😪','😴','😷','🤒','🤕','🤢','🤮','🥵','🥶','😵','🤯','🤠','🥳','😎','🤓','😭','😱','😨','😰','😥','😓','🥺','😢','😮','😲','😤','😡','🤬','😈','👿','💀','☠️','🤡','👻','👽','👾','🤖'] },
-  { key: 'people',   label: 'People',          icon: '👋', emojis: ['👋','🤚','🖐️','✋','🖖','👌','✌️','🤞','🤟','🤘','👈','👉','👆','👇','☝️','👍','👎','✊','👊','👏','🙌','🤝','🙏','💪','🦾','💅','🤳','👁️','👄','👂','👃','🦷','🦴','🦵','🦶'] },
-  { key: 'animals',  label: 'Animals',         icon: '🐶', emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🦆','🦅','🦉','🦇','🐺','🐴','🦄','🐝','🦋','🐌','🐞','🐜','🐢','🐍','🦎','🐙','🦑','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐆','🦓','🐘','🦒','🐄','🐎','🐖','🐏','🐑','🐐','🦌','🐕','🐈','🦜','🦢','🕊️','🐇','🐁','🐿️','🦔'] },
-  { key: 'food',     label: 'Food',            icon: '🍎', emojis: ['🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🥔','🥐','🍞','🥖','🧀','🥚','🍳','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🌮','🌯','🥗','🍱','🍣','🍤','🍙','🍚','🍛','🍜','🍝','🍧','🍨','🍦','🧁','🍰','🎂','🍭','🍬','🍫','🍿','🍩','🍪','☕','🍵','🧋','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🍾'] },
-  { key: 'activity', label: 'Activities',      icon: '⚽', emojis: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🎱','🏓','🏸','🏒','🏑','🏏','⛳','🏹','🎣','🤿','🥊','🥋','🎽','🛹','🛷','⛸️','🥌','⛷️','🏂','🏋️','🤼','🤸','⛹️','🤺','🧘','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🎪','🎭','🎨','🎬','🎤','🎧','🎼','🎵','🎶','🎹','🥁','🎷','🎺','🎸','🎻','🎲','♟️','🎯','🎳','🎮','🕹️'] },
-  { key: 'travel',   label: 'Travel',          icon: '🚀', emojis: ['🌍','🌎','🌏','🗺️','🧭','🏔️','⛰️','🌋','🏕️','🏖️','🏜️','🏝️','🏞️','🏟️','🏛️','🏘️','🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','💒','🗼','🗽','⛪','🕌','⛩️','🕋','⛲','⛺','🌃','🌄','🌅','🌆','🌇','🌉','🌌','🌠','🎆','🎇','🚂','🚃','🚄','🚅','🚆','🚇','🚊','🚝','🚞','🚌','🚍','🚎','🚐','🚑','🚒','🚓','🚔','🚕','🚗','🚙','🛻','🚚','🚛','🚜','🏎️','🏍️','🛵','🚲','🛴','🛹','⛵','🚤','🛥️','🛳️','⛴️','🚢','✈️','🛩️','🛫','🛬','💺','🚁','🚀','🛸'] },
-  { key: 'objects',  label: 'Objects',         icon: '📱', emojis: ['📱','💻','⌨️','🖥️','🖨️','🖱️','💾','💿','📀','📷','📸','📹','🎥','📺','📻','📞','☎️','📟','📠','🔋','🔌','💡','🔦','🕯️','💰','💳','📊','📈','📉','📋','📁','📂','📑','📄','📃','📜','📅','📆','📇','📒','📓','📔','📕','📗','📘','📙','📚','📖','🔖','✉️','📧','📦','🗃️','🗑️','🔒','🔓','🔑','🗝️','🔨','⚒️','🛠️','⚔️','🛡️','🔧','🔩','⚙️','🧲','💊','💉','🩺','🩹','🚪','🛏️','🛁','🧴','🧹','🧺','🧻','🪣','🧼','🧽','🧯','🛒','🚽','🚿'] },
-  { key: 'symbols',  label: 'Symbols',         icon: '🔣', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🔯','✡️','♻️','⚠️','✅','❌','⭕','🛑','⛔','🚫','💯','🔞','🔰','♾️','‼️','⁉️','❓','❔','❕','❗','💤','♨️','🔴','🟠','🟡','🟢','🔵','🟣','🟤','⚫','⚪','🟥','🟧','🟨','🟩','🟦','🟪','🟫','⬛','⬜','▪️','▫️'] },
-];
-
-const EMOJI_SEARCH: Record<string, string> = {
-  '❤️':'heart love red','🧡':'heart orange','💛':'heart yellow','💚':'heart green','💙':'heart blue','💜':'heart purple','🖤':'heart black','💔':'broken heart','❤️‍🔥':'heart fire love',
-  '😀':'happy smile grin face','😃':'happy smile big grin','😄':'happy smile laugh','😁':'happy grin smile','😆':'laugh funny smile','😅':'sweat smile nervous','🤣':'laugh rolling funny floor','😂':'laugh cry funny tears','🙂':'slight smile','😉':'wink','😊':'smile happy blush','😇':'angel halo good','🥰':'love hearts smiling','😍':'love heart eyes','🤩':'star eyes amazing wow','😘':'kiss love blow','😚':'kiss love','😋':'yummy food delicious','😛':'tongue silly','😜':'wink tongue silly','🤪':'crazy zany','😝':'tongue closed eyes silly','🤑':'money rich greedy','🤗':'hug hugging happy','🤭':'oops hand mouth giggle','🤔':'thinking hmm wonder','😐':'neutral expressionless','😑':'expressionless blank','😶':'no mouth silent','😏':'smirk sly','😒':'unamused annoyed','🙄':'eye roll whatever','😬':'grimace nervous awkward','😔':'pensive sad','😪':'sleepy tired','😴':'sleep zzz','😷':'mask sick doctor','🤒':'sick thermometer','🤕':'hurt injured head bandage','🤢':'nausea sick vomit','🤮':'vomit sick','🥵':'hot heat sweating','🥶':'cold freezing','😵':'dizzy spiral','🤯':'exploding head mind blown','🤠':'cowboy hat western','🥳':'party celebration','😎':'cool sunglasses','🤓':'nerd glasses','😭':'cry sob sad tears','😱':'shocked scared gasp','😨':'fearful scared','😰':'anxious nervous sweat','😥':'sad relieved','😓':'downcast sweat','🥺':'pleading puppy eyes','😢':'cry sad tear','😮':'wow surprised open mouth','😲':'astonished shocked','😤':'triumphant angry steam','😡':'angry mad red face','🤬':'curse swear angry symbols','😈':'devil evil purple horns','👿':'angry devil red horns','💀':'skull death dead','☠️':'skull crossbones death','🤡':'clown','👻':'ghost boo halloween','👽':'alien extraterrestrial','👾':'alien monster space game','🤖':'robot machine',
-  '👋':'wave hello hi hand','✋':'stop hand raised','🖐️':'hand raised five fingers','🖖':'vulcan salute spock','👌':'ok perfect','✌️':'peace victory two fingers','🤞':'fingers crossed luck','🤟':'love you hand','🤘':'rock metal horns','👈':'point left','👉':'point right','👆':'point up','👇':'point down','☝️':'point up index','👍':'thumbs up like good','👎':'thumbs down dislike bad','✊':'raised fist','👊':'punch fist','👏':'clap applause','🙌':'celebrate hands up raise','🤝':'handshake deal agree','🙏':'pray thank please hands','💪':'strong muscle flex arm','🦾':'mechanical arm strong',
-  '🔥':'fire hot flame lit','✨':'sparkle stars shine','🎉':'party celebrate confetti popper','🎊':'confetti celebrate party','🏆':'trophy winner prize champion','⭐':'star favorite','🌟':'glowing star','💯':'hundred perfect score','🎵':'music note song','🎶':'music notes songs',
-  '🐶':'dog puppy pet','🐱':'cat kitten pet','🐭':'mouse rodent','🐹':'hamster','🐰':'rabbit bunny ears','🦊':'fox','🐻':'bear','🐼':'panda bear','🐨':'koala','🐯':'tiger','🦁':'lion king','🐮':'cow moo','🐷':'pig oink','🐸':'frog','🐵':'monkey','🙈':'see no evil monkey','🙉':'hear no evil monkey','🙊':'speak no evil monkey','🐔':'chicken hen','🐧':'penguin','🐦':'bird','🦆':'duck','🦅':'eagle hawk','🦉':'owl','🦇':'bat halloween','🐴':'horse','🦄':'unicorn rainbow','🐝':'bee honey','🦋':'butterfly','🐢':'turtle slow','🐍':'snake','🐙':'octopus','🦑':'squid','🦀':'crab','🐠':'tropical fish','🐟':'fish','🐬':'dolphin','🐋':'whale','🦈':'shark',
-  '🍎':'apple red fruit','🍐':'pear fruit','🍊':'orange fruit','🍋':'lemon sour citrus','🍌':'banana yellow fruit','🍉':'watermelon','🍇':'grapes','🍓':'strawberry','🍒':'cherries','🍑':'peach','🥭':'mango','🍍':'pineapple','🥥':'coconut','🥝':'kiwi','🍅':'tomato','🍆':'eggplant aubergine','🥑':'avocado','🥦':'broccoli','🥒':'cucumber','🌶️':'hot pepper chili spicy','🍕':'pizza','🍔':'burger hamburger','🍟':'french fries chips','🌭':'hot dog','🌮':'taco','🌯':'burrito wrap','🍣':'sushi','🍜':'noodles ramen','🍝':'spaghetti pasta','🧁':'cupcake','🍰':'cake slice birthday','🎂':'birthday cake','🍫':'chocolate','🍿':'popcorn movie','🍩':'donut doughnut','🍪':'cookie','☕':'coffee hot drink','🍵':'tea green hot','🧋':'bubble tea boba','🍺':'beer drink','🍻':'beers cheers clinking','🥂':'champagne celebration cheers','🍷':'wine red drink','🥃':'whiskey spirit glass','🍸':'cocktail martini','🍹':'tropical drink juice','🍾':'champagne bottle pop',
-  '⚽':'soccer football ball','🏀':'basketball ball','🏈':'football american','⚾':'baseball ball','🎾':'tennis ball','🎮':'video game controller gaming','🎲':'dice roll game',
-  '📱':'phone mobile cell','💻':'laptop computer notebook','📷':'camera photo picture','🔒':'lock secure privacy','🔑':'key unlock','⚠️':'warning caution danger','✅':'check mark done yes','❌':'cross wrong no',
-  '🚀':'rocket launch space','✈️':'airplane fly travel','🌍':'earth globe world','🌈':'rainbow colorful','🌊':'wave ocean water','⚡':'lightning bolt electric fast','❄️':'snowflake cold ice winter','🌸':'cherry blossom flower spring','🌺':'flower hibiscus','🌹':'rose flower red love',
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const AVATAR_COLORS = ['#5b7cf6','#34c97d','#f0a855','#e05b8a','#5bbdf6','#a05bf6','#f65b5b','#5bf6c8'];
+function stringToColor(str: string): string {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
 function getDisplayName(conv: SSConv, myId: string | null): string {
   if (conv.type === 'group') return conv.name || 'Group';
   return conv.members.find((m) => m._id !== myId)?.fullName ?? 'Unknown';
@@ -84,99 +67,6 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         ) : part
       )}
     </>
-  );
-}
-
-// ─── EmojiPicker ──────────────────────────────────────────────────────────────
-interface EmojiPickerProps {
-  onSelect: (emoji: string) => void;
-  onClose: () => void;
-  position: { top: number; left?: number; right?: number };
-}
-function EmojiPicker({ onSelect, onClose, position }: EmojiPickerProps) {
-  const [search, setSearch] = React.useState('');
-  const [activeCat, setActiveCat] = React.useState('frequent');
-  const pickerRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [onClose]);
-
-  const searchResults = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return null;
-    const seen = new Set<string>();
-    return EMOJI_CATS.flatMap(c => c.emojis).filter(emoji => {
-      if (seen.has(emoji)) return false;
-      seen.add(emoji);
-      return emoji === q || (EMOJI_SEARCH[emoji] || '').includes(q);
-    });
-  }, [search]);
-
-  const displayCat = EMOJI_CATS.find(c => c.key === activeCat) || EMOJI_CATS[0];
-  const displayEmojis = searchResults ?? displayCat.emojis;
-  const top = Math.max(8, Math.min(position.top, (typeof window !== 'undefined' ? window.innerHeight : 800) - 360));
-
-  if (typeof document === 'undefined') return null;
-  return createPortal(
-    <div
-      ref={pickerRef}
-      className="fixed z-[9999] flex flex-col rounded-2xl shadow-2xl"
-      style={{
-        top, left: position.left, right: position.right,
-        width: 288, height: 340,
-        background: 'var(--bg-elevated,#18191c)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-      }}
-    >
-      {/* Search */}
-      <div className="p-2 border-b border-white/10 shrink-0">
-        <input
-          autoFocus
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search emojis..."
-          className="w-full rounded-lg px-3 py-1.5 text-white placeholder:text-white/40 outline-none"
-          style={{ background: 'rgba(255,255,255,0.08)', fontSize: 13, border: 'none' }}
-        />
-      </div>
-      {/* Category tabs */}
-      <div className="flex items-center gap-0.5 px-1.5 py-1 border-b border-white/10 shrink-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {EMOJI_CATS.map(cat => (
-          <button key={cat.key} onClick={() => { setActiveCat(cat.key); setSearch(''); }}
-            title={cat.label}
-            className={cn('shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-base transition-colors',
-              activeCat === cat.key && !search ? 'bg-blue-500/30' : 'hover:bg-white/10 text-white/50'
-            )}
-          >{cat.icon}</button>
-        ))}
-      </div>
-      {/* Label */}
-      <div className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/30 shrink-0">
-        {search ? `Results for "${search}"` : displayCat.label}
-      </div>
-      {/* Grid */}
-      <div className="flex-1 overflow-y-auto px-1.5 pb-2 min-h-0" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
-        {displayEmojis.length === 0 ? (
-          <div className="flex items-center justify-center h-16 text-[11px] text-white/30">No results</div>
-        ) : (
-          <div className="grid grid-cols-8 gap-0">
-            {displayEmojis.map((emoji, i) => (
-              <button key={emoji + i}
-                onClick={() => { onSelect(emoji); onClose(); }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/15 text-base transition-colors leading-none"
-              >{emoji}</button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
   );
 }
 
@@ -469,7 +359,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         {/* Body */}
         {!isMinimized && (
           <>
-            <div className="flex-1 overflow-y-auto px-3 py-2 bg-background min-h-0 space-y-1">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-1">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -487,7 +377,12 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   if (msg.isDeleted) return null;
                   const isOwn = msg.sender?._id === crmUserId;
                   const prevVisible = messages.slice(0, idx).findLast(m => !m.isDeleted);
+                  const nextVisible = messages.slice(idx + 1).find(m => !m.isDeleted) || null;
                   const showName = !isOwn && (!prevVisible || prevVisible.sender?._id !== msg.sender?._id);
+                  const hideTime = !!(nextVisible
+                    && nextVisible.sender?._id === msg.sender?._id
+                    && new Date(nextVisible.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
+                  );
                   const seenMembers = msgSeenByMembers[msg._id] || [];
                   return (
                     <div key={msg._id}
@@ -510,7 +405,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                           )}
                         </div>
                       )}
-                      <div className="max-w-[76%] flex flex-col" style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                      <div className="max-w-[76%] min-w-0 flex flex-col" style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
                       {showName && !isOwn && (
                         <span className="px-1 mb-0.5 text-[10px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
                           {msg.sender?.fullName}
@@ -518,9 +413,9 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                       )}
                         {/* Bubble */}
                         <div className={cn(
-                          'px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed break-words',
+                          'px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed min-w-0',
                           isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm'
-                        )}>
+                        )} style={{ overflowWrap: 'anywhere' }}>
                           {/* Reply preview */}
                           {msg.replyTo && (
                             <div className={cn('mb-1 px-2 py-1 rounded-lg text-[10px] border-l-2', isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5 border-blue-400')}
@@ -534,30 +429,28 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                             </div>
                           )}
                           {renderContent(msg, isOwn)}
-                          {isOwn ? (
-                            <div className="flex items-center justify-end gap-1 mt-0.5">
-                              <span className="text-[9px] text-white/60">{msgTime(msg.createdAt)}</span>
-                              {seenMembers.length === 0 ? (
-                                <Check className="h-2.5 w-2.5 text-white/50" />
-                              ) : (
-                                <div className="flex items-center" style={{ gap: 1 }}>
-                                  {seenMembers.slice(0, 3).map(m => (
-                                    <div key={m._id} title={m.fullName}
-                                      className="h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-white ring-1 ring-white/30"
-                                      style={{ fontSize: 6, background: 'rgba(255,255,255,0.25)' }}>
-                                      {m.avatar
-                                        ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" />
-                                        : m.fullName[0]?.toUpperCase()}
-                                    </div>
-                                  ))}
-                                  {seenMembers.length > 3 && <span className="text-[8px] text-white/60">+{seenMembers.length - 3}</span>}
-                                </div>
-                              )}
+                          {!hideTime && (
+                            <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
+                              <span className={cn('text-[9px]', isOwn ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
+                              {isOwn && seenMembers.length === 0 && <Check className="h-2.5 w-2.5 text-white/50" />}
                             </div>
-                          ) : (
-                            <div className="text-[9px] mt-0.5 text-muted-foreground">{msgTime(msg.createdAt)}</div>
                           )}
                         </div>
+                        {/* Seen avatars — outside the bubble so they're always visible */}
+                        {isOwn && seenMembers.length > 0 && (
+                          <div className="flex items-center justify-end gap-0.5 mt-0.5 px-0.5">
+                            {seenMembers.slice(0, 4).map(m => (
+                              <div key={m._id} title={`Seen by ${m.fullName}`}
+                                className="h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-white"
+                                style={{ fontSize: 6, background: stringToColor(m.fullName), border: '1px solid var(--background, #fff)' }}>
+                                {m.avatar
+                                  ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" />
+                                  : m.fullName[0]?.toUpperCase()}
+                              </div>
+                            ))}
+                            {seenMembers.length > 4 && <span className="text-[8px] text-muted-foreground">+{seenMembers.length - 4}</span>}
+                          </div>
+                        )}
                         {/* Reaction pills */}
                         {msg.reactions && msg.reactions.length > 0 && (
                           <div className={cn('flex flex-wrap gap-1 mt-1', isOwn ? 'justify-end' : 'justify-start')}>
@@ -717,7 +610,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 
       {/* ── Full emoji picker portal ── */}
       {emojiPickerMsg && emojiPickerPos && (
-        <EmojiPicker
+        <EmojiReactionPicker
           position={emojiPickerPos}
           onSelect={(emoji) => handleReact(emojiPickerMsg, emoji)}
           onClose={() => { setEmojiPickerMsg(null); setEmojiPickerPos(null); }}

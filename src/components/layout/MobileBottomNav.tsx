@@ -21,6 +21,7 @@ type MobileBottomNavProps = {
 export function MobileBottomNav({ items }: MobileBottomNavProps) {
     const pathname = usePathname();
     const [hidden, setHidden] = React.useState(false);
+    const [hiddenForConvo, setHiddenForConvo] = React.useState(false);
     const [pendingHref, setPendingHref] = React.useState<string | null>(null);
     const lastScrollY = React.useRef(0);
 
@@ -28,6 +29,14 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
         setPendingHref(null);
         setHidden(false);
     }, [pathname]);
+
+    React.useEffect(() => {
+        const handler = (e: Event) => {
+            setHiddenForConvo((e as CustomEvent<{ active: boolean }>).detail.active);
+        };
+        window.addEventListener('supraspace:conv-state', handler);
+        return () => window.removeEventListener('supraspace:conv-state', handler);
+    }, []);
 
     React.useEffect(() => {
         const el = document.querySelector("main");
@@ -48,13 +57,15 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
         return pathname === href || pathname.startsWith(href + "/");
     };
 
+    const shouldHide = hidden || hiddenForConvo;
+
     return (
         <motion.nav
             initial={{ y: 140, opacity: 0 }}
-            animate={{ y: hidden ? 140 : 0, opacity: hidden ? 0.88 : 1 }}
+            animate={{ y: shouldHide ? 140 : 0, opacity: hiddenForConvo ? 0 : hidden ? 0.88 : 1 }}
             transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.85 }}
             className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-30 md:hidden select-none"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            style={{ paddingBottom: "env(safe-area-inset-bottom)", pointerEvents: hiddenForConvo ? 'none' : undefined }}
         >
             <div className="mx-auto w-[min(100%-1rem,33rem)] mb-2.5">
                 <div className="relative rounded-3xl border border-border/40 bg-background/70 dark:bg-background/60 backdrop-blur-2xl shadow-[0_10px_34px_rgba(0,0,0,0.2)] px-1.5 pt-4 pb-1.5 overflow-visible">

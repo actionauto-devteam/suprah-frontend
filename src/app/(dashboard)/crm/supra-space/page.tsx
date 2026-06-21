@@ -32,6 +32,7 @@ import { stopCallSound } from '@/lib/notification-sound';
 import { CallBanner } from './CallBanner';
 import { IncomingCallModal } from './IncomingCallModal';
 import { CallExperience } from './CallExperience';
+import { EmojiReactionPicker } from '@/components/supraspace/EmojiReactionPicker';
 
 const SS4_MAX_UPLOAD_FILES = 5;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -154,6 +155,7 @@ if (typeof document !== 'undefined') {
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
+    .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
     .ss4-scroll::-webkit-scrollbar { width:4px; }
     .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
     .ss4-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar); border-radius:4px; }
@@ -166,7 +168,7 @@ if (typeof document !== 'undefined') {
     .ss4-tab-bar { background:rgba(127,127,127,0.08); border-radius:8px; padding:3px; }
     .ss4-tab { border-radius:6px; font-size:11px; font-weight:600; letter-spacing:.03em; transition:all .15s ease; color:var(--text-secondary); }
     .ss4-tab-active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(91,124,246,0.35); }
-    .ss4-logo-mark { background:linear-gradient(140deg,#3a5ce0,#5b7cf6); box-shadow:0 0 0 1px rgba(91,124,246,0.3),0 4px 16px rgba(91,124,246,0.2); border-radius:10px; }
+    .ss4-logo-mark { background:linear-gradient(140deg,#16a34a,#34c97d); box-shadow:0 0 0 1px rgba(52,201,125,0.3),0 4px 16px rgba(52,201,125,0.25); border-radius:10px; }
     .ss4-new-btn { background:rgba(91,124,246,0.15); border:1px solid rgba(91,124,246,0.25); border-radius:8px; color:var(--accent-text); transition:all .15s ease; }
     .ss4-new-btn:hover { background:rgba(91,124,246,0.25); }
     .ss4-theme-btn { background:var(--bg-hover); border:1px solid var(--border-2); border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; }
@@ -404,7 +406,7 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, disableActions, members = [],
+  onReact, onVotePoll, onRsvp, nameFor, disableActions, members = [], hideTime = false, onEditSave,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -416,13 +418,45 @@ function Bubble({
   nameFor: (id: string) => string;
   disableActions?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string }>;
+  hideTime?: boolean;
+  onEditSave?: (id: string, content: string) => Promise<void>;
 }) {
   const [hov, setHov] = React.useState(false);
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
-  const [reactOpen, setReactOpen] = React.useState(false);
+  const [pickerPos, setPickerPos] = React.useState<{ top: number; left?: number; right?: number } | null>(null);
+  const pickerPosRef = React.useRef<{ top: number; left?: number; right?: number } | null>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [mobileMenu, setMobileMenu] = React.useState(false);
   const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editMode, setEditMode] = React.useState(false);
+  const [editDraft, setEditDraft] = React.useState('');
+  const [editSaving, setEditSaving] = React.useState(false);
+  const editAreaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const enterEdit = () => { setEditDraft(message.content); setEditMode(true); setHov(false); };
+  const cancelEdit = () => { setEditMode(false); setEditDraft(''); };
+  const saveEdit = async () => {
+    const trimmed = editDraft.trim();
+    if (!trimmed || trimmed === message.content || !onEditSave) return;
+    setEditSaving(true);
+    try { await onEditSave(message._id, trimmed); setEditMode(false); } finally { setEditSaving(false); }
+  };
+
+  const openPicker = (pos: { top: number; left?: number; right?: number }) => {
+    pickerPosRef.current = pos;
+    setPickerPos(pos);
+  };
+  const closePicker = () => {
+    pickerPosRef.current = null;
+    setPickerPos(null);
+  };
+  const scheduleHide = () => {
+    hideTimer.current = setTimeout(() => { if (!pickerPosRef.current) setHov(false); }, 180);
+  };
+  const cancelHide = () => {
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+  };
 
   const handleTouchStart = () => {
     longPressTimer.current = setTimeout(() => {
@@ -446,16 +480,16 @@ function Bubble({
   );
 
   React.useEffect(() => {
-    if (!reactOpen) return;
+    if (!hov) return;
     const h = (e: MouseEvent) => {
+      if (pickerPosRef.current) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setReactOpen(false);
         setHov(false);
       }
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
-  }, [reactOpen]);
+  }, [hov]);
 
   if (message.isDeleted) {
     return (
@@ -471,7 +505,7 @@ function Bubble({
 
   return (
     <div className={cn('flex gap-2.5 px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => { if (!reactOpen) setHov(false); }}
+      onMouseEnter={() => { cancelHide(); setHov(true); }} onMouseLeave={scheduleHide}
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}
       onContextMenu={e => e.preventDefault()}>
       {showAvatar ? (
@@ -499,12 +533,42 @@ function Bubble({
 
         {message.content ? (
           <div className="relative w-fit">
-            <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
-              <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
-            </div>
-            {hov && !disableActions && (
+            {editMode ? (
+              <div className={cn('ss4-msg-bubble px-3 py-2.5', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')} style={{ minWidth: 200 }}>
+                <textarea
+                  ref={editAreaRef}
+                  value={editDraft}
+                  onChange={e => setEditDraft(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                  autoFocus
+                  rows={Math.max(1, editDraft.split('\n').length)}
+                  className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed"
+                  style={{ color: 'inherit', minWidth: 180 }}
+                />
+                <div className="flex items-center gap-2 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span style={{ fontSize: 9, opacity: 0.45 }}>Enter to save · Esc to cancel</span>
+                  <div className="flex-1" />
+                  <button onClick={cancelEdit} className="h-5 px-2 rounded text-[10px] font-medium" style={{ background: 'rgba(255,255,255,0.1)', color: 'inherit' }}>Cancel</button>
+                  <button onClick={saveEdit} disabled={editSaving || !editDraft.trim() || editDraft.trim() === message.content}
+                    className="h-5 px-2 rounded text-[10px] font-semibold text-white disabled:opacity-40"
+                    style={{ background: 'var(--positive,#34c97d)' }}>
+                    {editSaving ? '...' : 'Update'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+                <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
+                {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
+              </div>
+            )}
+            {hov && !disableActions && !editMode && (
               <div ref={menuRef} className={cn('absolute -top-8 z-20 flex items-center rounded-xl', isOwn ? 'right-0' : 'left-0')}
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}>
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}
+                onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
                 {SS4_REACTIONS.slice(0, 3).map(emoji => (
                   <button key={emoji} onClick={() => onReact(message._id, emoji)}
                     className="h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
@@ -519,23 +583,40 @@ function Bubble({
                     <Pin className="h-3.5 w-3.5" />
                   </button>
                 )}
+                {isOwn && onEditSave && message.type === 'text' && (
+                  <button onClick={enterEdit} className="ss4-icon-btn h-7 w-7" title="Edit">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {isOwn && (
                   <button onClick={() => onDelete(message._id)} className="ss4-icon-btn h-7 w-7 hover:text-[var(--danger)]" title="Delete">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
                 <div className="relative">
-                  <button onClick={() => setReactOpen(v => !v)} className="ss4-icon-btn h-7 w-7" title="More reactions">
+                  <button
+                    onClick={(e) => {
+                      const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const pos = {
+                        top: btn.top - 348,
+                        ...(isOwn ? { right: window.innerWidth - btn.right } : { left: btn.left }),
+                      };
+                      pickerPosRef.current ? closePicker() : openPicker(pos);
+                    }}
+                    className="ss4-icon-btn h-7 w-7"
+                    title="More reactions"
+                    style={{ color: pickerPos ? 'var(--positive)' : undefined }}
+                  >
                     <SmilePlus className="h-3.5 w-3.5" />
                   </button>
-                  {reactOpen && (
-                    <div className={cn('absolute bottom-full mb-1 ss4-react-pop z-20', isOwn ? 'right-0' : 'left-0')}>
-                      {SS4_REACTIONS.map(e => (
-                        <button key={e} onClick={() => { onReact(message._id, e); setReactOpen(false); }}>{e}</button>
-                      ))}
-                    </div>
-                  )}
                 </div>
+                {pickerPos && (
+                  <EmojiReactionPicker
+                    position={pickerPos}
+                    onSelect={(emoji) => { onReact(message._id, emoji); closePicker(); }}
+                    onClose={closePicker}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -629,27 +710,32 @@ function Bubble({
           </div>
         )}
 
-        <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
-          <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>
-          {isOwn && (() => {
-            const seenByOthers = (members as Array<{_id:string;fullName:string;avatar?:string}>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id));
-            if (seenByOthers.length === 0) return <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />;
-            return (
-              <div className="flex items-center" style={{ gap: 2 }}>
-                {seenByOthers.slice(0, 5).map(m => (
-                  <div key={m._id} title={m.fullName}
-                    className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
-                    style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
-                    {m.avatar
-                      ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" />
-                      : m.fullName[0]?.toUpperCase()}
-                  </div>
-                ))}
-                {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
-              </div>
-            );
-          })()}
-        </div>
+        {(() => {
+          const seenByOthers = isOwn
+            ? (members as Array<{_id:string;fullName:string;avatar?:string}>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id))
+            : [];
+          const hasSeen = seenByOthers.length > 0;
+          if (hideTime && !hasSeen) return null;
+          return (
+            <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
+              {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>}
+              {isOwn && (hasSeen ? (
+                <div className="flex items-center" style={{ gap: 2 }}>
+                  {seenByOthers.slice(0, 5).map(m => (
+                    <div key={m._id} title={m.fullName}
+                      className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
+                      style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
+                      {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : m.fullName[0]?.toUpperCase()}
+                    </div>
+                  ))}
+                  {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
+                </div>
+              ) : !hideTime ? (
+                <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
+              ) : null)}
+            </div>
+          );
+        })()}
       </div>
 
       {mobileMenu && !disableActions && (
@@ -1063,13 +1149,13 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
 }
 
 // ─── Active Users Modal ───────────────────────────────────────────────────────
-function ActiveUsersModal({ users, presence, uid, onClose, onMessage }: {
-  users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void; onMessage: (id: string) => void;
+function ActiveUsersModal({ users, presence, uid, onClose }: {
+  users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void;
 }) {
   const online = users.filter(u => u._id !== uid && presence[u._id] === 'online');
   const offline = users.filter(u => u._id !== uid && presence[u._id] !== 'online');
   const Row = (u: CrmUser, isOn: boolean) => (
-    <button key={u._id} onClick={() => onMessage(u._id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-(--bg-hover)">
+    <div key={u._id} className="w-full flex items-center gap-3 px-4 py-2.5">
       <div className="relative shrink-0">
         <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
           {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
@@ -1078,10 +1164,10 @@ function ActiveUsersModal({ users, presence, uid, onClose, onMessage }: {
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-        <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? '● Active now' : u.role || 'Offline'}</p>
+        <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? 'Active now' : u.role || 'Offline'}</p>
       </div>
-      <MessageSquare className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
-    </button>
+      <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', isOn ? 'bg-[var(--positive)]' : 'bg-[#6b7280]')} />
+    </div>
   );
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1169,6 +1255,12 @@ export default function SupraSpacePage() {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent('supraspace:conv-state', { detail: { active: !!activeId } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('supraspace:conv-state', { detail: { active: false } }));
+    };
+  }, [activeId]);
 
   const [msgs, setMsgs] = React.useState<Record<string, SSMessage[]>>({});
   const [loadingMsgs, setLoadingMsgs] = React.useState(false);
@@ -1213,6 +1305,9 @@ export default function SupraSpacePage() {
   const createMenuRef = React.useRef<HTMLDivElement>(null);
   const gifRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
+  const [deleteConfirmConv, setDeleteConfirmConv] = React.useState<SSConversation | null>(null);
+  const convLongPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [recording, setRecording] = React.useState(false);
   const [recSeconds, setRecSeconds] = React.useState(0);
@@ -1454,8 +1549,10 @@ export default function SupraSpacePage() {
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
 
+    const onEdited = ({ conversationId, messageId, content }: any) => patchMsg(conversationId, messageId, { content, isEdited: true });
     socket.on('message:new', onMsg);
     socket.on('message:deleted', onDel);
+    socket.on('message:edited', onEdited);
     socket.on('conversation:new', onNew);
     socket.on('conversation:updated', onConvUpdated);
     socket.on('conversation:deleted', onConvDeleted);
@@ -1487,7 +1584,7 @@ export default function SupraSpacePage() {
     socket.on('messages:read', onMsgsRead);
     socket.on('user:profile:updated', onProfileUpdated);
     return () => {
-      socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('conversation:new', onNew);
+      socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
       socket.off('conversation:theme', onConvTheme); socket.off('message:reaction', onReaction);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
@@ -1704,6 +1801,12 @@ export default function SupraSpacePage() {
     try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/event`, ev, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create event.')); }
   };
 
+  const handleEdit = async (msgId: string, content: string) => {
+    if (!activeId) return;
+    const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content }, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.data?.data) patchMsg(activeId, msgId, { content: r.data.data.content, isEdited: true });
+  };
+
   const handleDelete = async (msgId: string) => {
     if (!activeId) return;
     patchMsg(activeId, msgId, { isDeleted: true, content: '', attachments: [] } as any);
@@ -1879,8 +1982,14 @@ export default function SupraSpacePage() {
       : conv.lastMessage?.type === 'event' ? `📅 ${conv.lastMessage?.event?.title || 'Event'}`
       : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && conv.lastMessage && conv.lastMessage.sender?._id !== uid ? `${(conv.lastMessage.sender?.fullName || '').split(' ')[0]}: ` : '';
+    const [rowHov, setRowHov] = React.useState(false);
+    const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
+    const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
     return (
-      <div className={cn('ss4-conv group flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5')} onClick={() => setActiveId(conv._id)}>
+      <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5')}
+        onClick={() => setActiveId(conv._id)}
+        onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
+        onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
         <div className="relative shrink-0">
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
             {conv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
@@ -1892,19 +2001,35 @@ export default function SupraSpacePage() {
           <div className="flex items-center gap-1">
             {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
             <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold')} style={{ fontSize: 12.5 }}>{cName}</p>
-            <span className="shrink-0" style={{ fontSize: 9.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
+            {!rowHov && <span className="shrink-0" style={{ fontSize: 9.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
           </div>
           <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
-          <div className={cn('flex items-center shrink-0', isAct ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
-            <button onClick={e => { e.stopPropagation(); togglePinConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: pinned ? 'var(--accent)' : 'var(--text-tertiary)' }} title={pinned ? 'Unpin' : 'Pin'}>
-              {pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
-            </button>
-            <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title={archived ? 'Unarchive' : 'Archive'}>
-              {archived ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
-            </button>
-            <button onClick={e => { e.stopPropagation(); handleStartCall(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ color: 'var(--text-tertiary)' }} title="Call"><Phone className="h-3 w-3" /></button>
+          <div className="flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov ? 1 : 0 }}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button onClick={e => e.stopPropagation()} className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)" style={{ color: 'var(--text-tertiary)' }}>
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="bottom" align="end" className="min-w-[168px] rounded-xl p-1" onClick={e => e.stopPropagation()}
+                style={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
+                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => togglePinConv(conv)}>
+                  {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />} {pinned ? 'Unpin' : 'Pin'}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => toggleArchiveConv(conv)}>
+                  {archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />} {archived ? 'Unarchive' : 'Archive'}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => { handleStartCall(conv); setActiveId(conv._id); }}>
+                  <Phone className="h-3.5 w-3.5" /> Call
+                </DropdownMenuItem>
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '2px 4px' }} />
+                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
+                  <Trash2 className="h-3.5 w-3.5" /> Delete conversation
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
         {compact && (
@@ -1919,7 +2044,7 @@ export default function SupraSpacePage() {
       <div className="flex flex-col items-center gap-4">
         <div className="h-14 w-14 ss4-logo-mark flex items-center justify-center"><Radio className="h-6 w-6" style={{ color: '#fff' }} /></div>
         <div className="flex flex-col items-center gap-2">
-          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah Space</p>
+          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
           <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
         </div>
       </div>
@@ -1937,7 +2062,7 @@ export default function SupraSpacePage() {
               <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0"><Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} /></div>
               <div>
                 <div className="flex items-center gap-1.5 leading-none">
-                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah Space</p>
+                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
                   <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
                   {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
                 </div>
@@ -2038,7 +2163,7 @@ export default function SupraSpacePage() {
               <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
                 <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
                 <div className="text-center">
-                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah Space</p>
+                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
                   <p className="mt-1" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Select a conversation to start messaging</p>
                 </div>
               </div>
@@ -2108,13 +2233,19 @@ export default function SupraSpacePage() {
                   {loadingMsgs && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
                   {activeMsgs.map((msg, i) => {
                     const prevMsg = activeMsgs[i - 1] || null;
+                    const nextMsg = activeMsgs[i + 1] || null;
                     const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
                     const showAvatar = !prevMsg || prevMsg.sender._id !== msg.sender._id || showDate;
+                    const hideTime = !!(nextMsg
+                      && nextMsg.sender._id === msg.sender._id
+                      && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
+                      && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
+                    );
                     return (
                       <React.Fragment key={msg._id}>
                         {showDate && <DateSep date={msg.createdAt} />}
                         <div id={`ss4-msg-${msg._id}`}>
-                          <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} />
+                          <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} />
                         </div>
                         {pinEvents.find(e => e.msgId === msg._id) && (() => {
                           const ev = pinEvents.find(e => e.msgId === msg._id)!;
@@ -2458,7 +2589,7 @@ export default function SupraSpacePage() {
       {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
       {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
       {activeUsersOpen && (
-        <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} onMessage={handleDM} />
+        <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} />
       )}
       {summarizeOpen && activeId && (
         <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
@@ -2492,6 +2623,63 @@ export default function SupraSpacePage() {
       })()}
 
       {lightbox && <LightboxModal src={lightbox.src} type={lightbox.type} name={lightbox.name} onClose={() => setLightbox(null)} />}
+
+      {/* Mobile long-press bottom sheet */}
+      {convMobileSheet && (() => {
+        const sheetConv = convos.find(c => c._id === convMobileSheet);
+        if (!sheetConv) return null;
+        const pinned = isPinnedConv(sheetConv);
+        const archived = isArchivedConv(sheetConv);
+        const cName = getConvName(sheetConv, uid);
+        const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
+          { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
+          { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
+          { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); setActiveId(sheetConv._id); setConvMobileSheet(null); } },
+          { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
+        ];
+        return (
+          <div className="ss4-overlay fixed inset-0 z-[200] flex items-end" onClick={() => setConvMobileSheet(null)}>
+            <div className="w-full rounded-t-2xl pb-safe" onClick={e => e.stopPropagation()}
+              style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-2,rgba(255,255,255,0.15))' }} />
+              </div>
+              <p className="text-center font-semibold px-4 pt-1 pb-3 truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</p>
+              <div style={{ height: 1, background: 'var(--border-2,rgba(255,255,255,0.1))', margin: '0 16px 4px' }} />
+              {sheetActions.map(a => (
+                <button key={a.label} className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
+                  style={{ color: a.danger ? 'var(--danger)' : 'var(--text-primary)', fontSize: 15 }}
+                  onClick={a.onClick}>
+                  {a.icon} {a.label}
+                </button>
+              ))}
+              <div style={{ height: 8 }} />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Delete conversation confirmation */}
+      {deleteConfirmConv && (
+        <div className="ss4-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" onClick={() => setDeleteConfirmConv(null)}>
+          <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
+            <div className="flex items-center justify-center mb-4">
+              <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
+                <Trash2 className="h-5 w-5" style={{ color: 'var(--danger)' }} />
+              </div>
+            </div>
+            <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete conversation?</p>
+            <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              "{getConvName(deleteConfirmConv, uid)}" will be permanently deleted for you. This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteConfirmConv(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
+              <button onClick={() => { deleteConversation(deleteConfirmConv); setDeleteConfirmConv(null); }} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

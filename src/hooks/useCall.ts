@@ -2,7 +2,7 @@
 import * as React from 'react';
 import type { Socket } from 'socket.io-client';
 import { apiClient } from '@/lib/api-client';
-import { playCallSound, stopCallSound } from '@/lib/notification-sound';
+import { playCallSound, stopCallSound, showBrowserNotification, requestNotifPermission } from '@/lib/notification-sound';
 
 export interface JitsiPayload {
   domain: string;
@@ -33,13 +33,46 @@ export interface CallSession {
 export function useCall(socket: Socket | null, token: string, uid: string) {
   const [liveCalls, setLiveCalls] = React.useState<Record<string, LiveCall>>({});
   const [incoming, setIncoming] = React.useState<LiveCall | null>(null);
+  const incomingRef = React.useRef<LiveCall | null>(null);
+  const callNotifRef = React.useRef<Notification | null>(null);
+
+  React.useEffect(() => { incomingRef.current = incoming; }, [incoming]);
+
+  // Ensure permission is available for call notifications
+  React.useEffect(() => { requestNotifPermission(); }, []);
+
+  // Resume ringtone when user tabs back while a call is still incoming
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && incomingRef.current) {
+        playCallSound();
+        callNotifRef.current?.close();
+        callNotifRef.current = null;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   React.useEffect(() => {
     if (!socket) return;
 
     const onStarted = (c: LiveCall) => {
       setLiveCalls((p) => ({ ...p, [c.conversationId]: { ...c, participantCount: 1 } }));
-      if (c.initiatedBy !== uid) { setIncoming(c); playCallSound(); }
+      if (c.initiatedBy !== uid) {
+        setIncoming(c);
+        playCallSound();
+        // Show persistent OS notification so user sees it in any tab/window
+        callNotifRef.current?.close();
+        callNotifRef.current = showBrowserNotification(
+          `📞 Incoming call`,
+          {
+            body: `${c.callerName || 'Someone'} is calling you. Open Suprah to answer.`,
+            tag: 'incoming-call',
+            requireInteraction: true,
+          }
+        );
+      }
     };
     const onCount = ({ conversationId, participantCount }: any) =>
       setLiveCalls((p) =>
@@ -51,7 +84,15 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
         delete n[conversationId];
         return n;
       });
-      setIncoming((cur) => { if (cur?.conversationId === conversationId) { stopCallSound(); return null; } return cur; });
+      setIncoming((cur) => {
+        if (cur?.conversationId === conversationId) {
+          stopCallSound();
+          callNotifRef.current?.close();
+          callNotifRef.current = null;
+          return null;
+        }
+        return cur;
+      });
     };
 
     socket.on('call:started', onStarted);
@@ -119,6 +160,8 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       stopCallSound();
+      callNotifRef.current?.close();
+      callNotifRef.current = null;
       setIncoming(null);
       return r.data?.data as CallSession;
     },
