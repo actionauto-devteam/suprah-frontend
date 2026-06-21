@@ -129,7 +129,7 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">

@@ -44,6 +44,8 @@ interface ShopAssistantProps {
   vehicleHrefBase?: string;
   /** Optional: intercept a card tap instead of navigating. */
   onViewVehicle?: (rec: Recommendation) => void;
+  /** Extra mobile clearance (px) above the bottom nav, e.g. when a comparison tray is also floating. */
+  mobileBottomOffset?: number;
 }
 
 // ─── Tiny markdown (bold / code / line breaks only) ─────────────────────────
@@ -511,24 +513,29 @@ export default function ShopAssistant({
   mode = "inline",
   vehicleHrefBase = "/shop",
   onViewVehicle,
+  mobileBottomOffset = 0,
 }: ShopAssistantProps) {
   const [open, setOpen] = React.useState(false);
 
   if (mode === "float") {
+    const mobileBottom = `calc(env(safe-area-inset-bottom) + ${76 + mobileBottomOffset}px)`;
     return (
       <>
         {!open && (
           <button
             onClick={() => setOpen(true)}
             aria-label="Open vehicle assistant"
-            className="fixed bottom-6 right-6 z-50 flex h-14 items-center gap-2.5 rounded-full bg-emerald-600 px-5 text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl"
+            style={{ "--tw-mobile-bottom": mobileBottom } as React.CSSProperties}
+            className="fixed bottom-(--tw-mobile-bottom) md:bottom-6 right-4 sm:right-6 z-45 flex h-12 sm:h-14 items-center gap-2 sm:gap-2.5 rounded-full bg-emerald-600 px-4 sm:px-5 text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl"
           >
-            <Sparkles className="h-5 w-5" />
-            <span className="text-sm font-semibold">Find my car</span>
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-xs sm:text-sm font-semibold">Find my car</span>
           </button>
         )}
         {open && (
-          <div className="fixed bottom-6 right-6 z-50 flex h-[600px] max-h-[85vh] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl">
+          <div
+            style={{ "--tw-mobile-bottom": mobileBottom } as React.CSSProperties}
+            className="fixed inset-x-3 bottom-(--tw-mobile-bottom) sm:inset-x-auto sm:right-6 md:bottom-6 z-45 flex h-[min(600px,75dvh)] sm:h-150 sm:max-h-[85dvh] w-auto sm:w-100 sm:max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl">
             <Conversation
               mode="float"
               hrefBase={vehicleHrefBase}
@@ -542,7 +549,7 @@ export default function ShopAssistant({
   }
 
   return (
-    <div className="flex h-full min-h-[520px] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background">
+    <div className="flex h-full min-h-130 flex-col overflow-hidden rounded-2xl border border-border/50 bg-background">
       <Conversation
         mode="inline"
         hrefBase={vehicleHrefBase}

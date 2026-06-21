@@ -1068,7 +1068,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => fileRef.current?.click()}
-            className="h-7 w-7 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors touch-manipulation"
             title="Attach file"
           >
             <Paperclip className="h-4 w-4" />
@@ -1088,7 +1088,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             onClick={handleSend}
             disabled={(!input.trim() && pendingFiles.length === 0) || sending}
             className={cn(
-              "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
+              "h-9 w-9 rounded-xl flex items-center justify-center transition-all touch-manipulation",
               input.trim() || pendingFiles.length > 0
                 ? "bg-linear-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white shadow-sm shadow-emerald-900/20"
                 : "bg-muted text-muted-foreground/40 cursor-not-allowed",
@@ -1117,7 +1117,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
               setOpen(true);
               setUnread(0);
             }}
-            className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white transition-all"
+            className="fixed bottom-(--supra-leo-bottom,1.5rem) right-3 md:right-6 md:bottom-6 z-50 h-13 w-13 sm:h-14 sm:w-14 rounded-full shadow-lg flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white transition-all touch-manipulation"
             aria-label="Open support chat"
           >
             <MessageCircle className="h-6 w-6" />
@@ -1131,8 +1131,8 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
 
         {open && (
           <div
-            className="fixed bottom-6 right-6 z-50 w-90 rounded-2xl shadow-2xl border border-border/50 bg-background flex flex-col overflow-hidden"
-            style={{ height: 520 }}
+            className="fixed bottom-(--supra-leo-bottom,1rem) right-3 left-3 md:left-auto md:bottom-6 md:right-6 z-50 w-auto sm:w-90 rounded-2xl shadow-2xl border border-border/50 bg-background flex flex-col overflow-hidden"
+            style={{ height: "min(520px, calc(100dvh - var(--supra-leo-bottom, 1rem) - 1rem))" }}
           >
             <ChatHeader
               onClose={() => setOpen(false)}

@@ -54,7 +54,7 @@ const SHOP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "demand-desc", label: "Most Popular" },
 ];
 
-function SavedVehiclesFloatingButton({ savedVehicles }: { savedVehicles: Vehicle[] }) {
+function SavedVehiclesFloatingButton({ savedVehicles, liftForTray }: { savedVehicles: Vehicle[]; liftForTray?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const { state, isMobile } = useSidebar();
   const count = savedVehicles.length;
@@ -64,9 +64,10 @@ function SavedVehiclesFloatingButton({ savedVehicles }: { savedVehicles: Vehicle
       {/* Floating pill button — anchored to the page content area, clear of the sidebar */}
       <button
         onClick={() => setOpen(true)}
+        style={{ "--tw-mobile-bottom": `calc(env(safe-area-inset-bottom) + ${liftForTray ? 176 : 76}px)` } as React.CSSProperties}
         className={cn(
           "fixed z-45",
-          "bottom-[calc(env(safe-area-inset-bottom)+76px)] md:bottom-6",
+          "bottom-(--tw-mobile-bottom) md:bottom-6",
           "left-4",
           !isMobile && (state === "collapsed" ? "md:left-[calc(var(--sidebar-width-icon)+1rem)]" : "md:left-[calc(var(--sidebar-width)+1rem)]"),
           "flex items-center gap-3 rounded-full shadow-lg transition-all duration-200",
@@ -732,9 +733,16 @@ function ShopVehiclesContent() {
       />
 
       {/* ─── Floating elements ───────────────────────────────────── */}
-      <SavedVehiclesFloatingButton savedVehicles={savedVehiclesData as Vehicle[]} />
+      <SavedVehiclesFloatingButton
+        savedVehicles={savedVehiclesData as Vehicle[]}
+        liftForTray={comparedVehicles.length > 0}
+      />
 
-      <ShopAssistant mode="float" vehicleHrefBase="/shop" />
+      <ShopAssistant
+        mode="float"
+        vehicleHrefBase="/shop"
+        mobileBottomOffset={comparedVehicles.length > 0 ? 100 : 0}
+      />
 
       <ComparisonTray
         vehicles={comparedVehicles}

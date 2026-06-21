@@ -30,6 +30,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface FinanceApplicationModalProps {
   vehicle: Vehicle | null;
@@ -147,9 +148,15 @@ export function FinanceApplicationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-200 p-0 overflow-hidden bg-white dark:bg-zinc-950 border-none shadow-2xl h-162.5 flex flex-col">
+      <DialogContent
+        className={cn(
+          "p-0 overflow-hidden bg-white dark:bg-zinc-950 border-none shadow-2xl flex flex-col",
+          "fixed inset-0 left-0 top-0 h-dvh w-screen max-w-none translate-x-0 translate-y-0 rounded-none",
+          "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-200 sm:h-162.5 sm:max-h-[90dvh] sm:rounded-2xl",
+        )}
+      >
         {/* Header with Progress */}
-        <div className="bg-zinc-900 text-white p-6 shrink-0 relative overflow-hidden">
+        <div className="bg-zinc-900 text-white p-4 sm:p-6 shrink-0 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800">
             <motion.div
               className="h-full bg-green-500"
@@ -159,40 +166,41 @@ export function FinanceApplicationModal({
             />
           </div>
 
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/20 rounded-lg">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="p-2 bg-green-500/20 rounded-lg shrink-0">
                 <Landmark className="w-5 h-5 text-green-400" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold">Secure Credit Application</h2>
-                <p className="text-xs text-zinc-400 font-medium tracking-wide flex items-center gap-2">
-                  <ShieldCheck className="w-3 h-3 text-green-500" /> 256-BIT
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-xl font-bold truncate">Secure Credit Application</h2>
+                <p className="text-[10px] sm:text-xs text-zinc-400 font-medium tracking-wide flex items-center gap-1.5 sm:gap-2">
+                  <ShieldCheck className="w-3 h-3 text-green-500 shrink-0" /> 256-BIT
                   ENCRYPTED & SECURE
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              aria-label="Close finance application"
+              className="p-2 hover:bg-white/10 rounded-full transition-colors shrink-0"
             >
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
 
-          <div className="flex justify-between px-2">
+          <div className="flex justify-between px-0 sm:px-2">
             {stepInfo.map((info, i) => {
               const Icon = info.icon;
               const active = step >= i + 1;
               return (
-                <div key={i} className="flex flex-col items-center gap-2">
+                <div key={i} className="flex flex-col items-center gap-1.5 sm:gap-2">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${active ? "bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.3)]" : "bg-zinc-800 text-zinc-500"}`}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${active ? "bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.3)]" : "bg-zinc-800 text-zinc-500"}`}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
                   <span
-                    className={`text-[10px] font-bold uppercase tracking-tight transition-colors ${active ? "text-white" : "text-zinc-600"}`}
+                    className={`hidden sm:block text-[10px] font-bold uppercase tracking-tight transition-colors ${active ? "text-white" : "text-zinc-600"}`}
                   >
                     {info.title}
                   </span>
@@ -250,7 +258,7 @@ export function FinanceApplicationModal({
           </div>
 
           {/* Right: Steps Container */}
-          <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 p-4 sm:p-8 overflow-y-auto custom-scrollbar">
             {isSuccess ? (
               <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in-95 duration-500">
                 <div className="w-20 h-20 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center">

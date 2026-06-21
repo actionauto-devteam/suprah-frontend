@@ -71,11 +71,11 @@ export function PhotoSlotUploader({
           <>
             <img src={resolved} alt={label} className="h-full w-full object-cover" />
             {!disabled && (
-              <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/0 opacity-0 hover:bg-black/40 hover:opacity-100 transition-all">
+              <div className="absolute right-1.5 top-1.5 flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-zinc-900 hover:bg-white"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm hover:bg-black/75 active:scale-95 transition-all"
                   aria-label={`Replace ${label} photo`}
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
@@ -84,7 +84,7 @@ export function PhotoSlotUploader({
                   <button
                     type="button"
                     onClick={onRemove}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 hover:bg-white"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-red-400 backdrop-blur-sm hover:bg-black/75 active:scale-95 transition-all"
                     aria-label={`Remove ${label} photo`}
                   >
                     <X className="h-3.5 w-3.5" />

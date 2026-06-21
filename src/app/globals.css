@@ -222,8 +222,14 @@ body.app-fullscreen .main-content {
     @apply border-border outline-ring/50;
   }
 
+  html {
+    touch-action: manipulation;
+  }
+
   body {
     @apply bg-background text-foreground;
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
     transition:
       background-color 0.3s ease,
       color 0.3s ease;

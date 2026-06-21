@@ -95,7 +95,7 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-112.5">
+            <DialogContent className="sm:max-w-112.5 max-h-[90dvh] overflow-y-auto custom-scrollbar">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <CarFront className="w-5 h-5" /> Edit Vehicle Details

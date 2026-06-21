@@ -162,28 +162,28 @@ export function VehiclesTab({
                   </div>
 
                   {/* Vehicle identity */}
-                  <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-zinc-300 font-medium tracking-widest uppercase drop-shadow-md">
+                  <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 flex flex-col sm:flex-row justify-between sm:items-end gap-3 sm:gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="text-zinc-300 font-medium tracking-widest uppercase drop-shadow-md text-xs sm:text-sm">
                           Active Vehicle
                         </p>
                         {(vehicle as any).source === "DEALERSHIP_TRANSFER" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 backdrop-blur-md">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 backdrop-blur-md max-w-full truncate">
                             ✓ Added by{(vehicle as any).dealershipName ? ` ${(vehicle as any).dealershipName}` : " dealership"}
                           </span>
                         )}
                       </div>
-                      <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl">
+                      <h2 className="text-2xl xs:text-3xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl truncate">
                         {vehicle.year} {vehicle.make}
                       </h2>
-                      <p className="text-xl text-zinc-200 font-medium mt-1 drop-shadow-md">
+                      <p className="text-base sm:text-xl text-zinc-200 font-medium mt-0.5 sm:mt-1 drop-shadow-md truncate">
                         {vehicle.model}{vehicle.trim ? ` · ${vehicle.trim}` : ""}
                       </p>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:text-right shrink-0">
+                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3 sm:p-4 sm:text-right shrink-0">
                       <p className="text-xs text-zinc-400 font-semibold uppercase tracking-widest mb-1">VIN</p>
-                      <p className="text-zinc-100 font-mono text-sm tracking-wider">{vehicle.vin}</p>
+                      <p className="text-zinc-100 font-mono text-xs sm:text-sm tracking-wider break-all">{vehicle.vin}</p>
                     </div>
                   </div>
                 </div>

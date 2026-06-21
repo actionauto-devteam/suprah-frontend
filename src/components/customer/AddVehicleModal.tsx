@@ -169,7 +169,7 @@ export function AddVehicleModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-112.5">
+            <DialogContent className="sm:max-w-112.5 max-h-[90dvh] overflow-y-auto custom-scrollbar">
                 {step === 1 ? (
                     <>
                         <DialogHeader>

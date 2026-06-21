@@ -97,9 +97,9 @@ function InvoiceCard({
 
   return (
     <div className="rounded-[14px] border border-border bg-card overflow-hidden">
-      <div className="flex items-start justify-between gap-3 px-5 pt-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             <p className="font-bold text-sm tracking-tight truncate">{inv.description}</p>
             {inv.source === "aftermarket" && (
               <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground font-mono">
@@ -139,15 +139,15 @@ function InvoiceCard({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border mt-1">
+      <div className="flex flex-col gap-3 px-5 py-4 border-t border-border mt-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60 font-mono">Total</p>
           <p className="text-lg font-bold tabular-nums font-mono">{money(inv.amount)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {inv.receiptUrl && inv.status === "succeeded" && (
-            <a href={inv.receiptUrl} target="_blank" rel="noreferrer">
-              <Button variant="outline" size="sm" className="rounded-xl gap-1.5">
+            <a href={inv.receiptUrl} target="_blank" rel="noreferrer" className="shrink-0">
+              <Button variant="outline" size="sm" className="h-9 rounded-xl gap-1.5">
                 <Receipt className="h-3.5 w-3.5" /> Receipt
               </Button>
             </a>
@@ -158,14 +158,14 @@ function InvoiceCard({
               size="sm"
               onClick={onCancel}
               disabled={cancelling || paying}
-              className="rounded-xl gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="h-9 rounded-xl gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
               {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
               Cancel
             </Button>
           )}
           {payable && (
-            <Button size="sm" onClick={onPay} disabled={paying || cancelling} className="rounded-xl gap-1.5">
+            <Button size="sm" onClick={onPay} disabled={paying || cancelling} className="h-9 flex-1 rounded-xl gap-1.5 sm:flex-initial">
               {paying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
               Pay {money(inv.amount)}
             </Button>
@@ -289,16 +289,16 @@ function PaymentsView() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Wallet className="h-4 w-4 text-primary" />
           </div>
-          <div>
-            <h1 className="font-bold text-lg tracking-tight">Payments</h1>
-            <p className="text-xs text-muted-foreground">Invoices & payment history</p>
+          <div className="min-w-0">
+            <h1 className="font-bold text-lg tracking-tight truncate">Suprah Pay</h1>
+            <p className="text-xs text-muted-foreground truncate">Invoices & payment history</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8 w-8 p-0 rounded-xl hover:bg-primary/10 hover:text-primary">
+        <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-9 w-9 shrink-0 p-0 rounded-xl hover:bg-primary/10 hover:text-primary">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>

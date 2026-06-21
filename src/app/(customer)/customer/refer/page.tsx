@@ -110,7 +110,7 @@ export default function ReferAndEarnPage() {
     if (isLoading) {
         return (
             <div className="flex h-64 items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         )
     }
@@ -129,38 +129,38 @@ export default function ReferAndEarnPage() {
     const netAvailableBalance = Math.max(0, walletBalance - totalPendingWithdrawals);
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-5 sm:pb-6">
                 <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
-                        <Wallet className="w-8 h-8 text-green-500" /> Refer & Earn
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5 sm:gap-3">
+                        <Wallet className="w-7 h-7 sm:w-8 sm:h-8 text-primary shrink-0" /> Refer & Earn
                     </h1>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-lg">
-                        Share Action Auto with friends and family. When they buy a car using your code, you instantly earn <strong className="text-green-600 dark:text-green-400">$100 cash</strong>.
+                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm sm:text-base lg:text-lg">
+                        Share Action Auto with friends and family. When they buy a car using your code, you instantly earn <strong className="text-primary">$100 cash</strong>.
                     </p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 
                 {/* Left Col: Digital Wallet & Link (Takes 2 columns) */}
-                <div className="lg:col-span-2 space-y-8">
+                <div className="lg:col-span-2 space-y-6 sm:space-y-8">
 
                     {/* Action Auto Black Card (Digital Wallet) */}
-                    <div className="relative overflow-hidden rounded-3xl bg-zinc-950 text-white shadow-2xl border border-zinc-800 p-8 sm:p-10 group">
-                        <div className="absolute -top-24 -right-24 w-64 h-64 bg-green-500/20 rounded-full blur-3xl group-hover:bg-green-500/30 transition-colors duration-1000" />
-                        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl group-hover:bg-emerald-500/30 transition-colors duration-1000" />
+                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-zinc-950 text-white shadow-2xl border border-zinc-800 p-5 sm:p-8 lg:p-10 group">
+                        <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-1000" />
+                        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/15 rounded-full blur-3xl group-hover:bg-primary/25 transition-colors duration-1000" />
 
-                        <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-8">
-                            <div>
-                                <p className="text-zinc-400 font-medium tracking-widest uppercase mb-2">Available Balance</p>
-                                <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-400">
+                        <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-6 sm:gap-8">
+                            <div className="min-w-0">
+                                <p className="text-zinc-400 font-medium tracking-widest uppercase mb-2 text-xs sm:text-sm">Available Balance</p>
+                                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-400 truncate">
                                     ${walletBalance.toFixed(2)}
                                 </h2>
                                 {totalPendingWithdrawals > 0 && (
-                                    <p className="text-orange-400 text-sm font-medium mt-1">
+                                    <p className="text-orange-400 text-xs sm:text-sm font-medium mt-1">
                                         (${totalPendingWithdrawals.toFixed(2)} pending) — ${netAvailableBalance.toFixed(2)} available
                                     </p>
                                 )}
@@ -170,7 +170,7 @@ export default function ReferAndEarnPage() {
                                 <Button
                                     onClick={() => setIsWithdrawModalOpen(true)}
                                     disabled={netAvailableBalance <= 0}
-                                    className="bg-green-600 hover:bg-green-500 text-white border-none shadow-lg h-12 px-6 rounded-xl font-bold disabled:opacity-50">
+                                    className="bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-lg h-11 sm:h-12 px-6 rounded-xl font-bold disabled:opacity-50 touch-manipulation">
                                     Withdraw Funds
                                 </Button>
                             </div>
@@ -178,30 +178,30 @@ export default function ReferAndEarnPage() {
                     </div>
 
                     {/* Share Code Section */}
-                    <Card className="p-8 rounded-3xl shadow-sm border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-                        <h3 className="text-xl font-bold mb-2">Your Unique Referral Code</h3>
-                        <p className="text-muted-foreground mb-6">Tell your friends to show this code to their salesperson, or share the direct link below.</p>
+                    <Card className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+                        <h3 className="text-lg sm:text-xl font-bold mb-2">Your Unique Referral Code</h3>
+                        <p className="text-muted-foreground mb-5 sm:mb-6 text-sm sm:text-base">Tell your friends to show this code to their salesperson, or share the direct link below.</p>
 
                         <div className="flex flex-col sm:flex-row gap-4 items-center">
-                            <div className="flex-1 w-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 flex justify-between items-center">
-                                <span className="font-mono text-lg font-bold tracking-wider text-green-700 dark:text-green-400">{referralCode}</span>
-                                <Button onClick={handleCopyLink} variant="ghost" size="icon" className="hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-700 dark:hover:text-green-400 text-zinc-400">
+                            <div className="flex-1 w-full min-w-0 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 sm:p-4 flex justify-between items-center gap-2">
+                                <span className="font-mono text-base sm:text-lg font-bold tracking-wider text-primary truncate">{referralCode}</span>
+                                <Button onClick={handleCopyLink} variant="ghost" size="icon" className="shrink-0 hover:bg-primary/10 hover:text-primary text-zinc-400 touch-manipulation">
                                     <Copy className="w-5 h-5" />
                                 </Button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-                            <Button variant="outline" onClick={shareToWhatsApp} className="w-full h-12 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white border-[#25D366]/20 transition-colors">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-5 sm:mt-6">
+                            <Button variant="outline" onClick={shareToWhatsApp} className="w-full h-11 sm:h-12 text-sm bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white border-[#25D366]/20 transition-colors touch-manipulation">
                                 WhatsApp
                             </Button>
-                            <Button variant="outline" onClick={shareToTwitter} className="w-full h-12 bg-[#1DA1F2]/10 text-[#1DA1F2] hover:bg-[#1DA1F2] hover:text-white border-[#1DA1F2]/20 transition-colors">
+                            <Button variant="outline" onClick={shareToTwitter} className="w-full h-11 sm:h-12 text-sm bg-[#1DA1F2]/10 text-[#1DA1F2] hover:bg-[#1DA1F2] hover:text-white border-[#1DA1F2]/20 transition-colors touch-manipulation">
                                 Twitter
                             </Button>
-                            <Button variant="outline" onClick={shareToFacebook} className="w-full h-12 bg-blue-600/10 text-blue-600 hover:bg-blue-600 hover:text-white border-blue-600/20 transition-colors">
+                            <Button variant="outline" onClick={shareToFacebook} className="w-full h-11 sm:h-12 text-sm bg-blue-600/10 text-blue-600 hover:bg-blue-600 hover:text-white border-blue-600/20 transition-colors touch-manipulation">
                                 Facebook
                             </Button>
-                            <Button onClick={handleNativeShare} className="w-full h-12 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">
+                            <Button onClick={handleNativeShare} className="w-full h-11 sm:h-12 text-sm bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 touch-manipulation">
                                 <Share2 className="w-4 h-4 mr-2" /> Share Link
                             </Button>
                         </div>
@@ -209,50 +209,50 @@ export default function ReferAndEarnPage() {
                 </div>
 
                 {/* Right Col: Stats & History */}
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4 sm:gap-6">
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <Card className="p-6 rounded-3xl border-border/40 bg-zinc-50 dark:bg-zinc-900">
-                            <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
-                                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                        <Card className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-border/40 bg-zinc-50 dark:bg-zinc-900">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center mb-3 sm:mb-4">
+                                <TrendingUp className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-primary" />
                             </div>
-                            <p className="text-zinc-500 text-sm font-medium mb-1">Total Earned</p>
-                            <h4 className="text-2xl font-bold">${totalEarned.toFixed(0)}</h4>
+                            <p className="text-zinc-500 text-xs sm:text-sm font-medium mb-1">Total Earned</p>
+                            <h4 className="text-xl sm:text-2xl font-bold">${totalEarned.toFixed(0)}</h4>
                         </Card>
 
-                        <Card className="p-6 rounded-3xl border-border/40 bg-zinc-50 dark:bg-zinc-900">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-                                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <Card className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-border/40 bg-zinc-50 dark:bg-zinc-900">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-chart-2/15 flex items-center justify-center mb-3 sm:mb-4">
+                                <Users className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-chart-2" />
                             </div>
-                            <p className="text-zinc-500 text-sm font-medium mb-1">Network</p>
-                            <h4 className="text-2xl font-bold">{pendingLeads} Joined</h4>
+                            <p className="text-zinc-500 text-xs sm:text-sm font-medium mb-1">Network</p>
+                            <h4 className="text-xl sm:text-2xl font-bold">{pendingLeads} Joined</h4>
                         </Card>
                     </div>
 
-                    <Card className="flex-1 p-6 rounded-3xl border-border/40 bg-white dark:bg-zinc-950 shadow-sm flex flex-col h-125">
-                        <h3 className="font-bold text-lg mb-6 flex justify-between items-center">
+                    <Card className="flex-1 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-border/40 bg-white dark:bg-zinc-950 shadow-sm flex flex-col h-100 sm:h-125">
+                        <h3 className="font-bold text-base sm:text-lg mb-4 sm:mb-6 flex justify-between items-center">
                             Ledger History
                         </h3>
 
-                        <div className="space-y-5 flex-1 overflow-y-auto pr-2 scrollbar-thin">
+                        <div className="space-y-4 sm:space-y-5 flex-1 overflow-y-auto pr-2 scrollbar-thin">
                             {transactions.length === 0 ? (
                                 <div className="text-center text-muted-foreground pt-10">No transactions yet.</div>
                             ) : (
                                 transactions.map((t) => (
-                                    <div key={t._id} className="flex justify-between items-center">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${t.type === 'deposit' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'}`}>
-                                                {t.type === 'deposit' ? <ArrowUpRight className="w-5 h-5 rotate-180" /> : <ArrowUpRight className="w-5 h-5" />}
+                                    <div key={t._id} className="flex justify-between items-center gap-2">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${t.type === 'deposit' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
+                                                {t.type === 'deposit' ? <ArrowUpRight className="w-4.5 h-4.5 sm:w-5 sm:h-5 rotate-180" /> : <ArrowUpRight className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-sm text-foreground capitalize">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-sm text-foreground capitalize truncate">
                                                     {t.type} {t.status === 'pending' && <span className="text-xs ml-1 text-orange-500">(Pending)</span>}
                                                 </p>
-                                                <p className="text-xs text-muted-foreground truncate max-w-30 sm:max-w-40">{t.note}</p>
+                                                <p className="text-xs text-muted-foreground truncate max-w-28 sm:max-w-40">{t.note}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className={`font-bold ${t.type === 'deposit' ? 'text-green-600 dark:text-green-400' : 'text-foreground'}`}>
+                                        <div className="text-right shrink-0">
+                                            <p className={`font-bold text-sm sm:text-base ${t.type === 'deposit' ? 'text-primary' : 'text-foreground'}`}>
                                                 {t.type === 'deposit' ? '+' : '-'}${t.amount.toFixed(2)}
                                             </p>
                                             <p className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString()}</p>
@@ -324,10 +324,10 @@ export default function ReferAndEarnPage() {
                         </div>
 
                         <DialogFooter className="mt-6">
-                            <Button type="button" variant="outline" onClick={() => setIsWithdrawModalOpen(false)}>
+                            <Button type="button" variant="outline" className="touch-manipulation" onClick={() => setIsWithdrawModalOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={isWithdrawing} className="bg-green-600 hover:bg-green-500 text-white">
+                            <Button type="submit" disabled={isWithdrawing} className="bg-primary hover:bg-primary/90 text-primary-foreground touch-manipulation">
                                 {isWithdrawing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                                 Request Transfer
                             </Button>

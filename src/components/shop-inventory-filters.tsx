@@ -275,6 +275,20 @@ export function ShopInventoryFilters({
               </span>
             )}
           </button>
+
+          {/* Sort select — mobile (always reachable, not gated behind Range) */}
+          <select
+            value={currentSortValue}
+            onChange={(e) => onSortChange(e.target.value)}
+            className={cn(pillSelectCls(!!currentSortValue), "sm:hidden min-w-30")}
+            style={SELECT_STYLE}
+            aria-label="Sort by"
+          >
+            <option value="" disabled>Sort by</option>
+            {sortOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Sort select — desktop */}
@@ -338,18 +352,6 @@ export function ShopInventoryFilters({
               onChange={(e) => setMileMax(e.target.value)}
             />
           </div>
-
-          {/* Mobile sort */}
-          <select
-            value={currentSortValue}
-            onChange={(e) => onSortChange(e.target.value)}
-            className={cn(pillSelectCls(!!currentSortValue), "sm:hidden")}
-            style={SELECT_STYLE}
-            aria-label="Sort by"
-          >
-            <option value="" disabled>Sort by</option>
-            {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
         </div>
       )}
 

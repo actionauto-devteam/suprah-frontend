@@ -62,10 +62,10 @@ export function ComparisonTray({ vehicles, onRemove, onClear, onCompare }: Compa
                         </div>
                         <button
                           onClick={() => onRemove(vehicle.id)}
-                          className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted-foreground/20 hover:bg-destructive/20 transition-colors"
+                          className="absolute right-0.5 top-0.5 flex h-5.5 w-5.5 items-center justify-center rounded-full bg-muted-foreground/20 hover:bg-destructive/20 transition-colors"
                           aria-label="Remove from comparison"
                         >
-                          <X className="h-2.5 w-2.5 text-muted-foreground" />
+                          <X className="h-3 w-3 text-muted-foreground" />
                         </button>
                       </div>
                     );

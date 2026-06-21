@@ -224,7 +224,7 @@ export function ShippingQuoteModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName="bg-black/70 backdrop-blur-[4px]"
-        className="max-w-125 max-h-[90vh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
+        className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-125 max-h-[90dvh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
       >
         <button
           onClick={() => onOpenChange(false)}
@@ -323,7 +323,7 @@ export function ShippingQuoteModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="firstName" className="text-xs">
                   First Name
@@ -405,7 +405,7 @@ export function ShippingQuoteModal({
               <span className="text-sm font-semibold">Shipping From</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="fromZip" className="text-xs">
                   Origin ZIP Code

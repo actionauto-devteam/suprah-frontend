@@ -215,7 +215,7 @@ function CallModeToggle({
           disabled={disabled}
           aria-pressed={mode === m}
           className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all",
+            "flex items-center gap-1.5 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all touch-manipulation",
             mode === m
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -256,7 +256,7 @@ function CallActionButton({
       <button
         onClick={onJoin}
         disabled={joining}
-        className="relative flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/30 transition-transform hover:scale-105 disabled:opacity-70"
+        className="relative flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/30 transition-transform hover:scale-105 disabled:opacity-70 touch-manipulation"
       >
         <span className="absolute inset-0 rounded-full ring-2 ring-emerald-400/40 animate-ping" />
         <span
@@ -284,7 +284,7 @@ function CallActionButton({
     <button
       onClick={onRequest}
       disabled={requesting}
-      className="flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20 transition-transform hover:scale-105 disabled:opacity-60"
+      className="flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/20 transition-transform hover:scale-105 disabled:opacity-60 touch-manipulation"
     >
       {requesting ? (
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -562,7 +562,7 @@ export default function CustomerCallCenterPage() {
                 onClick={canJoin ? handleJoin : handleRequest}
                 disabled={joining || requesting || (!canRequest && !canJoin)}
                 className={cn(
-                  "text-sm font-semibold transition-colors",
+                  "rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors touch-manipulation",
                   canRequest || canJoin
                     ? "text-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
                     : "text-muted-foreground cursor-not-allowed",

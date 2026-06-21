@@ -54,7 +54,7 @@ export function UpdateMileageModal({ vehicle, isOpen, onOpenChange }: UpdateMile
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-106.25">
                 <DialogHeader>
                     <DialogTitle>Update Odometer</DialogTitle>
                     <DialogDescription>

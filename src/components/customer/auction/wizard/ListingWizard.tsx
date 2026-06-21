@@ -235,7 +235,7 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
         )}
       </div>
 
-      <div className="sticky bottom-0 z-40 -mx-1 rounded-t-2xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg">
+      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+72px)] md:bottom-0 z-40 -mx-1 rounded-t-2xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg">
         <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:px-4">
           <Button
             type="button"

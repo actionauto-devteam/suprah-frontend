@@ -80,15 +80,15 @@ function InquiryModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-[14px] border border-border bg-background shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <p className="font-bold text-sm tracking-tight">Ask about {product.name}</p>
-          <button onClick={onClose} className="h-7 w-7 rounded-xl flex items-center justify-center hover:bg-muted">
+      <div className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-4 border-b border-border">
+          <p className="font-bold text-sm tracking-tight truncate">Ask about {product.name}</p>
+          <button onClick={onClose} className="h-8 w-8 shrink-0 rounded-xl flex items-center justify-center hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
         {done ? (
-          <div className="p-8 text-center space-y-2">
+          <div className="overflow-y-auto p-8 text-center space-y-2">
             <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
               <MessageSquarePlus className="h-5 w-5 text-primary" />
             </div>
@@ -99,7 +99,7 @@ function InquiryModal({
             <Button size="sm" onClick={onClose} className="rounded-xl mt-2">Done</Button>
           </div>
         ) : (
-          <div className="p-5 space-y-3">
+          <div className="overflow-y-auto p-5 space-y-3">
             <p className="text-xs text-muted-foreground">
               This product is quote-based. Tell us what you need and we'll send pricing.
             </p>
@@ -108,7 +108,7 @@ function InquiryModal({
               onChange={(e) => setQuestion(e.target.value)}
               rows={4}
               placeholder="e.g. I'd like a quote for 2 units, shipped to…"
-              className="w-full resize-none rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/50"
+              className="w-full resize-none rounded-lg border border-border bg-muted/20 px-3 py-2 text-base sm:text-sm focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/50"
             />
             {error && <p className="text-[11px] text-destructive">{error}</p>}
             <div className="flex justify-end gap-2">
@@ -144,7 +144,7 @@ function ProductCard({
   const isVideo = product.media?.mediaType === "video" || product.media?.mimeType?.startsWith("video/");
   return (
     <div className="flex flex-col rounded-[14px] border border-border bg-card overflow-hidden">
-      <div className="aspect-[4/3] bg-muted relative">
+      <div className="aspect-4/3 bg-muted relative">
         {product.media?.url ? (
           isVideo ? (
             <video src={product.media.url} className="w-full h-full object-cover" muted />
@@ -181,16 +181,16 @@ function ProductCard({
         <div className="pt-1 mt-auto">
           {priced ? (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onAddToCart} className="rounded-xl gap-1.5 flex-1">
+              <Button variant="outline" size="sm" onClick={onAddToCart} className="h-9 rounded-xl gap-1.5 flex-1">
                 <ShoppingCart className="h-3.5 w-3.5" /> Cart
               </Button>
-              <Button size="sm" onClick={onBuyNow} disabled={buying} className="rounded-xl gap-1.5 flex-1">
+              <Button size="sm" onClick={onBuyNow} disabled={buying} className="h-9 rounded-xl gap-1.5 flex-1">
                 {buying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                 Buy Now
               </Button>
             </div>
           ) : (
-            <Button variant="outline" size="sm" onClick={onInquire} className="rounded-xl gap-1.5 w-full">
+            <Button variant="outline" size="sm" onClick={onInquire} className="h-9 rounded-xl gap-1.5 w-full">
               <MessageSquarePlus className="h-3.5 w-3.5" /> Contact for pricing
             </Button>
           )}
@@ -224,13 +224,13 @@ function CartSheet({
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-sm bg-background border-l border-border shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      <div className="absolute right-0 top-0 flex h-full w-full max-w-sm flex-col bg-background border-l border-border shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-primary" />
             <p className="font-bold text-sm tracking-tight">Your cart</p>
           </div>
-          <button onClick={onClose} className="h-7 w-7 rounded-xl flex items-center justify-center hover:bg-muted">
+          <button onClick={onClose} className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -256,16 +256,16 @@ function CartSheet({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate">{l.product.name}</p>
                   <p className="text-[11px] text-muted-foreground tabular-nums font-mono">{money(l.product.price)}</p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <button onClick={() => setQty(l.product._id, l.qty - 1)} className="h-6 w-6 rounded-md border border-border flex items-center justify-center hover:bg-muted">
-                      <Minus className="h-3 w-3" />
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <button onClick={() => setQty(l.product._id, l.qty - 1)} className="h-8 w-8 rounded-md border border-border flex items-center justify-center hover:bg-muted active:bg-muted">
+                      <Minus className="h-3.5 w-3.5" />
                     </button>
-                    <span className="text-xs font-mono tabular-nums w-5 text-center">{l.qty}</span>
-                    <button onClick={() => setQty(l.product._id, l.qty + 1)} className="h-6 w-6 rounded-md border border-border flex items-center justify-center hover:bg-muted">
-                      <Plus className="h-3 w-3" />
+                    <span className="text-xs font-mono tabular-nums w-6 text-center">{l.qty}</span>
+                    <button onClick={() => setQty(l.product._id, l.qty + 1)} className="h-8 w-8 rounded-md border border-border flex items-center justify-center hover:bg-muted active:bg-muted">
+                      <Plus className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => removeLine(l.product._id)} className="ml-auto h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10">
-                      <Trash2 className="h-3 w-3" />
+                    <button onClick={() => removeLine(l.product._id)} className="ml-auto h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
@@ -274,12 +274,12 @@ function CartSheet({
           )}
         </div>
 
-        <div className="border-t border-border p-4 space-y-3">
+        <div className="shrink-0 border-t border-border p-4 space-y-3" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
           <div className="flex justify-between text-sm font-bold">
             <span>Total</span>
             <span className="tabular-nums font-mono text-primary">{money(total)}</span>
           </div>
-          <Button onClick={onCheckout} disabled={lines.length === 0 || checkingOut} className="w-full rounded-xl gap-1.5">
+          <Button onClick={onCheckout} disabled={lines.length === 0 || checkingOut} className="w-full rounded-xl gap-1.5 h-11">
             {checkingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
             Checkout
           </Button>
@@ -370,18 +370,18 @@ export default function CustomerAftermarketPage() {
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Package className="h-4 w-4 text-primary" />
           </div>
-          <div>
-            <h1 className="font-bold text-lg tracking-tight">Aftermarket</h1>
-            <p className="text-xs text-muted-foreground">Parts, accessories & add-ons</p>
+          <div className="min-w-0">
+            <h1 className="font-bold text-lg tracking-tight truncate">Aftermarket</h1>
+            <p className="text-xs text-muted-foreground truncate">Parts, accessories & add-ons</p>
           </div>
         </div>
-        <Button variant="outline" onClick={() => setCartOpen(true)} className="rounded-xl gap-2 relative">
+        <Button variant="outline" onClick={() => setCartOpen(true)} className="shrink-0 rounded-xl gap-2 relative px-3 sm:px-4">
           <ShoppingCart className="h-4 w-4" />
-          Cart
+          <span className="hidden sm:inline">Cart</span>
           {cartCount > 0 && (
             <span className="absolute -top-2 -right-2 h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1">
               {cartCount}
@@ -391,13 +391,13 @@ export default function CustomerAftermarketPage() {
       </div>
 
       {/* Search */}
-      <div className="relative mb-5 max-w-sm">
+      <div className="relative mb-5 w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search products…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-9 rounded-xl"
+          className="pl-9 h-10 rounded-xl"
         />
       </div>
 

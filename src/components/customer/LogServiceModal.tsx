@@ -88,7 +88,7 @@ export function LogServiceModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-106.25">
+            <DialogContent className="sm:max-w-106.25 max-h-[90dvh] overflow-y-auto custom-scrollbar">
                 <DialogHeader>
                     <DialogTitle>Log Service Event</DialogTitle>
                     <DialogDescription>
