@@ -235,7 +235,7 @@ export function MessengerDropdown() {
 
         {view === 'list' ? (
           /* ── Conversation list ── */
-          <div className="flex-1 overflow-y-auto min-h-0 bg-card/80" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain' }}>
+          <div className="flex-1 overflow-y-auto min-h-0 bg-card/80" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}>
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
                 <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
@@ -340,7 +340,7 @@ export function MessengerDropdown() {
             )}
 
             {/* User list */}
-            <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
               {usersLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="size-5 animate-spin text-muted-foreground/40" />

@@ -155,7 +155,7 @@ if (typeof document !== 'undefined') {
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
-    .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
+    .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; touch-action:pan-y; }
     .ss4-scroll::-webkit-scrollbar { width:4px; }
     .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
     .ss4-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar); border-radius:4px; }
@@ -177,7 +177,7 @@ if (typeof document !== 'undefined') {
     .ss4-file-other { background:var(--surface-2); border:1px solid var(--border-1); border-radius:10px; }
     .ss4-badge { background:var(--accent); color:#fff; font-size:9px; font-weight:700; border-radius:10px; min-width:16px; height:16px; line-height:16px; padding:0 4px; text-align:center; }
     @keyframes ss4-fade-up { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
-    .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; }
+    .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
     .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(91,124,246,0.25); border-radius:16px; }
     .ss4-divider { height:1px; background:var(--border-1); }
     .ss4-reaction-chip { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-hover); font-size:11px; cursor:pointer; transition:all .12s ease; }
@@ -1255,6 +1255,25 @@ export default function SupraSpacePage() {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
+  // On mobile: intercept back button while inside a conversation so it returns to the list
+  const inConvHistoryRef = React.useRef(false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeId && !inConvHistoryRef.current) {
+      inConvHistoryRef.current = true;
+      history.pushState({ supraspace: 'conv' }, '');
+    } else if (!activeId) {
+      inConvHistoryRef.current = false;
+    }
+  }, [activeId]);
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPop = () => { if (activeIdRef.current) setActiveId(null); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   React.useEffect(() => {
     window.dispatchEvent(new CustomEvent('supraspace:conv-state', { detail: { active: !!activeId } }));
     return () => {
@@ -1987,6 +2006,7 @@ export default function SupraSpacePage() {
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
     return (
       <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5')}
+        style={{ cursor: 'pointer' }}
         onClick={() => setActiveId(conv._id)}
         onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
         onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
@@ -2006,7 +2026,7 @@ export default function SupraSpacePage() {
           <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
-          <div className="flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov ? 1 : 0 }}>
+          <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov ? 1 : 0 }}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button onClick={e => e.stopPropagation()} className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)" style={{ color: 'var(--text-tertiary)' }}>
@@ -2099,7 +2119,7 @@ export default function SupraSpacePage() {
           </div>
           <div className="mx-4 ss4-divider" />
 
-          <div className="flex-1 overflow-y-auto ss4-scroll pb-2">
+          <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2">
             {q.trim().length >= 2 && (
               <div className="pt-2">
                 <div className="px-3 pb-1.5 flex items-center justify-between">

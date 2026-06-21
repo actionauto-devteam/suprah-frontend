@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -154,6 +154,32 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     if (msg) setReplyTo(msg);
     clearBar();
     setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  // ── Edit message ──
+  const [editingMsgId, setEditingMsgId] = React.useState<string | null>(null);
+  const [editDraft, setEditDraft] = React.useState('');
+  const [editSaving, setEditSaving] = React.useState(false);
+
+  const startEdit = (msgId: string) => {
+    const msg = messages.find(m => m._id === msgId);
+    if (!msg) return;
+    setEditDraft(msg.content);
+    setEditingMsgId(msgId);
+    clearBar();
+  };
+
+  const saveEdit = async () => {
+    if (!editingMsgId || !editDraft.trim() || !crmToken) return;
+    const original = messages.find(m => m._id === editingMsgId)?.content;
+    if (editDraft.trim() === original) { setEditingMsgId(null); return; }
+    setEditSaving(true);
+    try {
+      await apiClient.patch(`/api/supraspace/messages/${editingMsgId}`, { content: editDraft.trim() },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+      setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: editDraft.trim(), isEdited: true } : m));
+      setEditingMsgId(null);
+    } catch {} finally { setEditSaving(false); }
   };
 
   const openEmojiPickerForMsg = (msgId: string, e: React.MouseEvent) => {
@@ -412,6 +438,27 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         </span>
                       )}
                         {/* Bubble */}
+                        {editingMsgId === msg._id ? (
+                          <div className="px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed min-w-0 bg-blue-500 text-white rounded-br-sm" style={{ minWidth: 160 }}>
+                            <textarea
+                              value={editDraft}
+                              onChange={e => setEditDraft(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); } if (e.key === 'Escape') setEditingMsgId(null); }}
+                              autoFocus
+                              rows={Math.max(1, editDraft.split('\n').length)}
+                              className="w-full bg-transparent resize-none outline-none text-[12px] leading-relaxed text-white"
+                              style={{ minWidth: 140 }}
+                            />
+                            <div className="flex items-center gap-1.5 mt-1 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                              <span style={{ fontSize: 8, opacity: 0.5 }}>Enter · Esc</span>
+                              <div className="flex-1" />
+                              <button onClick={() => setEditingMsgId(null)} className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
+                              <button onClick={saveEdit} disabled={editSaving || !editDraft.trim()} className="text-[9px] px-1.5 py-0.5 rounded font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
+                                {editSaving ? '...' : 'Update'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
                         <div className={cn(
                           'px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed min-w-0',
                           isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm'
@@ -429,6 +476,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                             </div>
                           )}
                           {renderContent(msg, isOwn)}
+                          {(msg as any).isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
                           {!hideTime && (
                             <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
                               <span className={cn('text-[9px]', isOwn ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
@@ -436,6 +484,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                             </div>
                           )}
                         </div>
+                        )}
                         {/* Seen avatars — outside the bubble so they're always visible */}
                         {isOwn && seenMembers.length > 0 && (
                           <div className="flex items-center justify-end gap-0.5 mt-0.5 px-0.5">
@@ -596,14 +645,29 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           >
             <Pin className="h-3.5 w-3.5" />
           </button>
-          {messages.find(m => m._id === hovMsg)?.sender?._id === crmUserId && (
-            <button title="Delete"
-              className="hover:bg-red-500/20 rounded p-1 transition-colors text-red-400/60 hover:text-red-400"
-              onClick={() => handleDelete(hovMsg)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {(() => {
+            const hovMsgObj = messages.find(m => m._id === hovMsg);
+            const isOwnMsg = hovMsgObj?.sender?._id === crmUserId;
+            if (!isOwnMsg) return null;
+            return (
+              <>
+                {hovMsgObj?.type === 'text' && !hovMsgObj?.isDeleted && (
+                  <button title="Edit"
+                    className="hover:bg-white/10 rounded p-1 transition-colors text-white/50 hover:text-white/80"
+                    onClick={() => startEdit(hovMsg)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button title="Delete"
+                  className="hover:bg-red-500/20 rounded p-1 transition-colors text-red-400/60 hover:text-red-400"
+                  onClick={() => handleDelete(hovMsg)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </>
+            );
+          })()}
         </div>,
         document.body
       )}
