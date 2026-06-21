@@ -57,15 +57,17 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
         return pathname === href || pathname.startsWith(href + "/");
     };
 
-    const shouldHide = hidden || hiddenForConvo;
+    const isSupraSpace = pathname === '/crm/supra-space' || pathname.startsWith('/crm/supra-space/');
+    const shouldHide = hidden || hiddenForConvo || isSupraSpace;
+    const shouldBeInvisible = hiddenForConvo || isSupraSpace;
 
     return (
         <motion.nav
             initial={{ y: 140, opacity: 0 }}
-            animate={{ y: shouldHide ? 140 : 0, opacity: hiddenForConvo ? 0 : hidden ? 0.88 : 1 }}
+            animate={{ y: shouldHide ? 140 : 0, opacity: shouldBeInvisible ? 0 : hidden ? 0.88 : 1 }}
             transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.85 }}
             className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-30 md:hidden select-none"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)", pointerEvents: hiddenForConvo ? 'none' : undefined }}
+            style={{ paddingBottom: "env(safe-area-inset-bottom)", pointerEvents: shouldBeInvisible ? 'none' : undefined }}
         >
             <div className="mx-auto w-[min(100%-1rem,33rem)] mb-2.5">
                 <div className="relative rounded-3xl border border-border/40 bg-background/70 dark:bg-background/60 backdrop-blur-2xl shadow-[0_10px_34px_rgba(0,0,0,0.2)] px-1.5 pt-4 pb-1.5 overflow-visible">

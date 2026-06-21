@@ -2006,8 +2006,9 @@ export default function SupraSpacePage() {
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
     return (
       <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5')}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
         onClick={() => setActiveId(conv._id)}
+        onContextMenu={e => e.preventDefault()}
         onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
         onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
         <div className="relative shrink-0">
