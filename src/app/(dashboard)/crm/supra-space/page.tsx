@@ -1907,6 +1907,9 @@ export default function SupraSpacePage() {
       await apiClient.delete(`/api/supraspace/conversations/${c._id}`, { headers: { Authorization: `Bearer ${token}` } });
       setConvos(p => p.filter(x => x._id !== c._id));
       setActiveId(prev => prev === c._id ? null : prev);
+      // Clear cached messages so re-opening the same conversation re-fetches from
+      // the backend, which will apply the clearedAt filter and return no history.
+      setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to delete.')); }
   };
   const addMembers = async (ids: string[]) => {
@@ -2298,6 +2301,19 @@ export default function SupraSpacePage() {
                     </div>
                   )}
                   {loadingMsgs && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+                  {!loadingMsgs && activeMsgs.length === 0 && activeConv && (
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
+                      <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
+                      <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
+                        {activeConv.type === 'direct'
+                          ? `Say Hi to ${activeConv.members.find(m => m._id !== uid)?.fullName || 'your friend'}!`
+                          : `Welcome to ${activeConv.name || 'this channel'}!`}
+                      </p>
+                      <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+                        {activeConv.type === 'direct' ? 'Send a message to start the conversation.' : 'Be the first to send a message.'}
+                      </p>
+                    </div>
+                  )}
                   {activeMsgs.map((msg, i) => {
                     const prevMsg = activeMsgs[i - 1] || null;
                     const nextMsg = activeMsgs[i + 1] || null;
