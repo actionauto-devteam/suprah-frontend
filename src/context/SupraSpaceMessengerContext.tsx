@@ -40,12 +40,24 @@ export interface SSConv {
   archivedBy?: string[];
   deletedFor?: string[];
   createdBy: string;
+  spaceId?: string | null;
+}
+
+export interface SSSpace {
+  _id: string;
+  name: string;
+  emoji?: string | null;
+  members: SSMember[];
+  admins: string[];
+  createdBy: string;
+  createdAt: string;
 }
 
 // ─── Context shape ─────────────────────────────────────────────────────────────
 
 interface MessengerCtxValue {
   conversations: SSConv[];
+  spaces: SSSpace[];
   totalUnread: number;
   crmUserId: string | null;
   crmToken: string | null;
@@ -59,6 +71,7 @@ interface MessengerCtxValue {
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
   refreshConversations: () => void;
+  refreshSpaces: () => void;
 }
 
 const MessengerContext = React.createContext<MessengerCtxValue | null>(null);
@@ -94,6 +107,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const crmToken                          = useCrmToken();
   const crmUserId                         = crmToken ? decodeCrmUserId(crmToken) : null;
   const [conversations, setConversations] = React.useState<SSConv[]>([]);
+  const [spaces, setSpaces]               = React.useState<SSSpace[]>([]);
   const conversationsRef                  = React.useRef<SSConv[]>([]);
   const [socket, setSocket]               = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected]     = React.useState(false);
@@ -143,14 +157,27 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       .catch(() => {});
   }, [crmToken]);
 
-  React.useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  // ── Fetch spaces ─────────────────────────────────────────────────────────────
+  const fetchSpaces = React.useCallback(() => {
+    if (!crmToken) return;
+    apiClient
+      .get('/api/supraspace/spaces', {
+        headers: { Authorization: `Bearer ${crmToken}` },
+        _skipAuthRefresh: true,
+      } as any)
+      .then((r) => { setSpaces(r.data?.data || []); })
+      .catch(() => {});
+  }, [crmToken]);
 
-  // Re-fetch conversations (and member avatars) when the window regains focus
+  React.useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  React.useEffect(() => { fetchSpaces(); }, [fetchSpaces]);
+
+  // Re-fetch on window focus
   React.useEffect(() => {
-    const onFocus = () => fetchConversations();
+    const onFocus = () => { fetchConversations(); fetchSpaces(); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [fetchConversations]);
+  }, [fetchConversations, fetchSpaces]);
 
   // ── Socket connection ─────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -204,6 +231,31 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       );
     });
 
+    // Conversation moved to/from a space
+    s.on('conversation:moved', ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) => {
+      setConversations((prev) =>
+        prev.map((c) => c._id === conversationId ? { ...c, spaceId: spaceId || null } : c)
+      );
+    });
+
+    // New space created
+    s.on('space:new', ({ space }: { space: SSSpace }) => {
+      setSpaces((prev) => prev.find(sp => sp._id === space._id) ? prev : [...prev, space]);
+    });
+
+    // Space updated
+    s.on('space:updated', ({ space }: { space: SSSpace }) => {
+      setSpaces((prev) => prev.map(sp => sp._id === space._id ? space : sp));
+    });
+
+    // Space deleted → remove from list, unlink conversations
+    s.on('space:deleted', ({ spaceId }: { spaceId: string }) => {
+      setSpaces((prev) => prev.filter(sp => sp._id !== spaceId));
+      setConversations((prev) =>
+        prev.map((c) => c.spaceId === spaceId ? { ...c, spaceId: null } : c)
+      );
+    });
+
     // Profile updated → patch member avatars in all conversations
     s.on('user:profile:updated', ({ userId, avatar, fullName }: { userId: string; avatar?: string; fullName?: string }) => {
       if (userId === crmUserId && avatar) setMyAvatar(avatar);
@@ -233,7 +285,6 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     return conversations.filter((conv) => {
       const msg = conv.lastMessage;
       if (!msg || msg.isDeleted) return false;
-      // Not sent by me and not yet in my readBy
       return msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId);
     }).length;
   }, [conversations, crmUserId]);
@@ -289,6 +340,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     <MessengerContext.Provider
       value={{
         conversations,
+        spaces,
         totalUnread,
         crmUserId,
         crmToken,
@@ -302,6 +354,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         toggleMinimize,
         markAsRead,
         refreshConversations: fetchConversations,
+        refreshSpaces: fetchSpaces,
       }}
     >
       {children}

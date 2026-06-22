@@ -62,6 +62,7 @@ export interface SSConversation {
   lastMessage?: SSMessage;
   lastMessageAt?: string;
   createdBy: string;
+  spaceId?: string | null;
 }
 
 export interface PresenceMap { [userId: string]: 'online' | 'offline' }

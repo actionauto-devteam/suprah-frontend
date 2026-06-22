@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   Search, Plus, Users, MessageSquare, Send, Paperclip,
@@ -12,7 +13,7 @@ import {
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
-  MoreHorizontal, Copy,
+  MoreHorizontal, Copy, GripVertical,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -42,6 +43,7 @@ const SS4_VIDEO_EXTENSIONS = new Set([
 ]);
 const SS4_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '🎉'];
 const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
+
 
 const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: string | null }[] = [
   { name: 'Default', accent: null, wallpaper: null },
@@ -892,15 +894,24 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
 }
 
 // ─── New Conversation Modal ───────────────────────────────────────────────────
-function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = 'dm' }: {
-  users: CrmUser[]; onClose: () => void; onStartDM: (id: string) => void; onCreateGroup: (name: string, ids: string[]) => void; defaultTab?: 'dm' | 'group';
+function NewConvModal({ users, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
+  users: CrmUser[]; onClose: () => void; onStartDM: (id: string) => void;
+  onCreateGroup: (name: string, ids: string[]) => void;
+  onCreateSpace: (name: string, ids: string[], emoji?: string) => void;
+  defaultTab?: 'dm' | 'group' | 'space';
 }) {
-  const [tab, setTab] = React.useState<'dm' | 'group'>(defaultTab);
+  const [tab, setTab] = React.useState<'dm' | 'group' | 'space'>(defaultTab);
   const [q, setQ] = React.useState('');
   const [groupName, setGroupName] = React.useState('');
+  const [spaceEmoji, setSpaceEmoji] = React.useState('');
   const [sel, setSel] = React.useState<string[]>([]);
   const list = users.filter(u => u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
   const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const TABS: { key: 'dm' | 'group' | 'space'; label: string }[] = [
+    { key: 'dm', label: 'Direct Message' },
+    { key: 'group', label: 'Channel' },
+    { key: 'space', label: 'Space' },
+  ];
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
@@ -910,8 +921,8 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = '
         </div>
         <div className="px-4 pt-4 pb-3">
           <div className="ss4-tab-bar flex gap-1">
-            {(['dm', 'group'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} className={cn('flex-1 h-7 ss4-tab', t === tab && 'ss4-tab-active')}>{t === 'dm' ? 'Direct Message' : 'New Channel'}</button>
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)} className={cn('flex-1 h-7 ss4-tab', t.key === tab && 'ss4-tab-active')} style={{ fontSize: 11 }}>{t.label}</button>
             ))}
           </div>
         </div>
@@ -919,11 +930,17 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = '
           {tab === 'group' && (
             <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
           )}
+          {tab === 'space' && (
+            <div className="flex gap-2">
+              <input value={spaceEmoji} onChange={e => setSpaceEmoji(e.target.value)} placeholder="✨" className="w-12 h-9 rounded-lg px-2 text-center ss4-search-input" style={{ fontFamily: 'Geist, sans-serif', fontSize: 18 }} maxLength={2} />
+              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Space name..." className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+            </div>
+          )}
           <div className="relative">
             <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
           </div>
-          <div className="space-y-0.5 max-h-56 overflow-y-auto ss4-scroll -mx-1 px-1">
+          <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
             {list.map(u => {
               const active = sel.includes(u._id);
               return (
@@ -937,7 +954,7 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = '
                     <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
                     <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
                   </div>
-                  {tab === 'group' && active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                  {(tab === 'group' || tab === 'space') && active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
                 </button>
               );
             })}
@@ -946,6 +963,12 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, defaultTab = '
             <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel)} disabled={!groupName.trim()}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
               <Users className="h-3.5 w-3.5" /> Create Channel · {sel.length} {sel.length === 1 ? 'member' : 'members'}
+            </button>
+          )}
+          {tab === 'space' && (
+            <button onClick={() => groupName.trim() && onCreateSpace(groupName, sel, spaceEmoji || undefined)} disabled={!groupName.trim()}
+              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
+              <Sparkles className="h-3.5 w-3.5" /> Create Space{sel.length > 0 ? ` · ${sel.length} ${sel.length === 1 ? 'member' : 'members'}` : ''}
             </button>
           )}
         </div>
@@ -1338,7 +1361,29 @@ export default function SupraSpacePage() {
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' }>({ open: false, tab: 'dm' });
+  const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' | 'space' }>({ open: false, tab: 'dm' });
+  const [collapsedSections, setCollapsedSections] = React.useState<Set<string>>(new Set());
+  const [collapsedSpaces, setCollapsedSpaces] = React.useState<Set<string>>(new Set());
+  const [dragConvId, setDragConvId] = React.useState<string | null>(null);
+  const [dropSpaceId, setDropSpaceId] = React.useState<string | null>(null);
+  const [dragSpaceId, setDragSpaceId] = React.useState<string | null>(null);
+  const [dropBeforeSpaceId, setDropBeforeSpaceId] = React.useState<string | null>(null);
+  const [localConvOrder, setLocalConvOrder] = React.useState<string[]>([]);
+  const [dropConvBeforeId, setDropConvBeforeId] = React.useState<string | null>(null);
+  // Ref-based ghost — position updated directly on the DOM node to avoid re-renders during drag
+  const dragGhostRef = React.useRef<HTMLDivElement | null>(null);
+  // Pointer-events drag tracking (replaces HTML5 drag API)
+  const ptrStartRef  = React.useRef<{ x: number; y: number; type: 'conv' | 'space'; id: string; label: string; spaceId?: string | null } | null>(null);
+  const ptrActiveRef = React.useRef(false);
+  // Refs for current drop targets — avoids stale closure in the pointer-events useEffect
+  const ptrDropZoneRef        = React.useRef<string | null>(null);
+  const ptrDropConvBeforeRef  = React.useRef<string | null>(null);
+  // Stable handler refs so the pointer-events useEffect doesn't need to re-register
+  const handleMoveToSpaceRef  = React.useRef<(convId: string, spaceId: string | null) => void>(() => {});
+  const handleSpaceDropRef    = React.useRef<(fromId: string, beforeId: string) => void>(() => {});
+  const handleReorderConvRef  = React.useRef<(fromId: string, beforeId: string) => void>(() => {});
+  const [localSpaceOrder, setLocalSpaceOrder] = React.useState<string[]>([]);
+  const [deleteSpaceConfirm, setDeleteSpaceConfirm] = React.useState<string | null>(null);
   const [allUsers, setAllUsers] = React.useState<CrmUser[]>([]);
   const [q, setQ] = React.useState('');
 
@@ -1396,7 +1441,7 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
-  const { markAsRead: ctxMarkAsRead } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces } = useSupraSpaceMessenger();
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
@@ -1610,6 +1655,8 @@ export default function SupraSpacePage() {
       setActiveId(prev => prev === conversationId ? null : prev);
     };
     const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
+    const onConvMoved = ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) =>
+      setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
     const onReaction = ({ conversationId, messageId, reactions }: any) => patchMsg(conversationId, messageId, { reactions });
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
@@ -1622,6 +1669,7 @@ export default function SupraSpacePage() {
     socket.on('conversation:updated', onConvUpdated);
     socket.on('conversation:deleted', onConvDeleted);
     socket.on('conversation:theme', onConvTheme);
+    socket.on('conversation:moved', onConvMoved);
     socket.on('message:reaction', onReaction);
     socket.on('message:poll', onPoll);
     socket.on('message:event', onEvent);
@@ -1651,7 +1699,7 @@ export default function SupraSpacePage() {
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
-      socket.off('conversation:theme', onConvTheme); socket.off('message:reaction', onReaction);
+      socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('message:reaction', onReaction);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
@@ -1659,6 +1707,91 @@ export default function SupraSpacePage() {
   }, [socket, appendMessageLocal, patchMsg, patchConv]);
 
   React.useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeMsgs.length]);
+
+  // ── Pointer-events drag (replaces HTML5 drag — instant response, no browser delay) ──
+  React.useEffect(() => {
+    const THRESH = 5;
+    const onMove = (e: PointerEvent) => {
+      const start = ptrStartRef.current;
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!ptrActiveRef.current) {
+        if (Math.hypot(dx, dy) < THRESH) return;
+        ptrActiveRef.current = true;
+        if (start.type === 'conv') setDragConvId(start.id);
+        else setDragSpaceId(start.id);
+        const ghost = dragGhostRef.current;
+        if (ghost) { ghost.textContent = start.label; ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY - 12}px`; ghost.style.display = 'block'; }
+        return;
+      }
+      const ghost = dragGhostRef.current;
+      if (ghost) { ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY - 12}px`; }
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      if (!el) return;
+      if (start.type === 'conv') {
+        // Check if hovering a specific conv row in the SAME section → reorder mode
+        const convBefore = el.closest('[data-conv-before]') as HTMLElement | null;
+        const targetConvId  = convBefore?.dataset.convBefore ?? null;
+        const targetSection = convBefore?.dataset.convSection ?? null;
+        const sourceSection = start.spaceId ?? '__channels__';
+        if (targetConvId && targetConvId !== start.id && targetSection === sourceSection) {
+          ptrDropConvBeforeRef.current = targetConvId;
+          ptrDropZoneRef.current = null;
+          setDropConvBeforeId(targetConvId);
+          setDropSpaceId(null);
+        } else {
+          // Cross-section or no specific conv → space-assignment mode
+          const zone = (el.closest('[data-drop-zone]') as HTMLElement | null)?.dataset.dropZone ?? null;
+          ptrDropZoneRef.current = zone;
+          ptrDropConvBeforeRef.current = null;
+          setDropSpaceId(zone);
+          setDropConvBeforeId(null);
+        }
+      } else {
+        const raw = (el.closest('[data-drop-before]') as HTMLElement | null)?.dataset.dropBefore ?? null;
+        setDropBeforeSpaceId(raw !== start.id ? raw : null);
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      const start = ptrStartRef.current;
+      if (!start) return;
+      if (ptrActiveRef.current) {
+        if (start.type === 'conv') {
+          const reorderTarget = ptrDropConvBeforeRef.current;
+          const zone          = ptrDropZoneRef.current;
+          if (reorderTarget) {
+            handleReorderConvRef.current(start.id, reorderTarget);
+          } else if (zone) {
+            const targetSpaceId = zone === '__channels__' ? null : zone;
+            if (targetSpaceId !== (start.spaceId ?? null)) {
+              handleMoveToSpaceRef.current(start.id, targetSpaceId);
+            }
+          }
+          setDragConvId(null); setDropSpaceId(null); setDropConvBeforeId(null);
+        } else {
+          const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+          const beforeId = (el?.closest('[data-drop-before]') as HTMLElement | null)?.dataset.dropBefore ?? null;
+          if (beforeId && beforeId !== start.id) handleSpaceDropRef.current(start.id, beforeId);
+          setDragSpaceId(null); setDropBeforeSpaceId(null);
+        }
+      }
+      const ghost = dragGhostRef.current;
+      if (ghost) ghost.style.display = 'none';
+      ptrStartRef.current        = null;
+      ptrActiveRef.current       = false;
+      ptrDropZoneRef.current     = null;
+      ptrDropConvBeforeRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, []); // safe: only refs + stable React state setters used inside
 
   React.useEffect(() => {
     if (!activeId || !token) return;
@@ -1990,6 +2123,55 @@ export default function SupraSpacePage() {
     setShowModal({ open: false, tab: 'dm' });
     try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); setActiveId(r.data?.data._id); } catch {}
   };
+  const handleCreateSpace = async (name: string, ids: string[], emoji?: string) => {
+    setShowModal({ open: false, tab: 'dm' });
+    try {
+      await apiClient.post('/api/supraspace/spaces', { name, emoji, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } });
+      refreshSpaces();
+    } catch {}
+  };
+  const handleMoveToSpace = async (convId: string, spaceId: string | null) => {
+    try {
+      await apiClient.patch(`/api/supraspace/conversations/${convId}/space`, { spaceId }, { headers: { Authorization: `Bearer ${token}` } });
+      setConvos(p => p.map(c => c._id === convId ? { ...c, spaceId: spaceId || null } as any : c));
+    } catch {}
+  };
+  const handleDeleteSpace = async (spaceId: string) => {
+    setDeleteSpaceConfirm(null);
+    try {
+      await apiClient.delete(`/api/supraspace/spaces/${spaceId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
+      setLocalSpaceOrder(p => p.filter(id => id !== spaceId));
+      refreshSpaces();
+    } catch {}
+  };
+  const handleSpaceDrop = (fromSpaceId: string, targetSpaceId: string) => {
+    if (fromSpaceId === targetSpaceId) return;
+    const base = localSpaceOrder.length ? localSpaceOrder : ctxSpaces.map(sp => sp._id);
+    const order = [...base];
+    const fromIdx = order.indexOf(fromSpaceId);
+    if (fromIdx !== -1) order.splice(fromIdx, 1);
+    const toIdx = order.indexOf(targetSpaceId);
+    order.splice(toIdx, 0, fromSpaceId);
+    setLocalSpaceOrder(order);
+  };
+  const handleReorderConv = (fromId: string, beforeId: string) => {
+    const allGroupIds = normalList.filter(c => c.type === 'group').map(c => c._id);
+    const base = localConvOrder.length ? [...localConvOrder] : allGroupIds;
+    // include any newly added convs not yet in the order array
+    allGroupIds.forEach(id => { if (!base.includes(id)) base.push(id); });
+    const fromIdx = base.indexOf(fromId);
+    if (fromIdx !== -1) base.splice(fromIdx, 1);
+    const toIdx = base.indexOf(beforeId);
+    base.splice(toIdx >= 0 ? toIdx : base.length, 0, fromId);
+    setLocalConvOrder(base);
+  };
+
+  // Keep handler refs current so the pointer-events useEffect can call them without re-registering
+  handleMoveToSpaceRef.current = handleMoveToSpace;
+  handleSpaceDropRef.current   = handleSpaceDrop;
+  handleReorderConvRef.current = handleReorderConv;
+
   const loadMore = async () => {
     if (!activeId || !hasMore[activeId] || loadingMsgs) return;
     setLoadingMsgs(true);
@@ -2033,8 +2215,32 @@ export default function SupraSpacePage() {
   const pinnedList = visibleConvos.filter(c => isPinnedConv(c) && !isArchivedConv(c));
   const archivedList = convos.filter(c => isArchivedConv(c));
   const normalList = visibleConvos.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
+  // Sidebar section lists — spaceId comes from the SSConversation extended type
+  const dmList = normalList.filter(c => c.type === 'direct');
+  const channelList = React.useMemo(() => {
+    const list = normalList.filter(c => c.type === 'group' && !(c as any).spaceId);
+    if (!localConvOrder.length) return list;
+    return [...list].sort((a, b) => {
+      const ai = localConvOrder.indexOf(a._id);
+      const bi = localConvOrder.indexOf(b._id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalList, localConvOrder]);
+  const toggleSection = (key: string) => setCollapsedSections(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleSpaceCollapse = (id: string) => setCollapsedSpaces(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const orderedSpaces = React.useMemo(() => {
+    if (!localSpaceOrder.length) return ctxSpaces;
+    const map = Object.fromEntries(ctxSpaces.map(sp => [sp._id, sp]));
+    const result = localSpaceOrder.map(id => map[id]).filter(Boolean);
+    ctxSpaces.forEach(sp => { if (!localSpaceOrder.includes(sp._id)) result.push(sp); });
+    return result;
+  }, [ctxSpaces, localSpaceOrder]);
 
-  const ConvRow = ({ conv, compact }: { conv: SSConversation; compact?: boolean }) => {
+  const ConvRow = ({ conv, compact, draggable: isDraggable }: { conv: SSConversation; compact?: boolean; draggable?: boolean }) => {
     const isAct = conv._id === activeId;
     const other = conv.members.find(m => m._id !== uid);
     const online = other ? presence[other._id] === 'online' : false;
@@ -2054,12 +2260,27 @@ export default function SupraSpacePage() {
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
     return (
-      <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5')}
+      <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
         style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
+        data-conv-before={isDraggable ? conv._id : undefined}
+        data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
         onClick={() => setActiveId(conv._id)}
         onContextMenu={e => e.preventDefault()}
         onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
         onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
+        {/* Drag handle — only on draggable group rows */}
+        {isDraggable && (
+          <div
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: (conv as any).spaceId ?? null };
+            }}
+            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+            style={{ marginLeft: -6, padding: '0 1px' }}>
+            <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
+          </div>
+        )}
         <div className="relative shrink-0">
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
             {conv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
@@ -2094,6 +2315,21 @@ export default function SupraSpacePage() {
                 <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => { handleStartCall(conv); setActiveId(conv._id); }}>
                   <Phone className="h-3.5 w-3.5" /> Call
                 </DropdownMenuItem>
+                {conv.type === 'group' && ctxSpaces.length > 0 && (
+                  <>
+                    <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '2px 4px' }} />
+                    {(conv as any).spaceId && (
+                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => handleMoveToSpace(conv._id, null)}>
+                        <LogOut className="h-3.5 w-3.5" /> Remove from Space
+                      </DropdownMenuItem>
+                    )}
+                    {ctxSpaces.map(sp => (sp._id !== (conv as any).spaceId) && (
+                      <DropdownMenuItem key={sp._id} className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
+                        <Sparkles className="h-3.5 w-3.5" /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
                 <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '2px 4px' }} />
                 <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
                   <Trash2 className="h-3.5 w-3.5" /> Delete conversation
@@ -2122,6 +2358,30 @@ export default function SupraSpacePage() {
   );
 
   return (
+    <>
+    {/* Global grabbing cursor while any drag is active */}
+    {(dragConvId || dragSpaceId) && (
+      <style>{`* { cursor: grabbing !important; }`}</style>
+    )}
+    {/* Ghost label that follows the cursor — position updated directly via ref (no React re-renders) */}
+    {typeof window !== 'undefined' && createPortal(
+      <div ref={dragGhostRef} style={{
+        display: 'none',
+        position: 'fixed',
+        pointerEvents: 'none',
+        zIndex: 99999,
+        background: 'var(--surface-2, #252a31)',
+        border: '1px solid var(--accent, #5b7cf6)',
+        borderRadius: 8,
+        padding: '5px 12px',
+        fontSize: 12,
+        fontWeight: 600,
+        color: 'var(--text-primary, rgba(255,255,255,0.92))',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+        whiteSpace: 'nowrap',
+      }} />,
+      document.body
+    )}
     <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
       {/* Topbar */}
       <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
@@ -2158,7 +2418,22 @@ export default function SupraSpacePage() {
             <div className="flex items-center justify-between">
               <span className="ss4-section-label">Messages</span>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => setShowModal({ open: true, tab: 'dm' })} className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New message"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[160px] rounded-xl p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
+                      <MessageSquare className="h-3.5 w-3.5" /> Direct Message
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'group' })}>
+                      <Hash className="h-3.5 w-3.5" /> New Channel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
+                      <Sparkles className="h-3.5 w-3.5" /> New Space
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-7 w-7 flex items-center justify-center" title="New channel"><Hash className="h-3.5 w-3.5" /></button>
               </div>
             </div>
@@ -2196,16 +2471,113 @@ export default function SupraSpacePage() {
               </div>
             )}
 
-            {(['direct', 'group'] as const).map(sectionType => {
-              const list = normalList.filter(c => c.type === sectionType);
-              if (list.length === 0) return null;
-              return (
-                <div key={sectionType}>
-                  <div className="px-3 pt-3 pb-1.5"><span className="ss4-section-label">{sectionType === 'direct' ? 'Direct Messages' : 'Channels'}</span></div>
-                  <div className="px-2 space-y-0.5">{list.map(c => <ConvRow key={c._id} conv={c} />)}</div>
-                </div>
-              );
-            })}
+            {/* ── DIRECT MESSAGES ── */}
+            {dmList.length > 0 && (
+              <div>
+                <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
+                  <span className="ss4-section-label">Direct Messages</span>
+                  <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('dm') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                </button>
+                {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} />)}</div>}
+              </div>
+            )}
+
+            {/* ── SPACES ── */}
+            {orderedSpaces.length > 0 && (
+              <div>
+                <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('spaces')}>
+                  <span className="ss4-section-label"><Sparkles className="h-2.5 w-2.5 mr-1" /> Spaces</span>
+                  <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('spaces') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                </button>
+                {!collapsedSections.has('spaces') && orderedSpaces.map((space, idx) => {
+                  const spaceConvsRaw = normalList.filter(c => c.type === 'group' && (c as any).spaceId === space._id);
+                  const spaceConvs = localConvOrder.length
+                    ? [...spaceConvsRaw].sort((a, b) => { const ai = localConvOrder.indexOf(a._id); const bi = localConvOrder.indexOf(b._id); return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi); })
+                    : spaceConvsRaw;
+                  const isCollapsed = collapsedSpaces.has(space._id);
+                  const isConvDropTarget = dropSpaceId === space._id && !!dragConvId;
+                  const isSpaceDropTarget = dropBeforeSpaceId === space._id && !!dragSpaceId && dragSpaceId !== space._id;
+                  return (
+                    <div key={space._id}
+                      data-drop-zone={space._id}
+                      data-drop-before={space._id}>
+                      {/* drop indicator line — appears above this space when reordering */}
+                      {isSpaceDropTarget && (
+                        <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '2px 8px' }} />
+                      )}
+                      <div
+                        style={{ borderRadius: 8, transition: 'background .15s', background: isConvDropTarget ? 'rgba(91,124,246,0.12)' : 'transparent', outline: isConvDropTarget ? '1.5px dashed var(--accent)' : 'none', margin: '0 4px 2px' }}>
+                        <div className="group flex items-center gap-1 px-2 py-1.5">
+                          {/* drag handle for reordering spaces */}
+                          <div
+                            onPointerDown={(e) => {
+                              if (e.button !== 0) return;
+                              e.stopPropagation();
+                              e.preventDefault(); // prevent text selection on drag
+                              ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'space', id: space._id, label: space.name };
+                            }}
+                            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+                            style={{ padding: '0 1px' }}>
+                            <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
+                          </div>
+                          <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left" onClick={() => toggleSpaceCollapse(space._id)}>
+                            <ChevronLeft className="h-3 w-3 shrink-0 transition-transform" style={{ color: 'var(--text-tertiary)', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                            <span className="truncate" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                              {space.emoji ? `${space.emoji} ` : ''}{space.name}
+                            </span>
+                            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginLeft: 2 }}>{spaceConvs.length}</span>
+                          </button>
+                          {/* delete button — opens confirmation modal */}
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteSpaceConfirm(space._id); }}
+                            className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity h-5 w-5 flex items-center justify-center rounded"
+                            style={{ color: 'var(--text-tertiary)' }}>
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        {!isCollapsed && (
+                          <div className="px-1 pb-1 space-y-0.5">
+                            {spaceConvs.map(c => (
+                              <React.Fragment key={c._id}>
+                                {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
+                                <ConvRow conv={c} draggable />
+                              </React.Fragment>
+                            ))}
+                            {spaceConvs.length === 0 && (
+                              <p className="px-3 py-1.5 text-center" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>Drag a channel here</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── CHANNELS ── */}
+            {(channelList.length > 0 || !!dragConvId) && (
+              <div
+                data-drop-zone="__channels__"
+                style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(91,124,246,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
+                <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('channels')}>
+                  <span className="ss4-section-label">Channels</span>
+                  <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('channels') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                </button>
+                {!collapsedSections.has('channels') && (
+                  <div className="px-2 space-y-0.5">
+                    {channelList.map(c => (
+                      <React.Fragment key={c._id}>
+                        {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
+                        <ConvRow conv={c} draggable />
+                      </React.Fragment>
+                    ))}
+                    {channelList.length === 0 && dragConvId && (
+                      <p className="px-3 py-1.5 text-center" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>Drop here to remove from Space</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
               <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
@@ -2654,7 +3026,7 @@ export default function SupraSpacePage() {
 
       {/* ── Modals ── */}
       {showModal.open && (
-        <NewConvModal users={allUsers.filter(u => u._id !== uid)} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} />
+        <NewConvModal users={allUsers.filter(u => u._id !== uid)} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
       )}
 
       {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
@@ -2755,6 +3127,29 @@ export default function SupraSpacePage() {
       })()}
 
       {/* Delete conversation confirmation */}
+      {deleteSpaceConfirm && (
+        <div className="ss4-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" onClick={() => setDeleteSpaceConfirm(null)}>
+          <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
+            <div className="flex items-center justify-center mb-4">
+              <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
+                <Trash2 className="h-5 w-5" style={{ color: 'var(--danger)' }} />
+              </div>
+            </div>
+            <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete Space?</p>
+            <p className="text-center mb-1" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+              "{orderedSpaces.find(sp => sp._id === deleteSpaceConfirm)?.name}"
+            </p>
+            <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              Are you sure you want to delete this space? Channels inside it will be moved back to Channels. This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteSpaceConfirm(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
+              <button onClick={() => handleDeleteSpace(deleteSpaceConfirm)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
       {deleteConfirmConv && (
         <div className="ss4-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" onClick={() => setDeleteConfirmConv(null)}>
           <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
@@ -2776,5 +3171,6 @@ export default function SupraSpacePage() {
         </div>
       )}
     </div>
+    </>
   );
 }
