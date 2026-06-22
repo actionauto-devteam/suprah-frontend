@@ -894,10 +894,13 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
 }
 
 // ─── New Conversation Modal ───────────────────────────────────────────────────
-function NewConvModal({ users, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
-  users: CrmUser[]; onClose: () => void; onStartDM: (id: string) => void;
+function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
+  users: CrmUser[];
+  channels: Array<{ _id: string; name?: string; avatar?: string }>;
+  theme: 'dark' | 'light';
+  onClose: () => void; onStartDM: (id: string) => void;
   onCreateGroup: (name: string, ids: string[]) => void;
-  onCreateSpace: (name: string, ids: string[], emoji?: string) => void;
+  onCreateSpace: (name: string, convIds: string[], emoji?: string) => void;
   defaultTab?: 'dm' | 'group' | 'space';
 }) {
   const [tab, setTab] = React.useState<'dm' | 'group' | 'space'>(defaultTab);
@@ -905,8 +908,11 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, onCreateSpace,
   const [groupName, setGroupName] = React.useState('');
   const [spaceEmoji, setSpaceEmoji] = React.useState('');
   const [sel, setSel] = React.useState<string[]>([]);
+  const [selConvs, setSelConvs] = React.useState<string[]>([]);
   const list = users.filter(u => u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
+  const chanList = channels.filter(c => (c.name || '').toLowerCase().includes(q.toLowerCase()));
   const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleConv = (id: string) => setSelConvs(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const TABS: { key: 'dm' | 'group' | 'space'; label: string }[] = [
     { key: 'dm', label: 'Direct Message' },
     { key: 'group', label: 'Channel' },
@@ -922,7 +928,10 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, onCreateSpace,
         <div className="px-4 pt-4 pb-3">
           <div className="ss4-tab-bar flex gap-1">
             {TABS.map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={cn('flex-1 h-7 ss4-tab', t.key === tab && 'ss4-tab-active')} style={{ fontSize: 11 }}>{t.label}</button>
+              <button key={t.key} onClick={() => { setTab(t.key); setQ(''); }} className={cn('flex-1 h-7 ss4-tab', t.key === tab && 'ss4-tab-active')}
+                style={{ fontSize: 11, color: t.key === tab ? '#fff' : (theme === 'light' ? 'rgba(0,0,0,0.50)' : 'rgba(255,255,255,0.52)') }}>
+                {t.label}
+              </button>
             ))}
           </div>
         </div>
@@ -938,26 +947,49 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, onCreateSpace,
           )}
           <div className="relative">
             <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+            <input value={q} onChange={e => setQ(e.target.value)}
+              placeholder={tab === 'space' ? 'Search channels...' : 'Search people...'}
+              className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
           </div>
           <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
-            {list.map(u => {
-              const active = sel.includes(u._id);
-              return (
-                <button key={u._id} onClick={() => tab === 'dm' ? onStartDM(u._id) : toggle(u._id)}
-                  className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                  style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
-                  <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-                    <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
-                  </div>
-                  {(tab === 'group' || tab === 'space') && active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
-                </button>
-              );
-            })}
+            {tab === 'space' ? (
+              chanList.length === 0
+                ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center', padding: '16px 0' }}>No unassigned channels</p>
+                : chanList.map(c => {
+                    const active = selConvs.includes(c._id);
+                    return (
+                      <button key={c._id} onClick={() => toggleConv(c._id)}
+                        className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
+                        style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                        <div className="h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden ss4-ava-purple">
+                          {c.avatar ? <img src={c.avatar} alt="" className="w-full h-full object-cover" /> : <Hash className="h-4 w-4" style={{ color: '#fff' }} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.name || 'Untitled'}</p>
+                        </div>
+                        {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                      </button>
+                    );
+                  })
+            ) : (
+              list.map(u => {
+                const active = sel.includes(u._id);
+                return (
+                  <button key={u._id} onClick={() => tab === 'dm' ? onStartDM(u._id) : toggle(u._id)}
+                    className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
+                    style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                    <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
+                      {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+                      <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
+                    </div>
+                    {tab === 'group' && active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                  </button>
+                );
+              })
+            )}
           </div>
           {tab === 'group' && sel.length > 0 && (
             <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel)} disabled={!groupName.trim()}
@@ -966,9 +998,9 @@ function NewConvModal({ users, onClose, onStartDM, onCreateGroup, onCreateSpace,
             </button>
           )}
           {tab === 'space' && (
-            <button onClick={() => groupName.trim() && onCreateSpace(groupName, sel, spaceEmoji || undefined)} disabled={!groupName.trim()}
+            <button onClick={() => groupName.trim() && onCreateSpace(groupName, selConvs, spaceEmoji || undefined)} disabled={!groupName.trim()}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
-              <Sparkles className="h-3.5 w-3.5" /> Create Space{sel.length > 0 ? ` · ${sel.length} ${sel.length === 1 ? 'member' : 'members'}` : ''}
+              <Sparkles className="h-3.5 w-3.5" /> Create Space{selConvs.length > 0 ? ` · ${selConvs.length} ${selConvs.length === 1 ? 'channel' : 'channels'}` : ''}
             </button>
           )}
         </div>
@@ -1725,6 +1757,8 @@ export default function SupraSpacePage() {
         if (ghost) { ghost.textContent = start.label; ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY - 12}px`; ghost.style.display = 'block'; }
         return;
       }
+      // Prevent touch-scroll on mobile while drag is active
+      e.preventDefault();
       const ghost = dragGhostRef.current;
       if (ghost) { ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY - 12}px`; }
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
@@ -1783,7 +1817,8 @@ export default function SupraSpacePage() {
       ptrDropZoneRef.current     = null;
       ptrDropConvBeforeRef.current = null;
     };
-    window.addEventListener('pointermove', onMove);
+    // passive: false required so e.preventDefault() can cancel touch-scroll during drag
+    window.addEventListener('pointermove', onMove, { passive: false });
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
     return () => {
@@ -2123,11 +2158,19 @@ export default function SupraSpacePage() {
     setShowModal({ open: false, tab: 'dm' });
     try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); setActiveId(r.data?.data._id); } catch {}
   };
-  const handleCreateSpace = async (name: string, ids: string[], emoji?: string) => {
+  const handleCreateSpace = async (name: string, convIds: string[], emoji?: string) => {
     setShowModal({ open: false, tab: 'dm' });
     try {
-      await apiClient.post('/api/supraspace/spaces', { name, emoji, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } });
+      const r = await apiClient.post('/api/supraspace/spaces', { name, emoji }, { headers: { Authorization: `Bearer ${token}` } });
+      const newSpaceId = r.data?.data?._id;
       refreshSpaces();
+      if (newSpaceId && convIds.length > 0) {
+        await Promise.all(convIds.map(cId =>
+          apiClient.patch(`/api/supraspace/conversations/${cId}/space`, { spaceId: newSpaceId }, { headers: { Authorization: `Bearer ${token}` } })
+            .then(() => setConvos(p => p.map(c => c._id === cId ? { ...c, spaceId: newSpaceId } as any : c)))
+            .catch(() => {})
+        ));
+      }
     } catch {}
   };
   const handleMoveToSpace = async (convId: string, spaceId: string | null) => {
@@ -2276,8 +2319,8 @@ export default function SupraSpacePage() {
               e.preventDefault();
               ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: (conv as any).spaceId ?? null };
             }}
-            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
-            style={{ marginLeft: -6, padding: '0 1px' }}>
+            className="cursor-grab shrink-0 flex items-center opacity-30 md:opacity-0 md:group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+            style={{ marginLeft: -6, padding: '0 1px', touchAction: 'none' }}>
             <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
           </div>
         )}
@@ -2350,7 +2393,7 @@ export default function SupraSpacePage() {
       <div className="flex flex-col items-center gap-4">
         <div className="h-14 w-14 ss4-logo-mark flex items-center justify-center"><Radio className="h-6 w-6" style={{ color: '#fff' }} /></div>
         <div className="flex flex-col items-center gap-2">
-          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
+          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
           <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
         </div>
       </div>
@@ -2392,7 +2435,7 @@ export default function SupraSpacePage() {
               <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0"><Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} /></div>
               <div>
                 <div className="flex items-center gap-1.5 leading-none">
-                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
+                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
                   <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
                   {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
                 </div>
@@ -2422,7 +2465,7 @@ export default function SupraSpacePage() {
                   <DropdownMenuTrigger asChild>
                     <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[160px] rounded-xl p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                  <DropdownMenuContent align="start" className="min-w-[160px] rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
                     <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
                       <MessageSquare className="h-3.5 w-3.5" /> Direct Message
                     </DropdownMenuItem>
@@ -2516,8 +2559,8 @@ export default function SupraSpacePage() {
                               e.preventDefault(); // prevent text selection on drag
                               ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'space', id: space._id, label: space.name };
                             }}
-                            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
-                            style={{ padding: '0 1px' }}>
+                            className="cursor-grab shrink-0 flex items-center opacity-30 md:opacity-0 md:group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+                            style={{ padding: '0 1px', touchAction: 'none' }}>
                             <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
                           </div>
                           <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left" onClick={() => toggleSpaceCollapse(space._id)}>
@@ -2605,7 +2648,7 @@ export default function SupraSpacePage() {
               <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
                 <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
                 <div className="text-center">
-                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
+                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
                   <p className="mt-1" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Select a conversation to start messaging</p>
                 </div>
               </div>
@@ -2632,7 +2675,7 @@ export default function SupraSpacePage() {
                   <div className="flex items-center gap-1">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
+                      <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}` }}>
                         <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
                         <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
                       </DropdownMenuContent>
@@ -3026,7 +3069,7 @@ export default function SupraSpacePage() {
 
       {/* ── Modals ── */}
       {showModal.open && (
-        <NewConvModal users={allUsers.filter(u => u._id !== uid)} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
+        <NewConvModal users={allUsers.filter(u => u._id !== uid)} channels={channelList} theme={theme} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
       )}
 
       {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
