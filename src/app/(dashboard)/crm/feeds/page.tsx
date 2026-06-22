@@ -20,6 +20,8 @@ import {
   MessageCircle,
   Rss,
   BarChart2,
+  Paperclip,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -41,6 +43,15 @@ import DayPulsePage from "@/components/DayPulsePage"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface Attachment {
+  url: string
+  fileKey: string
+  originalName: string
+  mimeType: string
+  size: number
+  thumbnailUrl?: string | null
+}
+
 interface Comment {
   _id: string
   postId: string
@@ -49,6 +60,7 @@ interface Comment {
   authorAvatar?: string
   authorRole: string
   content: string
+  attachments?: Attachment[]
   createdAt: string
 }
 
@@ -59,6 +71,7 @@ interface Post {
   authorAvatar?: string
   authorRole: string
   content: string
+  attachments?: Attachment[]
   isEdited: boolean
   createdAt: string
   updatedAt: string
@@ -154,6 +167,30 @@ const ROLE_DOT: Record<string, string> = {
   employee: "bg-emerald-500",
 }
 
+const MAX_FEED_ATTACHMENTS = 4
+const MAX_FEED_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "0 B"
+  if (bytes < 1024) return `${bytes} B`
+  const units = ["KB", "MB", "GB"]
+  let value = bytes / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  return `${value >= 10 || unitIndex === 0 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`
+}
+
+function isImageAttachment(file: Pick<Attachment, "mimeType" | "originalName">): boolean {
+  return file.mimeType?.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(file.originalName)
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith("image/")
+}
+
 function totalReactions(summary: ReactionSummary): number {
   return Object.values(summary).reduce((acc, v) => acc + v.count, 0)
 }
@@ -177,6 +214,126 @@ function Divider({ label, className = "" }: { label?: string; className?: string
       <div className="h-px flex-1 bg-linear-to-r from-transparent to-border/50" />
       <span className="text-[11px] font-medium text-muted-foreground/50 shrink-0">{label}</span>
       <div className="h-px flex-1 bg-linear-to-l from-transparent to-border/50" />
+    </div>
+  )
+}
+
+// ─── Attachment Preview Modal ──────────────────────────────────────────────────
+
+function AttachmentPreviewModal({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
+  const imageLike = isImageAttachment(attachment)
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-border/40 px-5 py-4">
+          <h3 className="truncate text-sm font-semibold tracking-tight">{attachment.originalName}</h3>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted/60" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="p-5">
+          {imageLike ? (
+            <img src={attachment.url} alt={attachment.originalName} className="max-h-[70vh] w-full rounded-2xl object-contain bg-muted/15" />
+          ) : (
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/40 bg-muted/15 px-6 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+                <FileText className="h-6 w-6" />
+              </div>
+              <p className="text-xs text-muted-foreground/60">{formatBytes(attachment.size)}</p>
+              <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs">
+                <a href={attachment.url} target="_blank" rel="noreferrer">Open attachment</a>
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Attachment Grid (rendered on a posted post/comment) ──────────────────────
+
+function AttachmentGrid({ attachments, compact = false }: { attachments: Attachment[]; compact?: boolean }) {
+  const [preview, setPreview] = React.useState<Attachment | null>(null)
+  if (!attachments?.length) return null
+
+  return (
+    <>
+      {preview && <AttachmentPreviewModal attachment={preview} onClose={() => setPreview(null)} />}
+      <div className={`grid gap-2 ${attachments.length > 1 ? "sm:grid-cols-2" : ""}`}>
+        {attachments.map((a) => {
+          const imageLike = isImageAttachment(a)
+          if (imageLike) {
+            return (
+              <button
+                key={a.fileKey}
+                type="button"
+                onClick={() => setPreview(a)}
+                className={`overflow-hidden rounded-2xl border border-border/40 bg-muted/15 ${compact ? "h-28" : "h-44"}`}
+              >
+                <img src={a.thumbnailUrl || a.url} alt={a.originalName} className="h-full w-full object-cover" />
+              </button>
+            )
+          }
+          return (
+            <a
+              key={a.fileKey}
+              href={a.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/60 px-3 py-2.5 transition-colors hover:border-border/60 hover:bg-muted/30"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-foreground">{a.originalName}</p>
+                <p className="text-[10px] text-muted-foreground/55">{formatBytes(a.size)}</p>
+              </div>
+            </a>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+// ─── Pending Attachments (composer preview, before posting) ───────────────────
+
+function PendingAttachments({ files, onRemove, className = "px-5 pb-2" }: { files: File[]; onRemove: (index: number) => void; className?: string }) {
+  if (!files.length) return null
+  return (
+    <div className={`grid gap-2 ${className} ${files.length > 1 ? "sm:grid-cols-2" : ""}`}>
+      {files.map((file, index) => {
+        const imageLike = isImageFile(file)
+        return (
+          <div
+            key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+            className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 px-3 py-2"
+          >
+            {imageLike ? (
+              <img src={URL.createObjectURL(file)} alt={file.name} className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-border/30" />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
+                <FileText className="h-4 w-4" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium text-foreground">{file.name}</p>
+              <p className="text-[10px] text-muted-foreground/55">{formatBytes(file.size)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemove(index)}
+              className="rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground/75"
+              aria-label={`Remove ${file.name}`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -438,8 +595,13 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
                 {comment.authorRole}
               </Badge>
             </div>
-            <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{comment.content}</p>
+            {comment.content && <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{comment.content}</p>}
           </div>
+          {!!comment.attachments?.length && (
+            <div className="mt-2 max-w-xs">
+              <AttachmentGrid attachments={comment.attachments} compact />
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
             <span className="text-[10px] text-muted-foreground/50 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
             {canDelete && (
@@ -471,8 +633,38 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   const [submitting, setSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState("")
   const [showEmoji, setShowEmoji] = React.useState(false)
+  const [pendingFiles, setPendingFiles] = React.useState<File[]>([])
   const preferNativeEmoji = usePreferNativeEmojiPicker()
   const inputRef = React.useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const addFiles = (incoming: File[]) => {
+    if (!incoming.length) return
+    if (pendingFiles.length + incoming.length > MAX_FEED_ATTACHMENTS) {
+      setSubmitError(`You can attach up to ${MAX_FEED_ATTACHMENTS} files.`)
+      return
+    }
+    const oversized = incoming.find((f) => f.size > MAX_FEED_ATTACHMENT_SIZE_BYTES)
+    if (oversized) {
+      setSubmitError(`${oversized.name} exceeds 25 MB.`)
+      return
+    }
+    setPendingFiles((prev) => [...prev, ...incoming])
+    setSubmitError("")
+  }
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files || []))
+    e.target.value = ""
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = Array.from(e.clipboardData?.items || [])
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => !!f)
+    if (imageFiles.length) addFiles(imageFiles)
+  }
 
   React.useEffect(() => {
     if (!token || !post._id) return
@@ -494,14 +686,17 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   }, [post._id, token])
 
   const handleSubmit = async () => {
-    if (!newComment.trim()) return
+    if (!newComment.trim() && pendingFiles.length === 0) return
     setSubmitting(true); setSubmitError("")
     try {
-      const res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, { content: newComment.trim() }, { headers: { Authorization: `Bearer ${token}` } })
+      const formData = new FormData()
+      formData.append("content", newComment.trim())
+      pendingFiles.forEach((f) => formData.append("files", f))
+      const res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, formData, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } })
       const comment: Comment = res.data?.data?.comment
       setComments((prev) => prev.some((c) => c._id === comment._id) ? prev : [...prev, comment])
       setCommentReactions((prev) => ({ ...prev, [comment._id]: { summary: {}, myReaction: null } }))
-      setNewComment(""); setShowEmoji(false); setShowAll(true)
+      setNewComment(""); setPendingFiles([]); setShowEmoji(false); setShowAll(true)
     } catch (err: any) {
       setSubmitError(err?.response?.data?.message || "Failed to post comment")
     } finally { setSubmitting(false) }
@@ -558,30 +753,38 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
               ref={inputRef} value={newComment}
               onChange={(e) => { setNewComment(e.target.value); setSubmitError("") }}
               onKeyDown={handleKey}
+              onPaste={handlePaste}
               placeholder="Leave a comment…" rows={1} maxLength={1000}
               className="w-full bg-transparent text-xs leading-relaxed p-3 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/40"
               style={{ minHeight: "38px" }}
             />
+            <PendingAttachments files={pendingFiles} onRemove={(i) => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} className="px-3 pb-2" />
             <div className="flex items-center justify-between px-3 pb-2">
-              {preferNativeEmoji ? (
-                <button type="button" onClick={() => inputRef.current?.focus()} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" title="Emoji">
-                  <Smile className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" title="Attach file">
+                  <Paperclip className="h-3.5 w-3.5" />
                 </button>
-              ) : (
-                <Popover open={showEmoji} onOpenChange={setShowEmoji}>
-                  <PopoverTrigger asChild>
-                    <button type="button" className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors">
-                      <Smile className="h-3.5 w-3.5" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
-                    <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
-                      <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setNewComment((p) => p + e.emoji); setShowEmoji(false); inputRef.current?.focus() }} height={320} width={280} />
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
-              <button type="button" onClick={handleSubmit} disabled={submitting || !newComment.trim()} className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePick} />
+                {preferNativeEmoji ? (
+                  <button type="button" onClick={() => inputRef.current?.focus()} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" title="Emoji">
+                    <Smile className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <Popover open={showEmoji} onOpenChange={setShowEmoji}>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors">
+                        <Smile className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
+                      <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
+                        <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setNewComment((p) => p + e.emoji); setShowEmoji(false); inputRef.current?.focus() }} height={320} width={280} />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+              <button type="button" onClick={handleSubmit} disabled={submitting || (!newComment.trim() && pendingFiles.length === 0)} className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Post
               </button>
             </div>
@@ -751,7 +954,10 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
               </div>
             </div>
           ) : (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/85">{post.content}</p>
+            <>
+              {post.content && <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/85">{post.content}</p>}
+              {!!post.attachments?.length && <AttachmentGrid attachments={post.attachments} />}
+            </>
           )}
 
           {/* Action row */}
@@ -793,16 +999,49 @@ function Composer({ currentUser, token, onPosted }: {
   const [error, setError] = React.useState("")
   const [showEmoji, setShowEmoji] = React.useState(false)
   const [isFocused, setIsFocused] = React.useState(false)
+  const [pendingFiles, setPendingFiles] = React.useState<File[]>([])
   const preferNativeEmoji = usePreferNativeEmojiPicker()
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const addFiles = (incoming: File[]) => {
+    if (!incoming.length) return
+    if (pendingFiles.length + incoming.length > MAX_FEED_ATTACHMENTS) {
+      setError(`You can attach up to ${MAX_FEED_ATTACHMENTS} files.`)
+      return
+    }
+    const oversized = incoming.find((f) => f.size > MAX_FEED_ATTACHMENT_SIZE_BYTES)
+    if (oversized) {
+      setError(`${oversized.name} exceeds 25 MB.`)
+      return
+    }
+    setPendingFiles((prev) => [...prev, ...incoming])
+    setError("")
+  }
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files || []))
+    e.target.value = ""
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = Array.from(e.clipboardData?.items || [])
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => !!f)
+    if (imageFiles.length) addFiles(imageFiles)
+  }
 
   const handleSubmit = async () => {
-    if (!content.trim()) { setError("Write something first!"); return }
+    if (!content.trim() && pendingFiles.length === 0) { setError("Write something first!"); return }
     setLoading(true); setError("")
     try {
-      const res = await apiClient.post("/api/crm/feeds", { content: content.trim() }, { headers: { Authorization: `Bearer ${token}` } })
+      const formData = new FormData()
+      formData.append("content", content.trim())
+      pendingFiles.forEach((f) => formData.append("files", f))
+      const res = await apiClient.post("/api/crm/feeds", formData, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } })
       onPosted(res.data?.data?.post || res.data?.post)
-      setContent(""); textareaRef.current?.blur(); setIsFocused(false)
+      setContent(""); setPendingFiles([]); textareaRef.current?.blur(); setIsFocused(false)
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to post")
     } finally { setLoading(false) }
@@ -832,6 +1071,7 @@ function Composer({ currentUser, token, onPosted }: {
             onChange={(e) => { setContent(e.target.value); setError("") }}
             onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)}
             onKeyDown={handleKey}
+            onPaste={handlePaste}
             placeholder={`What's happening, ${currentUser.fullName.split(" ")[0]}?`}
             rows={isFocused || content ? 4 : 2} maxLength={5000}
             className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none placeholder:text-muted-foreground/40 transition-all duration-200"
@@ -839,32 +1079,40 @@ function Composer({ currentUser, token, onPosted }: {
         </div>
       </div>
 
+      {pendingFiles.length > 0 && <PendingAttachments files={pendingFiles} onRemove={(i) => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} />}
+
       <div className="flex items-center justify-between px-5 pb-4 border-t border-border/20 pt-3">
-        {preferNativeEmoji ? (
-          <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
-            <Smile className="h-4 w-4" /> Emoji
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Attach file">
+            <Paperclip className="h-4 w-4" /> Attach
           </button>
-        ) : (
-          <Popover open={showEmoji} onOpenChange={setShowEmoji}>
-            <PopoverTrigger asChild>
-              <button type="button" className={`flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors ${showEmoji ? "bg-emerald-500/10 text-emerald-600" : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40"}`}>
-                <Smile className="h-4 w-4" /> Emoji
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
-              <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
-                <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setContent((p) => p + e.emoji); setShowEmoji(false); textareaRef.current?.focus() }} height={380} width={320} />
-              </div>
-            </PopoverContent>
-          </Popover>
-        )}
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePick} />
+          {preferNativeEmoji ? (
+            <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
+              <Smile className="h-4 w-4" /> Emoji
+            </button>
+          ) : (
+            <Popover open={showEmoji} onOpenChange={setShowEmoji}>
+              <PopoverTrigger asChild>
+                <button type="button" className={`flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors ${showEmoji ? "bg-emerald-500/10 text-emerald-600" : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40"}`}>
+                  <Smile className="h-4 w-4" /> Emoji
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={8} className="w-auto border-none bg-transparent p-0 shadow-none">
+                <div className="rounded-2xl border border-border/40 bg-card/95 shadow-2xl overflow-hidden">
+                  <EmojiPicker theme={"auto" as Theme} onEmojiClick={(e: EmojiClickData) => { setContent((p) => p + e.emoji); setShowEmoji(false); textareaRef.current?.focus() }} height={380} width={320} />
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           {content.length > 0 && (
             <span className={`text-[10px] tabular-nums font-medium transition-colors ${content.length > 4500 ? "text-rose-500" : "text-muted-foreground/55"}`}>
               {content.length}/5000
             </span>
           )}
-          <Button onClick={handleSubmit} disabled={loading || !content.trim()} size="sm" className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold gap-2 px-4 disabled:opacity-30 transition-all">
+          <Button onClick={handleSubmit} disabled={loading || (!content.trim() && pendingFiles.length === 0)} size="sm" className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold gap-2 px-4 disabled:opacity-30 transition-all">
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Post
           </Button>
         </div>

@@ -323,7 +323,7 @@ export default function BiometricSettingsPage() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 Your browser or device doesn&apos;t support platform biometrics (Touch ID, Face ID,
                 Windows Hello). You can still manage SSH keys below.
-              </p>
+              </p>1
             </div>
           </div>
         )}
