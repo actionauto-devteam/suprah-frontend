@@ -3,6 +3,7 @@ export type NotificationType =
   | 'quote_updated'
   | 'quote_deleted'
   | 'quote_converted'
+  | 'quote_accepted'
   | 'shipment_created'
   | 'shipment_updated'
   | 'shipment_deleted'
@@ -11,6 +12,8 @@ export type NotificationType =
   | 'shipment_picked_up'
   | 'shipment_delivered'
   | 'proof_of_delivery'
+  | 'shipment_arrived_at_pickup'
+  | 'shipment_arrived_at_delivery'
   | 'vehicle_added'
   | 'vehicle_updated'
   | 'vehicle_sold'
@@ -56,7 +59,14 @@ export type NotificationType =
   | 'referral_joined'
   | 'referral_rewarded'
   | 'delivery_confirmed'
-  | 'proof_submitted';
+  | 'proof_submitted'
+  | 'ping'
+  | 'absence_approved'
+  | 'absence_rejected'
+  | 'board_note_posted'
+  | 'aftermarket_inquiry'
+  | 'aftermarket_invoice'
+  | 'aftermarket_order';
 
 export interface Notification {
   _id: string;

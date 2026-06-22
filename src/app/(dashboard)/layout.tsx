@@ -39,6 +39,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { dealershipNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
+import { CrmHeader } from "@/components/layout/CrmHeader";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +67,11 @@ function DashboardLayoutContent({
   const pathname = usePathname();
   const { isImpersonating } = adminStore.useStore();
   const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
+  // The CRM login gate (/crm exactly) has no session yet, so there's no nav
+  // chrome to show. Every other /crm/* page — including Supra Space and
+  // Conversations — gets the shared CrmHeader.
+  const isStandaloneCrmShell = pathname === "/crm";
+  const showCrmHeader = isCrmRoute && !isStandaloneCrmShell;
   const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
@@ -165,6 +171,7 @@ function DashboardLayoutContent({
     <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
       <AppSidebar />
       <SidebarInset className={cn(isCrmRoute && "min-h-0 overflow-hidden")}>
+        {showCrmHeader && <CrmHeader />}
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
             <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
@@ -283,8 +290,8 @@ function DashboardLayoutContent({
               : "flex-1 overflow-hidden"
           )}
         >
-          {isCrmRoute && (
-            <div className={pathname === '/crm/supra-space' ? 'absolute left-3 top-3 z-40 hidden md:block' : 'absolute left-3 top-3 z-40'}>
+          {isStandaloneCrmShell && (
+            <div className="absolute left-3 top-3 z-40">
               <SidebarTrigger className="h-8 w-8 rounded-lg border border-border/50 bg-card/95 p-0 shadow-sm backdrop-blur hover:bg-card" />
             </div>
           )}

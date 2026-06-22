@@ -59,7 +59,7 @@ export function UpdateMileageModal({ vehicle, isOpen, onOpenChange }: UpdateMile
                     <DialogTitle>Update Odometer</DialogTitle>
                     <DialogDescription>
                         Enter the exact mileage shown on the dashboard of your {vehicle?.year} {vehicle?.make}.
-                    </DialogDescription>
+                    </DialogDescription>, as
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">

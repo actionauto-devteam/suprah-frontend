@@ -9,7 +9,7 @@ import {
   Loader2, CheckCheck, Hash, Reply, Trash2,
   ArrowLeft, Radio, Bot, Video, Phone,
   Sun, Moon, Sparkles, SmilePlus,
-  Bell, Smile, Pin, PinOff, Info, ImageIcon,
+  Smile, Pin, PinOff, Info, ImageIcon,
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
@@ -2410,7 +2410,6 @@ export default function SupraSpacePage() {
                 <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
               </button>
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
-              <button className="ss4-icon-btn h-8 w-8" title="Notifications"><Bell className="h-4 w-4" /></button>
             </div>
           </div>
         </header>

@@ -4,12 +4,9 @@ import { useRouter } from "next/navigation";
 import {
   Car,
   LogOut,
-  User,
   Copy,
   Check,
-  Settings,
   Clock,
-  ChevronDown,
   Loader2,
   CheckCircle2,
   CalendarDays,
@@ -17,7 +14,6 @@ import {
   Moon,
   Sunset,
   ArrowRight,
-  Fingerprint,
   CalendarCheck,
   Activity,
   Sparkles,
@@ -38,19 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
@@ -230,56 +214,6 @@ function ShiftGauge({
         {children}
       </div>
     </div>
-  );
-}
-
-function LiveClock() {
-  const [now, setNow] = React.useState(new Date());
-  React.useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const mdtNow = toMDT(now);
-  const timeStr = mdtNow.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-    timeZone: "UTC",
-  });
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-emerald-200/80 bg-emerald-50/70 px-3 py-1.5 backdrop-blur-sm transition-all duration-300 hover:border-emerald-300/80 dark:border-emerald-500/20 dark:bg-emerald-950/30 dark:hover:border-emerald-400/30 sm:gap-2.5 sm:px-4 sm:py-2 cursor-default select-none">
-          <div className="absolute inset-0 bg-linear-to-r from-emerald-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60 motion-reduce:anim-none" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
-          </span>
-          <span className="relative font-mono text-xs font-bold tabular-nums tracking-wide text-emerald-700 dark:text-emerald-400">
-            {timeStr}
-          </span>
-          <span className="relative hidden text-[8px] font-black uppercase tracking-[0.3em] text-emerald-500/60 sm:inline">
-            MDT
-          </span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent
-        side="bottom"
-        className="border-zinc-200 bg-zinc-100 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-      >
-        <p className="text-xs">
-          {mdtNow.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-            timeZone: "UTC",
-          })}
-        </p>
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -808,19 +742,6 @@ export default function CrmDashboardPage() {
     check();
   }, [router]);
 
-  const handleExit = async () => {
-    try {
-      await apiClient.post(
-        "/api/crm/logout",
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-    } catch { }
-    localStorage.removeItem("crm_token");
-    localStorage.removeItem("crm_user");
-    router.push("/");
-  };
-
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     setIsClocking(true);
     setClockMsg("");
@@ -1179,107 +1100,7 @@ export default function CrmDashboardPage() {
           />
         </div>
 
-        <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 bg-zinc-100/85 backdrop-blur-xl transition-colors duration-300 dark:border-zinc-800/60 dark:bg-zinc-950/80">
-          <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-4 sm:h-16 sm:px-6">
-            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
-                <Car className="h-4 w-4 text-white" />
-                <div className="absolute inset-0 rounded-xl ring-1 ring-emerald-400/30" />
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-black leading-none tracking-tight text-zinc-900 dark:text-white">
-                  Action Auto
-                </p>
-                <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.3em] text-emerald-500">
-                  Workspace
-                </p>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              <LiveClock />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 gap-2 rounded-full border border-zinc-200/80 bg-zinc-100/85 pl-1.5 pr-3 backdrop-blur-sm transition-all duration-200 hover:border-zinc-300/60 hover:bg-zinc-200/80 dark:border-zinc-700/60 dark:bg-zinc-900/60 dark:hover:border-zinc-600/60 dark:hover:bg-zinc-800/80"
-                  >
-                    <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
-                      <AvatarImage src={userAvatarSrc} />
-                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-[9px] font-black text-white">
-                        {ini(user.fullName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="hidden max-w-25 truncate text-xs font-semibold text-zinc-700 dark:text-zinc-200 sm:inline">
-                      {user.fullName}
-                    </span>
-                    <ChevronDown className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-60 overflow-hidden rounded-2xl border-zinc-200/80 bg-zinc-100/95 p-0 shadow-2xl shadow-black/10 backdrop-blur-xl dark:border-zinc-700/60 dark:bg-zinc-900/95 dark:shadow-black/50"
-                >
-                  <div className="bg-linear-to-br from-zinc-50 to-white p-4 dark:from-zinc-800/50 dark:to-zinc-900/50">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 ring-2 ring-emerald-500/20">
-                        <AvatarImage src={userAvatarSrc} />
-                        <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-xs font-black text-white">
-                          {ini(user.fullName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-zinc-800 dark:text-zinc-100">
-                          {user.fullName}
-                        </p>
-                        <p className="truncate text-[11px] text-zinc-500">
-                          {user.email}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <DropdownMenuSeparator className="m-0 bg-zinc-100 dark:bg-zinc-800/60" />
-                  <div className="p-1.5">
-                    <DropdownMenuItem
-                      onClick={() => router.push("/crm/profile")}
-                      className="h-9 cursor-pointer gap-2.5 rounded-xl text-xs text-zinc-600 hover:text-zinc-900 focus:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-100 dark:focus:bg-zinc-800/60"
-                    >
-                      <User className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                      My Profile
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onClick={() => router.push("/crm/biometrics")}
-                      className="h-9 cursor-pointer gap-2.5 rounded-xl text-xs text-zinc-600 hover:text-zinc-900 focus:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-100 dark:focus:bg-zinc-800/60"
-                    >
-                      <Fingerprint className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                      Biometrics
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => router.push("/crm/settings")}
-                      className="h-9 cursor-pointer gap-2.5 rounded-xl text-xs text-zinc-600 hover:text-zinc-900 focus:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-100 dark:focus:bg-zinc-800/60"
-                    >
-                      <Settings className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                      Settings
-                    </DropdownMenuItem>
-                  </div>
-                  <DropdownMenuSeparator className="m-0 bg-zinc-100 dark:bg-zinc-800/60" />
-                  <div className="p-1.5">
-                    <DropdownMenuItem
-                      onClick={handleExit}
-                      className="h-9 cursor-pointer gap-2.5 rounded-xl text-xs text-red-500 focus:bg-red-50 focus:text-red-600 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
-                    >
-                      <LogOut className="h-3.5 w-3.5" /> Exit CRM
-                    </DropdownMenuItem>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </header>
-
-        <main className="relative mx-auto min-h-0 w-full max-w-7xl flex-1 space-y-6 overflow-y-auto px-4 py-5 sm:space-y-7 sm:px-6 sm:py-8">
+        <main className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-7 flex-1 min-h-0 overflow-y-auto">
           <div
             className={cn(
               "flex flex-wrap items-center gap-x-3 gap-y-2 transition-all duration-700 motion-reduce:transition-none",
