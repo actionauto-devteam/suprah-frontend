@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -24,6 +24,27 @@ const HEADER_H    = 48;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ['#5b7cf6','#34c97d','#f0a855','#e05b8a','#5bbdf6','#a05bf6','#f65b5b','#5bf6c8'];
+async function copyImageToClipboard(url: string): Promise<void> {
+  const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error('proxy failed');
+  const blob = await res.blob();
+  let copyBlob: Blob = blob;
+  if (blob.type !== 'image/png') {
+    const img = new Image();
+    const blobUrl = URL.createObjectURL(blob);
+    img.src = blobUrl;
+    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || 400;
+    canvas.height = img.naturalHeight || 400;
+    canvas.getContext('2d')!.drawImage(img, 0, 0);
+    URL.revokeObjectURL(blobUrl);
+    copyBlob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/png'));
+  }
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': copyBlob })]);
+}
+
 function stringToColor(str: string): string {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
@@ -109,24 +130,50 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
 
   // ── Hover handlers ──
+  const pendingMsgRef = React.useRef<{ id: string; isOwn: boolean; top: number; left?: number; right?: number } | null>(null);
+
   const handleMsgEnter = (e: React.MouseEvent<HTMLDivElement>, msgId: string, isOwn: boolean) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     isOverBar.current = false;
-    setHovMsg(msgId);
     const rect = e.currentTarget.getBoundingClientRect();
-    setBarPos({
+    const pos = {
       top: Math.max(8, rect.top - 38),
       isOwn,
       ...(isOwn ? { right: window.innerWidth - rect.right } : { left: rect.left }),
-    });
+    };
+    if (hovMsg && hovMsg !== msgId) {
+      // Bar is already visible for another message — delay switch so user can
+      // reach the current bar without it jumping away from them.
+      pendingMsgRef.current = { id: msgId, ...pos };
+      hoverTimer.current = setTimeout(() => {
+        if (!isOverBar.current && pendingMsgRef.current?.id === msgId) {
+          setHovMsg(msgId);
+          setBarPos(pos);
+          pendingMsgRef.current = null;
+        }
+      }, 280);
+    } else {
+      pendingMsgRef.current = null;
+      setHovMsg(msgId);
+      setBarPos(pos);
+    }
   };
   const handleMsgLeave = () => {
     hoverTimer.current = setTimeout(() => {
       if (!isOverBar.current) { setHovMsg(null); setBarPos(null); }
-    }, 160);
+    }, 220);
   };
-  const handleBarEnter = () => { isOverBar.current = true; if (hoverTimer.current) clearTimeout(hoverTimer.current); };
-  const handleBarLeave = () => { isOverBar.current = false; setHovMsg(null); setBarPos(null); };
+  const handleBarEnter = () => {
+    isOverBar.current = true;
+    pendingMsgRef.current = null;
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+  };
+  const handleBarLeave = () => {
+    isOverBar.current = false;
+    hoverTimer.current = setTimeout(() => {
+      if (!isOverBar.current) { setHovMsg(null); setBarPos(null); }
+    }, 100);
+  };
   const clearBar = () => { setHovMsg(null); setBarPos(null); };
 
   // ── Actions ──
@@ -475,7 +522,15 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                               </div>
                             </div>
                           )}
-                          {renderContent(msg, isOwn)}
+                          {(msg.attachments || [])
+                            .filter((a: any) => a.mimeType?.startsWith('image/'))
+                            .map((a: any, i: number) => (
+                              <img key={i} src={resolveImageUrl(a.url)} alt="photo"
+                                className="rounded-lg max-w-full block" style={{ maxHeight: 160 }} />
+                            ))}
+                          {msg.type !== 'image'
+                            ? renderContent(msg, isOwn)
+                            : msg.content ? <span>{msg.content}</span> : null}
                           {(msg as any).isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
                           {!hideTime && (
                             <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
@@ -645,6 +700,23 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           >
             <Pin className="h-3.5 w-3.5" />
           </button>
+          {(() => {
+            const hovMsgObj = messages.find(m => m._id === hovMsg);
+            const isOwnMsg = hovMsgObj?.sender?._id === crmUserId;
+            const imgAtt = hovMsgObj?.attachments?.find((a: any) => a.mimeType?.startsWith('image/'));
+            return imgAtt ? (
+              <button title="Copy image"
+                className="hover:bg-white/10 rounded p-1 transition-colors text-white/50 hover:text-white/80"
+                onClick={async () => {
+                  try { await copyImageToClipboard(imgAtt.url); }
+                  catch { /* silently fail — no toast context here */ }
+                  clearBar();
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            ) : null;
+          })()}
           {(() => {
             const hovMsgObj = messages.find(m => m._id === hovMsg);
             const isOwnMsg = hovMsgObj?.sender?._id === crmUserId;

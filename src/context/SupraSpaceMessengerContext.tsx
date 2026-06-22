@@ -4,7 +4,7 @@ import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
-import { playMessageSound, requestNotifPermission, showBrowserNotification } from '@/lib/notification-sound';
+import { playMessageSound, requestNotifPermission, showNotificationViaSW, unlockAudio } from '@/lib/notification-sound';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
 
@@ -107,6 +107,20 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   // Request OS notification permission once on mount
   React.useEffect(() => { requestNotifPermission(); }, []);
 
+  // Unlock AudioContext on first user gesture so playMessageSound() works
+  // inside socket event handlers (which have no user gesture of their own).
+  React.useEffect(() => {
+    const unlock = () => unlockAudio();
+    document.addEventListener('click', unlock, { once: true });
+    document.addEventListener('keydown', unlock, { once: true });
+    document.addEventListener('touchstart', unlock, { once: true });
+    return () => {
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('keydown', unlock);
+      document.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
   // ── Fetch current user's own profile (for up-to-date avatar) ─────────────────
   React.useEffect(() => {
     if (!crmToken) return;
@@ -178,7 +192,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
           const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
           const body = isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
-          showBrowserNotification(title, { body, tag: conversationId });
+          showNotificationViaSW(title, { body, tag: conversationId });
         }
       }
     });
