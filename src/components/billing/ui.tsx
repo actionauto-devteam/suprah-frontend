@@ -1,75 +1,102 @@
 "use client";
 
 /**
- * SuprahPay — shared design system
- * --------------------------------
+ * SuprahPay — shared design system (cockpit edition)
+ * --------------------------------------------------
  * One source of truth for colours, type, and primitives so every billing
  * screen looks like the same e-bank product. Import from here instead of
  * re-declaring local tokens / inline styles.
  *
  *   import { T, Card, StatusBadge, StatCard, PrimaryButton, money } from "@/components/billing/ui";
+ *
+ * This is a self-contained DARK theme (a deliberate "digital cockpit" surface),
+ * so it no longer reads the app's --background/--card vars. If you want it
+ * theme-aware again, swap the hardcoded values back to var(--x, fallback).
  */
 
 import * as React from "react";
 import { formatCurrency } from "@/utils/format";
 
 /* ── Brand ──────────────────────────────────────────────────────────────── */
-export const BRAND = "#E55A00";          // SuprahPay orange (unchanged)
-export const BRAND_HOVER = "#CC4F00";
+export const BRAND = "#16A34A";          // SuprahPay emerald
+export const BRAND_HOVER = "#0F7A39";
+export const MINT = "#34F5A3";            // luminous accent / glow
 
 /* ── Tokens ─────────────────────────────────────────────────────────────── */
-/* CSS-var first (respects the app's theme), with clean fintech fallbacks.    */
+/* Dark glass cockpit palette. Status colours are tuned for dark surfaces.    */
 export const T = {
   brand: BRAND,
   brandHover: BRAND_HOVER,
-  brandSoft: "rgba(229,90,0,0.10)",
-  brandSofter: "rgba(229,90,0,0.06)",
-  brandBorder: "rgba(229,90,0,0.22)",
+  mint: MINT,
+  brandSoft: "rgba(22,163,74,0.16)",
+  brandSofter: "rgba(22,163,74,0.08)",
+  brandBorder: "rgba(52,245,163,0.30)",
 
-  bg: "var(--background, #F5F6F8)",
-  surface: "var(--card, #FFFFFF)",
-  surfaceAlt: "var(--muted, #F2F4F7)",
-  border: "var(--border, #E7E9EE)",
-  borderHi: "var(--input, #D9DDE4)",
+  bg: "#070A10",                          // page void
+  surface: "#0C111A",                     // opaque card base
+  surfaceAlt: "rgba(255,255,255,0.05)",
+  border: "rgba(255,255,255,0.09)",
+  borderHi: "rgba(255,255,255,0.16)",
 
-  text: "var(--foreground, #15181E)",
-  textSub: "var(--muted-foreground, #59616E)",
-  textMute: "#8A92A0",
+  text: "#EAF0F7",
+  textSub: "#98A4B4",
+  textMute: "#5C6776",
 
-  success: "#15803D",
-  successBg: "rgba(34,197,94,0.12)",
-  warning: "#B45309",
-  warningBg: "rgba(217,119,6,0.12)",
-  danger: "#B91C1C",
-  dangerBg: "rgba(220,38,38,0.10)",
-  info: "#1D4ED8",
-  infoBg: "rgba(37,99,235,0.10)",
-  violet: "#6D28D9",
-  violetBg: "rgba(124,58,237,0.10)",
-  slate: "#64748B",
-  slateBg: "rgba(100,116,139,0.10)",
+  success: "#34F5A3",
+  successBg: "rgba(52,245,163,0.14)",
+  warning: "#FBBF24",
+  warningBg: "rgba(251,191,36,0.14)",
+  danger: "#F87171",
+  dangerBg: "rgba(248,113,113,0.12)",
+  info: "#60A5FA",
+  infoBg: "rgba(96,165,250,0.14)",
+  violet: "#C4B5FD",
+  violetBg: "rgba(196,181,253,0.14)",
+  slate: "#94A3B8",
+  slateBg: "rgba(148,163,184,0.14)",
 } as const;
 
 export const FONT =
   "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-/* Money + counters render with tabular figures so columns line up. */
+export const MONO =
+  "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, 'Cascadia Code', monospace";
+
+/* Money + counters render as tabular mono figures — reads like instrument data. */
 export const numeric: React.CSSProperties = {
+  fontFamily: MONO,
   fontFeatureSettings: '"tnum" 1',
   fontVariantNumeric: "tabular-nums",
-  letterSpacing: "-0.01em",
+  letterSpacing: "0",
 };
 
 export const money = (n: number) => formatCurrency(n);
 
-/* ── Global CSS (font import + keyframes). Drop once per screen. ─────────── */
+/* Shared glass-card surface (also used by Card / StatCard). */
+export const glassSurface: React.CSSProperties = {
+  background: T.surface,
+  backgroundImage:
+    "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 40%, rgba(255,255,255,0) 100%)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  border: `1px solid ${T.border}`,
+  boxShadow:
+    "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 22px 56px -30px rgba(0,0,0,0.85)",
+};
+
+/* ── Global CSS (font imports + keyframes). Drop once per screen. ─────────── */
 export const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
   *{box-sizing:border-box;}
   @keyframes spy-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
   @keyframes spy-spin{to{transform:rotate(360deg)}}
   @keyframes spy-fade-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   @keyframes spy-slide-in{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+  @keyframes spy-pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 ${MINT}66}50%{opacity:.55;box-shadow:0 0 0 4px ${MINT}00}}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  }
 `;
 
 export function GlobalStyle() {
@@ -111,7 +138,7 @@ export function Skeleton({
         height: h,
         borderRadius: r,
         background:
-          "linear-gradient(90deg, rgba(120,130,145,0.10), rgba(120,130,145,0.20), rgba(120,130,145,0.10))",
+          "linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.11), rgba(255,255,255,0.04))",
         backgroundSize: "200% 100%",
         animation: "spy-shimmer 1.4s ease-in-out infinite",
       }}
@@ -119,16 +146,17 @@ export function Skeleton({
   );
 }
 
-/* ── Section label ──────────────────────────────────────────────────────── */
+/* ── Section label (eyebrow) ────────────────────────────────────────────── */
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
       style={{
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 700,
         color: T.textSub,
         margin: "0 0 12px",
-        letterSpacing: "-0.01em",
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
         fontFamily: FONT,
       }}
     >
@@ -152,8 +180,7 @@ export function Card({
     <div
       {...rest}
       style={{
-        background: T.surface,
-        border: `1px solid ${T.border}`,
+        ...glassSurface,
         borderRadius: 16,
         padding: pad,
         fontFamily: FONT,
@@ -184,6 +211,8 @@ export function IconBadge({
         height: size,
         borderRadius: 10,
         background: bg,
+        border: `1px solid ${T.border}`,
+        boxShadow: `0 0 16px -8px ${color}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -245,6 +274,7 @@ export function StatCard({
               height: 30,
               borderRadius: 9,
               background: bg,
+              border: `1px solid ${T.border}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -294,6 +324,7 @@ export function StatusBadge({ status }: { status: string }) {
         fontWeight: 600,
         color: cfg.c,
         background: cfg.bg,
+        border: `1px solid ${cfg.c}33`,
         borderRadius: 999,
         padding: "3px 10px",
         whiteSpace: "nowrap",
@@ -341,15 +372,23 @@ export function PrimaryButton({
         gap: 8,
         padding: "11px 18px",
         borderRadius: 12,
-        border: "none",
-        background: disabled ? T.brandSoft : hover ? T.brandHover : T.brand,
-        color: disabled ? T.brand : "#fff",
+        border: `1px solid ${disabled ? "rgba(255,255,255,0.10)" : T.brandBorder}`,
+        background: disabled
+          ? "rgba(255,255,255,0.06)"
+          : `linear-gradient(180deg, ${MINT} -20%, ${T.brand} 55%, ${T.brandHover} 130%)`,
+        color: disabled ? T.textMute : "#06130C",
         fontFamily: FONT,
         fontSize: 14,
-        fontWeight: 600,
+        fontWeight: 800,
+        letterSpacing: "0.01em",
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.7 : 1,
-        transition: "background 0.15s",
+        boxShadow: disabled
+          ? "none"
+          : hover
+            ? `0 0 0 1px ${MINT}55, 0 10px 28px -10px ${T.brand}aa`
+            : `0 8px 22px -12px ${T.brand}88`,
+        transform: hover && !disabled ? "translateY(-1px)" : "none",
+        transition: "box-shadow 0.18s, transform 0.18s, background 0.18s",
         ...style,
       }}
     >
@@ -381,14 +420,14 @@ export function GhostButton({
         gap: 8,
         padding: "11px 18px",
         borderRadius: 12,
-        border: `1px solid ${T.border}`,
-        background: hover ? T.surfaceAlt : "transparent",
+        border: `1px solid ${hover ? T.borderHi : T.border}`,
+        background: hover ? T.surfaceAlt : "rgba(255,255,255,0.03)",
         color: T.text,
         fontFamily: FONT,
         fontSize: 14,
         fontWeight: 600,
         cursor: "pointer",
-        transition: "background 0.15s",
+        transition: "background 0.15s, border-color 0.15s",
         ...style,
       }}
     >
@@ -420,7 +459,7 @@ export function Field({
         }}
       >
         {label}
-        {required && <span style={{ color: T.brand, marginLeft: 3 }}>*</span>}
+        {required && <span style={{ color: T.mint, marginLeft: 3 }}>*</span>}
       </label>
       {children}
       {error && (
@@ -437,7 +476,7 @@ export const inputStyle = (hasError?: boolean): React.CSSProperties => ({
   boxSizing: "border-box",
   fontFamily: FONT,
   fontSize: 14,
-  background: T.surface,
+  background: "rgba(255,255,255,0.04)",
   border: `1px solid ${hasError ? T.danger : T.borderHi}`,
   borderRadius: 10,
   padding: "10px 13px",

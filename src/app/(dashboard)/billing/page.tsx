@@ -227,7 +227,7 @@ function BillingDashboardInner() {
               stats={stats}
               onReceive={() => setActiveModal("receive")}
               onSend={() => setActiveModal("send")}
-              onCashIn={() => setActiveModal("cashin")}
+              onLinkWise={() => linked.connect("wise")}
             />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {metrics.map((m) => (
@@ -273,7 +273,7 @@ function BillingDashboardInner() {
             </Card>
           </section>
 
-          {/* Linked account (Wise / PayPal) */}
+          {/* Linked account (Wise) */}
           <section style={{ marginBottom: 24, animation: "spy-fade-up 0.35s ease 0.10s both" }}>
             <SectionLabel>Linked bank account</SectionLabel>
             <LinkedAccountPanel style={{ marginBottom: 0 }} />
