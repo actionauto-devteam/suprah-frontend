@@ -3,22 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-    Car, User, Settings, ChevronDown, Loader2, ArrowLeft,
+    Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
 
-    AlertTriangle, Copy, Key, LogOut, RefreshCw, HeartHandshake, Fingerprint
+    AlertTriangle, Copy, Key, RefreshCw, HeartHandshake
 
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
@@ -42,16 +34,6 @@ interface OrgLeadConfig {
   hasWebhookSecret?: boolean;
   webhookUrl?: string;
   lastSyncAt?: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function ini(n: string) {
-  return n
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -103,19 +85,6 @@ export default function IntegrationsSettingsPage() {
     };
     init();
   }, [router]);
-
-  const handleExit = async () => {
-    try {
-      await apiClient.post(
-        "/api/crm/logout",
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-    } catch {}
-    localStorage.removeItem("crm_token");
-    localStorage.removeItem("crm_user");
-    router.push("/");
-  };
 
   const handleConnectGmail = async () => {
     try {
@@ -265,70 +234,6 @@ export default function IntegrationsSettingsPage() {
 
     return (
         <div className="min-h-screen w-full bg-background">
-            {/* ── Topbar ── */}
-            <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/90 backdrop-blur-xl">
-                <div className="flex items-center justify-between h-14 px-6">
-                    <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-                            <Car className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="hidden sm:block">
-                            <p className="text-sm font-bold leading-none">Action Auto</p>
-                            <p className="text-[9px] uppercase tracking-[0.25em] text-emerald-600 mt-0.5 font-bold">Workspace</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-border/40 hover:bg-muted/50">
-                                    <Avatar className="h-6 w-6">
-                                        <AvatarImage src={user.avatar} />
-                                        <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(user.fullName)}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="hidden sm:inline text-xs font-medium max-w-25 truncate">{user.fullName}</span>
-                                    <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-0 overflow-hidden shadow-xl border-border/40">
-                                <div className="p-4">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-9 w-9">
-                                            <AvatarImage src={user.avatar} />
-                                            <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(user.fullName)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-bold truncate">{user.fullName}</p>
-                                            <p className="text-[11px] text-muted-foreground/50 truncate">{user.email}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <DropdownMenuSeparator className="m-0" />
-                                <div className="p-1.5">
-                                    <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
-                                        <User className="h-3.5 w-3.5 text-muted-foreground" /> My Profile
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer">
-                                        <Fingerprint className="h-3.5 w-3.5 text-muted-foreground" /> Biometrics
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem onClick={() => router.push("/crm/settings")} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer bg-muted/30">
-                                        <Settings className="h-3.5 w-3.5 text-emerald-500" />
-                                        <span className="text-emerald-600 font-semibold">Settings</span>
-                                    </DropdownMenuItem>
-                                </div>
-                                <DropdownMenuSeparator className="m-0" />
-                                <div className="p-1.5">
-                                    <DropdownMenuItem onClick={handleExit} className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/5">
-                                        <LogOut className="h-3.5 w-3.5" /> Exit CRM
-                                    </DropdownMenuItem>
-                                </div>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                </div>
-            </header>
-
             {/* ── Page Content ── */}
             <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
                 <div className="flex items-center gap-4">

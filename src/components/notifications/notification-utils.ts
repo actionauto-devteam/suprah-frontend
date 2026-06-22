@@ -72,6 +72,9 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   referral_rewarded: { icon: DollarSign, gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-500' },
   delivery_confirmed: { icon: CheckCircle2, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
   proof_submitted: { icon: ShieldCheck, gradient: 'from-teal-500 to-emerald-500', bg: 'bg-teal-500' },
+  aftermarket_inquiry: { icon: Megaphone, gradient: 'from-orange-500 to-amber-500', bg: 'bg-orange-500' },
+  aftermarket_invoice: { icon: CreditCard, gradient: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500' },
+  aftermarket_order: { icon: Tag, gradient: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-500' },
 };
 
 const DEFAULT_MAP: IconColorMap = {
@@ -95,8 +98,19 @@ export function getNotificationCategory(type: string): string {
   if (type.startsWith('team_') || type === 'role_changed') return 'Team';
   if (['password_changed', 'email_changed', 'profile_updated', 'login_alert'].includes(type)) return 'Account';
   if (type.startsWith('referral_')) return 'Referrals';
+  if (type === 'aftermarket_invoice') return 'Payments';
+  if (type.startsWith('aftermarket_')) return 'CRM';
   if (['system_announcement', 'message_received', 'reminder', 'general'].includes(type)) return 'System';
   return 'Other';
+}
+
+/**
+ * Notifications belonging to the CRM (`/crm/*`) section of the app: leads,
+ * appointments, tasks, biometrics/timeproof, and aftermarket inquiries/orders.
+ */
+export function isCrmNotification(type: string): boolean {
+  const category = getNotificationCategory(type);
+  return category === 'CRM' || category === 'Appointments';
 }
 
 const ROUTE_MAP: Record<string, string> = {
@@ -113,6 +127,7 @@ const ROUTE_MAP: Record<string, string> = {
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
   message_received: '/crm/supra-space',
+  aftermarket_inquiry: '/crm/support-center', aftermarket_order: '/crm/aftermarket',
   driver_location_update: '/driver-tracker',
   payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
   payout_processed: '/billing',
@@ -133,6 +148,7 @@ const CUSTOMER_ROUTE_MAP: Record<string, string> = {
   referral_joined: '/customer/refer', referral_rewarded: '/customer/refer',
   password_changed: '/customer/settings', email_changed: '/customer/settings',
   profile_updated: '/customer/settings', login_alert: '/customer/settings',
+  aftermarket_invoice: '/customer/payments',
 };
 
 const ADMIN_ROUTE_MAP: Record<string, string> = {

@@ -222,8 +222,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Quick Nav (mirrors the sidebar) ─────────────────────────────────── */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0">
+      {/* ── Quick Nav (mirrors the sidebar) — mobile only, sidebar covers desktop ── */}
+      <div className="flex md:hidden gap-1.5 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0">
         {QUICK_NAV.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
           return (

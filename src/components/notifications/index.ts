@@ -1,4 +1,5 @@
 export { NotificationBell } from './NotificationBell';
+export { CrmNotificationBell } from './CrmNotificationBell';
 export { NotificationItem } from './NotificationItem';
 export { NotificationList } from './NotificationList';
 export { NotificationPage } from './NotificationPage';
@@ -8,6 +9,7 @@ export { NotificationEmptyState, NotificationLoadingState } from './Notification
 export {
   getNotificationMeta,
   getNotificationCategory,
+  isCrmNotification,
   formatNotificationDate,
   formatFullDate,
   getNotificationRoute,

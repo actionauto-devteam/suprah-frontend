@@ -4,12 +4,9 @@ import { useRouter } from "next/navigation";
 import {
   Car,
   LogOut,
-  User,
   Copy,
   Check,
-  Settings,
   Clock,
-  ChevronDown,
   Loader2,
   CheckCircle2,
   CalendarDays,
@@ -17,7 +14,6 @@ import {
   Moon,
   Sunset,
   ArrowRight,
-  Fingerprint,
   CalendarCheck,
   Activity,
   Sparkles,
@@ -38,19 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
@@ -78,6 +62,9 @@ interface CrmUserData {
 // ─── MDT timezone helpers (company operates on MDT = UTC-6) ─────────────────
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000;
 const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS);
+
+// Target length of a standard shift — drives the radial gauge fill.
+const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getGreeting(name: string) {
@@ -161,50 +148,72 @@ function AnimatedDigit({ value }: { value: string }) {
   );
 }
 
-function LiveClock() {
-  const [now, setNow] = React.useState(new Date());
-  React.useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const mdtNow = toMDT(now);
-  const timeStr = mdtNow.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-    timeZone: "UTC",
-  });
-
+// ─── Signature element: radial shift-progress gauge ──────────────────────────
+// An instrument-cluster ring that fills toward the 8h target. The same gauge
+// frame is reused across every clock state (tracking / break / complete / idle)
+// so the card always reads like one consistent telemetry dial.
+type GaugeAccent = "emerald" | "amber" | "red" | "zinc";
+function ShiftGauge({
+  progress,
+  accent,
+  glow = false,
+  children,
+}: {
+  progress: number;
+  accent: GaugeAccent;
+  glow?: boolean;
+  children: React.ReactNode;
+}) {
+  const R = 86;
+  const CIRC = 2 * Math.PI * R;
+  const pct = Math.min(1, Math.max(0, progress));
+  const dash = CIRC * pct;
+  const accentText =
+    accent === "amber"
+      ? "text-amber-500 dark:text-amber-400"
+      : accent === "red"
+        ? "text-red-500 dark:text-red-400"
+        : accent === "zinc"
+          ? "text-zinc-300 dark:text-zinc-700"
+          : "text-emerald-500 dark:text-emerald-400";
+  const glowColor =
+    accent === "amber"
+      ? "rgba(245,158,11,0.45)"
+      : accent === "red"
+        ? "rgba(239,68,68,0.45)"
+        : "rgba(16,185,129,0.5)";
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="group relative inline-flex items-center gap-2 sm:gap-2.5 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 cursor-default select-none overflow-hidden border border-emerald-200/80 dark:border-emerald-500/20 bg-linear-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 backdrop-blur-sm hover:border-emerald-300/80 dark:hover:border-emerald-400/30 transition-all duration-300">
-          <div className="absolute inset-0 bg-linear-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
-          </span>
-          <span className="font-mono text-xs font-bold tabular-nums tracking-wide text-emerald-700 dark:text-emerald-400">
-            {timeStr}
-          </span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent
-        side="bottom"
-        className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
-      >
-        <p className="text-xs">
-          {mdtNow.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-            timeZone: "UTC",
-          })}
-        </p>
-      </TooltipContent>
-    </Tooltip>
+    <div className="relative h-44 w-44 shrink-0 sm:h-52 sm:w-52">
+      <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
+        <circle
+          cx="100"
+          cy="100"
+          r={R}
+          fill="none"
+          strokeWidth="6"
+          className="stroke-current text-zinc-200/70 dark:text-zinc-800/90"
+        />
+        <circle
+          cx="100"
+          cy="100"
+          r={R}
+          fill="none"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${CIRC}`}
+          className={cn(
+            "stroke-current transition-all duration-700 motion-reduce:transition-none",
+            accentText,
+          )}
+          style={glow ? { filter: `drop-shadow(0 0 7px ${glowColor})` } : undefined}
+        />
+      </svg>
+      {/* inner hairline ring for the instrument-bezel feel */}
+      <div className="absolute inset-3.5 rounded-full border border-zinc-200/50 dark:border-white/[0.04]" />
+      <div className="absolute inset-0 flex items-center justify-center">
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -260,87 +269,100 @@ function ActivityTimer({
     { v: pad(worked.s), l: "SEC" },
   ];
 
+  // Gauge always tracks progress of the actual shift toward the 8h target,
+  // independent of break time, so the dial doesn't lie while paused.
+  const shift = toHMS(totalMs);
+  const shiftProgress = totalMs / SHIFT_TARGET_MS;
+  const accent: GaugeAccent = isOnBreak
+    ? breakExceeded
+      ? "red"
+      : "amber"
+    : isActive
+      ? "emerald"
+      : "zinc";
+
+  const centerColor = isOnBreak
+    ? breakExceeded
+      ? "text-red-500 dark:text-red-400"
+      : "text-amber-500 dark:text-amber-400"
+    : isActive
+      ? "text-zinc-900 dark:text-white"
+      : "text-zinc-400 dark:text-zinc-600";
+
+  const stateLabel = isOnBreak
+    ? breakExceeded
+      ? "Break over"
+      : "On break"
+    : isActive
+      ? "Tracking"
+      : isOnShift
+        ? "Paused"
+        : "Off clock";
 
   return (
-    <div className="w-full space-y-4">
-      <div className="flex items-center justify-center py-2">
-        <div className="flex items-end gap-0.5">
-          {units.map((item, i) => (
-            <React.Fragment key={item.l}>
-              {i > 0 && (
+    <div className="flex w-full flex-col items-center gap-4">
+      <ShiftGauge
+        progress={shiftProgress}
+        accent={accent}
+        glow={isActive || isOnBreak}
+      >
+        <div className="flex flex-col items-center gap-1 px-6 text-center">
+          <span
+            className={cn(
+              "text-[9px] font-black uppercase tracking-[0.25em]",
+              accent === "amber"
+                ? "text-amber-500 dark:text-amber-400"
+                : accent === "red"
+                  ? "text-red-500 dark:text-red-400"
+                  : accent === "emerald"
+                    ? "text-emerald-500 dark:text-emerald-400"
+                    : "text-zinc-400 dark:text-zinc-600",
+            )}
+          >
+            {stateLabel}
+          </span>
+          <div className="flex items-end gap-0.5 font-mono font-black leading-none tracking-tighter">
+            {units.map((item, i) => (
+              <React.Fragment key={item.l}>
+                {i > 0 && (
+                  <span
+                    className={cn(
+                      "mb-0.5 text-base opacity-30 sm:text-lg",
+                      centerColor,
+                    )}
+                  >
+                    :
+                  </span>
+                )}
                 <span
                   className={cn(
-                    "text-xl sm:text-2xl font-thin mb-2 sm:mb-3 mx-0.5 transition-colors duration-500",
-                    isOnBreak
-                      ? breakExceeded
-                        ? "text-red-500/50"
-                        : "text-amber-500/50"
-                      : isActive
-                        ? "text-emerald-500/50"
-                        : "text-zinc-400/50",
-                  )}
-                >
-                  :
-                </span>
-              )}
-              <div className="flex flex-col items-center">
-                <span
-                  className={cn(
-                    "text-3xl sm:text-4xl font-mono font-black tabular-nums leading-none tracking-tighter transition-colors duration-500",
-                    isOnBreak
-                      ? breakExceeded
-                        ? "text-red-500 dark:text-red-400"
-                        : "text-amber-500 dark:text-amber-400"
-                      : isActive
-                        ? "text-zinc-900 dark:text-white"
-                        : "text-zinc-400 dark:text-zinc-600",
+                    "text-2xl tabular-nums transition-colors duration-500 sm:text-3xl",
+                    centerColor,
                   )}
                 >
                   <AnimatedDigit value={item.v[0]} />
                   <AnimatedDigit value={item.v[1]} />
                 </span>
-                <span className="text-[8px] tracking-widest text-zinc-400 dark:text-zinc-600 font-bold mt-1">
-                  {item.l}
-                </span>
-              </div>
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col items-center gap-2">
-        <span
-          className={cn(
-            "text-[10px] font-bold tracking-[0.2em] uppercase",
-            isOnBreak
-              ? breakExceeded
-                ? "text-red-500 dark:text-red-400"
-                : "text-amber-500 dark:text-amber-400"
-              : isActive
-                ? "text-emerald-500 dark:text-emerald-400"
-                : "text-zinc-400 dark:text-zinc-600",
-          )}
-        >
-          {isOnBreak
-            ? breakExceeded
-              ? "⚠ Break Exceeded"
-              : "● On Break — Paused"
-            : isActive
-              ? "● Active — Tracking"
-              : isOnShift
-                ? "○ Shift Open — Tap Resume"
-                : "○ Not Clocked In"}
-        </span>
-        {breakExceeded && (
-          <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-center">
-            <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
-              Break limit exceeded
-            </p>
-            <p className="text-[9px] text-red-400/60 mt-0.5">
-              Over 1h 5m — please resume your shift
-            </p>
+              </React.Fragment>
+            ))}
           </div>
-        )}
-      </div>
+          <span className="font-mono text-[10px] font-bold tabular-nums text-zinc-400 dark:text-zinc-600">
+            {pad(shift.h)}h {pad(shift.m)}m{" "}
+            <span className="opacity-50">/ 8h</span>
+          </span>
+        </div>
+      </ShiftGauge>
+
+      {breakExceeded && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-center">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+            Break limit exceeded
+          </p>
+          <p className="mt-0.5 text-[9px] text-red-400/60">
+            Over 1h 5m — please resume your shift
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -360,20 +382,27 @@ function QuickAction({
     <button
       onClick={onClick}
       className={cn(
-        "group relative flex h-full w-full flex-col items-center justify-center gap-2 sm:gap-2.5 rounded-2xl p-3 sm:p-4 min-h-22 sm:min-h-25",
-        "border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm",
-        "hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-all duration-300 cursor-pointer overflow-hidden",
-        "hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]",
+        "group relative flex h-full w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl p-3 min-h-22 sm:gap-2.5 sm:p-4 sm:min-h-25",
+        "border border-zinc-200/80 bg-white/60 backdrop-blur-sm dark:border-white/[0.06] dark:bg-zinc-900/40",
+        "cursor-pointer transition-all duration-300 hover:bg-white dark:hover:bg-zinc-800/50",
+        "hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] motion-reduce:transform-none",
         accent === "amber"
-          ? "hover:border-amber-500/30 hover:shadow-[0_0_20px_-5px_rgba(245,158,11,0.2)]"
-          : "hover:border-emerald-500/30 hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)]",
+          ? "hover:border-amber-500/30 hover:shadow-[0_0_22px_-6px_rgba(245,158,11,0.35)]"
+          : "hover:border-emerald-500/30 hover:shadow-[0_0_22px_-6px_rgba(16,185,129,0.35)]",
       )}
     >
-      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-linear-to-r from-transparent via-white/6 dark:via-white/3 to-transparent pointer-events-none" />
+      {/* corner telemetry tick */}
+      <span
+        className={cn(
+          "absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100",
+          accent === "amber" ? "bg-amber-400" : "bg-emerald-400",
+        )}
+      />
+      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/6 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full motion-reduce:hidden dark:via-white/[0.03]" />
       <div
         className={cn(
-          "h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl flex items-center justify-center transition-all duration-300",
-          "bg-zinc-100 dark:bg-zinc-800/80 group-hover:scale-110",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 sm:h-11 sm:w-11",
+          "bg-zinc-100 group-hover:scale-110 dark:bg-zinc-800/80",
           accent === "amber"
             ? "group-hover:bg-amber-500/10 group-hover:shadow-[0_0_16px_-4px_rgba(245,158,11,0.4)]"
             : "group-hover:bg-emerald-500/10 group-hover:shadow-[0_0_16px_-4px_rgba(16,185,129,0.4)]",
@@ -381,7 +410,7 @@ function QuickAction({
       >
         {icon}
       </div>
-      <span className="text-[10px] sm:text-[11px] font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors duration-300 tracking-wide uppercase text-center leading-tight line-clamp-2">
+      <span className="line-clamp-2 text-center text-[10px] font-bold uppercase leading-tight tracking-wide text-zinc-500 transition-colors duration-300 group-hover:text-zinc-800 dark:text-zinc-400 dark:group-hover:text-zinc-200 sm:text-[11px]">
         {label}
       </span>
     </button>
@@ -415,16 +444,16 @@ function StatChip({
   }, [value, label]);
 
   return (
-    <div className="min-w-0 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-3 hover:border-zinc-300/60 dark:hover:border-zinc-700/60 transition-colors duration-200">
+    <div className="min-w-0 rounded-xl border border-zinc-200/60 bg-white/50 px-4 py-3 backdrop-blur-sm transition-colors duration-200 hover:border-emerald-500/20 dark:border-white/[0.05] dark:bg-zinc-900/40 dark:hover:border-emerald-500/20">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[9px] uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 font-bold">
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
           {label}
         </p>
         {copyable && (
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 dark:border-zinc-700/70 bg-zinc-100/85 dark:bg-zinc-800/70 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100/85 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 transition-colors hover:text-emerald-600 dark:border-zinc-700/70 dark:bg-zinc-800/70 dark:text-zinc-300 dark:hover:text-emerald-400"
             aria-label={`Copy ${label}`}
             title={copied ? "Copied!" : `Copy ${label}`}
           >
@@ -439,7 +468,7 @@ function StatChip({
       </div>
       <p
         className={cn(
-          "text-sm font-bold text-zinc-700 dark:text-zinc-200 whitespace-normal leading-snug",
+          "text-sm font-bold leading-snug text-zinc-700 dark:text-zinc-200",
           breakMode === "all" ? "break-all" : "wrap-break-word",
           capitalize && "capitalize",
         )}
@@ -713,19 +742,6 @@ export default function CrmDashboardPage() {
     check();
   }, [router]);
 
-  const handleExit = async () => {
-    try {
-      await apiClient.post(
-        "/api/crm/logout",
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-    } catch { }
-    localStorage.removeItem("crm_token");
-    localStorage.removeItem("crm_user");
-    router.push("/");
-  };
-
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     setIsClocking(true);
     setClockMsg("");
@@ -974,15 +990,15 @@ export default function CrmDashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-full bg-zinc-100 dark:bg-zinc-950">
+      <div className="flex min-h-full items-center justify-center bg-zinc-100 dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-4">
           <div className="relative h-14 w-14">
-            <div className="absolute inset-0 rounded-2xl bg-emerald-500/10 animate-ping" />
-            <div className="relative h-14 w-14 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-emerald-500/20 flex items-center justify-center">
+            <div className="absolute inset-0 animate-ping rounded-2xl bg-emerald-500/10 motion-reduce:animate-none" />
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-500/20 bg-zinc-50 dark:bg-zinc-900">
               <Car className="h-6 w-6 text-emerald-500" />
             </div>
           </div>
-          <p className="text-[10px] text-zinc-400 dark:text-zinc-600 tracking-[0.3em] uppercase font-bold">
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-600">
             Loading workspace
           </p>
         </div>
@@ -1061,152 +1077,65 @@ export default function CrmDashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-full w-full bg-zinc-100 dark:bg-zinc-950 relative overflow-hidden transition-colors duration-300 flex flex-col">
+      <div className="relative flex min-h-full w-full flex-col overflow-hidden bg-zinc-100 transition-colors duration-300 dark:bg-zinc-950">
+        {/* Ambient instrument backdrop: emerald orbs + faint telemetry grid */}
         <div
-          className="fixed inset-0 pointer-events-none overflow-hidden"
+          className="pointer-events-none fixed inset-0 overflow-hidden"
           aria-hidden
         >
-          <div className="absolute -top-64 -left-64 w-150 h-150 rounded-full bg-emerald-500/4 dark:bg-emerald-500/3 blur-3xl" />
-          <div className="absolute top-1/3 -right-48 w-125 h-125 rounded-full bg-emerald-600/5 dark:bg-emerald-600/4 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 w-100 h-100 rounded-full bg-emerald-400/3 dark:bg-emerald-400/2 blur-3xl" />
+          <div className="absolute -left-64 -top-64 h-150 w-150 rounded-full bg-emerald-500/4 blur-3xl dark:bg-emerald-500/3" />
+          <div className="absolute -right-48 top-1/3 h-125 w-125 rounded-full bg-emerald-600/5 blur-3xl dark:bg-emerald-600/4" />
+          <div className="absolute bottom-0 left-1/3 h-100 w-100 rounded-full bg-emerald-400/3 blur-3xl dark:bg-emerald-400/2" />
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage:
+                "linear-gradient(to right, rgba(16,185,129,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(16,185,129,0.05) 1px, transparent 1px)",
+              backgroundSize: "46px 46px",
+              maskImage:
+                "radial-gradient(ellipse 75% 55% at 50% 0%, black, transparent 78%)",
+              WebkitMaskImage:
+                "radial-gradient(ellipse 75% 55% at 50% 0%, black, transparent 78%)",
+            }}
+          />
         </div>
-
-        <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
-          <div className="flex items-center justify-between gap-2 h-14 sm:h-16 px-4 sm:px-6 max-w-7xl mx-auto">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="relative h-9 w-9 shrink-0 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/20 dark:shadow-emerald-900/50">
-                <Car className="h-4 w-4 text-white" />
-                <div className="absolute inset-0 rounded-xl ring-1 ring-emerald-400/30" />
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-black text-zinc-900 dark:text-white leading-none tracking-tight">
-                  Action Auto
-                </p>
-                <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-500 mt-0.5 font-bold">
-                  Workspace
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <LiveClock />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-zinc-100/85 dark:bg-zinc-900/60 hover:bg-zinc-200/80 dark:hover:bg-zinc-800/80 hover:border-zinc-300/60 dark:hover:border-zinc-600/60 backdrop-blur-sm transition-all duration-200"
-                  >
-                    <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
-                      <AvatarImage src={userAvatarSrc} />
-                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
-                        {ini(user.fullName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="hidden sm:inline text-xs font-semibold text-zinc-700 dark:text-zinc-200 max-w-25 truncate">
-                      {user.fullName}
-                    </span>
-                    <ChevronDown className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-60 rounded-2xl p-0 overflow-hidden shadow-2xl shadow-black/10 dark:shadow-black/50 border-zinc-200/80 dark:border-zinc-700/60 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xl"
-                >
-                  <div className="p-4 bg-linear-to-br from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 ring-2 ring-emerald-500/20">
-                        <AvatarImage src={userAvatarSrc} />
-                        <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-xs font-black">
-                          {ini(user.fullName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
-                          {user.fullName}
-                        </p>
-                        <p className="text-[11px] text-zinc-500 truncate">
-                          {user.email}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <DropdownMenuSeparator className="m-0 bg-zinc-100 dark:bg-zinc-800/60" />
-                  <div className="p-1.5">
-                    <DropdownMenuItem
-                      onClick={() => router.push("/crm/profile")}
-                      className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 focus:bg-zinc-100 dark:focus:bg-zinc-800/60"
-                    >
-                      <User className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                      My Profile
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onClick={() => router.push("/crm/biometrics")}
-                      className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 focus:bg-zinc-100 dark:focus:bg-zinc-800/60"
-                    >
-                      <Fingerprint className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                      Biometrics
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => router.push("/crm/settings")}
-                      className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 focus:bg-zinc-100 dark:focus:bg-zinc-800/60"
-                    >
-                      <Settings className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />{" "}
-                      Settings
-                    </DropdownMenuItem>
-                  </div>
-                  <DropdownMenuSeparator className="m-0 bg-zinc-100 dark:bg-zinc-800/60" />
-                  <div className="p-1.5">
-                    <DropdownMenuItem
-                      onClick={handleExit}
-                      className="rounded-xl text-xs h-9 gap-2.5 cursor-pointer text-red-500 dark:text-red-400 focus:text-red-600 dark:focus:text-red-300 focus:bg-red-50 dark:focus:bg-red-500/10"
-                    >
-                      <LogOut className="h-3.5 w-3.5" /> Exit CRM
-                    </DropdownMenuItem>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </header>
 
         <main className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-7 flex-1 min-h-0 overflow-y-auto">
           <div
             className={cn(
-              "flex flex-wrap items-center gap-x-3 gap-y-2 transition-all duration-700",
-              mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4",
+              "flex flex-wrap items-center gap-x-3 gap-y-2 transition-all duration-700 motion-reduce:transition-none",
+              mounted ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
             )}
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="h-10 w-10 shrink-0 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center shadow-sm">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-100 shadow-sm dark:border-zinc-800/80 dark:bg-zinc-900">
                 {greeting.icon}
               </div>
               <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white tracking-tight truncate">
+                <h1 className="truncate text-lg font-black tracking-tight text-zinc-900 dark:text-white sm:text-xl">
                   {greeting.text}
                 </h1>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono truncate">
+                <p className="mt-0.5 truncate font-mono text-xs text-zinc-400 dark:text-zinc-500">
                   {todayStr}
                 </p>
               </div>
             </div>
-            <Badge className="hidden sm:inline-flex text-[10px] h-5 px-2.5 rounded-full capitalize font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20">
+            <Badge className="hidden h-5 rounded-full border-emerald-200 bg-emerald-50 px-2.5 text-[10px] font-bold capitalize text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400 sm:inline-flex">
               {user.role}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-5">
             <div
               className={cn(
-                "lg:col-span-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm flex flex-col overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
-                "transition-all duration-700 delay-100",
+                "flex flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl lg:col-span-4 dark:border-white/[0.06] dark:bg-zinc-900/40 dark:shadow-none",
+                "transition-all duration-700 delay-100 motion-reduce:transition-none",
                 mounted
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-6",
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-6 opacity-0",
               )}
             >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800/60">
+              <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
                   <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500">
@@ -1218,9 +1147,9 @@ export default function CrmDashboardPage() {
                     className={cn(
                       "h-2 w-2 rounded-full transition-colors duration-500",
                       isOnBreak
-                        ? "bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.6)]"
+                        ? "animate-pulse bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)] motion-reduce:animate-none"
                         : isActive
-                          ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+                          ? "animate-pulse bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] motion-reduce:animate-none"
                           : isComplete
                             ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
                             : "bg-zinc-300 dark:bg-zinc-700",
@@ -1249,7 +1178,7 @@ export default function CrmDashboardPage() {
                 </div>
               </div>
 
-              <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-8 min-h-55">
+              <div className="flex min-h-55 flex-1 items-center justify-center px-4 py-8 sm:px-8">
                 {isActive && (
                   <ActivityTimer
                     todayTotalActiveMs={todayTotalActiveMs}
@@ -1261,43 +1190,35 @@ export default function CrmDashboardPage() {
                   />
                 )}
                 {isComplete && (
-                  <div className="text-center space-y-3">
-                    <div className="relative inline-flex">
-                      <CheckCircle2 className="h-12 w-12 text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
+                  <ShiftGauge progress={1} accent="emerald" glow>
+                    <div className="flex flex-col items-center gap-1.5 text-center">
+                      <CheckCircle2 className="h-8 w-8 text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
+                      <p className="font-mono text-2xl font-black tracking-tighter text-zinc-900 dark:text-white sm:text-3xl">
+                        {finalHours}
+                      </p>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
+                        Shift Complete
+                      </p>
                     </div>
-                    <p className="text-4xl sm:text-5xl font-mono font-black tracking-tighter text-zinc-900 dark:text-white">
-                      {finalHours}
-                    </p>
-                    <p className="text-[10px] text-zinc-400 dark:text-zinc-600 uppercase tracking-[0.2em] font-bold">
-                      Shift Complete
-                    </p>
-                  </div>
+                  </ShiftGauge>
                 )}
                 {!hasClockedIn && (
-                  <div className="text-center space-y-4">
-                    <div className="relative mx-auto w-20 h-20">
-                      <div
-                        className="absolute inset-0 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 animate-spin"
-                        style={{ animationDuration: "8s" }}
-                      />
-                      <div className="absolute inset-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 flex items-center justify-center">
-                        <Activity className="h-7 w-7 text-zinc-300 dark:text-zinc-700" />
-                      </div>
-                    </div>
-                    <div>
+                  <ShiftGauge progress={0} accent="zinc">
+                    <div className="flex flex-col items-center gap-2 px-6 text-center">
+                      <Activity className="h-7 w-7 text-zinc-300 dark:text-zinc-700" />
                       <p className="text-sm font-bold text-zinc-500 dark:text-zinc-400">
-                        Ready to clock in?
+                        Ready to clock in
                       </p>
-                      <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-600">
                         Start tracking your shift
                       </p>
                     </div>
-                  </div>
+                  </ShiftGauge>
                 )}
               </div>
 
-              <div className="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/20">
-                <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-4 dark:border-zinc-800/60 dark:bg-zinc-900/20">
+                <div className="mb-4 grid grid-cols-2 gap-3">
                   {[
                     {
                       label: "Time In",
@@ -1316,12 +1237,12 @@ export default function CrmDashboardPage() {
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/70 dark:border-zinc-800/40 px-3 py-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.03)] dark:shadow-none"
+                      className="rounded-xl border border-zinc-200/70 bg-white/60 px-3 py-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.03)] dark:border-zinc-800/40 dark:bg-zinc-900/50 dark:shadow-none"
                     >
-                      <p className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-600 font-bold mb-1">
+                      <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
                         {item.label}
                       </p>
-                      <p className="text-xl font-mono font-black tabular-nums text-zinc-900 dark:text-white leading-none">
+                      <p className="font-mono text-xl font-black leading-none tabular-nums text-zinc-900 dark:text-white">
                         {item.value}
                       </p>
                     </div>
@@ -1332,14 +1253,14 @@ export default function CrmDashboardPage() {
                   <Button
                     onClick={checkTrayAndStartShift}
                     disabled={isClocking || trayChecking}
-                    className="w-full h-12 rounded-xl font-black text-sm gap-2 transition-all duration-200 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shadow-lg shadow-emerald-500/20 dark:shadow-emerald-900/40 hover:shadow-emerald-500/30 dark:hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
+                    className="h-12 w-full gap-2 rounded-xl border-0 bg-linear-to-r from-emerald-600 to-emerald-500 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-emerald-500 hover:to-emerald-400 hover:shadow-emerald-500/30 active:translate-y-0 motion-reduce:transform-none dark:shadow-emerald-900/40 dark:hover:shadow-emerald-800/50"
                   >
                     {isClocking || trayChecking ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                        <Sparkles className="h-4 w-4" /> Start Shift{" "}
-                        <ArrowRight className="h-4 w-4 ml-auto opacity-60" />
+                         Start Shift{" "}
+                        <ArrowRight className="ml-auto h-4 w-4 opacity-60" />
                       </>
                     )}
                   </Button>
@@ -1357,7 +1278,7 @@ export default function CrmDashboardPage() {
                         <Button
                           onClick={() => handleClock("time-in")}
                           disabled={isClocking}
-                          className="h-11 rounded-xl font-bold gap-2 transition-all duration-200 border text-sm border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                          className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 transition-all duration-200 hover:bg-emerald-500/20 dark:text-emerald-400"
                         >
                           <Play className="h-4 w-4" /> Resume Shift
                         </Button>
@@ -1365,10 +1286,10 @@ export default function CrmDashboardPage() {
                         <Button
                           onClick={handleBreak}
                           className={cn(
-                            "h-11 rounded-xl font-bold gap-2 transition-all duration-200 border text-sm",
+                            "h-11 gap-2 rounded-xl border text-sm font-bold transition-all duration-200",
                             isOnBreak
-                              ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                              : "border-zinc-200 dark:border-zinc-700/60 bg-zinc-50 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30",
+                              ? "border-amber-500/30 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-amber-500/30 hover:bg-zinc-100 hover:text-amber-600 dark:border-zinc-700/60 dark:bg-zinc-800/40 dark:text-zinc-300 dark:hover:bg-zinc-700/60 dark:hover:text-amber-400",
                           )}
                         >
                           {isOnBreak ? (
@@ -1385,7 +1306,7 @@ export default function CrmDashboardPage() {
                       <Button
                         onClick={handleEndShiftClick}
                         disabled={isClocking || isOnBreak}
-                        className="h-11 rounded-xl font-bold gap-2 transition-all duration-200 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 hover:border-red-300 dark:hover:border-red-400/40 disabled:opacity-30 text-sm"
+                        className="h-11 gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-500 transition-all duration-200 hover:border-red-300 hover:bg-red-100 disabled:opacity-30 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:border-red-400/40 dark:hover:bg-red-500/20"
                       >
                         {isClocking ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1399,62 +1320,62 @@ export default function CrmDashboardPage() {
                   );
                 })()}
                 {clockMsg && (
-                  <p className="text-[11px] text-center text-emerald-600 dark:text-emerald-400/70 font-mono mt-2">
+                  <p className="mt-2 text-center font-mono text-[11px] text-emerald-600 dark:text-emerald-400/70">
                     {clockMsg}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="lg:col-span-8 flex flex-col gap-4 lg:gap-5">
+            <div className="flex flex-col gap-4 lg:col-span-8 lg:gap-5">
               <div
                 className={cn(
-                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-5 sm:p-6 overflow-hidden relative shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
-                  "transition-all duration-700 delay-200",
+                  "relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/[0.06] dark:bg-zinc-900/40 dark:shadow-none",
+                  "transition-all duration-700 delay-200 motion-reduce:transition-none",
                   mounted
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-6",
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-6 opacity-0",
                 )}
               >
-                <div className="absolute top-0 right-0 w-48 h-48 bg-linear-to-bl from-emerald-500/4 to-transparent rounded-bl-[100px]" />
+                <div className="absolute right-0 top-0 h-48 w-48 rounded-bl-[100px] bg-linear-to-bl from-emerald-500/5 to-transparent" />
 
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-5">
+                <p className="mb-5 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
                   My Profile
                 </p>
 
-                <div className="flex items-center gap-4 sm:gap-5 pb-5 border-b border-zinc-100 dark:border-zinc-800/60">
+                <div className="flex items-center gap-4 border-b border-zinc-100 pb-5 dark:border-zinc-800/60 sm:gap-5">
                   <div className="relative shrink-0">
-                    <div className="absolute -inset-1 rounded-full bg-linear-to-br from-emerald-500/30 to-emerald-700/10 animate-[spin_6s_linear_infinite]" />
+                    <div className="absolute -inset-1 animate-[spin_6s_linear_infinite] rounded-full bg-linear-to-br from-emerald-500/30 to-emerald-700/10 motion-reduce:animate-none" />
                     <Avatar className="relative h-16 w-16 ring-2 ring-zinc-200 dark:ring-zinc-800">
                       <AvatarImage src={userAvatarSrc} />
-                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-lg font-black">
+                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-lg font-black text-white">
                         {ini(user.fullName)}
                       </AvatarFallback>
                     </Avatar>
                     {isActive && (
-                      <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-900 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                      <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] dark:border-zinc-900" />
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="text-lg font-black text-zinc-900 dark:text-white leading-tight truncate">
+                    <p className="truncate text-lg font-black leading-tight text-zinc-900 dark:text-white">
                       {user.fullName}
                     </p>
-                    <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-0.5 font-mono truncate">
+                    <p className="mt-0.5 truncate font-mono text-sm text-zinc-400 dark:text-zinc-500">
                       {user.email}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2.5">
-                      <Badge className="text-[10px] h-5 px-2.5 rounded-full font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700/60">
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <Badge className="h-5 rounded-full border-zinc-200 bg-zinc-100 px-2.5 text-[10px] font-bold text-zinc-600 dark:border-zinc-700/60 dark:bg-zinc-800 dark:text-zinc-300">
                         {user.username}
                       </Badge>
-                      <Badge className="text-[10px] h-5 px-2.5 rounded-full capitalize font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20">
+                      <Badge className="h-5 rounded-full border-emerald-200 bg-emerald-50 px-2.5 text-[10px] font-bold capitalize text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
                         {user.role}
                       </Badge>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4">
+                <div className="grid grid-cols-2 gap-3 pt-4 sm:grid-cols-3">
                   <StatChip label="Full Name" value={user.fullName} />
                   <StatChip
                     label="Employee ID"
@@ -1469,24 +1390,24 @@ export default function CrmDashboardPage() {
               {/* Quick Actions card */}
               <div
                 className={cn(
-                  "rounded-2xl border border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/50 backdrop-blur-sm p-5 sm:p-6 flex-1 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:shadow-none",
-                  "transition-all duration-700 delay-300",
+                  "flex-1 rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/[0.06] dark:bg-zinc-900/40 dark:shadow-none",
+                  "transition-all duration-700 delay-300 motion-reduce:transition-none",
                   mounted
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-6",
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-6 opacity-0",
                 )}
               >
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-5">
+                <p className="mb-5 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
                   Quick Actions
                 </p>
                 {/* 9 actions → balanced grid at every breakpoint:
                     3 cols (mobile / sm) = 3 even rows, 5 cols (lg+) keeps the
                     wide column tidy without orphan tiles dangling on their own row. */}
-                <div className="grid grid-cols-3 lg:grid-cols-5 auto-rows-fr gap-2.5 sm:gap-3">
+                <div className="grid auto-rows-fr grid-cols-3 gap-2.5 sm:gap-3 lg:grid-cols-5">
                   {quickActions.map((action, i) => (
                     <div
                       key={action.label}
-                      className="h-full transition-all duration-500"
+                      className="h-full transition-all duration-500 motion-reduce:transition-none"
                       style={{
                         transitionDelay: mounted ? `${300 + i * 50}ms` : "0ms",
                         opacity: mounted ? 1 : 0,

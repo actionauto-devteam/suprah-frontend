@@ -1428,15 +1428,9 @@ export default function FeedsPage() {
           </Button>
 
           <div className="flex items-center gap-3 flex-1">
-            <div className="relative h-8 w-8 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/20 shrink-0">
-              <Car className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold tracking-tight leading-none">
-                {activeTab === "feeds" ? "Team Feeds" : "DayPulse"}
-              </p>
-              <p className="text-[11px] text-muted-foreground/50 mt-0.5">Action Auto CRM</p>
-            </div>
+            <p className="text-sm font-semibold tracking-tight leading-none">
+              {activeTab === "feeds" ? "Team Feeds" : "DayPulse"}
+            </p>
           </div>
 
           {activeTab === "feeds" && (
