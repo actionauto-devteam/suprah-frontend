@@ -258,10 +258,14 @@ const isVideoAttachment = (attachment: SSMessage['attachments'][number]) => {
   const extension = attachment.originalName.includes('.') ? attachment.originalName.slice(attachment.originalName.lastIndexOf('.')).toLowerCase() : '';
   return attachment.mimeType.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(extension);
 };
-const getConvName = (c: SSConversation, uid: string) =>
-  c.type === 'group' ? (c.name || 'Group') : (c.members.find(m => m._id !== uid)?.fullName || 'Unknown');
+const safeMembers = (c: SSConversation) => (c.members || []).filter(Boolean);
+const getConvName = (c: SSConversation, uid: string) => {
+  if (c.type === 'group') return c.name || 'Group';
+  const other = safeMembers(c).find(m => m._id !== uid);
+  return other?.fullName || other?.username || 'Unknown';
+};
 const getConvAvatar = (c: SSConversation, uid: string) =>
-  c.type === 'group' ? c.avatar : c.members.find(m => m._id !== uid)?.avatar;
+  c.type === 'group' ? c.avatar : safeMembers(c).find(m => m._id !== uid)?.avatar;
 
 const avaColors = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal'];
 const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % avaColors.length];
@@ -528,7 +532,7 @@ function Bubble({
     );
   }
 
-  const aColor = getAvaColor(message.sender.fullName);
+  const aColor = getAvaColor(message.sender?.fullName || '');
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
 
   return (
@@ -538,16 +542,16 @@ function Bubble({
       onContextMenu={e => e.preventDefault()}>
       {showAvatar ? (
         <div className={cn('h-8 w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
-          {message.sender.avatar
+          {message.sender?.avatar
             ? <img src={resolveImageUrl(message.sender.avatar)} alt="" className="w-full h-full object-cover" />
-            : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(message.sender.fullName)}</span>}
+            : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(message.sender?.fullName || '')}</span>}
         </div>
       ) : <div className="w-8 shrink-0" />}
 
       <div className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
         {showAvatar && !isOwn && (
           <div className="flex items-center gap-1.5 px-1">
-            <span className="font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender.fullName}</span>
+            <span className="font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</span>
             {isPinned && <span className="px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 9, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>📌 Pinned</span>}
           </div>
         )}
@@ -783,7 +787,7 @@ function Bubble({
             style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-1)', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
             {message.content && (
               <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{message.sender.fullName}</p>
+                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</p>
                 <p className="text-xs line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>{message.content}</p>
               </div>
             )}
@@ -1492,7 +1496,7 @@ export default function SupraSpacePage() {
     const lastSeen: Record<string, string> = {};
     activeMsgs.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== uid) lastSeen[id] = m._id; }); });
     const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
-    (activeConv?.members || []).forEach(member => {
+    (activeConv ? safeMembers(activeConv) : []).forEach(member => {
       if (member._id === uid) return;
       const lastMsgId = lastSeen[member._id];
       if (lastMsgId) {
@@ -1567,13 +1571,21 @@ export default function SupraSpacePage() {
   }, [activeMeeting, call]);
 
   // ── Init ──
+  // Keep a ref so the async IIFE can always call the latest getMainToken without
+  // having it in the effect's dependency array. Putting getMainToken in deps would
+  // re-run the effect on every token refresh (accessToken changes → new function
+  // reference), which replaces the entire convos list and may redirect to /crm on
+  // any transient network error mid-session.
+  const getMainTokenRef = React.useRef(getMainToken);
+  getMainTokenRef.current = getMainToken;
+
   React.useEffect(() => {
     (async () => {
       let t = localStorage.getItem('crm_token');
 
       if (!t) {
         try {
-          const mainToken = await getMainToken();
+          const mainToken = await getMainTokenRef.current();
           if (mainToken) {
             const sso = await apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` } });
             t = sso.data?.data?.token ?? null;
@@ -1584,7 +1596,7 @@ export default function SupraSpacePage() {
 
       if (!t) {
         try {
-          const mainToken = await getMainToken();
+          const mainToken = await getMainTokenRef.current();
           if (mainToken) {
             const sso = await apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` } });
             t = sso.data?.data?.token ?? null;
@@ -1627,14 +1639,17 @@ export default function SupraSpacePage() {
           }
         }
       } catch (err: any) {
+        // Only redirect to /crm on 401 (invalid/expired CRM token).
+        // Transient network errors (5xx, timeouts) should NOT kick the user out —
+        // the page stays mounted and retains whatever state it already has.
         if (err?.response?.status === 401) {
           localStorage.removeItem('crm_token');
+          router.replace('/crm');
         }
-        router.replace('/crm');
       }
       finally { setLoading(false); }
     })();
-  }, [router, getMainToken]);
+  }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
 
@@ -1679,7 +1694,15 @@ export default function SupraSpacePage() {
     };
     const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
-    const onNew = (c: SSConversation) => setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
+    const onNew = (c: SSConversation) => {
+      setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
+      // Clear any stale message cache for this conversation. When a conversation
+      // is resurrected (someone sent a new message to a conversation this user had
+      // hidden), old cached messages may predate clearedAt and show nothing, or the
+      // cache may be empty from a previous failed fetch. A fresh getMessages call
+      // ensures the user sees current messages after the conversation reappears.
+      setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
+    };
     const onConvUpdated = (c: any) => {
       if (c?.members) setConvos(p => p.map(x => x._id === c._id ? { ...x, ...c } : x));
       else if (c?._id) patchConv(c._id, c);
@@ -1832,10 +1855,14 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     if (!activeId || !token) return;
-    if (!msgs[activeId]) {
+    // Use key-existence check (in msgs) instead of truthiness (!msgs[activeId]).
+    // ![] is false in JS, so an empty-array cache would permanently block re-fetches
+    // even when new messages arrived or the previous fetch failed silently.
+    if (!(activeId in msgs)) {
       setLoadingMsgs(true);
       apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 40 } })
         .then(r => { const d = r.data?.data || []; setMsgs(p => ({ ...p, [activeId]: d })); setHasMore(p => ({ ...p, [activeId]: d.length === 40 })); })
+        .catch(() => { /* leave msgs[activeId] absent so next open retries */ })
         .finally(() => setLoadingMsgs(false));
     }
     markRead(activeId);
@@ -2282,7 +2309,7 @@ export default function SupraSpacePage() {
 
   const ConvRow = ({ conv, compact, draggable: isDraggable }: { conv: SSConversation; compact?: boolean; draggable?: boolean }) => {
     const isAct = conv._id === activeId;
-    const other = conv.members.find(m => m._id !== uid);
+    const other = safeMembers(conv).find(m => m._id !== uid);
     const online = other ? presence[other._id] === 'online' : false;
     const cName = getConvName(conv, uid);
     const cAvatar = getConvAvatar(conv, uid);
@@ -2461,7 +2488,7 @@ export default function SupraSpacePage() {
                     <DropdownMenuTrigger asChild>
                       <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-40 rounded-xl p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                    <DropdownMenuContent align="start" className="min-w-40 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
                       <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
                         <MessageSquare className="h-3.5 w-3.5" /> Direct Message
                       </DropdownMenuItem>
@@ -2664,14 +2691,14 @@ export default function SupraSpacePage() {
                       <div className="min-w-0 flex-1">
                         <p className="ss4-display font-bold leading-none truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
                         <p className="mt-1 leading-none" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                          {activeConv.type === 'group' ? `${activeConv.members.length} members` : (() => { const o = activeConv.members.find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
+                          {activeConv.type === 'group' ? `${safeMembers(activeConv).length} members` : (() => { const o = safeMembers(activeConv).find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
                         </p>
                       </div>
                     </button>
                     <div className="flex items-center gap-1">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
+                        <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}` }}>
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
                         </DropdownMenuContent>
@@ -2697,7 +2724,7 @@ export default function SupraSpacePage() {
                         <div className="min-w-0 flex-1 cursor-pointer"
                           onClick={() => document.getElementById(`ss4-msg-${latest._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
                           <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Message{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
-                          <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender.fullName}: {latest.content || String.fromCodePoint(128206) + ' Attachment'}</p>
+                          <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender?.fullName || 'Deleted User'}: {latest.content || String.fromCodePoint(128206) + ' Attachment'}</p>
                         </div>
                         <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
                       </div>
@@ -2717,7 +2744,7 @@ export default function SupraSpacePage() {
                         <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
                         <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
                           {activeConv.type === 'direct'
-                            ? `Say Hi to ${activeConv.members.find(m => m._id !== uid)?.fullName || 'your friend'}!`
+                            ? `Say Hi to ${safeMembers(activeConv).find(m => m._id !== uid)?.fullName || 'your friend'}!`
                             : `Welcome to ${activeConv.name || 'this channel'}!`}
                         </p>
                         <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
@@ -2729,9 +2756,9 @@ export default function SupraSpacePage() {
                       const prevMsg = activeMsgs[i - 1] || null;
                       const nextMsg = activeMsgs[i + 1] || null;
                       const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
-                      const showAvatar = !prevMsg || prevMsg.sender._id !== msg.sender._id || showDate;
+                      const showAvatar = !prevMsg || prevMsg.sender?._id !== msg.sender?._id || showDate;
                       const hideTime = !!(nextMsg
-                        && nextMsg.sender._id === msg.sender._id
+                        && nextMsg.sender?._id === msg.sender?._id
                         && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
                         && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
                       );
@@ -2739,7 +2766,7 @@ export default function SupraSpacePage() {
                         <React.Fragment key={msg._id}>
                           {showDate && <DateSep date={msg.createdAt} />}
                           <div id={`ss4-msg-${msg._id}`}>
-                            <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} />
+                            <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} />
                           </div>
                           {pinEvents.find(e => e.msgId === msg._id) && (() => {
                             const ev = pinEvents.find(e => e.msgId === msg._id)!;
@@ -2774,7 +2801,7 @@ export default function SupraSpacePage() {
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{replyTo.content || '📎 Attachment'}</p></div>
+                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender?.fullName || 'Deleted User'}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{replyTo.content || '📎 Attachment'}</p></div>
                         <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     )}
@@ -2968,7 +2995,7 @@ export default function SupraSpacePage() {
                     <div className="px-4 py-3">
                       {infoTab === 'members' && (
                         <div className="space-y-0.5">
-                          {activeConv.members.map(m => {
+                          {safeMembers(activeConv).map(m => {
                             const isOnline = presence[m._id] === 'online';
                             const memberIsAdmin = (activeConv.admins || []).map(String).includes(m._id);
                             return (
@@ -3030,7 +3057,7 @@ export default function SupraSpacePage() {
                           : <div className="space-y-2">
                             {pinnedMsgs.map(m => (
                               <button key={m._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${m._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-                                <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender.fullName}</p>
+                                <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
                                 <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{m.content || '📎 Attachment'}</p>
                               </button>
                             ))}
@@ -3087,7 +3114,7 @@ export default function SupraSpacePage() {
         )}
 
         {manageOpen && activeConv && (
-          <ManageMembersModal users={allUsers} existingIds={activeConv.members.map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
+          <ManageMembersModal users={allUsers} existingIds={safeMembers(activeConv).map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
         )}
         {themeOpen && activeConv && (
           <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />
