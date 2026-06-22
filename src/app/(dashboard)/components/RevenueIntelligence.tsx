@@ -88,30 +88,30 @@ export function RevenueIntelligence({
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-6">
       {/* Revenue Trajectory Chart */}
       <Card className="lg:col-span-7 border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col p-0">
-        <CardHeader className="py-5 px-6 border-b border-border/10 lg:min-h-28">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 lg:min-h-28">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
             <div>
-              <CardTitle className="text-lg font-black flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                  <TrendingUp className="h-4 w-4" />
+              <CardTitle className="text-sm sm:text-lg font-black flex items-center gap-1.5 sm:gap-2">
+                <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </div>
                 Revenue Trajectory
               </CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+              <CardDescription className="hidden sm:block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                 Monthly Revenue
               </CardDescription>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-4 flex-wrap">
               <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
                 {["7D", "1M", "1Y"].map((p) => (
                   <button
                     key={p}
                     onClick={() => onPeriodChange(p)}
-                    className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${period === p
+                    className={`px-3 py-1.5 sm:px-2.5 sm:py-1 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${period === p
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
                       }`}
@@ -121,17 +121,17 @@ export function RevenueIntelligence({
                 ))}
               </div>
               <div className="text-right">
-                <p className="text-xl font-black text-primary tracking-tight leading-none tabular-nums">
+                <p className="text-base sm:text-xl font-black text-primary tracking-tight leading-none tabular-nums">
                   {isLoading ? "..." : formatCurrency(totalPeriodRevenue)}
                 </p>
-                <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mt-1">
+                <p className="hidden sm:block text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mt-1">
                   Total Period
                 </p>
               </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-h-64 sm:min-h-80">
+        <CardContent className="p-0 flex-1 min-h-44 sm:min-h-80">
           {isLoading ? (
             <div className="h-full w-full p-8 space-y-4">
               <Skeleton className="h-full w-full rounded-2xl" />
@@ -206,15 +206,15 @@ export function RevenueIntelligence({
 
       {/* Live Payments Feed */}
       <Card className="lg:col-span-5 border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col p-0">
-        <CardHeader className="py-5 px-6 border-b border-border/10 flex flex-row items-center justify-between lg:min-h-28">
+        <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 flex flex-row items-center justify-between lg:min-h-28">
           <div>
-            <CardTitle className="text-lg font-black flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
-                <DollarSign className="h-4 w-4" />
+            <CardTitle className="text-sm sm:text-lg font-black flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-indigo-500/10 text-indigo-500">
+                <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
               Live Payments
             </CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+            <CardDescription className="hidden sm:block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
               Recent Transactions
             </CardDescription>
           </div>
@@ -222,7 +222,7 @@ export function RevenueIntelligence({
             All <ChevronRight className="h-3 w-3 group-hover:translate-x-1" />
           </Link>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden max-h-120 touch-pan-y overscroll-contain scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+        <CardContent className="p-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden max-h-64 sm:max-h-120 touch-pan-y overscroll-contain scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
           <Table className="table-fixed w-full">
             <TableBody>
               {isLoading
@@ -236,7 +236,7 @@ export function RevenueIntelligence({
                 : livePayments.map((payment, i) => (
                   <TableRow
                     key={i}
-                    className="hover:bg-muted/30 border-border/30 transition-colors h-14 sm:h-16 group"
+                    className="hover:bg-muted/30 border-border/30 transition-colors h-11 sm:h-16 group"
                   >
                     <TableCell className="pl-3 sm:pl-5 w-[55%] max-w-0">
                       <div className="flex min-w-0 flex-col">

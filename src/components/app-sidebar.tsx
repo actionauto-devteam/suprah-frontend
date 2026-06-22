@@ -199,7 +199,7 @@ const navItemClass =
 // Signature element: a glowing rail indicator on the active row.
 function ActiveStrip() {
   return (
-    <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-gradient-to-b from-primary to-primary/40 shadow-md shadow-primary/50 group-data-[collapsible=icon]:hidden" />
+    <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-0.75 -translate-y-1/2 rounded-full bg-linear-to-b from-primary to-primary/40 shadow-md shadow-primary/50 group-data-[collapsible=icon]:hidden" />
   );
 }
 
@@ -207,7 +207,7 @@ function ActiveStrip() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="mt-4 flex items-center gap-2 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 group-data-[collapsible=icon]:hidden">
-      <span className="h-px w-3 bg-gradient-to-r from-primary/60 to-transparent" />
+      <span className="h-px w-3 bg-linear-to-r from-primary/60 to-transparent" />
       {children}
     </div>
   );
@@ -251,17 +251,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.09] via-emerald-500/[0.04] to-emerald-500/[0.12] dark:from-emerald-500/[0.05] dark:via-emerald-500/[0.02] dark:to-emerald-500/[0.07]" />
+        <div className="absolute inset-0 bg-linear-to-brfrom-emerald-500/9ia-emerald-500/[0.04] to-emerald-500/12 dark:from-emerald-500/5 dark:via-emerald-500/2 dark:to-emerald-500/[0.07]" />
         {/* digital grid */}
-        <div className="absolute inset-0 [background-size:24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
+        <div className="absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
         {/* drifting green glows */}
         <div className="green-glow-a absolute -left-10 top-16 size-40 rounded-full bg-emerald-400 blur-3xl" />
         <div className="green-glow-b absolute -right-12 bottom-24 size-44 rounded-full bg-emerald-500 blur-3xl" />
         {/* sweeping scanline */}
-        <div className="digital-scan-line absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-transparent via-emerald-500/[0.14] to-transparent dark:via-emerald-400/10" />
+        <div className="digital-scan-line absolute inset-x-0 top-0 h-20 bg-linear-to-b from-transparent via-emerald-500/[0.14] to-transparent dark:via-emerald-400/10" />
       </div>
 
-      <SidebarHeader className="relative flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-border after:to-transparent">
+      <SidebarHeader className="relative flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
         {/* soft halo behind the mark */}
         <div
           aria-hidden
@@ -298,7 +298,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   className={cn(
                     navItemClass,
                     item.isNew &&
-                      "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
+                    "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
                   )}
                 >
                   <Link href={item.url}>
@@ -378,7 +378,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       className={cn(
                         navItemClass,
                         item.isNew &&
-                          "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
+                        "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
                       )}
                     >
                       <Link href={item.url}>

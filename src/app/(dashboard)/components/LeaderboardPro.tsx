@@ -64,14 +64,14 @@ export function LeaderboardPro() {
 
   if (isLoading) {
     return (
-      <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-full font-sans p-0 overflow-hidden">
-        <CardHeader className="h-24! py-5! px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-1!">
-          <CardTitle className="text-xl font-black">Standings</CardTitle>
-          <CardDescription className="text-xs">Loading roster...</CardDescription>
+      <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-72 sm:h-full font-sans p-0 overflow-hidden">
+        <CardHeader className="h-14! sm:h-24! py-2.5! sm:py-5! px-4! sm:px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-0.5! sm:gap-1!">
+          <CardTitle className="text-base sm:text-xl font-black">Standings</CardTitle>
+          <CardDescription className="hidden sm:block text-xs">Loading roster...</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 px-4 py-4">
+        <CardContent className="space-y-1.5 sm:space-y-3 px-2.5 sm:px-4 py-2.5 sm:py-4">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-16 w-full rounded-2xl bg-muted/20 animate-pulse border border-border/10" />
+            <div key={i} className="h-12 sm:h-16 w-full rounded-xl sm:rounded-2xl bg-muted/20 animate-pulse border border-border/10" />
           ))}
         </CardContent>
       </Card>
@@ -80,26 +80,26 @@ export function LeaderboardPro() {
 
   return (
     <>
-      <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-104 sm:h-128 lg:h-137.5 overflow-hidden flex flex-col font-sans p-0">
-        <CardHeader className="h-24! py-5! px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-1!">
+      <Card className="border-border/40 bg-card/50 backdrop-blur-sm h-72 sm:h-128 lg:h-137.5 overflow-hidden flex flex-col font-sans p-0">
+        <CardHeader className="h-14! sm:h-24! py-2.5! sm:py-5! px-4! sm:px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-0.5! sm:gap-1!">
           <div className="flex w-full items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-xl font-black tracking-tight">Standings</CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+              <CardTitle className="text-base sm:text-xl font-black tracking-tight">Standings</CardTitle>
+              <CardDescription className="hidden sm:block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                 Rep Rankings · This Period
               </CardDescription>
             </div>
-            <div className="p-2 rounded-xl bg-primary/5 text-primary border border-primary/10">
-              <Trophy className="h-4 w-4" />
+            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-primary/5 text-primary border border-primary/10">
+              <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
         </CardHeader>
 
         <CardContent
           ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto touch-pan-y overscroll-contain px-4 py-4 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 scrollbar-track-transparent transition-all"
+          className="flex-1 overflow-y-auto touch-pan-y overscroll-contain px-2.5 sm:px-4 py-2.5 sm:py-4 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 scrollbar-track-transparent transition-all"
         >
-          <div className="px-1 pb-2.5 border-b border-border/20">
+          <div className="hidden sm:block px-1 pb-2.5 border-b border-border/20">
             <div className="flex items-center gap-2 sm:gap-3 bg-muted/30 rounded-xl px-3 py-2">
               <div className="w-6 sm:w-8 shrink-0" aria-hidden="true" />
               <div className="w-9 sm:w-11 shrink-0" aria-hidden="true" />
@@ -123,7 +123,7 @@ export function LeaderboardPro() {
             </div>
           </div>
 
-          <div className="space-y-3 pt-3">
+          <div className="space-y-1.5 sm:space-y-3 pt-1.5 sm:pt-3">
             {allUsers.map((user, i) => {
               const rank = i + 1
               const isTop3 = rank <= 3
@@ -133,7 +133,7 @@ export function LeaderboardPro() {
                 <button
                   key={user.id || i}
                   onClick={() => handleUserClick(user)}
-                  className={`w-full group flex items-center gap-2 sm:gap-3 rounded-2xl border px-3 sm:px-4 py-2.5 sm:py-3 text-left transition-all duration-300 hover:ring-2 hover:ring-primary/20 hover:scale-[1.01] active:scale-[0.99] ${isTop3 ? "border-primary/20 bg-card/80 shadow-md ring-1 ring-primary/5" : "border-border/20 bg-transparent hover:bg-card/40"
+                  className={`w-full group flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border px-2.5 sm:px-4 py-1.5 sm:py-3 text-left transition-all duration-300 hover:ring-2 hover:ring-primary/20 hover:scale-[1.01] active:scale-[0.99] ${isTop3 ? "border-primary/20 bg-card/80 shadow-md ring-1 ring-primary/5" : "border-border/20 bg-transparent hover:bg-card/40"
                     }`}
                 >
                   {/* Rank Icon or Number */}
@@ -147,7 +147,7 @@ export function LeaderboardPro() {
 
                   {/* Avatar */}
                   <div className="relative shrink-0">
-                    <Avatar className={`h-9 w-9 sm:h-11 sm:w-11 ring-1 sm:ring-2 ring-offset-1 sm:ring-offset-2 ring-offset-background transition-all group-hover:ring-primary/40 ${isTop3 ? "ring-primary/30" : "ring-border/20"}`}>
+                    <Avatar className={`h-8 w-8 sm:h-11 sm:w-11 ring-1 sm:ring-2 ring-offset-1 sm:ring-offset-2 ring-offset-background transition-all group-hover:ring-primary/40 ${isTop3 ? "ring-primary/30" : "ring-border/20"}`}>
                       <AvatarImage src={user.avatar} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-[10px] sm:text-xs font-black">
                         {initials}

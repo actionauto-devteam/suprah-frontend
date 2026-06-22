@@ -74,36 +74,39 @@ export function StatHero({ metrics, isLoading }: StatHeroProps) {
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
+    <div className="grid grid-cols-3 md:grid-cols-3 xl:grid-cols-6 gap-1.5 sm:gap-3 lg:gap-4">
       {kpis.map((kpi, i) => (
         <Card
           key={i}
           className="relative p-0 overflow-hidden border border-border/40 bg-card hover:border-border/80 transition-all duration-200"
         >
-          <CardContent className="p-3 sm:p-4 lg:p-5">
+          <CardContent className="p-2 sm:p-4 lg:p-5">
             <div className="flex items-start justify-between">
-              <div className={`p-1.5 sm:p-2 rounded-xl bg-${kpi.color}-500/10`}>
+              <div className={`p-1 sm:p-2 rounded-lg sm:rounded-xl bg-${kpi.color}-500/10`}>
                 {kpi.icon}
               </div>
               {kpi.trend && (
-                <div className={`flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold ${kpi.trendUp ? "text-emerald-500" : "text-rose-500"}`}>
+                <div className={`hidden sm:flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold ${kpi.trendUp ? "text-emerald-500" : "text-rose-500"}`}>
                   {kpi.trendUp ? <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                   {kpi.trend}
                 </div>
               )}
+              {kpi.alert && (
+                <div className="sm:hidden h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse shrink-0 mt-1" />
+              )}
             </div>
 
-            <div className="mt-2 sm:mt-3 space-y-0.5">
-              <h3 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight tabular-nums leading-none">
+            <div className="mt-1.5 sm:mt-3 space-y-0">
+              <h3 className="text-sm sm:text-xl lg:text-2xl font-black tracking-tight tabular-nums leading-none truncate">
                 {kpi.value}
               </h3>
-              <p className="text-[9px] sm:text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest truncate">
+              <p className="text-[8px] sm:text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest truncate mt-0.5 sm:mt-0">
                 {kpi.label}
               </p>
             </div>
 
-            <div className="mt-1.5 flex items-center justify-between">
-              <p className="text-[8px] sm:text-[9px] text-muted-foreground/40 font-medium truncate pr-1">
+            <div className="hidden sm:flex mt-1.5 items-center justify-between">
+              <p className="text-[9px] text-muted-foreground/40 font-medium truncate pr-1">
                 {kpi.description}
               </p>
               {kpi.alert && (
