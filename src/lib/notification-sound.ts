@@ -14,24 +14,72 @@ export function setSoundEnabled(val: boolean): void {
   window.dispatchEvent(new CustomEvent('ss_sound_changed', { detail: val }));
 }
 
-function makeCtx(): AudioContext | null {
-  try {
-    return new (window.AudioContext || (window as any).webkitAudioContext)();
-  } catch {
-    return null;
+// ── Shared AudioContext (singleton) ────────────────────────────────────────────
+// Created lazily; unlocked on first user gesture via unlockAudio().
+// Browsers block audio.play() in socket event handlers (no user gesture) —
+// using a pre-unlocked context bypasses that restriction entirely.
+
+let _ctx: AudioContext | null = null;
+let _notifBuf: AudioBuffer | null = null;
+
+function getCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (!_ctx) {
+    try {
+      _ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } catch { return null; }
   }
+  return _ctx;
+}
+
+async function ensureNotifBuf(): Promise<void> {
+  const ctx = getCtx();
+  if (!ctx || _notifBuf) return;
+  try {
+    const res = await fetch('/sounds/notification.wav');
+    const arr = await res.arrayBuffer();
+    _notifBuf = await ctx.decodeAudioData(arr);
+  } catch {}
+}
+
+// Must be called inside a user-gesture handler (click/keydown) so the
+// AudioContext transitions from 'suspended' → 'running'. After that,
+// playMessageSound() works even in socket event handlers (no gesture needed).
+export function unlockAudio(): void {
+  if (typeof window === 'undefined') return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  ctx.resume()
+    .then(() => ensureNotifBuf())
+    .catch(() => {});
 }
 
 export function playMessageSound(): void {
   if (!isSoundEnabled() || typeof window === 'undefined') return;
+
+  const ctx = getCtx();
+  if (ctx && _notifBuf && ctx.state === 'running') {
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = _notifBuf;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.6;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+      return;
+    } catch {}
+  }
+
+  // Fallback: HTML Audio element (works if browser policy allows it)
   try {
-    const audio = new Audio('/sounds/notification.wav');
-    audio.volume = 0.6;
-    audio.play().catch(() => { /* autoplay blocked in background tab */ });
-  } catch { /* no-op */ }
+    const a = new Audio('/sounds/notification.wav');
+    a.volume = 0.6;
+    a.play().catch(() => {});
+  } catch {}
 }
 
-// Repeating dual-tone ringtone for incoming calls
+// ── Repeating dual-tone ringtone for incoming calls ────────────────────────────
 let _callCtx: AudioContext | null = null;
 let _callTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -56,7 +104,11 @@ function _ring(ctx: AudioContext, at: number): void {
 export function playCallSound(): void {
   if (!isSoundEnabled() || typeof window === 'undefined') return;
   stopCallSound();
-  const ctx = makeCtx();
+  // Prefer the shared context (already unlocked) for call sounds too
+  const shared = getCtx();
+  const ctx = shared && shared.state === 'running' ? shared : (() => {
+    try { return new (window.AudioContext || (window as any).webkitAudioContext)(); } catch { return null; }
+  })();
   if (!ctx) return;
   _callCtx = ctx;
 
@@ -72,11 +124,12 @@ export function playCallSound(): void {
 
 export function stopCallSound(): void {
   if (_callTimer) { clearTimeout(_callTimer); _callTimer = null; }
-  if (_callCtx) { try { _callCtx.close(); } catch {} _callCtx = null; }
+  // Only close if it's a separate context, not the shared one
+  if (_callCtx && _callCtx !== _ctx) { try { _callCtx.close(); } catch {} }
+  _callCtx = null;
 }
 
 // ─── Browser (OS-level) notifications ─────────────────────────────────────────
-// These appear even when the user is on another tab or another window.
 
 export async function requestNotifPermission(): Promise<void> {
   if (typeof Notification === 'undefined') return;
@@ -85,15 +138,52 @@ export async function requestNotifPermission(): Promise<void> {
   }
 }
 
+// Primary notification path — uses ServiceWorkerRegistration.showNotification()
+// which works on mobile PWA, plays the OS notification sound, and vibrates on
+// Android. Falls back to new Notification() if no active SW is found (e.g. dev
+// mode where the SW is disabled).
+export async function showNotificationViaSW(
+  title: string,
+  options: { body?: string; tag?: string; url?: string } = {}
+): Promise<void> {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') return;
+
+  // Try SW-based notification first (proper PWA path)
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      if (reg?.active) {
+        await reg.showNotification(title, {
+          body: options.body,
+          tag: options.tag,
+          icon: '/icon-192x192.png',
+          badge: '/icon-192x192.png',
+          silent: false,
+          vibrate: [200, 100, 200],
+          data: { url: options.url ?? '/crm/supra-space' },
+        } as NotificationOptions);
+        return;
+      }
+    } catch {}
+  }
+
+  // Fallback: direct Notification API (desktop browser without SW)
+  try {
+    const notif = new Notification(title, {
+      icon: '/favicon.ico',
+      body: options.body,
+      tag: options.tag,
+      silent: false,
+    });
+    notif.onclick = () => { window.focus(); notif.close(); };
+  } catch {}
+}
+
+// Legacy export kept for any callers still referencing it
 export function showBrowserNotification(
   title: string,
-  options: {
-    body?: string;
-    icon?: string;
-    tag?: string;
-    requireInteraction?: boolean;
-    silent?: boolean;
-  } = {}
+  options: { body?: string; icon?: string; tag?: string; requireInteraction?: boolean; silent?: boolean } = {}
 ): Notification | null {
   if (typeof Notification === 'undefined') return null;
   if (Notification.permission !== 'granted') return null;

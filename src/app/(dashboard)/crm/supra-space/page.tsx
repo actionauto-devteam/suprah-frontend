@@ -12,7 +12,7 @@ import {
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
-  MoreHorizontal,
+  MoreHorizontal, Copy,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -403,6 +403,30 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
   );
 }
 
+// ─── Copy image to clipboard ──────────────────────────────────────────────────
+// Images are on a private R2 bucket with no CORS headers, so we proxy through
+// Next.js (/api/proxy-image) which fetches server-side where CORS doesn't apply.
+async function copyImageToClipboard(url: string): Promise<void> {
+  const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error('proxy failed');
+  const blob = await res.blob();
+  let copyBlob: Blob = blob;
+  if (blob.type !== 'image/png') {
+    const img = new Image();
+    const blobUrl = URL.createObjectURL(blob);
+    img.src = blobUrl;
+    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || 400;
+    canvas.height = img.naturalHeight || 400;
+    canvas.getContext('2d')!.drawImage(img, 0, 0);
+    URL.revokeObjectURL(blobUrl);
+    copyBlob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/png'));
+  }
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': copyBlob })]);
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
@@ -531,9 +555,8 @@ function Bubble({
           </div>
         )}
 
-        {message.content ? (
-          <div className="relative w-fit">
-            {editMode ? (
+        <div className="relative w-fit">
+          {message.content && (editMode ? (
               <div className={cn('ss4-msg-bubble px-3 py-2.5', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')} style={{ minWidth: 200 }}>
                 <textarea
                   ref={editAreaRef}
@@ -564,7 +587,7 @@ function Bubble({
                 <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
                 {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
               </div>
-            )}
+            ))}
             {hov && !disableActions && !editMode && (
               <div ref={menuRef} className={cn('absolute -top-8 z-20 flex items-center rounded-xl', isOwn ? 'right-0' : 'left-0')}
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}
@@ -581,6 +604,18 @@ function Bubble({
                   <button onClick={() => onPin(message._id)} className="ss4-icon-btn h-7 w-7" title={isPinned ? 'Unpin' : 'Pin'}
                     style={{ color: isPinned ? 'var(--accent)' : undefined }}>
                     <Pin className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
+                  <button
+                    onClick={async () => {
+                      const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
+                      if (!att) return;
+                      try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
+                      catch { toast.error('Could not copy image'); }
+                    }}
+                    className="ss4-icon-btn h-7 w-7" title="Copy image">
+                    <Copy className="h-3.5 w-3.5" />
                   </button>
                 )}
                 {isOwn && onEditSave && message.type === 'text' && (
@@ -619,8 +654,7 @@ function Bubble({
                 )}
               </div>
             )}
-          </div>
-        ) : null}
+        </div>
 
         {message.type === 'gif' && message.gif?.url && (
           <img src={message.gif.url} alt={message.gif.title || 'GIF'} className="rounded-xl" style={{ maxWidth: 240, maxHeight: 240, display: 'block' }} />
@@ -760,6 +794,18 @@ function Bubble({
                 className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
                 <Reply className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Reply
               </button>
+              {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
+                <button onClick={async () => {
+                  const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
+                  setMobileMenu(false);
+                  if (!att) return;
+                  try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
+                  catch { toast.error('Could not copy image'); }
+                }}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                  <Copy className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Copy image
+                </button>
+              )}
               {onPin && (
                 <button onClick={() => { onPin(message._id); setMobileMenu(false); }}
                   className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
@@ -2358,6 +2404,18 @@ export default function SupraSpacePage() {
                             if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
                           }
                           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                        }} onPaste={e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          const imgItems = Array.from(items).filter(it => it.type.startsWith('image/'));
+                          if (imgItems.length === 0) return;
+                          e.preventDefault();
+                          const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
+                          if (files.length > 0) {
+                            const dt = new DataTransfer();
+                            files.forEach(f => dt.items.add(f));
+                            handleUpload(dt.files);
+                          }
                         }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
                       </div>
                       <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
