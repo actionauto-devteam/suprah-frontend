@@ -438,11 +438,23 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   <Loader2 className="size-5 animate-spin text-muted-foreground" />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center gap-2">
-                  <MessageCircle className="size-6 text-muted-foreground/30" />
-                  <p className="text-[11px] text-muted-foreground">{fetchError ? 'Failed to load messages' : 'No messages yet'}</p>
-                  {fetchError && (
-                    <button onClick={fetchMessages} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">Retry</button>
+                <div className="flex flex-col items-center justify-center h-full text-center gap-1.5">
+                  {fetchError ? (
+                    <>
+                      <MessageCircle className="size-6 text-muted-foreground/30" />
+                      <p className="text-[11px] text-muted-foreground">Failed to load messages</p>
+                      <button onClick={fetchMessages} className="text-[10px] text-blue-400 hover:text-blue-300 underline underline-offset-2">Retry</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 32, lineHeight: 1 }}>👋</span>
+                      <p className="text-[12px] font-semibold mt-1" style={{ color: 'var(--text-primary, inherit)' }}>
+                        {conv.type === 'direct'
+                          ? `Say Hi to ${conv.members.find(m => m._id !== crmUserId)?.fullName || 'your friend'}!`
+                          : `Welcome to ${conv.name || 'this channel'}!`}
+                      </p>
+                      <p className="text-[10.5px] text-muted-foreground">Send a message to start chatting.</p>
+                    </>
                   )}
                 </div>
               ) : (
