@@ -276,10 +276,10 @@ interface PreCallModalProps {
 }
 
 function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps) {
-  const [step, setStep]         = React.useState<"setup" | "loading" | "ready" | "error">("setup");
+  const [step, setStep] = React.useState<"setup" | "loading" | "ready" | "error">("setup");
   const [callData, setCallData] = React.useState<CallData | null>(null);
-  const [error, setError]       = React.useState("");
-  const [copied, setCopied]     = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
 
   const prepareCall = async () => {
     setStep("loading");
@@ -651,8 +651,8 @@ export default function ReferralsPage() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [filter, setFilter] = React.useState<"all" | LeadStatus>("all");
   const [convertTarget, setConvertTarget] = React.useState<ReferralLead | null>(null);
-  const [callTarget, setCallTarget]       = React.useState<ReferralLead | null>(null);
-  const [activeCall, setActiveCall]       = React.useState<CallData | null>(null);
+  const [callTarget, setCallTarget] = React.useState<ReferralLead | null>(null);
+  const [activeCall, setActiveCall] = React.useState<CallData | null>(null);
   const [mounted, setMounted] = React.useState(false);
 
   // Auth check
@@ -793,7 +793,7 @@ export default function ReferralsPage() {
                 {counts[tab.key] > 0 && (
                   <span
                     className={cn(
-                      "text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center",
+                      "text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-4.5 text-center",
                       filter === tab.key
                         ? "bg-white/20 text-white dark:bg-black/20 dark:text-zinc-900"
                         : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"

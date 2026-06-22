@@ -392,10 +392,12 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
           {(['going', 'maybe', 'declined'] as const).map(r => (
             <button key={r} onClick={() => onRsvp(r)}
               className="flex-1 h-7 rounded-lg capitalize transition-all"
-              style={{ fontSize: 11, fontWeight: 600,
+              style={{
+                fontSize: 11, fontWeight: 600,
                 background: mine === r ? 'var(--accent)' : 'var(--bg-hover)',
                 color: mine === r ? '#fff' : 'var(--text-secondary)',
-                border: '1px solid var(--border-2)' }}>
+                border: '1px solid var(--border-2)'
+              }}>
               {r} {(event as any)[r]?.length ? `· ${(event as any)[r].length}` : ''}
             </button>
           ))}
@@ -559,103 +561,103 @@ function Bubble({
 
         <div className="relative w-fit">
           {message.content && (editMode ? (
-              <div className={cn('ss4-msg-bubble px-3 py-2.5', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')} style={{ minWidth: 200 }}>
-                <textarea
-                  ref={editAreaRef}
-                  value={editDraft}
-                  onChange={e => setEditDraft(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
-                    if (e.key === 'Escape') cancelEdit();
+            <div className={cn('ss4-msg-bubble px-3 py-2.5', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')} style={{ minWidth: 200 }}>
+              <textarea
+                ref={editAreaRef}
+                value={editDraft}
+                onChange={e => setEditDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                  if (e.key === 'Escape') cancelEdit();
+                }}
+                autoFocus
+                rows={Math.max(1, editDraft.split('\n').length)}
+                className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed"
+                style={{ color: 'inherit', minWidth: 180 }}
+              />
+              <div className="flex items-center gap-2 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{ fontSize: 9, opacity: 0.45 }}>Enter to save · Esc to cancel</span>
+                <div className="flex-1" />
+                <button onClick={cancelEdit} className="h-5 px-2 rounded text-[10px] font-medium" style={{ background: 'rgba(255,255,255,0.1)', color: 'inherit' }}>Cancel</button>
+                <button onClick={saveEdit} disabled={editSaving || !editDraft.trim() || editDraft.trim() === message.content}
+                  className="h-5 px-2 rounded text-[10px] font-semibold text-white disabled:opacity-40"
+                  style={{ background: 'var(--positive,#34c97d)' }}>
+                  {editSaving ? '...' : 'Update'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+              <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
+              {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
+            </div>
+          ))}
+          {hov && !disableActions && !editMode && (
+            <div ref={menuRef} className={cn('absolute -top-8 z-20 flex items-center rounded-xl', isOwn ? 'right-0' : 'left-0')}
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}
+              onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
+              {SS4_REACTIONS.slice(0, 3).map(emoji => (
+                <button key={emoji} onClick={() => onReact(message._id, emoji)}
+                  className="h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
+                  {emoji}
+                </button>
+              ))}
+              <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-2)' }} />
+              <button onClick={() => onReply(message)} className="ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
+              {onPin && (
+                <button onClick={() => onPin(message._id)} className="ss4-icon-btn h-7 w-7" title={isPinned ? 'Unpin' : 'Pin'}
+                  style={{ color: isPinned ? 'var(--accent)' : undefined }}>
+                  <Pin className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
+                <button
+                  onClick={async () => {
+                    const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
+                    if (!att) return;
+                    try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
+                    catch { toast.error('Could not copy image'); }
                   }}
-                  autoFocus
-                  rows={Math.max(1, editDraft.split('\n').length)}
-                  className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed"
-                  style={{ color: 'inherit', minWidth: 180 }}
+                  className="ss4-icon-btn h-7 w-7" title="Copy image">
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {isOwn && onEditSave && message.type === 'text' && (
+                <button onClick={enterEdit} className="ss4-icon-btn h-7 w-7" title="Edit">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {isOwn && (
+                <button onClick={() => onDelete(message._id)} className="ss4-icon-btn h-7 w-7 hover:text-(--danger)" title="Delete">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const pos = {
+                      top: btn.top - 348,
+                      ...(isOwn ? { right: window.innerWidth - btn.right } : { left: btn.left }),
+                    };
+                    pickerPosRef.current ? closePicker() : openPicker(pos);
+                  }}
+                  className="ss4-icon-btn h-7 w-7"
+                  title="More reactions"
+                  style={{ color: pickerPos ? 'var(--positive)' : undefined }}
+                >
+                  <SmilePlus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {pickerPos && (
+                <EmojiReactionPicker
+                  position={pickerPos}
+                  onSelect={(emoji) => { onReact(message._id, emoji); closePicker(); }}
+                  onClose={closePicker}
                 />
-                <div className="flex items-center gap-2 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ fontSize: 9, opacity: 0.45 }}>Enter to save · Esc to cancel</span>
-                  <div className="flex-1" />
-                  <button onClick={cancelEdit} className="h-5 px-2 rounded text-[10px] font-medium" style={{ background: 'rgba(255,255,255,0.1)', color: 'inherit' }}>Cancel</button>
-                  <button onClick={saveEdit} disabled={editSaving || !editDraft.trim() || editDraft.trim() === message.content}
-                    className="h-5 px-2 rounded text-[10px] font-semibold text-white disabled:opacity-40"
-                    style={{ background: 'var(--positive,#34c97d)' }}>
-                    {editSaving ? '...' : 'Update'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
-                <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
-                {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
-              </div>
-            ))}
-            {hov && !disableActions && !editMode && (
-              <div ref={menuRef} className={cn('absolute -top-8 z-20 flex items-center rounded-xl', isOwn ? 'right-0' : 'left-0')}
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}
-                onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
-                {SS4_REACTIONS.slice(0, 3).map(emoji => (
-                  <button key={emoji} onClick={() => onReact(message._id, emoji)}
-                    className="h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
-                    {emoji}
-                  </button>
-                ))}
-                <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-2)' }} />
-                <button onClick={() => onReply(message)} className="ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
-                {onPin && (
-                  <button onClick={() => onPin(message._id)} className="ss4-icon-btn h-7 w-7" title={isPinned ? 'Unpin' : 'Pin'}
-                    style={{ color: isPinned ? 'var(--accent)' : undefined }}>
-                    <Pin className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
-                  <button
-                    onClick={async () => {
-                      const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
-                      if (!att) return;
-                      try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
-                      catch { toast.error('Could not copy image'); }
-                    }}
-                    className="ss4-icon-btn h-7 w-7" title="Copy image">
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {isOwn && onEditSave && message.type === 'text' && (
-                  <button onClick={enterEdit} className="ss4-icon-btn h-7 w-7" title="Edit">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {isOwn && (
-                  <button onClick={() => onDelete(message._id)} className="ss4-icon-btn h-7 w-7 hover:text-[var(--danger)]" title="Delete">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <div className="relative">
-                  <button
-                    onClick={(e) => {
-                      const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      const pos = {
-                        top: btn.top - 348,
-                        ...(isOwn ? { right: window.innerWidth - btn.right } : { left: btn.left }),
-                      };
-                      pickerPosRef.current ? closePicker() : openPicker(pos);
-                    }}
-                    className="ss4-icon-btn h-7 w-7"
-                    title="More reactions"
-                    style={{ color: pickerPos ? 'var(--positive)' : undefined }}
-                  >
-                    <SmilePlus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                {pickerPos && (
-                  <EmojiReactionPicker
-                    position={pickerPos}
-                    onSelect={(emoji) => { onReact(message._id, emoji); closePicker(); }}
-                    onClose={closePicker}
-                  />
-                )}
-              </div>
-            )}
+              )}
+            </div>
+          )}
         </div>
 
         {message.type === 'gif' && message.gif?.url && (
@@ -731,7 +733,7 @@ function Bubble({
                   </button>
                   {isPopOpen && whoArr.length > 0 && (
                     <div
-                      className={cn('absolute z-50 bottom-full mb-1.5 px-3 py-2 rounded-xl text-[11px] min-w-[110px] max-w-[190px]', isOwn ? 'right-0' : 'left-0')}
+                      className={cn('absolute z-50 bottom-full mb-1.5 px-3 py-2 rounded-xl text-[11px] min-w-27.5 max-w-47.5', isOwn ? 'right-0' : 'left-0')}
                       style={{ background: 'var(--bg-elevated,#1a1b1e)', border: '1px solid var(--border-2,rgba(255,255,255,0.1))', boxShadow: '0 4px 16px rgba(0,0,0,0.35)', pointerEvents: 'none' }}
                     >
                       <div className="text-sm text-center mb-1">{r.emoji}</div>
@@ -748,7 +750,7 @@ function Bubble({
 
         {(() => {
           const seenByOthers = isOwn
-            ? (members as Array<{_id:string;fullName:string;avatar?:string}>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id))
+            ? (members as Array<{ _id: string; fullName: string; avatar?: string }>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id))
             : [];
           const hasSeen = seenByOthers.length > 0;
           if (hideTime && !hasSeen) return null;
@@ -1235,7 +1237,7 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
         <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
         <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? 'Active now' : u.role || 'Offline'}</p>
       </div>
-      <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', isOn ? 'bg-[var(--positive)]' : 'bg-[#6b7280]')} />
+      <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', isOn ? 'bg-(--positive)' : 'bg-[#6b7280]')} />
     </div>
   );
   return (
@@ -1373,15 +1375,15 @@ export default function SupraSpacePage() {
   // Ref-based ghost — position updated directly on the DOM node to avoid re-renders during drag
   const dragGhostRef = React.useRef<HTMLDivElement | null>(null);
   // Pointer-events drag tracking (replaces HTML5 drag API)
-  const ptrStartRef  = React.useRef<{ x: number; y: number; type: 'conv' | 'space'; id: string; label: string; spaceId?: string | null } | null>(null);
+  const ptrStartRef = React.useRef<{ x: number; y: number; type: 'conv' | 'space'; id: string; label: string; spaceId?: string | null } | null>(null);
   const ptrActiveRef = React.useRef(false);
   // Refs for current drop targets — avoids stale closure in the pointer-events useEffect
-  const ptrDropZoneRef        = React.useRef<string | null>(null);
-  const ptrDropConvBeforeRef  = React.useRef<string | null>(null);
+  const ptrDropZoneRef = React.useRef<string | null>(null);
+  const ptrDropConvBeforeRef = React.useRef<string | null>(null);
   // Stable handler refs so the pointer-events useEffect doesn't need to re-register
-  const handleMoveToSpaceRef  = React.useRef<(convId: string, spaceId: string | null) => void>(() => {});
-  const handleSpaceDropRef    = React.useRef<(fromId: string, beforeId: string) => void>(() => {});
-  const handleReorderConvRef  = React.useRef<(fromId: string, beforeId: string) => void>(() => {});
+  const handleMoveToSpaceRef = React.useRef<(convId: string, spaceId: string | null) => void>(() => { });
+  const handleSpaceDropRef = React.useRef<(fromId: string, beforeId: string) => void>(() => { });
+  const handleReorderConvRef = React.useRef<(fromId: string, beforeId: string) => void>(() => { });
   const [localSpaceOrder, setLocalSpaceOrder] = React.useState<string[]>([]);
   const [deleteSpaceConfirm, setDeleteSpaceConfirm] = React.useState<string | null>(null);
   const [allUsers, setAllUsers] = React.useState<CrmUser[]>([]);
@@ -1394,7 +1396,7 @@ export default function SupraSpacePage() {
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned'>('members');
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
-  const [pinEvents, setPinEvents] = React.useState<Array<{id: string; pinnerName: string; msgId: string}>>([]);
+  const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
   const [editingGcName, setEditingGcName] = React.useState(false);
   const [gcNameInput, setGcNameInput] = React.useState('');
   const [emojiOpen, setEmojiOpen] = React.useState(false);
@@ -1457,7 +1459,7 @@ export default function SupraSpacePage() {
     });
     const lastSeen: Record<string, string> = {};
     activeMsgs.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== uid) lastSeen[id] = m._id; }); });
-    const result: Record<string, {_id:string;fullName:string;avatar?:string}[]> = {};
+    const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
     (activeConv?.members || []).forEach(member => {
       if (member._id === uid) return;
       const lastMsgId = lastSeen[member._id];
@@ -1556,7 +1558,7 @@ export default function SupraSpacePage() {
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
           }
-        } catch {}
+        } catch { }
       }
 
       if (!t) { router.replace('/crm'); return; }
@@ -1732,7 +1734,7 @@ export default function SupraSpacePage() {
       if (start.type === 'conv') {
         // Check if hovering a specific conv row in the SAME section → reorder mode
         const convBefore = el.closest('[data-conv-before]') as HTMLElement | null;
-        const targetConvId  = convBefore?.dataset.convBefore ?? null;
+        const targetConvId = convBefore?.dataset.convBefore ?? null;
         const targetSection = convBefore?.dataset.convSection ?? null;
         const sourceSection = start.spaceId ?? '__channels__';
         if (targetConvId && targetConvId !== start.id && targetSection === sourceSection) {
@@ -1759,7 +1761,7 @@ export default function SupraSpacePage() {
       if (ptrActiveRef.current) {
         if (start.type === 'conv') {
           const reorderTarget = ptrDropConvBeforeRef.current;
-          const zone          = ptrDropZoneRef.current;
+          const zone = ptrDropZoneRef.current;
           if (reorderTarget) {
             handleReorderConvRef.current(start.id, reorderTarget);
           } else if (zone) {
@@ -1778,9 +1780,9 @@ export default function SupraSpacePage() {
       }
       const ghost = dragGhostRef.current;
       if (ghost) ghost.style.display = 'none';
-      ptrStartRef.current        = null;
-      ptrActiveRef.current       = false;
-      ptrDropZoneRef.current     = null;
+      ptrStartRef.current = null;
+      ptrActiveRef.current = false;
+      ptrDropZoneRef.current = null;
       ptrDropConvBeforeRef.current = null;
     };
     window.addEventListener('pointermove', onMove);
@@ -1971,24 +1973,26 @@ export default function SupraSpacePage() {
 
   const handleReact = async (msgId: string, emoji: string) => {
     if (!activeId) return;
-    setMsgs(p => ({ ...p, [activeId]: (p[activeId] || []).map(m => {
-      if (m._id !== msgId) return m;
-      const reactions = [...(m.reactions || [])];
-      const idx = reactions.findIndex(r => r.emoji === emoji);
-      if (idx >= 0) {
-        const has = reactions[idx].users.includes(uid);
-        const users = has ? reactions[idx].users.filter(u => u !== uid) : [...reactions[idx].users, uid];
-        if (users.length === 0) reactions.splice(idx, 1); else reactions[idx] = { ...reactions[idx], users };
-      } else reactions.push({ emoji, users: [uid] } as any);
-      return { ...m, reactions };
-    }) }));
-    try { await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+    setMsgs(p => ({
+      ...p, [activeId]: (p[activeId] || []).map(m => {
+        if (m._id !== msgId) return m;
+        const reactions = [...(m.reactions || [])];
+        const idx = reactions.findIndex(r => r.emoji === emoji);
+        if (idx >= 0) {
+          const has = reactions[idx].users.includes(uid);
+          const users = has ? reactions[idx].users.filter(u => u !== uid) : [...reactions[idx].users, uid];
+          if (users.length === 0) reactions.splice(idx, 1); else reactions[idx] = { ...reactions[idx], users };
+        } else reactions.push({ emoji, users: [uid] } as any);
+        return { ...m, reactions };
+      })
+    }));
+    try { await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const handleVotePoll = async (msgId: string, optionId: string) => {
-    try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/poll/vote`, { optionId }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.poll) patchMsg(activeId, msgId, { poll: r.data.data.poll }); } catch {}
+    try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/poll/vote`, { optionId }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.poll) patchMsg(activeId, msgId, { poll: r.data.data.poll }); } catch { }
   };
   const handleRsvp = async (msgId: string, response: 'going' | 'maybe' | 'declined') => {
-    try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/event/rsvp`, { response }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.event) patchMsg(activeId, msgId, { event: r.data.data.event }); } catch {}
+    try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/event/rsvp`, { response }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.event) patchMsg(activeId, msgId, { event: r.data.data.event }); } catch { }
   };
   const createPoll = async (question: string, options: string[], allowMultiple: boolean) => {
     if (!activeId) return; setPollOpen(false);
@@ -2027,12 +2031,12 @@ export default function SupraSpacePage() {
   const togglePinConv = async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
     patchConv(c._id, { pinnedBy: pinned ? [...(c.pinnedBy || []), uid] : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
-    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const toggleArchiveConv = async (c: SSConversation) => {
     const archived = !isArchivedConv(c);
     patchConv(c._id, { archivedBy: archived ? [...(c.archivedBy || []), uid] : (c.archivedBy || []).filter(x => String(x) !== uid) } as any);
-    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/archive`, { archived }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/archive`, { archived }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const deleteConversation = async (c: SSConversation) => {
     setConfirmDelete(false); setShowInfo(false);
@@ -2061,12 +2065,12 @@ export default function SupraSpacePage() {
   const renameChannel = async (name: string) => {
     if (!activeConv || !name.trim()) return;
     patchConv(activeConv._id, { name: name.trim() });
-    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { name: name.trim() }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { name: name.trim() }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const applyTheme = async (t: { accent: string | null; wallpaper: string | null }) => {
     if (!activeConv) return; setThemeOpen(false);
     patchConv(activeConv._id, { theme: { ...(activeConv.theme || {}), ...t } } as any);
-    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}/theme`, { theme: { ...(activeConv.theme || {}), ...t } }, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}/theme`, { theme: { ...(activeConv.theme || {}), ...t } }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const uploadAvatar = (file: File) => {
     if (!activeConv) return;
@@ -2082,7 +2086,7 @@ export default function SupraSpacePage() {
         if (!blob) return;
         const fd = new FormData(); fd.append('avatar', blob, 'avatar.jpg');
         apiClient.post(`/api/supraspace/conversations/${activeConv._id}/avatar`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } })
-          .then(r => { if (r.data?.data?.avatar) patchConv(activeConv._id, { avatar: r.data.data.avatar }); }).catch(() => {});
+          .then(r => { if (r.data?.data?.avatar) patchConv(activeConv._id, { avatar: r.data.data.avatar }); }).catch(() => { });
       }, 'image/jpeg', 0.9);
     };
     img.src = raw;
@@ -2108,7 +2112,7 @@ export default function SupraSpacePage() {
       const r = await apiClient.post('/api/supraleo/chat', { message: prompts[action], module: 'supraspace' }, { headers: { Authorization: `Bearer ${token}` } });
       const reply = r.data?.data?.message || '';
       if (reply.trim()) setInput(reply.trim());
-    } catch {} finally { setAutrixLoading(false); }
+    } catch { } finally { setAutrixLoading(false); }
   };
 
   const handleDM = async (targetId: string) => {
@@ -2117,24 +2121,24 @@ export default function SupraSpacePage() {
       const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: targetId }, { headers: { Authorization: `Bearer ${token}` } });
       const c = r.data?.data;
       setConvos(p => p.find(x => x._id === c._id) ? p : [c, ...p]); setActiveId(c._id);
-    } catch {}
+    } catch { }
   };
   const handleGroup = async (name: string, ids: string[]) => {
     setShowModal({ open: false, tab: 'dm' });
-    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); setActiveId(r.data?.data._id); } catch {}
+    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); setActiveId(r.data?.data._id); } catch { }
   };
   const handleCreateSpace = async (name: string, ids: string[], emoji?: string) => {
     setShowModal({ open: false, tab: 'dm' });
     try {
       await apiClient.post('/api/supraspace/spaces', { name, emoji, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } });
       refreshSpaces();
-    } catch {}
+    } catch { }
   };
   const handleMoveToSpace = async (convId: string, spaceId: string | null) => {
     try {
       await apiClient.patch(`/api/supraspace/conversations/${convId}/space`, { spaceId }, { headers: { Authorization: `Bearer ${token}` } });
       setConvos(p => p.map(c => c._id === convId ? { ...c, spaceId: spaceId || null } as any : c));
-    } catch {}
+    } catch { }
   };
   const handleDeleteSpace = async (spaceId: string) => {
     setDeleteSpaceConfirm(null);
@@ -2143,7 +2147,7 @@ export default function SupraSpacePage() {
       setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
       setLocalSpaceOrder(p => p.filter(id => id !== spaceId));
       refreshSpaces();
-    } catch {}
+    } catch { }
   };
   const handleSpaceDrop = (fromSpaceId: string, targetSpaceId: string) => {
     if (fromSpaceId === targetSpaceId) return;
@@ -2169,7 +2173,7 @@ export default function SupraSpacePage() {
 
   // Keep handler refs current so the pointer-events useEffect can call them without re-registering
   handleMoveToSpaceRef.current = handleMoveToSpace;
-  handleSpaceDropRef.current   = handleSpaceDrop;
+  handleSpaceDropRef.current = handleSpaceDrop;
   handleReorderConvRef.current = handleReorderConv;
 
   const loadMore = async () => {
@@ -2180,7 +2184,7 @@ export default function SupraSpacePage() {
       const d = r.data?.data || [];
       setMsgs(p => ({ ...p, [activeId]: [...d, ...(p[activeId] || [])] }));
       setHasMore(p => ({ ...p, [activeId]: d.length === 40 }));
-    } catch {} finally { setLoadingMsgs(false); }
+    } catch { } finally { setLoadingMsgs(false); }
   };
 
   const openSearchResult = (convId: string, messageId: string) => {
@@ -2228,7 +2232,7 @@ export default function SupraSpacePage() {
       if (bi === -1) return -1;
       return ai - bi;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalList, localConvOrder]);
   const toggleSection = (key: string) => setCollapsedSections(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleSpaceCollapse = (id: string) => setCollapsedSpaces(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -2251,10 +2255,10 @@ export default function SupraSpacePage() {
     const isUnread = !isAct && conv.lastMessage && uid && !conv.lastMessage.readBy?.includes(uid) && conv.lastMessage.sender?._id !== uid;
     const lastPreview = conv.lastMessage?.isDeleted ? 'Message deleted'
       : conv.lastMessage?.type === 'voice' ? '🎙️ Voice message'
-      : conv.lastMessage?.type === 'gif' ? 'GIF'
-      : conv.lastMessage?.type === 'poll' ? `📊 ${conv.lastMessage?.poll?.question || 'Poll'}`
-      : conv.lastMessage?.type === 'event' ? `📅 ${conv.lastMessage?.event?.title || 'Event'}`
-      : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
+        : conv.lastMessage?.type === 'gif' ? 'GIF'
+          : conv.lastMessage?.type === 'poll' ? `📊 ${conv.lastMessage?.poll?.question || 'Poll'}`
+            : conv.lastMessage?.type === 'event' ? `📅 ${conv.lastMessage?.event?.title || 'Event'}`
+              : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && conv.lastMessage && conv.lastMessage.sender?._id !== uid ? `${(conv.lastMessage.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
@@ -2276,7 +2280,7 @@ export default function SupraSpacePage() {
               e.preventDefault();
               ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: (conv as any).spaceId ?? null };
             }}
-            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:opacity-80! transition-opacity"
             style={{ marginLeft: -6, padding: '0 1px' }}>
             <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
           </div>
@@ -2304,7 +2308,7 @@ export default function SupraSpacePage() {
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="bottom" align="end" className="min-w-[168px] rounded-xl p-1" onClick={e => e.stopPropagation()}
+              <DropdownMenuContent side="bottom" align="end" className="min-w-42 rounded-xl p-1" onClick={e => e.stopPropagation()}
                 style={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
                 <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => togglePinConv(conv)}>
                   {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />} {pinned ? 'Unpin' : 'Pin'}
@@ -2359,607 +2363,607 @@ export default function SupraSpacePage() {
 
   return (
     <>
-    {/* Global grabbing cursor while any drag is active */}
-    {(dragConvId || dragSpaceId) && (
-      <style>{`* { cursor: grabbing !important; }`}</style>
-    )}
-    {/* Ghost label that follows the cursor — position updated directly via ref (no React re-renders) */}
-    {typeof window !== 'undefined' && createPortal(
-      <div ref={dragGhostRef} style={{
-        display: 'none',
-        position: 'fixed',
-        pointerEvents: 'none',
-        zIndex: 99999,
-        background: 'var(--surface-2, #252a31)',
-        border: '1px solid var(--accent, #5b7cf6)',
-        borderRadius: 8,
-        padding: '5px 12px',
-        fontSize: 12,
-        fontWeight: 600,
-        color: 'var(--text-primary, rgba(255,255,255,0.92))',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
-        whiteSpace: 'nowrap',
-      }} />,
-      document.body
-    )}
-    <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
-      {/* Topbar */}
-      <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
-        <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
-          <div className="flex items-center gap-3">
-            {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0"><Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} /></div>
-              <div>
-                <div className="flex items-center gap-1.5 leading-none">
-                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
-                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
-                  {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
-                </div>
-                <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Team Messaging</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
-              <Wifi className="h-3.5 w-3.5" />
-              <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
-            </button>
-            <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
-            <button className="ss4-icon-btn h-8 w-8" title="Notifications"><Bell className="h-4 w-4" /></button>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar */}
-        <aside className={cn('ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden', 'absolute inset-0 z-20', 'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0', activeId ? '-translate-x-full' : 'translate-x-0')}>
-          <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="ss4-section-label">Messages</span>
-              <div className="flex items-center gap-1.5">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[160px] rounded-xl p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
-                      <MessageSquare className="h-3.5 w-3.5" /> Direct Message
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'group' })}>
-                      <Hash className="h-3.5 w-3.5" /> New Channel
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
-                      <Sparkles className="h-3.5 w-3.5" /> New Space
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-7 w-7 flex items-center justify-center" title="New channel"><Hash className="h-3.5 w-3.5" /></button>
-              </div>
-            </div>
-            <div className="relative">
-              <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
-            </div>
-          </div>
-          <div className="mx-4 ss4-divider" />
-
-          <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2">
-            {q.trim().length >= 2 && (
-              <div className="pt-2">
-                <div className="px-3 pb-1.5 flex items-center justify-between">
-                  <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
-                </div>
-                {msgResults.map((m: any) => {
-                  const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
-                  return (
-                    <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
-                      <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
-                      <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{m.content}</span>
-                    </button>
-                  );
-                })}
-                {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
-                <div className="mx-3 my-2 ss4-divider" />
-              </div>
-            )}
-
-            {pinnedList.length > 0 && (
-              <div className="pt-1">
-                <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
-                <div className="px-2 space-y-0.5">{pinnedList.map(c => <ConvRow key={c._id} conv={c} />)}</div>
-              </div>
-            )}
-
-            {/* ── DIRECT MESSAGES ── */}
-            {dmList.length > 0 && (
-              <div>
-                <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
-                  <span className="ss4-section-label">Direct Messages</span>
-                  <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('dm') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-                </button>
-                {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} />)}</div>}
-              </div>
-            )}
-
-            {/* ── SPACES ── */}
-            {orderedSpaces.length > 0 && (
-              <div>
-                <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('spaces')}>
-                  <span className="ss4-section-label"><Sparkles className="h-2.5 w-2.5 mr-1" /> Spaces</span>
-                  <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('spaces') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-                </button>
-                {!collapsedSections.has('spaces') && orderedSpaces.map((space, idx) => {
-                  const spaceConvsRaw = normalList.filter(c => c.type === 'group' && (c as any).spaceId === space._id);
-                  const spaceConvs = localConvOrder.length
-                    ? [...spaceConvsRaw].sort((a, b) => { const ai = localConvOrder.indexOf(a._id); const bi = localConvOrder.indexOf(b._id); return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi); })
-                    : spaceConvsRaw;
-                  const isCollapsed = collapsedSpaces.has(space._id);
-                  const isConvDropTarget = dropSpaceId === space._id && !!dragConvId;
-                  const isSpaceDropTarget = dropBeforeSpaceId === space._id && !!dragSpaceId && dragSpaceId !== space._id;
-                  return (
-                    <div key={space._id}
-                      data-drop-zone={space._id}
-                      data-drop-before={space._id}>
-                      {/* drop indicator line — appears above this space when reordering */}
-                      {isSpaceDropTarget && (
-                        <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '2px 8px' }} />
-                      )}
-                      <div
-                        style={{ borderRadius: 8, transition: 'background .15s', background: isConvDropTarget ? 'rgba(91,124,246,0.12)' : 'transparent', outline: isConvDropTarget ? '1.5px dashed var(--accent)' : 'none', margin: '0 4px 2px' }}>
-                        <div className="group flex items-center gap-1 px-2 py-1.5">
-                          {/* drag handle for reordering spaces */}
-                          <div
-                            onPointerDown={(e) => {
-                              if (e.button !== 0) return;
-                              e.stopPropagation();
-                              e.preventDefault(); // prevent text selection on drag
-                              ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'space', id: space._id, label: space.name };
-                            }}
-                            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
-                            style={{ padding: '0 1px' }}>
-                            <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
-                          </div>
-                          <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left" onClick={() => toggleSpaceCollapse(space._id)}>
-                            <ChevronLeft className="h-3 w-3 shrink-0 transition-transform" style={{ color: 'var(--text-tertiary)', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-                            <span className="truncate" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                              {space.emoji ? `${space.emoji} ` : ''}{space.name}
-                            </span>
-                            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginLeft: 2 }}>{spaceConvs.length}</span>
-                          </button>
-                          {/* delete button — opens confirmation modal */}
-                          <button onClick={(e) => { e.stopPropagation(); setDeleteSpaceConfirm(space._id); }}
-                            className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity h-5 w-5 flex items-center justify-center rounded"
-                            style={{ color: 'var(--text-tertiary)' }}>
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                        {!isCollapsed && (
-                          <div className="px-1 pb-1 space-y-0.5">
-                            {spaceConvs.map(c => (
-                              <React.Fragment key={c._id}>
-                                {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
-                                <ConvRow conv={c} draggable />
-                              </React.Fragment>
-                            ))}
-                            {spaceConvs.length === 0 && (
-                              <p className="px-3 py-1.5 text-center" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>Drag a channel here</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ── CHANNELS ── */}
-            {(channelList.length > 0 || !!dragConvId) && (
-              <div
-                data-drop-zone="__channels__"
-                style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(91,124,246,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
-                <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('channels')}>
-                  <span className="ss4-section-label">Channels</span>
-                  <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('channels') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-                </button>
-                {!collapsedSections.has('channels') && (
-                  <div className="px-2 space-y-0.5">
-                    {channelList.map(c => (
-                      <React.Fragment key={c._id}>
-                        {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
-                        <ConvRow conv={c} draggable />
-                      </React.Fragment>
-                    ))}
-                    {channelList.length === 0 && dragConvId && (
-                      <p className="px-3 py-1.5 text-center" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>Drop here to remove from Space</p>
-                    )}
+      {/* Global grabbing cursor while any drag is active */}
+      {(dragConvId || dragSpaceId) && (
+        <style>{`* { cursor: grabbing !important; }`}</style>
+      )}
+      {/* Ghost label that follows the cursor — position updated directly via ref (no React re-renders) */}
+      {typeof window !== 'undefined' && createPortal(
+        <div ref={dragGhostRef} style={{
+          display: 'none',
+          position: 'fixed',
+          pointerEvents: 'none',
+          zIndex: 99999,
+          background: 'var(--surface-2, #252a31)',
+          border: '1px solid var(--accent, #5b7cf6)',
+          borderRadius: 8,
+          padding: '5px 12px',
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--text-primary, rgba(255,255,255,0.92))',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+          whiteSpace: 'nowrap',
+        }} />,
+        document.body
+      )}
+      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
+        {/* Topbar */}
+        <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
+          <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
+            <div className="flex items-center gap-3">
+              {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0"><Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} /></div>
+                <div>
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
+                    {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
                   </div>
-                )}
+                  <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Team Messaging</p>
+                </div>
               </div>
-            )}
-
-            {normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
-              <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
-                <div className="h-10 w-10 rounded-xl ss4-empty-icon flex items-center justify-center"><MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
-                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No conversations yet</p>
-              </div>
-            )}
-
-            {archivedList.length > 0 && (
-              <div className="pt-3">
-                <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
-                  <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
-                  <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
-                </button>
-                {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact />)}</div>}
-              </div>
-            )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
+                <Wifi className="h-3.5 w-3.5" />
+                <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
+              </button>
+              <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
+              <button className="ss4-icon-btn h-8 w-8" title="Notifications"><Bell className="h-4 w-4" /></button>
+            </div>
           </div>
-        </aside>
+        </header>
 
-        {/* Chat */}
-        <main className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')} style={themeStyle}>
-          <div className="flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
-            {!activeId && (
-              <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
-                <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
-                <div className="text-center">
-                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
-                  <p className="mt-1" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Select a conversation to start messaging</p>
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Sidebar */}
+          <aside className={cn('ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden', 'absolute inset-0 z-20', 'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0', activeId ? '-translate-x-full' : 'translate-x-0')}>
+            <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="ss4-section-label">Messages</span>
+                <div className="flex items-center gap-1.5">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-40 rounded-xl p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
+                        <MessageSquare className="h-3.5 w-3.5" /> Direct Message
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'group' })}>
+                        <Hash className="h-3.5 w-3.5" /> New Channel
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
+                        <Sparkles className="h-3.5 w-3.5" /> New Space
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-7 w-7 flex items-center justify-center" title="New channel"><Hash className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
-            )}
+              <div className="relative">
+                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+              </div>
+            </div>
+            <div className="mx-4 ss4-divider" />
 
-            {activeId && activeConv && (
-              <>
-                {/* Chat header */}
-                <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-3">
-                  <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); }}><ChevronLeft className="h-4 w-4" /></button>
-                  <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
-                    <div className="relative shrink-0">
-                      <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                        {activeConv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="ss4-display font-bold leading-none truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
-                      <p className="mt-1 leading-none" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                        {activeConv.type === 'group' ? `${activeConv.members.length} members` : (() => { const o = activeConv.members.find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
-                      </p>
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-1">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
-                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-8 w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-4 w-4" /></button>
+            <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2">
+              {q.trim().length >= 2 && (
+                <div className="pt-2">
+                  <div className="px-3 pb-1.5 flex items-center justify-between">
+                    <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
                   </div>
-                </div>
-
-                {/* Active call banner */}
-                {call.liveCalls[activeId] && !activeMeeting && (
-                  <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
-                )}
-
-                {/* Pinned message banner */}
-                {(() => {
-                  const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted);
-                  if (pinnedMsgs.length === 0) return null;
-                  const latest = pinnedMsgs[pinnedMsgs.length - 1];
-                  return (
-                    <div className="shrink-0 flex items-center gap-2.5 px-4 py-2 transition-colors"
-                      style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
-                      <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-                      <div className="min-w-0 flex-1 cursor-pointer"
-                        onClick={() => document.getElementById(`ss4-msg-${latest._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
-                        <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Message{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
-                        <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender.fullName}: {latest.content || String.fromCodePoint(128206)+' Attachment'}</p>
-                      </div>
-                      <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
-                    </div>
-                  );
-                })()}
-
-                {/* Messages */}
-                <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll" style={wallpaper ? { backgroundImage: wallpaper } : undefined}>
-                  {hasMore[activeId] && (
-                    <div className="flex justify-center pb-3">
-                      <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>{loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '↑ Load earlier messages'}</button>
-                    </div>
-                  )}
-                  {loadingMsgs && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-                  {!loadingMsgs && activeMsgs.length === 0 && activeConv && (
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
-                      <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
-                      <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
-                        {activeConv.type === 'direct'
-                          ? `Say Hi to ${activeConv.members.find(m => m._id !== uid)?.fullName || 'your friend'}!`
-                          : `Welcome to ${activeConv.name || 'this channel'}!`}
-                      </p>
-                      <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
-                        {activeConv.type === 'direct' ? 'Send a message to start the conversation.' : 'Be the first to send a message.'}
-                      </p>
-                    </div>
-                  )}
-                  {activeMsgs.map((msg, i) => {
-                    const prevMsg = activeMsgs[i - 1] || null;
-                    const nextMsg = activeMsgs[i + 1] || null;
-                    const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
-                    const showAvatar = !prevMsg || prevMsg.sender._id !== msg.sender._id || showDate;
-                    const hideTime = !!(nextMsg
-                      && nextMsg.sender._id === msg.sender._id
-                      && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
-                      && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
-                    );
+                  {msgResults.map((m: any) => {
+                    const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
                     return (
-                      <React.Fragment key={msg._id}>
-                        {showDate && <DateSep date={msg.createdAt} />}
-                        <div id={`ss4-msg-${msg._id}`}>
-                          <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} />
-                        </div>
-                        {pinEvents.find(e => e.msgId === msg._id) && (() => {
-                          const ev = pinEvents.find(e => e.msgId === msg._id)!;
-                          return (
-                            <div className="flex items-center justify-center px-4 py-1.5 my-0.5">
-                              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
-                                <span style={{ fontSize: 14 }}>⭐</span>
-                                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                                  <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </React.Fragment>
+                      <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
+                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{m.content}</span>
+                      </button>
                     );
                   })}
-                  {typers.length > 0 && (
-                    <div className="flex gap-2.5 px-5 py-1">
-                      <div className="w-8" />
-                      <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
-                        <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing</span>
-                        <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={endRef} />
+                  {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
+                  <div className="mx-3 my-2 ss4-divider" />
                 </div>
+              )}
 
-                {/* Input */}
-                <div className="shrink-0 px-3 sm:px-4 pb-24 md:pb-2 pt-2 space-y-1.5">
-                  {replyTo && (
-                    <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
-                      <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-                      <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{replyTo.content || '📎 Attachment'}</p></div>
-                      <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6"><X className="h-3.5 w-3.5" /></button>
-                    </div>
-                  )}
-                  {pendingFiles.length > 0 && (
-                    <div className="ss4-reply-bar flex flex-col gap-2 px-3 py-2.5">
-                      <div className="flex items-center justify-between"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready</p><button onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Clear all</button></div>
-                      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} />)}</div>
-                    </div>
-                  )}
+              {pinnedList.length > 0 && (
+                <div className="pt-1">
+                  <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
+                  <div className="px-2 space-y-0.5">{pinnedList.map(c => <ConvRow key={c._id} conv={c} />)}</div>
+                </div>
+              )}
 
-                  {isReportGroup ? (
-                    <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>Read-only · DayPulse reports are posted here automatically</span>
-                    </div>
-                  ) : recording ? (
-                    <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)', animation: 'ss4-call-ring 1.5s infinite' }} />
-                      <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
-                      <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
-                      <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
-                    </div>
-                  ) : (
-                    <div className="ss4-input-wrap flex flex-col">
-                      {mentionQuery !== null && mentionOptions.length > 0 && (
-                        <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                          {mentionOptions.map((opt, idx) => (
-                            <button key={opt.id}
-                              onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
-                              className={cn('w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors',
-                                idx === mentionIdx ? 'bg-[var(--accent-muted)]' : 'hover:bg-[var(--bg-hover)]'
-                              )}>
-                              {opt.id === 'all'
-                                ? <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}>
-                                    <Users className="h-3 w-3" style={{ color: 'var(--accent)' }} />
-                                  </div>
-                                : <div className={cn('h-6 w-6 rounded-full flex items-center justify-center overflow-hidden text-white font-semibold shrink-0', getAvaColor(opt.fullName))} style={{ fontSize: 9 }}>
-                                    {opt.avatar ? <img src={opt.avatar} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
-                                  </div>
-                              }
-                              <div className="min-w-0 flex items-baseline gap-1.5">
-                                <span className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>@{opt.id === 'all' ? opt.name : opt.fullName}</span>
-                                {opt.id === 'all' && <span className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{opt.fullName}</span>}
-                              </div>
+              {/* ── DIRECT MESSAGES ── */}
+              {dmList.length > 0 && (
+                <div>
+                  <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
+                    <span className="ss4-section-label">Direct Messages</span>
+                    <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('dm') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                  </button>
+                  {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} />)}</div>}
+                </div>
+              )}
+
+              {/* ── SPACES ── */}
+              {orderedSpaces.length > 0 && (
+                <div>
+                  <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('spaces')}>
+                    <span className="ss4-section-label"><Sparkles className="h-2.5 w-2.5 mr-1" /> Spaces</span>
+                    <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('spaces') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                  </button>
+                  {!collapsedSections.has('spaces') && orderedSpaces.map((space, idx) => {
+                    const spaceConvsRaw = normalList.filter(c => c.type === 'group' && (c as any).spaceId === space._id);
+                    const spaceConvs = localConvOrder.length
+                      ? [...spaceConvsRaw].sort((a, b) => { const ai = localConvOrder.indexOf(a._id); const bi = localConvOrder.indexOf(b._id); return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi); })
+                      : spaceConvsRaw;
+                    const isCollapsed = collapsedSpaces.has(space._id);
+                    const isConvDropTarget = dropSpaceId === space._id && !!dragConvId;
+                    const isSpaceDropTarget = dropBeforeSpaceId === space._id && !!dragSpaceId && dragSpaceId !== space._id;
+                    return (
+                      <div key={space._id}
+                        data-drop-zone={space._id}
+                        data-drop-before={space._id}>
+                        {/* drop indicator line — appears above this space when reordering */}
+                        {isSpaceDropTarget && (
+                          <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '2px 8px' }} />
+                        )}
+                        <div
+                          style={{ borderRadius: 8, transition: 'background .15s', background: isConvDropTarget ? 'rgba(91,124,246,0.12)' : 'transparent', outline: isConvDropTarget ? '1.5px dashed var(--accent)' : 'none', margin: '0 4px 2px' }}>
+                          <div className="group flex items-center gap-1 px-2 py-1.5">
+                            {/* drag handle for reordering spaces */}
+                            <div
+                              onPointerDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.stopPropagation();
+                                e.preventDefault(); // prevent text selection on drag
+                                ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'space', id: space._id, label: space.name };
+                              }}
+                              className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:opacity-80! transition-opacity"
+                              style={{ padding: '0 1px' }}>
+                              <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
+                            </div>
+                            <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left" onClick={() => toggleSpaceCollapse(space._id)}>
+                              <ChevronLeft className="h-3 w-3 shrink-0 transition-transform" style={{ color: 'var(--text-tertiary)', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                              <span className="truncate" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                                {space.emoji ? `${space.emoji} ` : ''}{space.name}
+                              </span>
+                              <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginLeft: 2 }}>{spaceConvs.length}</span>
                             </button>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
-                        <textarea ref={textareaRef} value={input} onChange={handleTyping} onKeyDown={e => {
-                          if (mentionQuery !== null && mentionOptions.length > 0) {
-                            if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
-                            if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-                            if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
-                            if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
-                          }
-                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                        }} onPaste={e => {
-                          const items = e.clipboardData?.items;
-                          if (!items) return;
-                          const imgItems = Array.from(items).filter(it => it.type.startsWith('image/'));
-                          if (imgItems.length === 0) return;
-                          e.preventDefault();
-                          const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
-                          if (files.length > 0) {
-                            const dt = new DataTransfer();
-                            files.forEach(f => dt.items.add(f));
-                            handleUpload(dt.files);
-                          }
-                        }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
-                      </div>
-                      <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-                        <div className="flex items-center gap-0.5">
-                          <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
-                          <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-8 w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
-                          <button onClick={startRecording} className="ss4-icon-btn h-8 w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
-                          <div ref={gifRef} className="relative">
-                            <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="GIF"><Film className="h-4 w-4" /></button>
-                            {gifOpen && <GifPicker onPick={sendGif} onClose={() => setGifOpen(false)} />}
-                          </div>
-                          <div ref={emojiRef} className="relative">
-                            <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
-                            {emojiOpen && (
-                              <div className="absolute bottom-full left-0 mb-2 z-50">
-                                <EmojiPicker onEmojiClick={(d: EmojiClickData) => { setInput(prev => prev + d.emoji); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
-                              </div>
-                            )}
-                          </div>
-                          <div ref={createMenuRef} className="relative">
-                            <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Poll or event"><Plus className="h-4 w-4" /></button>
-                            {createMenuOpen && (
-                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 160, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-                                <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><BarChart3 className="h-3.5 w-3.5" /> Create Poll</button>
-                                <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><CalendarPlus className="h-3.5 w-3.5" /> Create Event</button>
-                              </div>
-                            )}
-                          </div>
-                          <div ref={autrixRef} className="relative">
-                            <button onClick={() => setAutrixOpen(v => !v)} className="ss4-ai-btn h-8 px-2.5 flex items-center gap-1.5" title="Suprah Autrix">
-                              {autrixLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#b49dff' }} /> : <Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} />}
-                              <span className="ss4-ai-text font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Autrix</span>
+                            {/* delete button — opens confirmation modal */}
+                            <button onClick={(e) => { e.stopPropagation(); setDeleteSpaceConfirm(space._id); }}
+                              className="shrink-0 opacity-0 group-hover:opacity-60 hover:opacity-100! transition-opacity h-5 w-5 flex items-center justify-center rounded"
+                              style={{ color: 'var(--text-tertiary)' }}>
+                              <Trash2 className="h-3 w-3" />
                             </button>
-                            {autrixOpen && (
-                              <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 180, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-                                {([['improve', 'Improve writing'], ['formal', 'Make formal'], ['casual', 'Make casual'], ['draft', 'Draft a reply']] as const).map(([action, label]) => (
-                                  <button key={action} onClick={() => handleAutrix(action)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} /> {label}</button>
-                                ))}
-                                <div className="mx-2 my-1 ss4-divider" />
-                                <button onClick={() => { setAutrixOpen(false); setSummarizeOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><FileText className="h-3 w-3" style={{ color: '#b49dff' }} /> Summarize chat</button>
-                              </div>
-                            )}
                           </div>
-                        </div>
-                        <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0)} className="ss4-send-btn h-8 w-8 flex items-center justify-center shrink-0">
-                          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {uploadNotice && (
-                    <p className="px-1" style={{ fontSize: 11, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Details / Info full-takeover panel */}
-          {showInfo && activeId && activeConv && (() => {
-            const cName = getConvName(activeConv, uid);
-            const cAvatar = getConvAvatar(activeConv, uid);
-            const mediaMsgs = activeMsgs.filter(m => m.attachments.some(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)));
-            const fileMsgs = activeMsgs.filter(m => m.attachments.some(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)));
-            const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
-            return (
-              <div className="absolute inset-0 z-30 flex flex-col" style={{ background: 'var(--bg-elevated)' }}>
-                <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-4 py-3">
-                  <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><ChevronLeft className="h-4 w-4" /></button>
-                  <p className="ss4-display font-bold flex-1" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Details</p>
-                  <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><X className="h-4 w-4" /></button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto ss4-scroll">
-                  {/* Header card */}
-                  <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
-                    <div className="relative">
-                      <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                        {activeConv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
-                      </div>
-                      {activeConv.type === 'group' && isAdmin && (
-                        <>
-                          <input ref={avatarFileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
-                          <button onClick={() => avatarFileRef.current?.click()} className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)', border: '2px solid var(--bg-elevated)' }} title="Change photo"><ImageIcon className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
-                        </>
-                      )}
-                    </div>
-
-                    {activeConv.type === 'group' && editingGcName ? (
-                      <div className="flex items-center gap-2 w-full max-w-xs">
-                        <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { renameChannel(gcNameInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
-                        <button onClick={() => { renameChannel(gcNameInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <p className="ss4-display font-bold text-center" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{cName}</p>
-                        {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
-                      </div>
-                    )}
-                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
-
-                    {activeConv.type === 'group' && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <button onClick={() => setManageOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><UserPlus className="h-3.5 w-3.5" /> Add</button>
-                        <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
-                      </div>
-                    )}
-                    {activeConv.type === 'direct' && (
-                      <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
-                    )}
-                  </div>
-
-                  {/* Tabs */}
-                  <div className="px-4">
-                    <div className="ss4-tab-bar flex gap-1">
-                      {(['members', 'media', 'files', 'pinned'] as const).map(t => (
-                        <button key={t} onClick={() => setInfoTab(t)} className={cn('flex-1 h-7 ss4-tab capitalize', t === infoTab && 'ss4-tab-active')}>{t}</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="px-4 py-3">
-                    {infoTab === 'members' && (
-                      <div className="space-y-0.5">
-                        {activeConv.members.map(m => {
-                          const isOnline = presence[m._id] === 'online';
-                          const memberIsAdmin = (activeConv.admins || []).map(String).includes(m._id);
-                          return (
-                            <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
-                              <button onClick={e => setMemberCard({ member: m, pos: { x: e.clientX, y: e.clientY } })} className="relative shrink-0">
-                                <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
-                                  {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
-                                </div>
-                                {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
-                              </button>
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{m.fullName}{m._id === uid ? ' (You)' : ''}</p>
-                                <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{memberIsAdmin ? 'Admin' : (isOnline ? 'Active now' : 'Offline')}</p>
-                              </div>
-                              {activeConv.type === 'group' && isAdmin && m._id !== uid && (
-                                <button onClick={() => removeMember(m._id)} className="ss4-icon-btn h-7 w-7" title="Remove" style={{ color: 'var(--danger)' }}><UserMinus className="h-3.5 w-3.5" /></button>
+                          {!isCollapsed && (
+                            <div className="px-1 pb-1 space-y-0.5">
+                              {spaceConvs.map(c => (
+                                <React.Fragment key={c._id}>
+                                  {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
+                                  <ConvRow conv={c} draggable />
+                                </React.Fragment>
+                              ))}
+                              {spaceConvs.length === 0 && (
+                                <p className="px-3 py-1.5 text-center" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>Drag a channel here</p>
                               )}
                             </div>
-                          );
-                        })}
-                        {activeConv.type === 'group' && (
-                          <button onClick={() => removeMember(uid)} className="w-full flex items-center gap-2 px-2 py-2.5 mt-2 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13 }}><LogOut className="h-4 w-4" /> Leave channel</button>
-                        )}
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── CHANNELS ── */}
+              {(channelList.length > 0 || !!dragConvId) && (
+                <div
+                  data-drop-zone="__channels__"
+                  style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(91,124,246,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
+                  <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('channels')}>
+                    <span className="ss4-section-label">Channels</span>
+                    <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('channels') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                  </button>
+                  {!collapsedSections.has('channels') && (
+                    <div className="px-2 space-y-0.5">
+                      {channelList.map(c => (
+                        <React.Fragment key={c._id}>
+                          {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
+                          <ConvRow conv={c} draggable />
+                        </React.Fragment>
+                      ))}
+                      {channelList.length === 0 && dragConvId && (
+                        <p className="px-3 py-1.5 text-center" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>Drop here to remove from Space</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
+                <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
+                  <div className="h-10 w-10 rounded-xl ss4-empty-icon flex items-center justify-center"><MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No conversations yet</p>
+                </div>
+              )}
+
+              {archivedList.length > 0 && (
+                <div className="pt-3">
+                  <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
+                    <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
+                    <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
+                  </button>
+                  {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact />)}</div>}
+                </div>
+              )}
+            </div>
+          </aside>
+
+          {/* Chat */}
+          <main className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')} style={themeStyle}>
+            <div className="flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
+              {!activeId && (
+                <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
+                  <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
+                  <div className="text-center">
+                    <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
+                    <p className="mt-1" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Select a conversation to start messaging</p>
+                  </div>
+                </div>
+              )}
+
+              {activeId && activeConv && (
+                <>
+                  {/* Chat header */}
+                  <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-3">
+                    <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); }}><ChevronLeft className="h-4 w-4" /></button>
+                    <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                      <div className="relative shrink-0">
+                        <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
+                          {activeConv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="ss4-display font-bold leading-none truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
+                        <p className="mt-1 leading-none" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                          {activeConv.type === 'group' ? `${activeConv.members.length} members` : (() => { const o = activeConv.members.find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
+                        </p>
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}>
+                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-8 w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+
+                  {/* Active call banner */}
+                  {call.liveCalls[activeId] && !activeMeeting && (
+                    <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
+                  )}
+
+                  {/* Pinned message banner */}
+                  {(() => {
+                    const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted);
+                    if (pinnedMsgs.length === 0) return null;
+                    const latest = pinnedMsgs[pinnedMsgs.length - 1];
+                    return (
+                      <div className="shrink-0 flex items-center gap-2.5 px-4 py-2 transition-colors"
+                        style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
+                        <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                        <div className="min-w-0 flex-1 cursor-pointer"
+                          onClick={() => document.getElementById(`ss4-msg-${latest._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                          <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Message{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
+                          <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender.fullName}: {latest.content || String.fromCodePoint(128206) + ' Attachment'}</p>
+                        </div>
+                        <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Messages */}
+                  <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll" style={wallpaper ? { backgroundImage: wallpaper } : undefined}>
+                    {hasMore[activeId] && (
+                      <div className="flex justify-center pb-3">
+                        <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>{loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '↑ Load earlier messages'}</button>
+                      </div>
+                    )}
+                    {loadingMsgs && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+                    {!loadingMsgs && activeMsgs.length === 0 && activeConv && (
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
+                        <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
+                        <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
+                          {activeConv.type === 'direct'
+                            ? `Say Hi to ${activeConv.members.find(m => m._id !== uid)?.fullName || 'your friend'}!`
+                            : `Welcome to ${activeConv.name || 'this channel'}!`}
+                        </p>
+                        <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+                          {activeConv.type === 'direct' ? 'Send a message to start the conversation.' : 'Be the first to send a message.'}
+                        </p>
+                      </div>
+                    )}
+                    {activeMsgs.map((msg, i) => {
+                      const prevMsg = activeMsgs[i - 1] || null;
+                      const nextMsg = activeMsgs[i + 1] || null;
+                      const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
+                      const showAvatar = !prevMsg || prevMsg.sender._id !== msg.sender._id || showDate;
+                      const hideTime = !!(nextMsg
+                        && nextMsg.sender._id === msg.sender._id
+                        && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
+                        && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
+                      );
+                      return (
+                        <React.Fragment key={msg._id}>
+                          {showDate && <DateSep date={msg.createdAt} />}
+                          <div id={`ss4-msg-${msg._id}`}>
+                            <Bubble message={msg} isOwn={msg.sender._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} />
+                          </div>
+                          {pinEvents.find(e => e.msgId === msg._id) && (() => {
+                            const ev = pinEvents.find(e => e.msgId === msg._id)!;
+                            return (
+                              <div className="flex items-center justify-center px-4 py-1.5 my-0.5">
+                                <div className="flex items-center gap-2 px-4 py-1.5 rounded-full" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
+                                  <span style={{ fontSize: 14 }}>⭐</span>
+                                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </React.Fragment>
+                      );
+                    })}
+                    {typers.length > 0 && (
+                      <div className="flex gap-2.5 px-5 py-1">
+                        <div className="w-8" />
+                        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
+                          <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing</span>
+                          <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={endRef} />
+                  </div>
+
+                  {/* Input */}
+                  <div className="shrink-0 px-3 sm:px-4 pb-24 md:pb-2 pt-2 space-y-1.5">
+                    {replyTo && (
+                      <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
+                        <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{replyTo.content || '📎 Attachment'}</p></div>
+                        <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    )}
+                    {pendingFiles.length > 0 && (
+                      <div className="ss4-reply-bar flex flex-col gap-2 px-3 py-2.5">
+                        <div className="flex items-center justify-between"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready</p><button onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Clear all</button></div>
+                        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} />)}</div>
                       </div>
                     )}
 
-                    {infoTab === 'media' && (
-                      mediaMsgs.length === 0
-                        ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No media yet</p>
-                        : <div className="grid grid-cols-3 gap-1.5">
+                    {isReportGroup ? (
+                      <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>Read-only · DayPulse reports are posted here automatically</span>
+                      </div>
+                    ) : recording ? (
+                      <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)', animation: 'ss4-call-ring 1.5s infinite' }} />
+                        <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
+                        <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
+                        <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
+                      </div>
+                    ) : (
+                      <div className="ss4-input-wrap flex flex-col">
+                        {mentionQuery !== null && mentionOptions.length > 0 && (
+                          <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                            {mentionOptions.map((opt, idx) => (
+                              <button key={opt.id}
+                                onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
+                                className={cn('w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors',
+                                  idx === mentionIdx ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)'
+                                )}>
+                                {opt.id === 'all'
+                                  ? <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}>
+                                    <Users className="h-3 w-3" style={{ color: 'var(--accent)' }} />
+                                  </div>
+                                  : <div className={cn('h-6 w-6 rounded-full flex items-center justify-center overflow-hidden text-white font-semibold shrink-0', getAvaColor(opt.fullName))} style={{ fontSize: 9 }}>
+                                    {opt.avatar ? <img src={opt.avatar} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
+                                  </div>
+                                }
+                                <div className="min-w-0 flex items-baseline gap-1.5">
+                                  <span className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>@{opt.id === 'all' ? opt.name : opt.fullName}</span>
+                                  {opt.id === 'all' && <span className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{opt.fullName}</span>}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
+                          <textarea ref={textareaRef} value={input} onChange={handleTyping} onKeyDown={e => {
+                            if (mentionQuery !== null && mentionOptions.length > 0) {
+                              if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
+                              if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
+                              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
+                              if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
+                            }
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                          }} onPaste={e => {
+                            const items = e.clipboardData?.items;
+                            if (!items) return;
+                            const imgItems = Array.from(items).filter(it => it.type.startsWith('image/'));
+                            if (imgItems.length === 0) return;
+                            e.preventDefault();
+                            const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
+                            if (files.length > 0) {
+                              const dt = new DataTransfer();
+                              files.forEach(f => dt.items.add(f));
+                              handleUpload(dt.files);
+                            }
+                          }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
+                        </div>
+                        <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
+                          <div className="flex items-center gap-0.5">
+                            <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
+                            <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-8 w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
+                            <button onClick={startRecording} className="ss4-icon-btn h-8 w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
+                            <div ref={gifRef} className="relative">
+                              <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="GIF"><Film className="h-4 w-4" /></button>
+                              {gifOpen && <GifPicker onPick={sendGif} onClose={() => setGifOpen(false)} />}
+                            </div>
+                            <div ref={emojiRef} className="relative">
+                              <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
+                              {emojiOpen && (
+                                <div className="absolute bottom-full left-0 mb-2 z-50">
+                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { setInput(prev => prev + d.emoji); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
+                                </div>
+                              )}
+                            </div>
+                            <div ref={createMenuRef} className="relative">
+                              <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Poll or event"><Plus className="h-4 w-4" /></button>
+                              {createMenuOpen && (
+                                <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 160, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                                  <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><BarChart3 className="h-3.5 w-3.5" /> Create Poll</button>
+                                  <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><CalendarPlus className="h-3.5 w-3.5" /> Create Event</button>
+                                </div>
+                              )}
+                            </div>
+                            <div ref={autrixRef} className="relative">
+                              <button onClick={() => setAutrixOpen(v => !v)} className="ss4-ai-btn h-8 px-2.5 flex items-center gap-1.5" title="Suprah Autrix">
+                                {autrixLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#b49dff' }} /> : <Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} />}
+                                <span className="ss4-ai-text font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Autrix</span>
+                              </button>
+                              {autrixOpen && (
+                                <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 180, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                                  {([['improve', 'Improve writing'], ['formal', 'Make formal'], ['casual', 'Make casual'], ['draft', 'Draft a reply']] as const).map(([action, label]) => (
+                                    <button key={action} onClick={() => handleAutrix(action)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} /> {label}</button>
+                                  ))}
+                                  <div className="mx-2 my-1 ss4-divider" />
+                                  <button onClick={() => { setAutrixOpen(false); setSummarizeOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><FileText className="h-3 w-3" style={{ color: '#b49dff' }} /> Summarize chat</button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0)} className="ss4-send-btn h-8 w-8 flex items-center justify-center shrink-0">
+                            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {uploadNotice && (
+                      <p className="px-1" style={{ fontSize: 11, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Details / Info full-takeover panel */}
+            {showInfo && activeId && activeConv && (() => {
+              const cName = getConvName(activeConv, uid);
+              const cAvatar = getConvAvatar(activeConv, uid);
+              const mediaMsgs = activeMsgs.filter(m => m.attachments.some(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)));
+              const fileMsgs = activeMsgs.filter(m => m.attachments.some(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)));
+              const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
+              return (
+                <div className="absolute inset-0 z-30 flex flex-col" style={{ background: 'var(--bg-elevated)' }}>
+                  <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-4 py-3">
+                    <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><ChevronLeft className="h-4 w-4" /></button>
+                    <p className="ss4-display font-bold flex-1" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Details</p>
+                    <button onClick={() => setShowInfo(false)} className="ss4-icon-btn h-8 w-8"><X className="h-4 w-4" /></button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto ss4-scroll">
+                    {/* Header card */}
+                    <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
+                      <div className="relative">
+                        <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
+                          {activeConv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
+                        </div>
+                        {activeConv.type === 'group' && isAdmin && (
+                          <>
+                            <input ref={avatarFileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
+                            <button onClick={() => avatarFileRef.current?.click()} className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)', border: '2px solid var(--bg-elevated)' }} title="Change photo"><ImageIcon className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
+                          </>
+                        )}
+                      </div>
+
+                      {activeConv.type === 'group' && editingGcName ? (
+                        <div className="flex items-center gap-2 w-full max-w-xs">
+                          <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { renameChannel(gcNameInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
+                          <button onClick={() => { renameChannel(gcNameInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <p className="ss4-display font-bold text-center" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{cName}</p>
+                          {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
+                        </div>
+                      )}
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
+
+                      {activeConv.type === 'group' && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <button onClick={() => setManageOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><UserPlus className="h-3.5 w-3.5" /> Add</button>
+                          <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
+                        </div>
+                      )}
+                      {activeConv.type === 'direct' && (
+                        <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
+                      )}
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="px-4">
+                      <div className="ss4-tab-bar flex gap-1">
+                        {(['members', 'media', 'files', 'pinned'] as const).map(t => (
+                          <button key={t} onClick={() => setInfoTab(t)} className={cn('flex-1 h-7 ss4-tab capitalize', t === infoTab && 'ss4-tab-active')}>{t}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="px-4 py-3">
+                      {infoTab === 'members' && (
+                        <div className="space-y-0.5">
+                          {activeConv.members.map(m => {
+                            const isOnline = presence[m._id] === 'online';
+                            const memberIsAdmin = (activeConv.admins || []).map(String).includes(m._id);
+                            return (
+                              <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
+                                <button onClick={e => setMemberCard({ member: m, pos: { x: e.clientX, y: e.clientY } })} className="relative shrink-0">
+                                  <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
+                                    {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
+                                  </div>
+                                  {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+                                </button>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{m.fullName}{m._id === uid ? ' (You)' : ''}</p>
+                                  <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{memberIsAdmin ? 'Admin' : (isOnline ? 'Active now' : 'Offline')}</p>
+                                </div>
+                                {activeConv.type === 'group' && isAdmin && m._id !== uid && (
+                                  <button onClick={() => removeMember(m._id)} className="ss4-icon-btn h-7 w-7" title="Remove" style={{ color: 'var(--danger)' }}><UserMinus className="h-3.5 w-3.5" /></button>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {activeConv.type === 'group' && (
+                            <button onClick={() => removeMember(uid)} className="w-full flex items-center gap-2 px-2 py-2.5 mt-2 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13 }}><LogOut className="h-4 w-4" /> Leave channel</button>
+                          )}
+                        </div>
+                      )}
+
+                      {infoTab === 'media' && (
+                        mediaMsgs.length === 0
+                          ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No media yet</p>
+                          : <div className="grid grid-cols-3 gap-1.5">
                             {mediaMsgs.flatMap(m => m.attachments.filter(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)).map((a, i) => {
                               const isVid = isVideoAttachment(a);
                               return (
@@ -2969,12 +2973,12 @@ export default function SupraSpacePage() {
                               );
                             }))}
                           </div>
-                    )}
+                      )}
 
-                    {infoTab === 'files' && (
-                      fileMsgs.length === 0
-                        ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No files yet</p>
-                        : <div className="space-y-1.5">
+                      {infoTab === 'files' && (
+                        fileMsgs.length === 0
+                          ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No files yet</p>
+                          : <div className="space-y-1.5">
                             {fileMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((a, i) => (
                               <a key={`${m._id}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">
                                 <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
@@ -2983,12 +2987,12 @@ export default function SupraSpacePage() {
                               </a>
                             )))}
                           </div>
-                    )}
+                      )}
 
-                    {infoTab === 'pinned' && (
-                      pinnedMsgs.length === 0
-                        ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No pinned messages</p>
-                        : <div className="space-y-2">
+                      {infoTab === 'pinned' && (
+                        pinnedMsgs.length === 0
+                          ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No pinned messages</p>
+                          : <div className="space-y-2">
                             {pinnedMsgs.map(m => (
                               <button key={m._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${m._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
                                 <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender.fullName}</p>
@@ -2996,181 +3000,181 @@ export default function SupraSpacePage() {
                               </button>
                             ))}
                           </div>
-                    )}
-                  </div>
-
-                  {/* Danger zone */}
-                  {(activeConv.type === 'direct' || isAdmin) && (
-                    <div className="px-4 pb-8 pt-2">
-                      <div className="mx-1 mb-3 ss4-divider" />
-                      <p className="ss4-section-label mb-2" style={{ color: 'var(--danger)' }}>Danger Zone</p>
-                      {!confirmDelete ? (
-                        <button onClick={() => setConfirmDelete(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13, border: '1px solid var(--danger-muted)' }}><Trash2 className="h-4 w-4" /> Delete conversation</button>
-                      ) : (
-                        <div className="rounded-xl p-3 space-y-2.5" style={{ background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.3)' }}>
-                          <p style={{ fontSize: 12, color: 'var(--text-primary)' }}>Delete this conversation for everyone? This cannot be undone.</p>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => setConfirmDelete(false)} className="flex-1 h-8 rounded-lg ss4-pill-btn" style={{ fontSize: 12 }}>Cancel</button>
-                            <button onClick={() => deleteConversation(activeConv)} className="flex-1 h-8 rounded-lg font-semibold" style={{ fontSize: 12, background: 'var(--danger)', color: '#fff' }}>Delete</button>
-                          </div>
-                        </div>
                       )}
                     </div>
+
+                    {/* Danger zone */}
+                    {(activeConv.type === 'direct' || isAdmin) && (
+                      <div className="px-4 pb-8 pt-2">
+                        <div className="mx-1 mb-3 ss4-divider" />
+                        <p className="ss4-section-label mb-2" style={{ color: 'var(--danger)' }}>Danger Zone</p>
+                        {!confirmDelete ? (
+                          <button onClick={() => setConfirmDelete(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13, border: '1px solid var(--danger-muted)' }}><Trash2 className="h-4 w-4" /> Delete conversation</button>
+                        ) : (
+                          <div className="rounded-xl p-3 space-y-2.5" style={{ background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.3)' }}>
+                            <p style={{ fontSize: 12, color: 'var(--text-primary)' }}>Delete this conversation for everyone? This cannot be undone.</p>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => setConfirmDelete(false)} className="flex-1 h-8 rounded-lg ss4-pill-btn" style={{ fontSize: 12 }}>Cancel</button>
+                              <button onClick={() => deleteConversation(activeConv)} className="flex-1 h-8 rounded-lg font-semibold" style={{ fontSize: 12, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </main>
+        </div>
+
+        {/* ── Modals ── */}
+        {showModal.open && (
+          <NewConvModal users={allUsers.filter(u => u._id !== uid)} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
+        )}
+
+        {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
+        {call.incoming && !activeMeeting && (
+          <IncomingCallModal
+            call={call.incoming}
+            onJoin={() => handleJoinCall(call.incoming!.meetingId)}
+            onDismiss={() => { stopCallSound(); call.setIncoming(null); }}
+          />
+        )}
+        {activeMeeting && (
+          <CallExperience
+            session={activeMeeting}
+            displayName={me?.fullName || 'User'}
+            email={(me as any)?.email}
+            avatarUrl={me?.avatar}
+            onClose={handleLeaveCall}
+          />
+        )}
+
+        {manageOpen && activeConv && (
+          <ManageMembersModal users={allUsers} existingIds={activeConv.members.map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
+        )}
+        {themeOpen && activeConv && (
+          <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />
+        )}
+        {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
+        {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
+        {activeUsersOpen && (
+          <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} />
+        )}
+        {summarizeOpen && activeId && (
+          <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
+        )}
+
+        {/* Member mini-card */}
+        {memberCard && (() => {
+          const m = memberCard.member;
+          const isOnline = presence[m._id] === 'online';
+          return (
+            <div className="ss4-overlay fixed inset-0 z-100 flex items-center justify-center p-4" onClick={() => setMemberCard(null)}>
+              <div id="ss4-member-card" className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
+                  <div className="relative">
+                    <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
+                      {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
+                    </div>
+                    {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full" />}
+                  </div>
+                  <div className="text-center">
+                    <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{m.fullName}</p>
+                    <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : 'Offline'}</p>
+                  </div>
+                  {m._id !== uid && (
+                    <button onClick={() => { setMemberCard(null); handleDM(m._id); }} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>
                   )}
                 </div>
               </div>
-            );
-          })()}
-        </main>
+            </div>
+          );
+        })()}
+
+        {lightbox && <LightboxModal src={lightbox.src} type={lightbox.type} name={lightbox.name} onClose={() => setLightbox(null)} />}
+
+        {/* Mobile long-press bottom sheet */}
+        {convMobileSheet && (() => {
+          const sheetConv = convos.find(c => c._id === convMobileSheet);
+          if (!sheetConv) return null;
+          const pinned = isPinnedConv(sheetConv);
+          const archived = isArchivedConv(sheetConv);
+          const cName = getConvName(sheetConv, uid);
+          const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
+            { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
+            { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
+            { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); setActiveId(sheetConv._id); setConvMobileSheet(null); } },
+            { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
+          ];
+          return (
+            <div className="ss4-overlay fixed inset-0 z-200 flex items-end" onClick={() => setConvMobileSheet(null)}>
+              <div className="w-full rounded-t-2xl pb-safe" onClick={e => e.stopPropagation()}
+                style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-2,rgba(255,255,255,0.15))' }} />
+                </div>
+                <p className="text-center font-semibold px-4 pt-1 pb-3 truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</p>
+                <div style={{ height: 1, background: 'var(--border-2,rgba(255,255,255,0.1))', margin: '0 16px 4px' }} />
+                {sheetActions.map(a => (
+                  <button key={a.label} className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
+                    style={{ color: a.danger ? 'var(--danger)' : 'var(--text-primary)', fontSize: 15 }}
+                    onClick={a.onClick}>
+                    {a.icon} {a.label}
+                  </button>
+                ))}
+                <div style={{ height: 8 }} />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Delete conversation confirmation */}
+        {deleteSpaceConfirm && (
+          <div className="ss4-overlay fixed inset-0 z-210 flex items-center justify-center p-4" onClick={() => setDeleteSpaceConfirm(null)}>
+            <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
+              style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
+              <div className="flex items-center justify-center mb-4">
+                <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
+                  <Trash2 className="h-5 w-5" style={{ color: 'var(--danger)' }} />
+                </div>
+              </div>
+              <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete Space?</p>
+              <p className="text-center mb-1" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+                "{orderedSpaces.find(sp => sp._id === deleteSpaceConfirm)?.name}"
+              </p>
+              <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                Are you sure you want to delete this space? Channels inside it will be moved back to Channels. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setDeleteSpaceConfirm(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
+                <button onClick={() => handleDeleteSpace(deleteSpaceConfirm)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {deleteConfirmConv && (
+          <div className="ss4-overlay fixed inset-0 z-210 flex items-center justify-center p-4" onClick={() => setDeleteConfirmConv(null)}>
+            <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
+              style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
+              <div className="flex items-center justify-center mb-4">
+                <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
+                  <Trash2 className="h-5 w-5" style={{ color: 'var(--danger)' }} />
+                </div>
+              </div>
+              <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete conversation?</p>
+              <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                "{getConvName(deleteConfirmConv, uid)}" will be permanently deleted for you. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setDeleteConfirmConv(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
+                <button onClick={() => { deleteConversation(deleteConfirmConv); setDeleteConfirmConv(null); }} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* ── Modals ── */}
-      {showModal.open && (
-        <NewConvModal users={allUsers.filter(u => u._id !== uid)} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
-      )}
-
-      {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
-      {call.incoming && !activeMeeting && (
-        <IncomingCallModal
-          call={call.incoming}
-          onJoin={() => handleJoinCall(call.incoming!.meetingId)}
-          onDismiss={() => { stopCallSound(); call.setIncoming(null); }}
-        />
-      )}
-      {activeMeeting && (
-        <CallExperience
-          session={activeMeeting}
-          displayName={me?.fullName || 'User'}
-          email={(me as any)?.email}
-          avatarUrl={me?.avatar}
-          onClose={handleLeaveCall}
-        />
-      )}
-
-      {manageOpen && activeConv && (
-        <ManageMembersModal users={allUsers} existingIds={activeConv.members.map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
-      )}
-      {themeOpen && activeConv && (
-        <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />
-      )}
-      {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
-      {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
-      {activeUsersOpen && (
-        <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} />
-      )}
-      {summarizeOpen && activeId && (
-        <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
-      )}
-
-      {/* Member mini-card */}
-      {memberCard && (() => {
-        const m = memberCard.member;
-        const isOnline = presence[m._id] === 'online';
-        return (
-          <div className="ss4-overlay fixed inset-0 z-100 flex items-center justify-center p-4" onClick={() => setMemberCard(null)}>
-            <div id="ss4-member-card" className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
-                <div className="relative">
-                  <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
-                    {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
-                  </div>
-                  {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full" />}
-                </div>
-                <div className="text-center">
-                  <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{m.fullName}</p>
-                  <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : 'Offline'}</p>
-                </div>
-                {m._id !== uid && (
-                  <button onClick={() => { setMemberCard(null); handleDM(m._id); }} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {lightbox && <LightboxModal src={lightbox.src} type={lightbox.type} name={lightbox.name} onClose={() => setLightbox(null)} />}
-
-      {/* Mobile long-press bottom sheet */}
-      {convMobileSheet && (() => {
-        const sheetConv = convos.find(c => c._id === convMobileSheet);
-        if (!sheetConv) return null;
-        const pinned = isPinnedConv(sheetConv);
-        const archived = isArchivedConv(sheetConv);
-        const cName = getConvName(sheetConv, uid);
-        const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
-          { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
-          { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
-          { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); setActiveId(sheetConv._id); setConvMobileSheet(null); } },
-          { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
-        ];
-        return (
-          <div className="ss4-overlay fixed inset-0 z-[200] flex items-end" onClick={() => setConvMobileSheet(null)}>
-            <div className="w-full rounded-t-2xl pb-safe" onClick={e => e.stopPropagation()}
-              style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-2,rgba(255,255,255,0.15))' }} />
-              </div>
-              <p className="text-center font-semibold px-4 pt-1 pb-3 truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</p>
-              <div style={{ height: 1, background: 'var(--border-2,rgba(255,255,255,0.1))', margin: '0 16px 4px' }} />
-              {sheetActions.map(a => (
-                <button key={a.label} className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
-                  style={{ color: a.danger ? 'var(--danger)' : 'var(--text-primary)', fontSize: 15 }}
-                  onClick={a.onClick}>
-                  {a.icon} {a.label}
-                </button>
-              ))}
-              <div style={{ height: 8 }} />
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Delete conversation confirmation */}
-      {deleteSpaceConfirm && (
-        <div className="ss4-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" onClick={() => setDeleteSpaceConfirm(null)}>
-          <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
-            <div className="flex items-center justify-center mb-4">
-              <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
-                <Trash2 className="h-5 w-5" style={{ color: 'var(--danger)' }} />
-              </div>
-            </div>
-            <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete Space?</p>
-            <p className="text-center mb-1" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
-              "{orderedSpaces.find(sp => sp._id === deleteSpaceConfirm)?.name}"
-            </p>
-            <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-              Are you sure you want to delete this space? Channels inside it will be moved back to Channels. This cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteSpaceConfirm(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
-              <button onClick={() => handleDeleteSpace(deleteSpaceConfirm)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {deleteConfirmConv && (
-        <div className="ss4-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" onClick={() => setDeleteConfirmConv(null)}>
-          <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
-            <div className="flex items-center justify-center mb-4">
-              <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
-                <Trash2 className="h-5 w-5" style={{ color: 'var(--danger)' }} />
-              </div>
-            </div>
-            <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete conversation?</p>
-            <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-              "{getConvName(deleteConfirmConv, uid)}" will be permanently deleted for you. This cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteConfirmConv(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
-              <button onClick={() => { deleteConversation(deleteConfirmConv); setDeleteConfirmConv(null); }} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
     </>
   );
 }
