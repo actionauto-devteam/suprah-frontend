@@ -1479,7 +1479,7 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
-  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos } = useSupraSpaceMessenger();
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
@@ -1510,7 +1510,10 @@ export default function SupraSpacePage() {
     });
     return result;
   }, [activeMsgs, activeConv, uid]);
-  const isAdmin = !!(activeConv && (activeConv.admins || []).map(String).includes(uid));
+  const isAdmin = !!(activeConv && (
+    (activeConv.admins || []).map(String).includes(uid) ||
+    String((activeConv as any).createdBy) === uid
+  ));
   const isReportGroup = activeConv?.name === 'Online Team Report';
 
   const isPinnedConv = React.useCallback((c: SSConversation) => (c.pinnedBy || []).map(String).includes(uid), [uid]);
@@ -1590,9 +1593,15 @@ export default function SupraSpacePage() {
 
   // Re-fetch the conversation list without touching any other state.
   // Used by the focus and socket-reconnect handlers below.
+  // Also triggers the Context refresh so the Messenger popup and this page
+  // always re-fetch from the same source at the same time.
+  const ctxRefreshConvosRef = React.useRef(ctxRefreshConvos);
+  React.useEffect(() => { ctxRefreshConvosRef.current = ctxRefreshConvos; }, [ctxRefreshConvos]);
+
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
     if (!t || !initDoneRef.current) return;
+    ctxRefreshConvosRef.current(); // keep Messenger popup in sync
     apiClient
       .get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => {
@@ -1606,6 +1615,28 @@ export default function SupraSpacePage() {
       })
       .catch(() => { /* network blip — keep current state */ });
   }, []);
+
+  // Sync from the Messenger Context into this page's convos.
+  // The Context re-fetches more aggressively (focus, socket events, conversation:new).
+  // Whenever it has a conversation that convos is missing, add it here so the
+  // SupraSpace sidebar never shows fewer conversations than the Messenger popup.
+  // Full data (admins, complete theme) is backfilled the next time refreshConvos runs.
+  React.useEffect(() => {
+    if (!ctxConversations.length) return;
+    setConvos(prev => {
+      const prevIds = new Set(prev.map(c => c._id));
+      const missing = ctxConversations.filter(c => !prevIds.has(c._id));
+      if (!missing.length) return prev;
+      return [
+        ...prev,
+        ...missing.map(c => ({
+          ...c,
+          admins: (c as any).admins || [],
+          theme: { accent: c.theme?.accent ?? null, bubble: null, wallpaper: null, emoji: null },
+        } as unknown as SSConversation)),
+      ];
+    });
+  }, [ctxConversations]);
 
   React.useEffect(() => {
     (async () => {
@@ -1760,6 +1791,12 @@ export default function SupraSpacePage() {
     const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
     const onConvMoved = ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) =>
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
+    // When a space is deleted the backend clears spaceId in the DB and emits
+    // space:deleted. Without this handler the page's convos still carries the
+    // old spaceId, so those channels disappear (excluded from channelList and
+    // from any space section since the space no longer exists in ctxSpaces).
+    const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
+      setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
     const onReaction = ({ conversationId, messageId, reactions }: any) => patchMsg(conversationId, messageId, { reactions });
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
@@ -1773,6 +1810,7 @@ export default function SupraSpacePage() {
     socket.on('conversation:deleted', onConvDeleted);
     socket.on('conversation:theme', onConvTheme);
     socket.on('conversation:moved', onConvMoved);
+    socket.on('space:deleted', onSpaceDeleted);
     socket.on('message:reaction', onReaction);
     socket.on('message:poll', onPoll);
     socket.on('message:event', onEvent);
@@ -1802,7 +1840,7 @@ export default function SupraSpacePage() {
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
-      socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('message:reaction', onReaction);
+      socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
@@ -2011,6 +2049,13 @@ export default function SupraSpacePage() {
     showUploadNotice('info', selected.length === 1 ? `${selected[0].name} attached. Press Send.` : `${selected.length} files attached.`);
   };
   const removePendingFile = (i: number) => setPendingFiles(prev => prev.filter((_, idx) => idx !== i));
+
+  React.useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 144)}px`;
+  }, [input]);
 
   const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -2337,7 +2382,16 @@ export default function SupraSpacePage() {
   // Sidebar section lists — spaceId comes from the SSConversation extended type
   const dmList = normalList.filter(c => c.type === 'direct');
   const channelList = React.useMemo(() => {
-    const list = normalList.filter(c => c.type === 'group' && !(c as any).spaceId);
+    // A group conversation belongs in the channel list if it has no spaceId, OR if its
+    // spaceId doesn't match any currently active space (orphaned after space deletion).
+    // Without this fallback, conversations in a deleted space become completely invisible:
+    // excluded from channelList (has spaceId) AND from every space section (space gone).
+    const activeSpaceIds = new Set(ctxSpaces.map(s => s._id));
+    const list = normalList.filter(c => {
+      if (c.type !== 'group') return false;
+      const sid = (c as any).spaceId;
+      return !sid || !activeSpaceIds.has(sid);
+    });
     if (!localConvOrder.length) return list;
     return [...list].sort((a, b) => {
       const ai = localConvOrder.indexOf(a._id);
@@ -2348,7 +2402,7 @@ export default function SupraSpacePage() {
       return ai - bi;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [normalList, localConvOrder]);
+  }, [normalList, localConvOrder, ctxSpaces]);
   const toggleSection = (key: string) => setCollapsedSections(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleSpaceCollapse = (id: string) => setCollapsedSpaces(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const orderedSpaces = React.useMemo(() => {
@@ -2922,7 +2976,7 @@ export default function SupraSpacePage() {
                               files.forEach(f => dt.items.add(f));
                               handleUpload(dt.files);
                             }
-                          }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)' }} />
+                          }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)', overflowY: 'auto' }} />
                         </div>
                         <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
                           <div className="flex items-center gap-0.5">
