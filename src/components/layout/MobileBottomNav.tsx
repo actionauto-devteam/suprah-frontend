@@ -22,6 +22,7 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
     const pathname = usePathname();
     const [hidden, setHidden] = React.useState(false);
     const [hiddenForConvo, setHiddenForConvo] = React.useState(false);
+    const [hiddenForLeadConvo, setHiddenForLeadConvo] = React.useState(false);
     const [pendingHref, setPendingHref] = React.useState<string | null>(null);
     const lastScrollY = React.useRef(0);
 
@@ -36,6 +37,14 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
         };
         window.addEventListener('supraspace:conv-state', handler);
         return () => window.removeEventListener('supraspace:conv-state', handler);
+    }, []);
+
+    React.useEffect(() => {
+        const handler = (e: Event) => {
+            setHiddenForLeadConvo((e as CustomEvent<{ active: boolean }>).detail.active);
+        };
+        window.addEventListener('crm-leads:convo-state', handler);
+        return () => window.removeEventListener('crm-leads:convo-state', handler);
     }, []);
 
     React.useEffect(() => {
@@ -58,8 +67,8 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
     };
 
     const isSupraSpace = pathname === '/crm/supra-space' || pathname.startsWith('/crm/supra-space/');
-    const shouldHide = hidden || hiddenForConvo || isSupraSpace;
-    const shouldBeInvisible = hiddenForConvo || isSupraSpace;
+    const shouldHide = hidden || hiddenForConvo || hiddenForLeadConvo || isSupraSpace;
+    const shouldBeInvisible = hiddenForConvo || hiddenForLeadConvo || isSupraSpace;
 
     return (
         <motion.nav

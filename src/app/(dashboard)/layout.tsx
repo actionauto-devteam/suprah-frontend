@@ -73,6 +73,17 @@ function DashboardLayoutContent({
   const isStandaloneCrmShell = pathname === "/crm";
   const showCrmHeader = isCrmRoute && !isStandaloneCrmShell;
   const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const [leadConvoActive, setLeadConvoActive] = React.useState(false);
+
+  // When a Leads conversation goes full-screen on mobile, the floating bottom
+  // nav hides itself — reclaim the space `main` normally reserves for it.
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      setLeadConvoActive((e as CustomEvent<{ active: boolean }>).detail.active);
+    };
+    window.addEventListener("crm-leads:convo-state", handler);
+    return () => window.removeEventListener("crm-leads:convo-state", handler);
+  }, []);
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
   const [hasResolvedOrgAccess, setHasResolvedOrgAccess] = React.useState(false);
@@ -272,7 +283,8 @@ function DashboardLayoutContent({
         )}
         <main
           className={cn(
-            "relative bg-background pb-24 md:pb-0",
+            "relative bg-background md:pb-0",
+            leadConvoActive ? "pb-0" : "pb-24",
             // CRM: fill the capped shell (flex-1) and be the SINGLE scroll container.
             // min-h-0 lets the flex child shrink below its content height so it scrolls
             // instead of forcing its parent to grow.

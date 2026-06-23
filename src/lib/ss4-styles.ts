@@ -16,10 +16,10 @@ export const SS4_CSS = `
     --border-2:      rgba(255,255,255,0.10);
     --border-3:      rgba(255,255,255,0.14);
 
-    --accent:        #5b7cf6;
-    --accent-muted:  rgba(91,124,246,0.15);
-    --accent-hover:  #6b8cf8;
-    --accent-text:   #a5b8ff;
+    --accent:        #10b981;
+    --accent-muted:  rgba(16,185,129,0.15);
+    --accent-hover:  #34d399;
+    --accent-text:   #6ee7b7;
 
     --positive:      #34c97d;
     --positive-muted:rgba(52,201,125,0.12);
@@ -32,8 +32,8 @@ export const SS4_CSS = `
     --text-tertiary: rgba(255,255,255,0.28);
     --text-disabled: rgba(255,255,255,0.16);
 
-    --bubble-own-bg: linear-gradient(145deg, #4a6cf0, #5b7cf6);
-    --bubble-own-shadow: 0 4px 20px rgba(91,124,246,0.25);
+    --bubble-own-bg: linear-gradient(145deg, #059669, #10b981);
+    --bubble-own-shadow: 0 4px 20px rgba(16,185,129,0.25);
     --bubble-other-bg: var(--surface-2);
     --bubble-other-border: var(--border-2);
 
@@ -42,7 +42,7 @@ export const SS4_CSS = `
 
     --input-bg:      var(--surface-1);
     --input-border:  var(--border-2);
-    --input-focus:   rgba(91,124,246,0.35);
+    --input-focus:   rgba(16,185,129,0.35);
 
     --scrollbar:     rgba(255,255,255,0.07);
     --shadow-sm:     0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
@@ -55,7 +55,7 @@ export const SS4_CSS = `
     --bg-elevated:   #ffffff;
     --bg-overlay:    #f9fafb;
     --bg-hover:      rgba(0,0,0,0.03);
-    --bg-active:     rgba(91,124,246,0.08);
+    --bg-active:     rgba(5,150,105,0.08);
     --bg-subtle:     rgba(0,0,0,0.02);
 
     --surface-1:     #ffffff;
@@ -66,10 +66,10 @@ export const SS4_CSS = `
     --border-2:      rgba(0,0,0,0.09);
     --border-3:      rgba(0,0,0,0.14);
 
-    --accent:        #4a6cf0;
-    --accent-muted:  rgba(74,108,240,0.1);
-    --accent-hover:  #3a5ce0;
-    --accent-text:   #4a6cf0;
+    --accent:        #059669;
+    --accent-muted:  rgba(5,150,105,0.1);
+    --accent-hover:  #047857;
+    --accent-text:   #059669;
 
     --positive:      #22b060;
     --positive-muted:rgba(34,176,96,0.1);
@@ -82,8 +82,8 @@ export const SS4_CSS = `
     --text-tertiary: rgba(0,0,0,0.32);
     --text-disabled: rgba(0,0,0,0.20);
 
-    --bubble-own-bg: linear-gradient(145deg, #4a6cf0, #5b7cf6);
-    --bubble-own-shadow: 0 3px 14px rgba(74,108,240,0.22);
+    --bubble-own-bg: linear-gradient(145deg, #059669, #10b981);
+    --bubble-own-shadow: 0 3px 14px rgba(5,150,105,0.22);
     --bubble-other-bg: #ffffff;
     --bubble-other-border: rgba(0,0,0,0.09);
 
@@ -92,7 +92,7 @@ export const SS4_CSS = `
 
     --input-bg:      #ffffff;
     --input-border:  rgba(0,0,0,0.1);
-    --input-focus:   rgba(74,108,240,0.3);
+    --input-focus:   rgba(5,150,105,0.3);
 
     --scrollbar:     rgba(0,0,0,0.1);
     --shadow-sm:     0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
@@ -131,7 +131,7 @@ export const SS4_CSS = `
     position: relative;
   }
   .ss4-conv:hover { background: var(--bg-hover); }
-  .ss4-conv-active { background: rgba(91,124,246,0.18) !important; }
+  .ss4-conv-active { background: rgba(16,185,129,0.18) !important; }
   .ss4-conv-name { color: var(--text-primary); }
   .ss4-conv-preview { color: var(--text-secondary); }
   .ss4-conv-active::before {
@@ -213,12 +213,12 @@ export const SS4_CSS = `
     color: #fff;
     border-radius: 10px;
     transition: all 0.15s ease;
-    box-shadow: 0 2px 8px rgba(91,124,246,0.3);
+    box-shadow: 0 2px 8px rgba(16,185,129,0.3);
   }
   .ss4-send-btn:hover:not(:disabled) {
     background: var(--accent-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(91,124,246,0.4);
+    box-shadow: 0 4px 16px rgba(16,185,129,0.4);
   }
   .ss4-send-btn:disabled {
     background: var(--surface-2);
@@ -248,7 +248,7 @@ export const SS4_CSS = `
   /* ── Reply Bar ──────────────────────────────────────── */
   .ss4-reply-bar {
     background: var(--accent-muted);
-    border: 1px solid rgba(91,124,246,0.2);
+    border: 1px solid rgba(16,185,129,0.2);
     border-left: 3px solid var(--accent);
     border-radius: 10px;
   }
@@ -267,7 +267,7 @@ export const SS4_CSS = `
   }
 
   /* ── Avatar styles ──────────────────────────────────── */
-  .ss4-ava-accent { background: linear-gradient(140deg, #3a5ce0, #5b7cf6); }
+  .ss4-ava-accent { background: linear-gradient(140deg, #059669, #10b981); }
   .ss4-ava-purple { background: linear-gradient(140deg, #7038c0, #9b6fd6); }
   .ss4-ava-teal   { background: linear-gradient(140deg, #0e7c6a, #22b060); }
   .ss4-ava-amber  { background: linear-gradient(140deg, #b85c00, #f0a855); }
@@ -288,8 +288,8 @@ export const SS4_CSS = `
 
   /* ── Status badge ───────────────────────────────────── */
   .ss4-status-live {
-    background: rgba(91,124,246,0.12);
-    border: 1px solid rgba(91,124,246,0.2);
+    background: rgba(16,185,129,0.12);
+    border: 1px solid rgba(16,185,129,0.2);
     color: var(--accent-text);
   }
   .ss4-status-offline {
@@ -348,24 +348,24 @@ export const SS4_CSS = `
     transition: all 0.15s ease;
     color: rgba(255,255,255,0.4);
   }
-  .ss4-tab-active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(91,124,246,0.35); }
+  .ss4-tab-active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,0.35); }
 
   /* ── Logo Mark ──────────────────────────────────────── */
   .ss4-logo-mark {
-    background: linear-gradient(140deg, #3a5ce0, #5b7cf6);
-    box-shadow: 0 0 0 1px rgba(91,124,246,0.3), 0 4px 16px rgba(91,124,246,0.2);
+    background: linear-gradient(140deg, #059669, #10b981);
+    box-shadow: 0 0 0 1px rgba(16,185,129,0.3), 0 4px 16px rgba(16,185,129,0.2);
     border-radius: 10px;
   }
 
   /* ── New Message FAB ────────────────────────────────── */
   .ss4-new-btn {
-    background: rgba(91,124,246,0.15);
-    border: 1px solid rgba(91,124,246,0.25);
+    background: rgba(16,185,129,0.15);
+    border: 1px solid rgba(16,185,129,0.25);
     border-radius: 8px;
     color: var(--accent-text);
     transition: all 0.15s ease;
   }
-  .ss4-new-btn:hover { background: rgba(91,124,246,0.25); }
+  .ss4-new-btn:hover { background: rgba(16,185,129,0.25); }
 
   /* ── Theme Toggle ───────────────────────────────────── */
   .ss4-theme-btn {
@@ -405,7 +405,7 @@ export const SS4_CSS = `
   /* ── Empty state icon ───────────────────────────────── */
   .ss4-empty-icon {
     background: var(--accent-muted);
-    border: 1px dashed rgba(91,124,246,0.25);
+    border: 1px dashed rgba(16,185,129,0.25);
     border-radius: 16px;
   }
 

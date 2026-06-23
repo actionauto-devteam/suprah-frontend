@@ -757,7 +757,7 @@ function AppointmentsPageInner() {
             variant="ghost"
             size="sm"
             onClick={() => router.push("/crm/dashboard")}
-            className="h-8 w-8 shrink-0 rounded-lg border border-border/60 hover:border-primary/50 hover:bg-primary/5 p-0 transition-all"
+            className="h-9 w-9 shrink-0 rounded-lg border border-border/60 hover:border-primary/50 hover:bg-primary/5 p-0 transition-all"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -797,28 +797,30 @@ function AppointmentsPageInner() {
   // ── Fullscreen header ─────────────────────────────────────────────────────
 
   const fullscreenHeader = (
-    <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 bg-card shrink-0">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-border/50 bg-card shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => router.push("/crm/dashboard")}
-          className="h-8 w-8 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 p-0 transition-all"
+          className="h-9 w-9 shrink-0 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 p-0 transition-all"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl font-bold">Appointments</h1>
+        <h1 className="text-lg sm:text-xl font-bold truncate">Appointments</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <PaneToolbar tabOptions={TAB_OPTIONS} />
-        <CrmCalendarSyncButton onSyncComplete={handleSyncComplete} />
+        <CrmCalendarSyncButton onSyncComplete={handleSyncComplete} compactOnMobile />
         <Button
           type="button"
           onClick={handleCreateAppointment}
           size="sm"
-          className="bg-primary hover:bg-primary/90"
+          aria-label="Create appointment"
+          className="bg-primary hover:bg-primary/90 gap-1.5 px-3 sm:px-4"
         >
-          <Plus className="mr-2 h-4 w-4" /> New Appointment
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">New Appointment</span>
         </Button>
       </div>
     </div>

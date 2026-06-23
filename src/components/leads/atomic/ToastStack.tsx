@@ -36,7 +36,10 @@ const VARIANT = {
 }
 
 export const ToastStack = React.memo(({ toasts, dismiss }: ToastStackProps) => (
-  <div className="fixed top-5 right-5 z-50 space-y-2 max-w-sm pointer-events-none">
+  <div
+    className="fixed inset-x-4 sm:left-auto sm:right-5 z-50 space-y-2 sm:max-w-sm pointer-events-none"
+    style={{ top: "calc(env(safe-area-inset-top, 0px) + 1.25rem)" }}
+  >
     {toasts.map((t) => {
       const v = VARIANT[t.type]
       return (
@@ -51,7 +54,7 @@ export const ToastStack = React.memo(({ toasts, dismiss }: ToastStackProps) => (
           </div>
           <button
             onClick={() => dismiss(t.id)}
-            className={`transition-opacity mt-0.5 opacity-60 hover:opacity-100 ${v.text}`}
+            className={`flex items-center justify-center h-8 w-8 -m-1.5 -mr-2 shrink-0 transition-opacity opacity-60 hover:opacity-100 ${v.text}`}
             aria-label="Dismiss"
           >
             <X className="h-3.5 w-3.5" />

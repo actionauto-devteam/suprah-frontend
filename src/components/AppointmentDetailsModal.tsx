@@ -294,7 +294,7 @@ export function AppointmentDetailsModal({
 
         {/* ── Status-tinted header ── */}
         <div className={cn(
-          "px-6 pt-5 pb-4 border-b border-border",
+          "px-4 sm:px-6 pt-5 pb-4 border-b border-border",
           appointment.status === "confirmed" ? "bg-emerald-500/5" :
           appointment.status === "cancelled" ? "bg-red-500/5"     :
           appointment.status === "completed" ? "bg-gray-500/5"    :
@@ -329,7 +329,7 @@ export function AppointmentDetailsModal({
         </div>
 
         {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto max-h-[65dvh] modal-scrollbar px-4 sm:px-6 py-5 space-y-6">
+        <div className="overflow-y-auto max-h-[calc(90dvh-160px)] modal-scrollbar px-4 sm:px-6 py-5 space-y-6">
 
           {/* Error */}
           {error && (

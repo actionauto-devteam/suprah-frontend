@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Phone, Mail, Clock3, Car, X, Calendar } from "lucide-react";
+import { Phone, Mail, Clock3, Car, X, Calendar, ArrowLeft } from "lucide-react";
 import { ChannelBadge } from "./atomic/ChannelBadge";
 import { StatusPill } from "./atomic/StatusPill";
 import { ParsedContent } from "./ParsedContent";
@@ -72,7 +72,7 @@ function Bubble({ content, isOwn, senderName, showAvatar, time }: {
       )}
 
       {/* Column */}
-      <div className={cn('flex flex-col gap-0.5 min-w-0', isOwn ? 'items-end' : 'items-start')} style={{ maxWidth: '68%' }}>
+      <div className={cn('flex flex-col gap-0.5 min-w-0 max-w-[85%] sm:max-w-[75%] lg:max-w-[68%]', isOwn ? 'items-end' : 'items-start')}>
         {showAvatar && !isOwn && senderName && (
           <span className="px-1 font-semibold" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
             {senderName}
@@ -135,7 +135,14 @@ export const ConversationView = React.memo(
       <div className="flex-1 flex flex-col min-w-0 min-h-0" style={{ background: 'var(--bg-base)' }}>
 
         {/* ── Header ── */}
-        <div className="ss4-chat-header flex items-center gap-2.5 px-3 sm:px-4 py-2.5 shrink-0">
+        <div className="ss4-chat-header flex items-center gap-2 sm:gap-2.5 px-2 sm:px-4 py-2.5 shrink-0">
+          <button
+            onClick={onClose}
+            className="ss4-icon-btn h-9 w-9 lg:hidden shrink-0"
+            aria-label="Back to lead list"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center text-white font-bold shrink-0', avaClass)}
             style={{ fontSize: 11 }}>
             {ini(lead.firstName, lead.lastName)}
@@ -167,7 +174,7 @@ export const ConversationView = React.memo(
             <SupraLeoReadButton lead={lead} size="md" />
             <button
               onClick={onClose}
-              className="ss4-icon-btn h-7 w-7"
+              className="ss4-icon-btn hidden lg:flex h-7 w-7"
               aria-label="Close conversation"
             >
               <X className="h-3.5 w-3.5" />
@@ -178,16 +185,16 @@ export const ConversationView = React.memo(
         {/* ── Subject / meta strip ── */}
         <div className="px-3 sm:px-4 py-2 shrink-0" style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-subtle)' }}>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <div className="flex items-center gap-1.5 min-w-0" style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
-              <Mail className="h-2.5 w-2.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
-              <span className="truncate">{lead.subject || '(No subject)'}</span>
+            <div className="flex items-start gap-1.5 min-w-0 basis-full sm:basis-auto sm:items-center" style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
+              <Mail className="h-2.5 w-2.5 shrink-0 mt-0.5 sm:mt-0" style={{ color: 'var(--text-tertiary)' }} />
+              <span className="line-clamp-2 sm:line-clamp-1 sm:truncate leading-snug">{lead.subject || '(No subject)'}</span>
             </div>
             <div className="flex items-center gap-1" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
               <Clock3 className="h-2.5 w-2.5 shrink-0" />
               {fmtFull(new Date(lead.createdAt))}
             </div>
             {vehicle?.make && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ fontSize: 10, fontWeight: 600, background: 'var(--accent-muted)', color: 'var(--accent-text)', border: '1px solid rgba(91,124,246,0.2)' }}>
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ fontSize: 10, fontWeight: 600, background: 'var(--accent-muted)', color: 'var(--accent-text)', border: '1px solid rgba(16,185,129,0.2)' }}>
                 <Car className="h-2 w-2" />
                 {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
               </span>
@@ -197,7 +204,7 @@ export const ConversationView = React.memo(
             </span>
           </div>
           {lead.appointment && (
-            <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded-lg w-fit" style={{ fontSize: 10, background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)', color: 'var(--accent-text)' }}>
+            <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded-lg w-fit" style={{ fontSize: 10, background: 'var(--accent-muted)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent-text)' }}>
               <Calendar className="h-2.5 w-2.5 shrink-0" />
               <span className="font-medium">
                 {new Date(lead.appointment.date).toLocaleDateString()} · {lead.appointment.time}

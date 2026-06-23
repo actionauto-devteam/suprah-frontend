@@ -162,12 +162,12 @@ function DayCell({ day, inCurrentMonth, dayAppointments, onAddAppointment, onSel
 
         {inCurrentMonth && (
           <button
-            className="invisible group-hover:visible flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            className="visible flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary sm:invisible sm:h-5 sm:w-5 sm:group-hover:visible"
             onClick={(e) => { e.stopPropagation(); onAddAppointment(day) }}
             title="Add appointment"
-            tabIndex={-1}
+            aria-label={`Add appointment on ${format(day, "MMMM d")}`}
           >
-            <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+            <Plus className="h-3 w-3 sm:h-3 sm:w-3" />
           </button>
         )}
       </div>
@@ -259,7 +259,7 @@ function NavButton({
     <Button
       variant="outline"
       size="sm"
-      className="relative gap-1 px-2.5 h-8"
+      className="relative gap-1 px-2.5 h-9"
       onClick={onClick}
       title={count > 0 ? `${label} has ${count} event${count !== 1 ? "s" : ""}` : label}
     >

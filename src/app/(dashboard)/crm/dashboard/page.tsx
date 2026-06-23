@@ -209,7 +209,7 @@ function ShiftGauge({
         />
       </svg>
       {/* inner hairline ring for the instrument-bezel feel */}
-      <div className="absolute inset-3.5 rounded-full border border-zinc-200/50 dark:border-white/[0.04]" />
+      <div className="absolute inset-3.5 rounded-full border border-zinc-200/50 dark:border-white/4" />
       <div className="absolute inset-0 flex items-center justify-center">
         {children}
       </div>
@@ -383,7 +383,7 @@ function QuickAction({
       onClick={onClick}
       className={cn(
         "group relative flex h-full w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl p-3 min-h-22 sm:gap-2.5 sm:p-4 sm:min-h-25",
-        "border border-zinc-200/80 bg-white/60 backdrop-blur-sm dark:border-white/[0.06] dark:bg-zinc-900/40",
+        "border border-zinc-200/80 bg-white/60 backdrop-blur-sm dark:border-white/6 dark:bg-zinc-900/40",
         "cursor-pointer transition-all duration-300 hover:bg-white dark:hover:bg-zinc-800/50",
         "hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] motion-reduce:transform-none",
         accent === "amber"
@@ -398,7 +398,7 @@ function QuickAction({
           accent === "amber" ? "bg-amber-400" : "bg-emerald-400",
         )}
       />
-      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/6 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full motion-reduce:hidden dark:via-white/[0.03]" />
+      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/6 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full motion-reduce:hidden dark:via-white/3" />
       <div
         className={cn(
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 sm:h-11 sm:w-11",
@@ -444,7 +444,7 @@ function StatChip({
   }, [value, label]);
 
   return (
-    <div className="min-w-0 rounded-xl border border-zinc-200/60 bg-white/50 px-4 py-3 backdrop-blur-sm transition-colors duration-200 hover:border-emerald-500/20 dark:border-white/[0.05] dark:bg-zinc-900/40 dark:hover:border-emerald-500/20">
+    <div className="min-w-0 rounded-xl border border-zinc-200/60 bg-white/50 px-4 py-3 backdrop-blur-sm transition-colors duration-200 hover:border-emerald-500/20 dark:border-white/5 dark:bg-zinc-900/40 dark:hover:border-emerald-500/20">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
           {label}
@@ -453,7 +453,7 @@ function StatChip({
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100/85 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 transition-colors hover:text-emerald-600 dark:border-zinc-700/70 dark:bg-zinc-800/70 dark:text-zinc-300 dark:hover:text-emerald-400"
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100/85 px-2 py-1 text-[10px] font-bold text-zinc-500 transition-colors hover:text-emerald-600 dark:border-zinc-700/70 dark:bg-zinc-800/70 dark:text-zinc-300 dark:hover:text-emerald-400"
             aria-label={`Copy ${label}`}
             title={copied ? "Copied!" : `Copy ${label}`}
           >
@@ -1128,7 +1128,7 @@ export default function CrmDashboardPage() {
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-5">
             <div
               className={cn(
-                "flex flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl lg:col-span-4 dark:border-white/[0.06] dark:bg-zinc-900/40 dark:shadow-none",
+                "flex flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl lg:col-span-4 dark:border-white/6 dark:bg-zinc-900/40 dark:shadow-none",
                 "transition-all duration-700 delay-100 motion-reduce:transition-none",
                 mounted
                   ? "translate-y-0 opacity-100"
@@ -1259,7 +1259,7 @@ export default function CrmDashboardPage() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                         Start Shift{" "}
+                        Start Shift{" "}
                         <ArrowRight className="ml-auto h-4 w-4 opacity-60" />
                       </>
                     )}
@@ -1330,7 +1330,7 @@ export default function CrmDashboardPage() {
             <div className="flex flex-col gap-4 lg:col-span-8 lg:gap-5">
               <div
                 className={cn(
-                  "relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/[0.06] dark:bg-zinc-900/40 dark:shadow-none",
+                  "relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/6 dark:bg-zinc-900/40 dark:shadow-none",
                   "transition-all duration-700 delay-200 motion-reduce:transition-none",
                   mounted
                     ? "translate-y-0 opacity-100"
@@ -1390,7 +1390,7 @@ export default function CrmDashboardPage() {
               {/* Quick Actions card */}
               <div
                 className={cn(
-                  "flex-1 rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/[0.06] dark:bg-zinc-900/40 dark:shadow-none",
+                  "flex-1 rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/6 dark:bg-zinc-900/40 dark:shadow-none",
                   "transition-all duration-700 delay-300 motion-reduce:transition-none",
                   mounted
                     ? "translate-y-0 opacity-100"
@@ -1466,7 +1466,7 @@ export default function CrmDashboardPage() {
               </div>
               <button
                 onClick={dismissTrayBanner}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors mt-0.5 shrink-0"
+                className="flex h-8 w-8 items-center justify-center -m-1.5 shrink-0 text-zinc-600 hover:text-zinc-400 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1474,14 +1474,14 @@ export default function CrmDashboardPage() {
             <div className="mt-3 flex gap-2">
               <button
                 onClick={openTrayApp}
-                className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                className="flex-1 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
               >
                 <MonitorDot className="h-3.5 w-3.5" />
                 Open CRM Tray-App
               </button>
               <button
                 onClick={dismissTrayBanner}
-                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-bold transition-colors"
+                className="px-3 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-bold transition-colors"
               >
                 Later
               </button>
@@ -1499,7 +1499,7 @@ export default function CrmDashboardPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEarlyEndModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-y-auto max-h-[90vh] overscroll-contain" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             {/* Banner */}
@@ -1576,7 +1576,7 @@ export default function CrmDashboardPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmEndModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowConfirmEndModal(false)} className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setShowConfirmEndModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-5 space-y-4">
@@ -1633,7 +1633,7 @@ export default function CrmDashboardPage() {
           >
             <button
               onClick={() => setResumeModal(false)}
-              className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -1699,7 +1699,7 @@ export default function CrmDashboardPage() {
             {/* Close */}
             <button
               onClick={() => setShowTrayModal(false)}
-              className="absolute top-3 right-3 h-7 w-7 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>

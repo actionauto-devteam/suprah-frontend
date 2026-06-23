@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
-  ArrowLeft, Calendar, CalendarDays, Car, ChevronRight,
+  ArrowLeft, Calendar, CalendarDays, Car, ChevronRight, Clock,
   Download, Eye, FileText, Loader2, Plus, RefreshCw, Search,
   Users, AlertCircle, Megaphone, Trash2,
 } from "lucide-react";
@@ -119,29 +119,29 @@ const STATUS_TONE: Record<
 };
 
 const TYPE_BADGE: Record<string, string> = {
-  appointment:  "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
+  appointment: "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
   "test-drive": "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
   "phone-call": "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  meeting:      "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
-  event:        "bg-pink-500/10 text-pink-700 border-pink-500/25 dark:text-pink-400",
-  task:         "bg-orange-500/10 text-orange-700 border-orange-500/25 dark:text-orange-400",
-  reminder:     "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
+  meeting: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
+  event: "bg-pink-500/10 text-pink-700 border-pink-500/25 dark:text-pink-400",
+  task: "bg-orange-500/10 text-orange-700 border-orange-500/25 dark:text-orange-400",
+  reminder: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
 };
 
 const SOURCE_BADGE: Record<string, string> = {
-  sms:     "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
-  phone:   "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  email:   "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
-  lead:    "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
+  sms: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
+  phone: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
+  email: "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
+  lead: "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
   booking: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
-  manual:  "bg-gray-500/10 text-gray-700 border-gray-400/25 dark:text-gray-400",
+  manual: "bg-gray-500/10 text-gray-700 border-gray-400/25 dark:text-gray-400",
 };
 
 const POST_TYPE_BADGE: Record<DashboardPost["type"], string> = {
-  event:        "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  news:         "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
+  event: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
+  news: "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
   announcement: "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
-  update:       "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
+  update: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
 };
 
 function getBadgeClass(map: Record<string, string>, key: string) {
@@ -247,7 +247,7 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
         <div className="shrink-0">
           <p className={cn(EYEBROW, "mb-1.5 text-primary/80")}>{contextLabel}</p>
           <div className="flex items-baseline gap-2">
-            <span className="bg-gradient-to-br from-foreground to-foreground/55 bg-clip-text text-[42px] font-extrabold leading-none tracking-tight tabular-nums text-transparent">
+            <span className="bg-linear-to-br from-foreground to-foreground/55 bg-clip-text text-[42px] font-extrabold leading-none tracking-tight tabular-nums text-transparent">
               {total.toLocaleString()}
             </span>
             <span className="text-[12px] font-medium text-muted-foreground">
@@ -256,11 +256,11 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
           </div>
         </div>
 
-        <div className="hidden h-12 w-px self-center bg-gradient-to-b from-transparent via-border to-transparent sm:block" />
+        <div className="hidden h-12 w-px self-center bg-linear-to-b from-transparent via-border to-transparent sm:block" />
 
         {/* Proportional bar + legend */}
         <div className="min-w-0 flex-1">
-          <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted p-px ring-1 ring-inset ring-black/[0.03]">
+          <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted p-px ring-1 ring-inset ring-black/3">
             {sum === 0 ? (
               <div className="h-full w-full rounded-full bg-muted" />
             ) : (
@@ -303,10 +303,10 @@ function QuickChip({ label, active, onClick }: { label: string; active: boolean;
       type="button"
       onClick={onClick}
       className={cn(
-        "h-8 rounded-lg border px-3 text-[11.5px] font-medium whitespace-nowrap transition-all",
+        "h-9 rounded-lg border px-3 text-[11.5px] font-medium whitespace-nowrap transition-all",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
         active
-          ? "border-primary/40 bg-gradient-to-b from-primary/15 to-primary/10 text-primary font-semibold shadow-sm"
+          ? "border-primary/40 bg-linear-to-b from-primary/15 to-primary/10 text-primary font-semibold shadow-sm"
           : "border-border bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
       )}
     >
@@ -342,11 +342,11 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
             type="button"
             onClick={() => onDelete(post._id)}
             disabled={deleting}
-            className="ml-auto inline-flex h-6 items-center gap-1 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium text-muted-foreground opacity-0 transition-all hover:border-destructive hover:bg-destructive/5 hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 group-hover:opacity-100"
+            className="ml-auto inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium text-muted-foreground opacity-100 transition-all hover:border-destructive hover:bg-destructive/5 hover:text-destructive focus-visible:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100"
             aria-label="Delete post"
             title="Delete post"
           >
-            <Trash2 size={11} strokeWidth={2} />
+            <Trash2 size={12} strokeWidth={2} />
           </button>
         )}
       </div>
@@ -363,11 +363,11 @@ function AppointmentRow({ apt, onOpen }: {
   onOpen: (id: string) => void;
 }) {
   const start = new Date(apt.startTime);
-  const end   = new Date(apt.endTime);
-  const dur   = Math.round((end.getTime() - start.getTime()) / 60000);
-  const name  = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
+  const end = new Date(apt.endTime);
+  const dur = Math.round((end.getTime() - start.getTime()) / 60000);
+  const name = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
   const displayType = apt.type === "other" && apt.customTypeDetails ? apt.customTypeDetails : apt.type;
-  const tone  = STATUS_TONE[apt.status]?.dot ?? "bg-border";
+  const tone = STATUS_TONE[apt.status]?.dot ?? "bg-border";
 
   return (
     <tr
@@ -426,7 +426,7 @@ function AppointmentRow({ apt, onOpen }: {
       </td>
       <td className="w-[4%] px-3.5 py-3 text-center align-middle" onClick={(e) => e.stopPropagation()}>
         <button
-          className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium text-muted-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium text-muted-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary"
           onClick={() => onOpen(apt._id)}
           aria-label={`View appointment for ${name}`}
         >
@@ -437,22 +437,93 @@ function AppointmentRow({ apt, onOpen }: {
   );
 }
 
+// ─── Mobile card row ────────────────────────────────────────────────────────
+// The 9-column table is unreadable squeezed onto a phone — this is the
+// dedicated phone-width replacement, shown instead of the table below `sm`.
+
+function AppointmentMobileCard({ apt, onOpen }: {
+  apt: DashboardAppointment;
+  onOpen: (id: string) => void;
+}) {
+  const start = new Date(apt.startTime);
+  const end = new Date(apt.endTime);
+  const dur = Math.round((end.getTime() - start.getTime()) / 60000);
+  const name = `${apt.customerBooking.firstName} ${apt.customerBooking.lastName}`.trim();
+  const displayType = apt.type === "other" && apt.customTypeDetails ? apt.customTypeDetails : apt.type;
+  const tone = STATUS_TONE[apt.status]?.bar ?? "bg-border";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(apt._id)}
+      className="group relative flex w-full gap-3 overflow-hidden rounded-xl border border-border/60 bg-card px-3.5 py-3 text-left transition-all active:scale-[0.99]"
+    >
+      <span className={cn("absolute inset-y-0 left-0 w-1", tone)} />
+      <div className="min-w-0 flex-1 space-y-1.5 pl-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[13.5px] font-semibold">{name || "Unnamed"}</div>
+            <div className="truncate text-[11.5px] text-muted-foreground">{apt.customerBooking.email}</div>
+          </div>
+          <StatusBadge status={apt.status} />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <Clock className="h-3 w-3 shrink-0" />
+            {format(start, "h:mm a")} · {dur}min
+          </span>
+          {apt.customerBooking.phone && (
+            <span className="font-mono tabular-nums">· {apt.customerBooking.phone}</span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <TypeBadge type={displayType} />
+          <SourceBadge source={apt.source} />
+        </div>
+
+        {apt.vehicles && apt.vehicles.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {apt.vehicles.slice(0, 2).map((v: any, i: number) => (
+              <span key={v._id || i} className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/8 px-1.5 py-0.5 text-[10.5px] font-medium text-primary">
+                <Car className="h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{v.year} {v.make} {v.model}</span>
+              </span>
+            ))}
+            {apt.vehicles.length > 2 && (
+              <span className="text-[10px] text-muted-foreground">+{apt.vehicles.length - 2} more</span>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          <Users className="h-3 w-3 shrink-0 opacity-60" />
+          <span className="truncate">{apt.crmUser?.fullName || "—"}</span>
+        </div>
+      </div>
+
+      <ChevronRight className="mt-1 h-4 w-4 shrink-0 self-center text-muted-foreground/40 transition-all group-active:translate-x-0.5" />
+    </button>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function AppointmentDashboard() {
-  const router       = useRouter();
-  const queryClient  = useQueryClient();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { getToken } = useAuth();
 
-  const today        = format(new Date(), "yyyy-MM-dd");
-  const tomorrow     = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
+  const today = format(new Date(), "yyyy-MM-dd");
+  const tomorrow = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
   const currentMonth = format(new Date(), "yyyy-MM");
 
-  const [viewMode,      setViewMode]      = React.useState<"day" | "month">("day");
-  const [selectedDate,  setSelectedDate]  = React.useState(today);
-  const [statusFilter,  setStatusFilter]  = React.useState("all");
-  const [typeFilter,    setTypeFilter]    = React.useState("all");
-  const [searchQuery,   setSearchQuery]   = React.useState("");
+  const [viewMode, setViewMode] = React.useState<"day" | "month">("day");
+  const [selectedDate, setSelectedDate] = React.useState(today);
+  const [statusFilter, setStatusFilter] = React.useState("all");
+  const [typeFilter, setTypeFilter] = React.useState("all");
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   const selectedMonth = selectedDate.slice(0, 7);
 
@@ -463,13 +534,13 @@ function AppointmentDashboard() {
       : { date: selectedDate };
 
   // Detail modal
-  const [detailsModalOpen,    setDetailsModalOpen]    = React.useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
   const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null);
 
   // Post composer (admin only)
   const [showPostComposer, setShowPostComposer] = React.useState(false);
-  const [postType,    setPostType]    = React.useState<DashboardPost["type"]>("event");
-  const [postTitle,   setPostTitle]   = React.useState("");
+  const [postType, setPostType] = React.useState<DashboardPost["type"]>("event");
+  const [postTitle, setPostTitle] = React.useState("");
   const [postContent, setPostContent] = React.useState("");
 
   const getHeaders = async () => {
@@ -485,7 +556,7 @@ function AppointmentDashboard() {
       const h = await getHeaders();
       const params: Record<string, string> = { ...rangeParams };
       if (statusFilter !== "all") params.status = statusFilter;
-      if (typeFilter   !== "all") params.type   = typeFilter;
+      if (typeFilter !== "all") params.type = typeFilter;
       const r = await apiClient.get("/api/appointments/dashboard", { ...h, params });
       return r.data?.data ?? r.data;
     },
@@ -627,9 +698,9 @@ function AppointmentDashboard() {
         ...h, params: { ...rangeParams, format: "csv" }, responseType: "text",
       });
       const blob = new Blob([r.data], { type: "text/csv" });
-      const url  = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
       const fileTag = viewMode === "month" ? selectedMonth : selectedDate;
-      const a    = Object.assign(document.createElement("a"), { href: url, download: `appointments-${fileTag}.csv` });
+      const a = Object.assign(document.createElement("a"), { href: url, download: `appointments-${fileTag}.csv` });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -645,8 +716,8 @@ function AppointmentDashboard() {
     <div className="relative min-h-screen bg-background text-foreground antialiased">
       {/* Ambient atmosphere — faint accent fields give the page depth without noise */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-32 -top-40 size-[36rem] rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -right-32 top-0 size-[30rem] rounded-full bg-sky-500/5 blur-3xl" />
+        <div className="absolute -left-32 -top-40 size-144 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -right-32 top-0 size-120 rounded-full bg-sky-500/5 blur-3xl" />
       </div>
 
       <div className="mx-auto flex max-w-390 flex-col gap-4 px-4 pb-16 pt-6 sm:px-7">
@@ -680,19 +751,19 @@ function AppointmentDashboard() {
         {/* ── Filter toolbar ── */}
         <div className={cn(CARD, "flex flex-wrap items-end gap-3 px-4 py-3.5")}>
           {/* Date / Month */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto">
             <span className={EYEBROW}>{viewMode === "month" ? "Month" : "Date"}</span>
             {viewMode === "month" ? (
               <input
                 type="month"
-                className={cn(FIELD, "w-40 cursor-pointer scheme-light-dark")}
+                className={cn(FIELD, "w-full cursor-pointer scheme-light-dark sm:w-40")}
                 value={selectedMonth}
                 onChange={(e) => handleMonthChange(e.target.value)}
               />
             ) : (
               <input
                 type="date"
-                className={cn(FIELD, "w-40 cursor-pointer scheme-light-dark")}
+                className={cn(FIELD, "w-full cursor-pointer scheme-light-dark sm:w-40")}
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
               />
@@ -700,12 +771,12 @@ function AppointmentDashboard() {
           </div>
 
           {/* Quick chips */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto">
             <span className={EYEBROW}>Quick select</span>
-            <div className="flex items-center gap-1.5">
-              <QuickChip label="Today"      active={viewMode === "day" && selectedDate === today}            onClick={() => handleDateChange(today)} />
-              <QuickChip label="Tomorrow"   active={viewMode === "day" && selectedDate === tomorrow}         onClick={() => handleDateChange(tomorrow)} />
-              <QuickChip label="This Month" active={viewMode === "month" && selectedMonth === currentMonth}  onClick={() => handleMonthChange(currentMonth)} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <QuickChip label="Today" active={viewMode === "day" && selectedDate === today} onClick={() => handleDateChange(today)} />
+              <QuickChip label="Tomorrow" active={viewMode === "day" && selectedDate === tomorrow} onClick={() => handleDateChange(tomorrow)} />
+              <QuickChip label="This Month" active={viewMode === "month" && selectedMonth === currentMonth} onClick={() => handleMonthChange(currentMonth)} />
               {(viewMode !== "day" || selectedDate !== today) && (
                 <QuickChip label="Reset" active={false} onClick={() => handleDateChange(today)} />
               )}
@@ -781,11 +852,11 @@ function AppointmentDashboard() {
             title={displayDate}
             count={!isLoading && appointmentsData?.count != null ? appointmentsData.count : undefined}
           >
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
               <Download size={12} strokeWidth={2} />
               Export CSV
             </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => refetch()} disabled={isLoading}>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw size={12} strokeWidth={2} className={cn(isLoading && "animate-spin")} />
               Refresh
             </Button>
@@ -799,7 +870,7 @@ function AppointmentDashboard() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-              <div className="flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted to-muted/40 text-muted-foreground shadow-inner">
+              <div className="flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-linear-to-br from-muted to-muted/40 text-muted-foreground shadow-inner">
                 <Calendar size={22} strokeWidth={1.5} />
               </div>
               <div>
@@ -810,41 +881,51 @@ function AppointmentDashboard() {
               </div>
             </div>
           ) : (
-            <div className="max-h-130 overflow-x-auto overflow-y-auto [scrollbar-color:hsl(var(--border))_transparent] [scrollbar-width:thin]">
-              <table className="w-full min-w-240 table-fixed border-collapse">
-                <thead className="sticky top-0 z-10 bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/65">
-                  <tr className="border-b border-border">
-                    {[
-                      ["Customer",  "18%"],
-                      ["Phone",     "11%"],
-                      ["Time",       "8%"],
-                      ["Type",      "11%"],
-                      ["Vehicles",  "17%"],
-                      ["Booked By", "13%"],
-                      ["Source",     "9%"],
-                      ["Status",     "9%"],
-                      ["",           "4%"],
-                    ].map(([label, width]) => (
-                      <th
-                        key={label}
-                        style={{ width }}
-                        className={cn(
-                          "whitespace-nowrap px-3.5 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground",
-                          !label && "text-center"
-                        )}
-                      >
-                        {label}
-                      </th>
+            <>
+              {/* Phone: dedicated card list — a 9-column table can't fit a phone screen */}
+              <div className="flex flex-col gap-2 p-3 sm:hidden">
+                {filtered.map((apt) => (
+                  <AppointmentMobileCard key={apt._id} apt={apt} onOpen={handleOpenDetailsModal} />
+                ))}
+              </div>
+
+              {/* Tablet/desktop: full table */}
+              <div className="hidden max-h-130 overflow-x-auto overflow-y-auto [scrollbar-color:hsl(var(--border))_transparent] [scrollbar-width:thin] sm:block">
+                <table className="w-full min-w-240 table-fixed border-collapse">
+                  <thead className="sticky top-0 z-10 bg-card/80 backdrop-blur supports-backdrop-filter:bg-card/65">
+                    <tr className="border-b border-border">
+                      {[
+                        ["Customer", "18%"],
+                        ["Phone", "11%"],
+                        ["Time", "8%"],
+                        ["Type", "11%"],
+                        ["Vehicles", "17%"],
+                        ["Booked By", "13%"],
+                        ["Source", "9%"],
+                        ["Status", "9%"],
+                        ["", "4%"],
+                      ].map(([label, width]) => (
+                        <th
+                          key={label}
+                          style={{ width }}
+                          className={cn(
+                            "whitespace-nowrap px-3.5 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground",
+                            !label && "text-center"
+                          )}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((apt) => (
+                      <AppointmentRow key={apt._id} apt={apt} onOpen={handleOpenDetailsModal} />
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((apt) => (
-                    <AppointmentRow key={apt._id} apt={apt} onOpen={handleOpenDetailsModal} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
 
           {/* Table footer */}
@@ -871,7 +952,7 @@ function AppointmentDashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 gap-1.5 rounded-lg text-xs"
+                  className="h-9 gap-1.5 rounded-lg text-xs"
                   onClick={() => setShowPostComposer((v) => !v)}
                 >
                   <Plus size={12} strokeWidth={2} />

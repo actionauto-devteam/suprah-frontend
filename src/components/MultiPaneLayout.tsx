@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useFullscreen, TabOption } from "@/components/FullscreenProvider"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Maximize2, Minimize2, Plus,
   GripVertical, X, ChevronDown, PanelRightClose,
@@ -69,7 +70,7 @@ function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
       `}>
         <GripVertical className="h-3 w-3" />
       </div>
-      <div className="absolute inset-y-0 -left-1 -right-1" />
+      <div className="absolute inset-y-0 -left-2.5 -right-2.5" />
     </div>
   )
 }
@@ -81,6 +82,7 @@ export function PaneToolbar({ tabOptions }: { tabOptions: TabOption[] }) {
     isFullscreen, toggleFullscreen,
     isMultiPane, panes, addPane, resetToSinglePane,
   } = useFullscreen()
+  const isMobile = useIsMobile()
 
   return (
     <div className="flex items-center gap-1.5">
@@ -91,7 +93,7 @@ export function PaneToolbar({ tabOptions }: { tabOptions: TabOption[] }) {
             variant="outline"
             size="sm"
             onClick={toggleFullscreen}
-            className={`h-8 w-8 p-0 rounded-lg transition-all ${isFullscreen
+            className={`h-9 w-9 p-0 rounded-lg transition-all ${isFullscreen
                 ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:text-white"
                 : "border-border/50 hover:border-emerald-500/40"
               }`}
@@ -104,15 +106,15 @@ export function PaneToolbar({ tabOptions }: { tabOptions: TabOption[] }) {
         </TooltipContent>
       </Tooltip>
 
-      {/* Add Pane — only in fullscreen */}
-      {isFullscreen && (
+      {/* Add Pane / split-screen — too cramped to be usable on phone screens, tablet+ only */}
+      {isFullscreen && !isMobile && (
         <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-2.5 rounded-lg gap-1.5 text-xs border-border/50 hover:border-emerald-500/40"
+                className="h-9 px-2.5 rounded-lg gap-1.5 text-xs border-border/50 hover:border-emerald-500/40"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Add Pane</span>
@@ -146,7 +148,7 @@ export function PaneToolbar({ tabOptions }: { tabOptions: TabOption[] }) {
                   variant="outline"
                   size="sm"
                   onClick={resetToSinglePane}
-                  className="h-8 px-2.5 rounded-lg gap-1.5 text-xs border-border/50 hover:border-emerald-500/40"
+                  className="h-9 px-2.5 rounded-lg gap-1.5 text-xs border-border/50 hover:border-emerald-500/40"
                 >
                   <PanelRightClose className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Single View</span>
@@ -178,8 +180,15 @@ export function MultiPaneContainer({
   tabOptions: TabOption[]
   renderTab: (tabId: string) => React.ReactNode
 }) {
-  const { panes, setPaneTab, removePane, resizePane, isMultiPane } = useFullscreen()
+  const { panes, setPaneTab, removePane, resizePane, isMultiPane, resetToSinglePane } = useFullscreen()
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
+
+  // A multi-pane layout persisted from a prior desktop session is unusable on
+  // a phone — collapse it back to a single pane the moment we detect mobile.
+  React.useEffect(() => {
+    if (isMobile && isMultiPane) resetToSinglePane()
+  }, [isMobile, isMultiPane, resetToSinglePane])
 
   const totalSize = panes.reduce((s, p) => s + p.size, 0)
 

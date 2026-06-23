@@ -289,6 +289,17 @@ export function LeadsTab({
     return () => clearInterval(tid)
   }, [selectedLead, fetchThread])
 
+  // Hide the floating mobile bottom nav while a lead conversation is open,
+  // matching the SupraSpace convention, so it doesn't sit over the reply composer.
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent('crm-leads:convo-state', { detail: { active: !!selectedLead } }))
+  }, [selectedLead])
+  React.useEffect(() => {
+    return () => {
+      window.dispatchEvent(new CustomEvent('crm-leads:convo-state', { detail: { active: false } }))
+    }
+  }, [])
+
   // Helpers
   const addToast = (type: Toast['type'], msg: string) => {
     if (toasts.some(t => t.message === msg)) return
@@ -406,7 +417,9 @@ export function LeadsTab({
       <ToastStack toasts={toasts} dismiss={id => setToasts(p => p.filter(t => t.id !== id))} />
 
       {/* ── TOPBAR ── */}
-      <header className="ss4-topbar shrink-0" style={{ minHeight: 52 }}>
+      {/* On mobile/tablet, the open conversation shows its own header — collapse
+          the inbox topbar + tab strip so the conversation gets near-full height. */}
+      <header className={cn('ss4-topbar shrink-0', selectedLead && 'hidden lg:block')} style={{ minHeight: 52 }}>
 
         {/* Title + actions */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-3 pb-0">
@@ -442,19 +455,19 @@ export function LeadsTab({
             <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
-              className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              <RefreshCw className={`h-3 w-3 ${isWorkerSyncing || localIsSyncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 sm:h-3 sm:w-3 ${isWorkerSyncing || localIsSyncing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">
                 {(isWorkerSyncing || localIsSyncing) ? 'Syncing…' : 'Refresh'}
               </span>
             </button>
             <button
               onClick={toggleTheme}
-              className="ss4-theme-btn h-7 w-7 flex items-center justify-center"
+              className="ss4-theme-btn h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center shrink-0"
               title="Toggle theme"
             >
-              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              {theme === 'dark' ? <Sun className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Moon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
             </button>
             <SupraLeoAI variant="toolbar" />
           </div>
@@ -466,7 +479,7 @@ export function LeadsTab({
             <button
               key={i}
               onClick={() => { setStatusFilter(tab.key); setCurrentPage(1); setSelectedLead(null); }}
-              className="relative flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold transition-all shrink-0"
+              className="relative flex items-center gap-1.5 px-3 py-2.5 sm:py-2 text-[13px] font-semibold transition-all shrink-0"
               style={{
                 color: statusFilter === tab.key ? 'var(--accent)' : 'var(--text-tertiary)',
                 borderBottom: `2px solid ${statusFilter === tab.key ? 'var(--accent)' : 'transparent'}`,
@@ -534,7 +547,7 @@ export function LeadsTab({
                 />
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-10 py-16">
+              <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-6 sm:px-10 py-12 sm:py-16">
                 <div className="relative">
                   <div className="ss4-empty-icon flex h-20 w-20 items-center justify-center">
                     <MessageSquare className="h-8 w-8" style={{ color: 'var(--accent)', opacity: 0.4 }} />

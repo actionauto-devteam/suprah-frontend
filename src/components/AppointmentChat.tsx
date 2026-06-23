@@ -111,7 +111,7 @@ function MessageItem({
           </div>
         )}
 
-        <p className="mt-0.5 text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
+        <p className="mt-0.5 text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap wrap-break-word">
           {msg.content}
         </p>
       </div>

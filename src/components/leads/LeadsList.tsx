@@ -74,7 +74,7 @@ export const LeadsList = React.memo(
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search name, email, vehicle…"
-              className="ss4-search-input w-full pl-9 pr-3 h-8 text-[13px]"
+              className="ss4-search-input w-full pl-9 pr-3 h-10 sm:h-8 text-[13px]"
             />
           </div>
         </div>
@@ -157,7 +157,7 @@ export const LeadsList = React.memo(
                           +{lead._n - 1}
                         </span>
                       )}
-                      <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="ml-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <SupraLeoReadButton lead={lead} size="sm" />
                       </div>
                     </div>

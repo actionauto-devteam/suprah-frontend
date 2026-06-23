@@ -45,7 +45,7 @@ export const ReplySection = React.memo(({
           <Lock className="h-3.5 w-3.5" style={{ color: 'var(--text-disabled)' }} />
           <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>This inquiry is closed</span>
         </div>
-        <button onClick={onReopen} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 text-xs font-medium">
+        <button onClick={onReopen} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-9 sm:h-7 text-xs font-medium">
           <LockOpen className="h-3 w-3" /> Reopen
         </button>
       </div>
@@ -55,7 +55,7 @@ export const ReplySection = React.memo(({
   // ── Active reply area ─────────────────────────────────────────────────────────
   return (
     <div
-      className="px-3 sm:px-4 py-3 shrink-0"
+      className="px-3 sm:px-4 py-2 shrink-0"
       style={{ borderTop: '1px solid var(--border-1)', background: 'var(--bg-elevated)' }}
     >
       <div className="ss4-input-wrap overflow-hidden">
@@ -65,29 +65,29 @@ export const ReplySection = React.memo(({
           value={replyMessage}
           onChange={(e) => setReplyMessage(e.target.value)}
           placeholder="Write a reply…"
-          rows={3}
+          rows={2}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault()
               onSend()
             }
           }}
-          className="w-full px-4 pt-3.5 pb-2 bg-transparent resize-none outline-none leading-relaxed"
+          className="w-full px-4 pt-2.5 pb-1.5 bg-transparent resize-none outline-none leading-snug max-h-24 sm:max-h-28"
           style={{ fontSize: 14, color: 'var(--text-primary)' }}
         />
 
         {/* Toolbar row */}
         <div
-          className="flex items-center justify-between px-2.5 py-2"
+          className="flex items-center justify-between gap-2 px-2.5 py-2.5 sm:py-2"
           style={{ borderTop: '1px solid var(--border-1)' }}
         >
           {/* Left: action buttons */}
-          <div className="flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink min-w-0">
+          <div className="flex items-center gap-1 sm:gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink min-w-0">
 
             {/* Status dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[12px] font-medium">
+                <button className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[12px] font-medium shrink-0">
                   <Circle className="h-3 w-3" />
                   Status
                   <ChevronDown className="h-2.5 w-2.5 opacity-50" />
@@ -103,7 +103,7 @@ export const ReplySection = React.memo(({
                     <DropdownMenuItem
                       key={s}
                       onClick={() => onStatusChange(s)}
-                      className="flex items-center gap-2 text-xs text-muted-foreground rounded-lg cursor-pointer px-2.5 py-1.5 focus:bg-muted focus:text-foreground"
+                      className="flex items-center gap-2 text-xs text-muted-foreground rounded-lg cursor-pointer px-2.5 py-2 focus:bg-muted focus:text-foreground"
                     >
                       <span className={`h-2 w-2 rounded-full shrink-0 ${c.dot}`} />
                       {c.label}
@@ -112,19 +112,19 @@ export const ReplySection = React.memo(({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <button onClick={onApptOpen} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[12px] font-medium whitespace-nowrap">
+            <button onClick={onApptOpen} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[12px] font-medium whitespace-nowrap shrink-0">
               <Calendar className="h-3 w-3" />
               Schedule
             </button>
 
-            <button onClick={onQuoteShipping} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-7 text-[12px] font-medium whitespace-nowrap">
+            <button onClick={onQuoteShipping} className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[12px] font-medium whitespace-nowrap shrink-0">
               <Truck className="h-3 w-3" />
               Quote
             </button>
 
             <button
               onClick={() => onStatusChange("Closed")}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 h-9 sm:h-7 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap shrink-0"
               style={{ color: 'var(--danger)', opacity: 0.7 }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
@@ -135,12 +135,12 @@ export const ReplySection = React.memo(({
           </div>
 
           {/* Right: send button */}
-          <div className="flex items-center gap-2 shrink-0 pl-2">
+          <div className="flex items-center gap-2 shrink-0 pl-1 sm:pl-2">
             <span className="hidden sm:block" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>⌘↵</span>
             <button
               onClick={onSend}
               disabled={isSending || !replyMessage.trim()}
-              className="ss4-send-btn flex items-center gap-1.5 px-4 h-8 font-semibold"
+              className="ss4-send-btn flex items-center gap-1.5 px-4 h-10 sm:h-8 font-semibold"
               style={{ fontSize: 13 }}
             >
               <Send className="h-3.5 w-3.5" />
