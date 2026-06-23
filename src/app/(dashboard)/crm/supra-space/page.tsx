@@ -1391,6 +1391,7 @@ export default function SupraSpacePage() {
   const [msgs, setMsgs] = React.useState<Record<string, SSMessage[]>>({});
   const [loadingMsgs, setLoadingMsgs] = React.useState(false);
   const [hasMore, setHasMore] = React.useState<Record<string, boolean>>({});
+  const [msgFetchState, setMsgFetchState] = React.useState<Record<string, 'idle' | 'loading' | 'loaded' | 'error' | 'stale'>>({});
 
   const [input, setInput] = React.useState('');
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
@@ -1469,9 +1470,13 @@ export default function SupraSpacePage() {
   const [searching, setSearching] = React.useState(false);
 
   const endRef = React.useRef<HTMLDivElement>(null);
+  const messageScrollRef = React.useRef<HTMLDivElement>(null);
+  const pendingScrollRestoreRef = React.useRef<{ convId: string; scrollHeight: number; scrollTop: number } | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
+  React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
   // @mention state
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
@@ -1483,6 +1488,8 @@ export default function SupraSpacePage() {
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
+  const activeMsgStatus = activeId ? (msgFetchState[activeId] || 'idle') : 'idle';
+  const activeConvHasHistorySignal = Boolean(activeConv?.lastMessage || activeConv?.lastMessageAt);
   const msgSeenByMembers = React.useMemo(() => {
     // Build fresh avatar/name from message sender data (more up-to-date than conv.members)
     const freshAvatar: Record<string, string | undefined> = {};
@@ -1546,6 +1553,7 @@ export default function SupraSpacePage() {
       if (ex.find(m => m._id === message._id)) return p;
       return { ...p, [conversationId]: [...ex, message] };
     });
+    setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
     setConvos(p => p.map(c => c._id === conversationId ? { ...c, lastMessage: message, lastMessageAt: message.createdAt } : c)
       .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
   }, []);
@@ -1586,6 +1594,10 @@ export default function SupraSpacePage() {
   // being listed as effect dependencies (avoids stale-closure re-registrations).
   const tokenRef = React.useRef(token);
   React.useEffect(() => { tokenRef.current = token; }, [token]);
+  const convosRef = React.useRef<SSConversation[]>([]);
+  React.useEffect(() => { convosRef.current = convos; }, [convos]);
+  const msgFetchStateRef = React.useRef(msgFetchState);
+  React.useEffect(() => { msgFetchStateRef.current = msgFetchState; }, [msgFetchState]);
 
   // True once the init effect has finished the initial conversation fetch.
   // Prevents refreshConvos from firing during page load (init already handles it).
@@ -1597,6 +1609,49 @@ export default function SupraSpacePage() {
   // always re-fetch from the same source at the same time.
   const ctxRefreshConvosRef = React.useRef(ctxRefreshConvos);
   React.useEffect(() => { ctxRefreshConvosRef.current = ctxRefreshConvos; }, [ctxRefreshConvos]);
+
+  const fetchConversationMessages = React.useCallback(async (
+    conversationId: string,
+    options: { force?: boolean; silent?: boolean } = {},
+  ) => {
+    const t = tokenRef.current;
+    if (!conversationId || !t) return false;
+
+    if (!options.force && conversationId in msgsRef.current) return true;
+
+    const prevStatus = msgFetchStateRef.current[conversationId];
+    if (prevStatus === 'loading' && options.silent) return false;
+
+    if (!options.silent) setLoadingMsgs(true);
+    setMsgFetchState(p => ({ ...p, [conversationId]: 'loading' }));
+
+    try {
+      const r = await apiClient.get(`/api/supraspace/conversations/${conversationId}/messages`, {
+        headers: { Authorization: `Bearer ${t}` },
+        params: { limit: 40 },
+      });
+      const d: SSMessage[] = r.data?.data || [];
+      const conv = convosRef.current.find(c => c._id === conversationId);
+      const hasHistorySignal = Boolean(conv?.lastMessage || conv?.lastMessageAt);
+      const rejectSuspiciousEmpty = d.length === 0 && hasHistorySignal;
+
+      setMsgs(p => {
+        if (rejectSuspiciousEmpty) return p;
+        return { ...p, [conversationId]: d };
+      });
+      setHasMore(p => ({ ...p, [conversationId]: d.length === 40 }));
+      setMsgFetchState(p => ({
+        ...p,
+        [conversationId]: rejectSuspiciousEmpty ? 'stale' : 'loaded',
+      }));
+      return !rejectSuspiciousEmpty;
+    } catch {
+      setMsgFetchState(p => ({ ...p, [conversationId]: 'error' }));
+      return false;
+    } finally {
+      if (!options.silent) setLoadingMsgs(false);
+    }
+  }, []);
 
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
@@ -1714,19 +1769,42 @@ export default function SupraSpacePage() {
   // Handles: tab switch, OS sleep/wake, phone lock/unlock.
   React.useEffect(() => {
     if (loading) return;
-    const onFocus = () => refreshConvos();
+    const onFocus = () => {
+      refreshConvos();
+      if (activeIdRef.current) {
+        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
+      }
+    };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [loading, refreshConvos]);
+  }, [loading, refreshConvos, fetchConversationMessages]);
+
+  React.useEffect(() => {
+    if (loading) return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      refreshConvos();
+      if (activeIdRef.current) {
+        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loading, refreshConvos, fetchConversationMessages]);
 
   // Re-sync after socket reconnection (server restart, network blip, deploy).
   // Conversations created or changed during the gap would be missed otherwise.
   React.useEffect(() => {
     if (!socket) return;
-    const onReconnect = () => refreshConvos();
+    const onReconnect = () => {
+      refreshConvos();
+      if (activeIdRef.current) {
+        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
+      }
+    };
     socket.on('connect', onReconnect);
     return () => { socket.off('connect', onReconnect); };
-  }, [socket, refreshConvos]);
+  }, [socket, refreshConvos, fetchConversationMessages]);
 
   React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
 
@@ -1760,6 +1838,7 @@ export default function SupraSpacePage() {
     const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
       appendMessageLocal(conversationId, message);
       if (conversationId === activeIdRef.current) {
+        fetchConversationMessages(conversationId, { force: true, silent: true });
         ctxMarkAsRead(conversationId);
         setConvos(prev => prev.map(c => {
           if (c._id !== conversationId || !c.lastMessage) return c;
@@ -1769,8 +1848,16 @@ export default function SupraSpacePage() {
         }));
       }
     };
-    const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+    const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
+      // If the deleted message was the conversation's lastMessage, update the sidebar preview
+      setConvos(p => p.map(c => {
+        if (c._id !== conversationId || c.lastMessage?._id !== messageId) return c;
+        const cached = msgsRef.current[conversationId] || [];
+        const prev = [...cached].filter(m => m._id !== messageId && !m.isDeleted).slice(-1)[0];
+        return { ...c, lastMessage: (prev || null) as any, lastMessageAt: prev?.createdAt || c.lastMessageAt };
+      }));
+    };
     const onNew = (c: SSConversation) => {
       setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
       // Clear any stale message cache for this conversation. When a conversation
@@ -1845,9 +1932,28 @@ export default function SupraSpacePage() {
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
     };
-  }, [socket, appendMessageLocal, patchMsg, patchConv]);
+  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages]);
 
-  React.useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeMsgs.length]);
+  React.useLayoutEffect(() => {
+    const pending = pendingScrollRestoreRef.current;
+    const el = messageScrollRef.current;
+    if (!pending || !el || pending.convId !== activeId) return;
+
+    const heightDelta = el.scrollHeight - pending.scrollHeight;
+    el.scrollTop = pending.scrollTop + heightDelta;
+    pendingScrollRestoreRef.current = null;
+  }, [activeId, activeMsgs.length]);
+
+  React.useEffect(() => {
+    const el = messageScrollRef.current;
+    if (!el || pendingScrollRestoreRef.current) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const shouldStickToBottom = activeMsgs.length <= 40 || distanceFromBottom < 220;
+    if (shouldStickToBottom) {
+      endRef.current?.scrollIntoView({ behavior: activeMsgs.length <= 40 ? 'auto' : 'smooth' });
+    }
+  }, [activeId, activeMsgs.length]);
 
   // ── Pointer-events drag (replaces HTML5 drag — instant response, no browser delay) ──
   React.useEffect(() => {
@@ -1949,11 +2055,7 @@ export default function SupraSpacePage() {
     // ![] is false in JS, so an empty-array cache would permanently block re-fetches
     // even when new messages arrived or the previous fetch failed silently.
     if (!(activeId in msgs)) {
-      setLoadingMsgs(true);
-      apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 40 } })
-        .then(r => { const d = r.data?.data || []; setMsgs(p => ({ ...p, [activeId]: d })); setHasMore(p => ({ ...p, [activeId]: d.length === 40 })); })
-        .catch(() => { /* leave msgs[activeId] absent so next open retries */ })
-        .finally(() => setLoadingMsgs(false));
+      fetchConversationMessages(activeId, { force: true });
     }
     markRead(activeId);
     ctxMarkAsRead(activeId);
@@ -1964,7 +2066,7 @@ export default function SupraSpacePage() {
       return { ...c, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
     }));
     call.refreshStatus(activeId);
-  }, [activeId, token, activeMsgsMissing]); // eslint-disable-line
+  }, [activeId, token, activeMsgsMissing, fetchConversationMessages]); // eslint-disable-line
 
   React.useEffect(() => {
     if (!activeId || !isConnected) return;
@@ -2336,16 +2438,32 @@ export default function SupraSpacePage() {
   handleSpaceDropRef.current = handleSpaceDrop;
   handleReorderConvRef.current = handleReorderConv;
 
-  const loadMore = async () => {
+  const loadMore = React.useCallback(async () => {
     if (!activeId || !hasMore[activeId] || loadingMsgs) return;
+    const scrollEl = messageScrollRef.current;
+    if (scrollEl) {
+      pendingScrollRestoreRef.current = {
+        convId: activeId,
+        scrollHeight: scrollEl.scrollHeight,
+        scrollTop: scrollEl.scrollTop,
+      };
+    }
     setLoadingMsgs(true);
     try {
       const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { before: activeMsgs[0]?.createdAt, limit: 40 } });
       const d = r.data?.data || [];
       setMsgs(p => ({ ...p, [activeId]: [...d, ...(p[activeId] || [])] }));
       setHasMore(p => ({ ...p, [activeId]: d.length === 40 }));
-    } catch { } finally { setLoadingMsgs(false); }
-  };
+    } catch {
+      pendingScrollRestoreRef.current = null;
+    } finally { setLoadingMsgs(false); }
+  }, [activeId, activeMsgs, hasMore, loadingMsgs, token]);
+
+  const handleMessageScroll = React.useCallback(() => {
+    const el = messageScrollRef.current;
+    if (!el || !activeId || !hasMore[activeId] || loadingMsgs) return;
+    if (el.scrollTop < 180) loadMore();
+  }, [activeId, hasMore, loadingMsgs, loadMore]);
 
   const openSearchResult = (convId: string, messageId: string) => {
     setActiveId(convId); setQ('');
@@ -2422,13 +2540,19 @@ export default function SupraSpacePage() {
     const pinned = isPinnedConv(conv);
     const archived = isArchivedConv(conv);
     const isUnread = !isAct && conv.lastMessage && uid && !conv.lastMessage.readBy?.includes(uid) && conv.lastMessage.sender?._id !== uid;
-    const lastPreview = conv.lastMessage?.isDeleted ? 'Message deleted'
-      : conv.lastMessage?.type === 'voice' ? '🎙️ Voice message'
-        : conv.lastMessage?.type === 'gif' ? 'GIF'
-          : conv.lastMessage?.type === 'poll' ? `📊 ${conv.lastMessage?.poll?.question || 'Poll'}`
-            : conv.lastMessage?.type === 'event' ? `📅 ${conv.lastMessage?.event?.title || 'Event'}`
-              : conv.lastMessage?.content || (conv.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet');
-    const senderPrefix = conv.type === 'group' && conv.lastMessage && conv.lastMessage.sender?._id !== uid ? `${(conv.lastMessage.sender?.fullName || '').split(' ')[0]}: ` : '';
+    // Use messages cache as fallback when lastMessage is null or deleted
+    const cachedConvMsgs = msgs[conv._id];
+    const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
+      ? conv.lastMessage
+      : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
+    const lastPreview = !effectiveLastMsg ? 'No messages yet'
+      : effectiveLastMsg.isDeleted ? 'Message deleted'
+        : effectiveLastMsg.type === 'voice' ? '🎙️ Voice message'
+          : effectiveLastMsg.type === 'gif' ? 'GIF'
+            : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
+              : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
+                : effectiveLastMsg.content || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
+    const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
@@ -2838,14 +2962,44 @@ export default function SupraSpacePage() {
                   })()}
 
                   {/* Messages */}
-                  <div className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll" style={wallpaper ? { backgroundImage: wallpaper } : undefined}>
+                  <div
+                    ref={messageScrollRef}
+                    onScroll={handleMessageScroll}
+                    className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll"
+                    style={wallpaper ? { backgroundImage: wallpaper } : undefined}
+                  >
                     {hasMore[activeId] && (
                       <div className="flex justify-center pb-3">
-                        <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>{loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '↑ Load earlier messages'}</button>
+                        <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full inline-flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>
+                          {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Scroll up for earlier messages'}
+                        </button>
                       </div>
                     )}
-                    {loadingMsgs && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-                    {!loadingMsgs && activeMsgs.length === 0 && activeConv && (
+                    {(loadingMsgs || activeMsgStatus === 'loading') && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+                    {!loadingMsgs && activeMsgs.length === 0 && activeConv && (activeMsgStatus === 'error' || activeMsgStatus === 'stale' || activeConvHasHistorySignal) && (
+                      <div className="flex flex-col items-center justify-center py-16 gap-3 select-none px-6 text-center">
+                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center" style={{ background: 'var(--accent-muted)' }}>
+                          <Wifi className="h-5 w-5" style={{ color: 'var(--accent)' }} />
+                        </div>
+                        <div>
+                          <p className="font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
+                            Reconnecting conversation history
+                          </p>
+                          <p className="mt-1 max-w-xs" style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+                            Messages are still being refreshed. You do not need to reload the page.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => activeId && fetchConversationMessages(activeId, { force: true })}
+                          className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5"
+                          style={{ fontSize: 12 }}
+                        >
+                          {activeMsgStatus === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
+                          Retry now
+                        </button>
+                      </div>
+                    )}
+                    {!loadingMsgs && activeMsgs.length === 0 && activeConv && activeMsgStatus !== 'error' && activeMsgStatus !== 'stale' && !activeConvHasHistorySignal && (
                       <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
                         <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
                         <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>

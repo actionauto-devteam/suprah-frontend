@@ -36,7 +36,7 @@ async function ensureNotifBuf(): Promise<void> {
   const ctx = getCtx();
   if (!ctx || _notifBuf) return;
   try {
-    const res = await fetch('/sounds/notification.wav');
+    const res = await fetch("/sounds/universfield-new-notification.wav");
     const arr = await res.arrayBuffer();
     _notifBuf = await ctx.decodeAudioData(arr);
   } catch {}
