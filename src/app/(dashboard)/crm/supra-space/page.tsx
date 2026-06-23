@@ -1579,6 +1579,34 @@ export default function SupraSpacePage() {
   const getMainTokenRef = React.useRef(getMainToken);
   getMainTokenRef.current = getMainToken;
 
+  // Keep token in a ref so the refresh callbacks below can read it without
+  // being listed as effect dependencies (avoids stale-closure re-registrations).
+  const tokenRef = React.useRef(token);
+  React.useEffect(() => { tokenRef.current = token; }, [token]);
+
+  // True once the init effect has finished the initial conversation fetch.
+  // Prevents refreshConvos from firing during page load (init already handles it).
+  const initDoneRef = React.useRef(false);
+
+  // Re-fetch the conversation list without touching any other state.
+  // Used by the focus and socket-reconnect handlers below.
+  const refreshConvos = React.useCallback(() => {
+    const t = tokenRef.current;
+    if (!t || !initDoneRef.current) return;
+    apiClient
+      .get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => {
+        const fresh: SSConversation[] = r.data?.data || [];
+        // Merge: keep local-only additions (e.g. just-created DMs not yet in the API response)
+        setConvos(prev => {
+          const freshIds = new Set(fresh.map(c => c._id));
+          const localOnly = prev.filter(c => !freshIds.has(c._id));
+          return [...fresh, ...localOnly];
+        });
+      })
+      .catch(() => { /* network blip — keep current state */ });
+  }, []);
+
   React.useEffect(() => {
     (async () => {
       let t = localStorage.getItem('crm_token');
@@ -1647,9 +1675,27 @@ export default function SupraSpacePage() {
           router.replace('/crm');
         }
       }
-      finally { setLoading(false); }
+      finally { setLoading(false); initDoneRef.current = true; }
     })();
   }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-sync conversation list when the user returns to this tab.
+  // Handles: tab switch, OS sleep/wake, phone lock/unlock.
+  React.useEffect(() => {
+    if (loading) return;
+    const onFocus = () => refreshConvos();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [loading, refreshConvos]);
+
+  // Re-sync after socket reconnection (server restart, network blip, deploy).
+  // Conversations created or changed during the gap would be missed otherwise.
+  React.useEffect(() => {
+    if (!socket) return;
+    const onReconnect = () => refreshConvos();
+    socket.on('connect', onReconnect);
+    return () => { socket.off('connect', onReconnect); };
+  }, [socket, refreshConvos]);
 
   React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
 
@@ -1853,6 +1899,12 @@ export default function SupraSpacePage() {
     };
   }, []); // safe: only refs + stable React state setters used inside
 
+  // True when the active conversation's message cache is absent (never fetched,
+  // or explicitly cleared). Adding this to the effect below ensures the fetch
+  // re-triggers even if activeId hasn't changed — e.g. after a conversation:new
+  // resurrection event clears the cache while the user is already in the chat.
+  const activeMsgsMissing = !!(activeId && !(activeId in msgs));
+
   React.useEffect(() => {
     if (!activeId || !token) return;
     // Use key-existence check (in msgs) instead of truthiness (!msgs[activeId]).
@@ -1874,7 +1926,7 @@ export default function SupraSpacePage() {
       return { ...c, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
     }));
     call.refreshStatus(activeId);
-  }, [activeId, token]); // eslint-disable-line
+  }, [activeId, token, activeMsgsMissing]); // eslint-disable-line
 
   React.useEffect(() => {
     if (!activeId || !isConnected) return;
