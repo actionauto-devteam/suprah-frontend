@@ -155,12 +155,11 @@ const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 const DAYPULSE_GROUP_NAME = 'Online Team Report'
 const DAYPULSE_GROUP_CACHE_KEY = 'dp_groupchat_id'
 
-async function resolveDayPulseGroupId(token: string): Promise<string | null> {
-  const headers = { Authorization: `Bearer ${token}` }
+async function resolveDayPulseGroupId(): Promise<string | null> {
   const cached = localStorage.getItem(DAYPULSE_GROUP_CACHE_KEY)
   if (cached) return cached
   try {
-    const { data: convData } = await apiClient.get('/api/supraspace/conversations', { headers })
+    const { data: convData } = await apiClient.get('/api/supraspace/conversations')
     const convos: Array<{ _id: string; type: string; name?: string }> = convData?.data || convData || []
     const existing = convos.find(c => c.type === 'group' && c.name === DAYPULSE_GROUP_NAME)
     if (existing) {
@@ -168,13 +167,12 @@ async function resolveDayPulseGroupId(token: string): Promise<string | null> {
       return existing._id
     }
     // Group doesn't exist — create it with all CRM users as members
-    const { data: usersData } = await apiClient.get('/api/supraspace/users', { headers })
+    const { data: usersData } = await apiClient.get('/api/supraspace/users')
     const users: Array<{ _id: string }> = usersData?.data || usersData || []
     const memberIds = users.map(u => u._id)
     const { data: newGroup } = await apiClient.post(
       '/api/supraspace/conversations/group',
-      { name: DAYPULSE_GROUP_NAME, memberIds },
-      { headers }
+      { name: DAYPULSE_GROUP_NAME, memberIds }
     )
     const id: string | undefined = newGroup?.data?._id || newGroup?._id
     if (id) {
@@ -192,11 +190,8 @@ function toBullets(text: string): string {
   return lines.map(l => `• ${l}`).join('\n')
 }
 
-async function postDayPulseToGroupChat(report: DayPulseReport, token: string): Promise<void> {
-  try {
-    const groupId = await resolveDayPulseGroupId(token)
-    if (!groupId) return
-
+async function postDayPulseToGroupChat(report: DayPulseReport): Promise<void> {
+  const buildBody = (): Record<string, unknown> => {
     const dept = DEPARTMENTS.find(d => d.key === report.department)
     const deptLabel = dept?.label ?? report.department
     const dateStr = new Date(report.reportDate).toLocaleDateString('en-US', {
@@ -225,12 +220,26 @@ async function postDayPulseToGroupChat(report: DayPulseReport, token: string): P
         thumbnailUrl: a.thumbnailUrl ?? null,
       }))
     }
+    return body
+  }
 
-    await apiClient.post(
-      `/api/supraspace/conversations/${groupId}/messages`,
-      body,
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
+  const send = (groupId: string) =>
+    apiClient.post(`/api/supraspace/conversations/${groupId}/messages`, buildBody())
+
+  try {
+    let groupId = await resolveDayPulseGroupId()
+    if (!groupId) return
+    try {
+      await send(groupId)
+    } catch (err: any) {
+      // Cached group id points to a deleted/missing conversation → drop cache,
+      // re-resolve once, and retry. Any other failure stays silent.
+      if (err?.response?.status === 404) {
+        localStorage.removeItem(DAYPULSE_GROUP_CACHE_KEY)
+        groupId = await resolveDayPulseGroupId()
+        if (groupId) await send(groupId)
+      }
+    }
   } catch {
     // silent fail — DayPulse was already posted successfully
   }
@@ -238,10 +247,12 @@ async function postDayPulseToGroupChat(report: DayPulseReport, token: string): P
 const MAX_DAYPULSE_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 const DAYPULSE_ATTACHMENT_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
+// Field names MUST match the server's multer .fields() config exactly:
+//   attachmentsAccomplishment / attachmentsBlockers / attachmentsInProgress
 const DAYPULSE_ATTACHMENT_FIELDS: Record<DayPulseAttachmentSection, string> = {
-  accomplishment: "attachments",
-  blockers: "attachments",
-  inProgress: "attachments",
+  accomplishment: "attachmentsAccomplishment",
+  blockers: "attachmentsBlockers",
+  inProgress: "attachmentsInProgress",
 }
 
 const DAYPULSE_SECTION_CONFIG: Array<{
@@ -551,12 +562,13 @@ function ReactionBar({
     try {
       const res = await apiClient.post(
         "/api/crm/feeds/reactions",
-        { targetType, targetId, reaction: type },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { targetType, targetId, reaction: type }
       )
       const { summary, action } = res.data?.data
       onReactionChange({ summary, myReaction: action === "removed" ? null : type })
-    } catch { }
+    } catch (err: any) {
+      console.error("Reaction failed:", err?.response?.status, err?.response?.data)
+    }
     finally { setLoading(false) }
   }
 
@@ -670,9 +682,12 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await apiClient.delete(`/api/crm/feeds/${postId}/comments/${comment._id}`, { headers: { Authorization: `Bearer ${token}` } })
+      await apiClient.delete(`/api/crm/feeds/${postId}/comments/${comment._id}`)
       onDeleted(comment._id)
-    } catch { setDeleting(false); setShowDelete(false) }
+    } catch (err: any) {
+      console.error("Comment delete failed:", err?.response?.status, err?.response?.data)
+      setDeleting(false); setShowDelete(false)
+    }
   }
 
   return (
@@ -736,13 +751,13 @@ function CommentSection({ reportId, currentUser, token }: {
   React.useEffect(() => {
     if (!token || !reportId) return
     setLoading(true)
-    apiClient.get(`/api/crm/feeds/${reportId}/comments`, { headers: { Authorization: `Bearer ${token}` } })
+    apiClient.get(`/api/crm/feeds/${reportId}/comments`)
       .then(async (res) => {
         const fetched: Comment[] = res.data?.data?.comments || []
         setComments(fetched)
         if (fetched.length > 0) {
           try {
-            const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((c) => c._id) }, { headers: { Authorization: `Bearer ${token}` } })
+            const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((c) => c._id) })
             setCommentReactions(rRes.data?.data?.reactions || {})
           } catch { }
         }
@@ -755,7 +770,7 @@ function CommentSection({ reportId, currentUser, token }: {
     if (!newComment.trim()) return
     setSubmitting(true); setError("")
     try {
-      const res = await apiClient.post(`/api/crm/feeds/${reportId}/comments`, { content: newComment.trim() }, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await apiClient.post(`/api/crm/feeds/${reportId}/comments`, { content: newComment.trim() })
       const c: Comment = res.data?.data?.comment
       setComments((prev) => prev.some((x) => x._id === c._id) ? prev : [...prev, c])
       setCommentReactions((prev) => ({ ...prev, [c._id]: { summary: {}, myReaction: null } }))
@@ -870,8 +885,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
     setEditLoading(true); setEditError("")
     try {
       const res = await apiClient.put(`/api/crm/daypulse/${report._id}`,
-        { accomplishment: editAcc.trim(), blockers: editBlk.trim(), inProgress: editInp.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { accomplishment: editAcc.trim(), blockers: editBlk.trim(), inProgress: editInp.trim() }
       )
       onUpdated(res.data?.data?.report)
       setIsEditing(false)
@@ -883,9 +897,12 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
   const handleDelete = async () => {
     setDeleteLoading(true)
     try {
-      await apiClient.delete(`/api/crm/daypulse/${report._id}`, { headers: { Authorization: `Bearer ${token}` } })
+      await apiClient.delete(`/api/crm/daypulse/${report._id}`)
       onDeleted(report._id)
-    } catch { setDeleteLoading(false); setShowDeleteModal(false) }
+    } catch (err: any) {
+      console.error("Report delete failed:", err?.response?.status, err?.response?.data)
+      setDeleteLoading(false); setShowDeleteModal(false)
+    }
   }
 
   return (
@@ -1221,15 +1238,11 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
         pendingAttachments[section as DayPulseAttachmentSection].forEach((file) => payload.append(fieldName, file))
       })
 
-      const res = await apiClient.post(
-        "/api/crm/daypulse",
-        payload,
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
-      )
+      const res = await apiClient.post("/api/crm/daypulse", payload)
       const report: DayPulseReport = res.data?.data?.report
       onPosted(report)
       // fire-and-forget — post to the DayPulse SupraSpace group chat
-      postDayPulseToGroupChat(report, token)
+      postDayPulseToGroupChat(report)
       setAcc(""); setBlk(""); setInp("")
       setPendingAttachments({ accomplishment: [], blockers: [], inProgress: [] })
       setActiveAttachmentSection(null)
@@ -1642,15 +1655,13 @@ export default function DayPulsePage({ currentUser, token }: {
 
   /** Fetch reports + bulk reactions */
   const fetchReports = React.useCallback(async (tk: string, pg: number) => {
-    const res = await apiClient.get(`/api/crm/daypulse?${buildQuery(pg)}`, {
-      headers: { Authorization: `Bearer ${tk}` },
-    })
+    const res = await apiClient.get(`/api/crm/daypulse?${buildQuery(pg)}`)
     const d = res.data?.data
     const fetched: DayPulseReport[] = d.reports || []
     let rxMap: Record<string, ReactionState> = {}
     if (fetched.length > 0) {
       try {
-        const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((r) => r._id) }, { headers: { Authorization: `Bearer ${tk}` } })
+        const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((r) => r._id) })
         rxMap = rRes.data?.data?.reactions || {}
       } catch { }
     }

@@ -450,12 +450,13 @@ function ReactionBar({
     try {
       const res = await apiClient.post(
         "/api/crm/feeds/reactions",
-        { targetType, targetId, reaction: type },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { targetType, targetId, reaction: type }
       )
       const { summary, action } = res.data?.data
       onReactionChange({ summary, myReaction: action === "removed" ? null : type })
-    } catch { }
+    } catch (err: any) {
+      console.error("Reaction failed:", err?.response?.status, err?.response?.data)
+    }
     finally { setLoading(false) }
   }
 
@@ -574,9 +575,12 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
   const handleDelete = async () => {
     setDeleteLoading(true)
     try {
-      await apiClient.delete(`/api/crm/feeds/${postId}/comments/${comment._id}`, { headers: { Authorization: `Bearer ${token}` } })
+      await apiClient.delete(`/api/crm/feeds/${postId}/comments/${comment._id}`)
       onDeleted(comment._id)
-    } catch { setDeleteLoading(false); setShowDeleteModal(false) }
+    } catch (err: any) {
+      console.error("Comment delete failed:", err?.response?.status, err?.response?.data)
+      setDeleteLoading(false); setShowDeleteModal(false)
+    }
   }
 
   return (
@@ -669,13 +673,13 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   React.useEffect(() => {
     if (!token || !post._id) return
     setLoading(true)
-    apiClient.get(`/api/crm/feeds/${post._id}/comments`, { headers: { Authorization: `Bearer ${token}` } })
+    apiClient.get(`/api/crm/feeds/${post._id}/comments`)
       .then(async (res) => {
         const fetched: Comment[] = res.data?.data?.comments || []
         setComments(fetched)
         if (fetched.length > 0) {
           try {
-            const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((c) => c._id) }, { headers: { Authorization: `Bearer ${token}` } })
+            const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((c) => c._id) })
             setCommentReactions(rRes.data?.data?.reactions || {})
           } catch { }
         }
@@ -689,10 +693,17 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
     if (!newComment.trim() && pendingFiles.length === 0) return
     setSubmitting(true); setSubmitError("")
     try {
-      const formData = new FormData()
-      formData.append("content", newComment.trim())
-      pendingFiles.forEach((f) => formData.append("files", f))
-      const res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, formData, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } })
+      let res
+      if (pendingFiles.length > 0) {
+        // Has attachments → multipart
+        const formData = new FormData()
+        formData.append("content", newComment.trim())
+        pendingFiles.forEach((f) => formData.append("files", f))
+        res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, formData)
+      } else {
+        // Text-only → plain JSON
+        res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, { content: newComment.trim() })
+      }
       const comment: Comment = res.data?.data?.comment
       setComments((prev) => prev.some((c) => c._id === comment._id) ? prev : [...prev, comment])
       setCommentReactions((prev) => ({ ...prev, [comment._id]: { summary: {}, myReaction: null } }))
@@ -836,7 +847,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
     if (!editContent.trim()) { setEditError("Content cannot be empty"); return }
     setEditLoading(true); setEditError("")
     try {
-      const res = await apiClient.put(`/api/crm/feeds/${post._id}`, { content: editContent.trim() }, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await apiClient.put(`/api/crm/feeds/${post._id}`, { content: editContent.trim() })
       onUpdated(res.data?.data?.post || res.data?.post)
       setIsEditing(false)
     } catch (err: any) {
@@ -847,9 +858,12 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   const handleDelete = async () => {
     setDeleteLoading(true)
     try {
-      await apiClient.delete(`/api/crm/feeds/${post._id}`, { headers: { Authorization: `Bearer ${token}` } })
+      await apiClient.delete(`/api/crm/feeds/${post._id}`)
       onDeleted(post._id)
-    } catch { setDeleteLoading(false); setShowDeleteModal(false) }
+    } catch (err: any) {
+      console.error("Post delete failed:", err?.response?.status, err?.response?.data)
+      setDeleteLoading(false); setShowDeleteModal(false)
+    }
   }
 
   const handleFocusComment = () => {
@@ -1036,10 +1050,17 @@ function Composer({ currentUser, token, onPosted }: {
     if (!content.trim() && pendingFiles.length === 0) { setError("Write something first!"); return }
     setLoading(true); setError("")
     try {
-      const formData = new FormData()
-      formData.append("content", content.trim())
-      pendingFiles.forEach((f) => formData.append("files", f))
-      const res = await apiClient.post("/api/crm/feeds", formData, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } })
+      let res
+      if (pendingFiles.length > 0) {
+        // Has attachments → multipart
+        const formData = new FormData()
+        formData.append("content", content.trim())
+        pendingFiles.forEach((f) => formData.append("files", f))
+        res = await apiClient.post("/api/crm/feeds", formData)
+      } else {
+        // Text-only → plain JSON (matches the proven-working comment/reaction path)
+        res = await apiClient.post("/api/crm/feeds", { content: content.trim() })
+      }
       onPosted(res.data?.data?.post || res.data?.post)
       setContent(""); setPendingFiles([]); textareaRef.current?.blur(); setIsFocused(false)
     } catch (err: any) {
@@ -1179,10 +1200,7 @@ export default function FeedsPage() {
   const ssSocketRef = React.useRef<any>(null)
 
   const fetchPostsAndReactions = React.useCallback(async (tk: string, pg: number, signal?: AbortSignal) => {
-    const res = await apiClient.get(`/api/crm/feeds?page=${pg}&limit=${PAGE_LIMIT}`, {
-      headers: { Authorization: `Bearer ${tk}` },
-      signal,
-    })
+    const res = await apiClient.get(`/api/crm/feeds?page=${pg}&limit=${PAGE_LIMIT}`, { signal })
     const d = res.data?.data || res.data || {}
     const fetchedPosts: Post[] = Array.isArray(d.posts) ? d.posts : []
     let rxMap: Record<string, ReactionState> = {}
@@ -1191,7 +1209,7 @@ export default function FeedsPage() {
         const rRes = await apiClient.post(
           "/api/crm/feeds/reactions/bulk",
           { targetIds: fetchedPosts.map((p) => p._id) },
-          { headers: { Authorization: `Bearer ${tk}` }, signal }
+          { signal }
         )
         rxMap = rRes.data?.data?.reactions || {}
       } catch { }
@@ -1233,10 +1251,7 @@ export default function FeedsPage() {
       }
 
       try {
-        const meRes = await apiClient.get("/api/crm/me", {
-          headers: { Authorization: `Bearer ${t}` },
-          signal: controller.signal,
-        })
+        const meRes = await apiClient.get("/api/crm/me", { signal: controller.signal })
         if (!active) return
         const me = meRes.data?.data || meRes.data
         if (!me?._id) throw new Error("User profile missing from response")
@@ -1319,7 +1334,7 @@ export default function FeedsPage() {
     if (!token) return
     const id = setInterval(async () => {
       try {
-        const res = await apiClient.get(`/api/crm/feeds?page=1&limit=${PAGE_LIMIT}`, { headers: { Authorization: `Bearer ${token}` } })
+        const res = await apiClient.get(`/api/crm/feeds?page=1&limit=${PAGE_LIMIT}`)
         const fresh: Post[] = res.data?.data?.posts || []
         setPosts((prev) => {
           const prevIds = new Set(prev.map((p) => p._id))
