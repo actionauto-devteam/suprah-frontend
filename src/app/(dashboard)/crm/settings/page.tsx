@@ -16,6 +16,7 @@ import {
   Volume2,
   VolumeX,
   Bell,
+  Download,
 } from "lucide-react";
 import { isSoundEnabled, setSoundEnabled as setGlobalSoundEnabled } from "@/lib/notification-sound";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ export default function CrmSettingsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [createdCount, setCreatedCount] = React.useState(0);
+  const [exportRequestKey, setExportRequestKey] = React.useState(0);
 
   React.useEffect(() => {
     const check = async () => {
@@ -199,19 +201,30 @@ export default function CrmSettingsPage() {
 
                 {/* Only admins can create users */}
                 {isAdmin && (
-                  <Button
-                    onClick={() => setShowCreateModal(true)}
-                    className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs gap-2 shadow-sm shadow-emerald-600/20"
-                  >
-                    <UserPlus className="h-3.5 w-3.5" />
-                    Create User
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setExportRequestKey((key) => key + 1)}
+                      className="h-9 rounded-xl border-border/50 bg-background/60 text-xs font-semibold gap-2"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Export PDF
+                    </Button>
+                    <Button
+                      onClick={() => setShowCreateModal(true)}
+                      className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs gap-2 shadow-sm shadow-emerald-600/20"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Create User
+                    </Button>
+                  </div>
                 )}
               </div>
 
               {/* Body */}
               {isAdmin ? (
-                <UsersTable token={token} refreshKey={createdCount} />
+                <UsersTable token={token} refreshKey={createdCount} exportRequestKey={exportRequestKey} />
               ) : (
                 /* Non-admin — restricted view */
                 <div className="flex flex-col items-center justify-center py-20 px-6 text-center">

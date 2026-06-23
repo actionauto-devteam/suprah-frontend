@@ -26,6 +26,11 @@ export interface CallSession {
   jitsi: JitsiPayload;
 }
 
+interface MeetingJoinRequestPayload {
+  meetingId?: string;
+  requester?: { name?: string; email?: string };
+}
+
 /**
  * Tracks live calls per conversation, surfaces incoming-call state, and exposes
  * start/join/end actions. State survives refresh/reconnect via refreshStatus().
@@ -94,16 +99,24 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
         return cur;
       });
     };
+    const onMeetingJoinRequested = (payload: MeetingJoinRequestPayload) => {
+      showBrowserNotification('Meeting approval needed', {
+        body: `${payload?.requester?.name || payload?.requester?.email || 'Someone'} is waiting to join.`,
+        tag: `meeting-approval-${payload?.meetingId || 'request'}`,
+      });
+    };
 
     socket.on('call:started', onStarted);
     socket.on('call:participant-joined', onCount);
     socket.on('call:participant-left', onCount);
     socket.on('call:ended', onEnded);
+    socket.on('meeting:join-requested', onMeetingJoinRequested);
     return () => {
       socket.off('call:started', onStarted);
       socket.off('call:participant-joined', onCount);
       socket.off('call:participant-left', onCount);
       socket.off('call:ended', onEnded);
+      socket.off('meeting:join-requested', onMeetingJoinRequested);
     };
   }, [socket, uid]);
 
@@ -159,6 +172,11 @@ export function useCall(socket: Socket | null, token: string, uid: string) {
         { meetingId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      if (r.status === 202 || r.data?.data?.status === 'pending') {
+        const err = new Error('Waiting for host approval') as Error & { response?: typeof r };
+        err.response = r;
+        throw err;
+      }
       stopCallSound();
       callNotifRef.current?.close();
       callNotifRef.current = null;

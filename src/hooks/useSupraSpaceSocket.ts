@@ -36,6 +36,15 @@ export interface SSMessage {
   replyTo?: SSMessage | null;
   reactions: SSReaction[];
   readBy: string[];
+  metadata?: {
+    meeting?: {
+      meetingId: string;
+      meetingLink: string;
+      title: string;
+      scheduledAt?: string | null;
+      allowedDomain?: string;
+    } | null;
+  };
   isEdited: boolean;
   isDeleted: boolean;
   createdAt: string;

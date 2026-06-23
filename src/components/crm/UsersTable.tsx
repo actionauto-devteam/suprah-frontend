@@ -81,6 +81,7 @@ interface PaginationMeta {
 interface UsersTableProps {
   token: string
   refreshKey: number
+  exportRequestKey?: number
 }
 
 type SortField = "fullName" | "username" | "role" | "status" | "createdAt"
@@ -191,6 +192,11 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message || fallback : fallback
 }
 
+function safePdfText(value: string | number | boolean | null | undefined) {
+  if (value === null || value === undefined) return ""
+  return String(value)
+}
+
 // ─── Skeleton Row ─────────────────────────────────────────────────────────────
 
 function SkeletonRow() {
@@ -226,7 +232,7 @@ function SkeletonRow() {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function UsersTable({ token, refreshKey }: UsersTableProps) {
+export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTableProps) {
   const [users, setUsers] = React.useState<CrmUserRow[]>([])
   const [pagination, setPagination] = React.useState<PaginationMeta>({
     page: 1,
@@ -334,9 +340,104 @@ export function UsersTable({ token, refreshKey }: UsersTableProps) {
     }
   }, [token, pageSize, sortBy, sortOrder, searchTerm, roleFilter, statusFilter, dateJoinedFilter])
 
+  const buildUserQueryParams = React.useCallback((targetPage: number, limit: number) => {
+    const params = new URLSearchParams({
+      page: String(targetPage),
+      limit: String(limit),
+      sortBy,
+      sortOrder,
+    })
+
+    if (searchTerm.trim()) params.set("search", searchTerm.trim())
+    if (roleFilter !== "all") params.set("role", roleFilter)
+    if (statusFilter !== "all") params.set("status", statusFilter)
+    if (dateJoinedFilter !== "all") params.set("dateJoined", dateJoinedFilter)
+
+    return params
+  }, [dateJoinedFilter, roleFilter, searchTerm, sortBy, sortOrder, statusFilter])
+
+  const exportUsers = React.useCallback(async () => {
+    if (!token) return
+    const toastId = toast.loading("Preparing user export...")
+    try {
+      const batchSize = 500
+      let targetPage = 1
+      let totalPages = 1
+      const allUsers: CrmUserRow[] = []
+
+      do {
+        const params = buildUserQueryParams(targetPage, batchSize)
+        const res = await apiClient.get(`/api/crm/users?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = res.data?.data || res.data
+        const nextUsers: CrmUserRow[] = data?.users || []
+        const nextPagination = data?.pagination
+        allUsers.push(...nextUsers)
+        totalPages = nextPagination?.totalPages || Math.ceil((nextPagination?.total || allUsers.length) / batchSize) || 1
+        targetPage += 1
+      } while (targetPage <= totalPages)
+
+      if (allUsers.length === 0) {
+        toast.error("No users to export.", { id: toastId })
+        return
+      }
+
+      const { jsPDF } = await import("jspdf")
+      const autoTable = (await import("jspdf-autotable")).default
+      const stamp = new Date().toISOString().slice(0, 10)
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" })
+      const generatedAt = new Date().toLocaleString()
+
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(16)
+      doc.text("Action Auto Utah - CRM Users", 40, 42)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(9)
+      doc.text(`Generated: ${generatedAt}`, 40, 60)
+      doc.text(`Users: ${allUsers.length}`, 40, 74)
+
+      autoTable(doc, {
+        startY: 92,
+        head: [["Full Name", "Email", "Status", "Last Login", "Hire Date", "Birthday"]],
+        body: allUsers.map((user) => [
+          safePdfText(user.fullName),
+          safePdfText(user.email),
+          user.isActive ? "Active" : "Inactive",
+          user.lastLoginAt ? formatDate(user.lastLoginAt) : "",
+          user.hireDate ? formatDate(user.hireDate) : "",
+          user.birthday ? formatDate(user.birthday) : "",
+        ]),
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 4,
+          overflow: "linebreak",
+          valign: "middle",
+        },
+        headStyles: {
+          fillColor: [5, 150, 105],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+        alternateRowStyles: { fillColor: [246, 248, 250] },
+        margin: { left: 40, right: 40 },
+      })
+
+      doc.save(`crm-users-${stamp}.pdf`)
+      toast.success(`Exported ${allUsers.length} users as PDF.`, { id: toastId })
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to export users."), { id: toastId })
+    }
+  }, [buildUserQueryParams, token])
+
   React.useEffect(() => {
     fetchUsers(page)
   }, [fetchUsers, page, refreshKey])
+
+  React.useEffect(() => {
+    if (exportRequestKey <= 0) return
+    exportUsers()
+  }, [exportRequestKey, exportUsers])
 
   const handleSort = (field: SortField) => {
     setPage(1)
