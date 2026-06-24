@@ -227,6 +227,19 @@ const fmtDuration = (s: number) => {
   return `${m}:${ss.toString().padStart(2, '0')}`;
 };
 
+function getJwtType(token: string | null): string | null {
+  if (!token || typeof atob === 'undefined') return null;
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const padded = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
+    const decoded = JSON.parse(atob(padded)) as { type?: string };
+    return decoded.type || null;
+  } catch {
+    return null;
+  }
+}
+
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   return content.split(/(\*\*[^*\n]+\*\*|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g).map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
@@ -1871,6 +1884,10 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     (async () => {
       let t = localStorage.getItem('crm_token');
+      if (t && getJwtType(t) !== 'crm') {
+        localStorage.removeItem('crm_token');
+        t = null;
+      }
 
       if (!t) {
         try {
