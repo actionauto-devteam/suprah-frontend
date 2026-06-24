@@ -61,6 +61,7 @@ export interface SSConversation {
   _id: string;
   type: 'direct' | 'group';
   name?: string;
+  emoji?: string | null;
   avatar?: string;
   members: Array<{ _id: string; fullName: string; username: string; avatar?: string; role: string }>;
   admins: string[];

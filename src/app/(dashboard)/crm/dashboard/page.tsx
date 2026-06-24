@@ -43,6 +43,7 @@ import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CrmUserData {
   _id: string;
@@ -509,6 +510,7 @@ export default function CrmDashboardPage() {
   const [resumeModal, setResumeModal] = React.useState(false);
   const [resumeOriginalClockIn, setResumeOriginalClockIn] = React.useState<string | null>(null);
   const [showEarlyEndModal, setShowEarlyEndModal] = React.useState(false);
+  const isMobile = useIsMobile();
   const [showConfirmEndModal, setShowConfirmEndModal] = React.useState(false);
   const [earlyEndReason, setEarlyEndReason] = React.useState("");
   const [earlyEndDetails, setEarlyEndDetails] = React.useState("");
@@ -793,6 +795,7 @@ export default function CrmDashboardPage() {
   // Check if the tray app is running before allowing clock-in.
   // If unreachable, show the download modal instead of starting the shift.
   const checkTrayAndStartShift = React.useCallback(async () => {
+    if (isMobile) return;
     setTrayChecking(true);
     try {
       const res = await fetch("http://127.0.0.1:18642/", {
@@ -825,7 +828,7 @@ export default function CrmDashboardPage() {
     } finally {
       setTrayChecking(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
@@ -1250,20 +1253,27 @@ export default function CrmDashboardPage() {
                 </div>
 
                 {!isActive && (
-                  <Button
-                    onClick={checkTrayAndStartShift}
-                    disabled={isClocking || trayChecking}
-                    className="h-12 w-full gap-2 rounded-xl border-0 bg-linear-to-r from-emerald-600 to-emerald-500 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-emerald-500 hover:to-emerald-400 hover:shadow-emerald-500/30 active:translate-y-0 motion-reduce:transform-none dark:shadow-emerald-900/40 dark:hover:shadow-emerald-800/50"
-                  >
-                    {isClocking || trayChecking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        Start Shift{" "}
-                        <ArrowRight className="ml-auto h-4 w-4 opacity-60" />
-                      </>
-                    )}
-                  </Button>
+                  isMobile ? (
+                    <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
+                      <MonitorDot className="h-4 w-4 text-zinc-500 shrink-0" />
+                      <p className="text-[11px] text-zinc-500 font-bold text-center">Shift tracking requires the desktop app</p>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={checkTrayAndStartShift}
+                      disabled={isClocking || trayChecking}
+                      className="h-12 w-full gap-2 rounded-xl border-0 bg-linear-to-r from-emerald-600 to-emerald-500 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-emerald-500 hover:to-emerald-400 hover:shadow-emerald-500/30 active:translate-y-0 motion-reduce:transform-none dark:shadow-emerald-900/40 dark:hover:shadow-emerald-800/50"
+                    >
+                      {isClocking || trayChecking ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          Start Shift{" "}
+                          <ArrowRight className="ml-auto h-4 w-4 opacity-60" />
+                        </>
+                      )}
+                    </Button>
+                  )
                 )}
                 {isActive && (() => {
                   // Three states for the active-shift action buttons:

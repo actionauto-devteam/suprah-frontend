@@ -14,6 +14,7 @@ import {
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
   MoreHorizontal, Copy, GripVertical, Link2,
+  Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Type,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -240,36 +241,60 @@ function getJwtType(token: string | null): string | null {
   }
 }
 
+function htmlToMarkdown(el: HTMLElement): string {
+  return el.innerHTML
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '_$1_')
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '_$1_')
+    .replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '__$1__')
+    .replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '~~$1~~')
+    .replace(/<strike[^>]*>([\s\S]*?)<\/strike>/gi, '~~$1~~')
+    .replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, '~~$1~~')
+    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, (_m, inner) => '`' + inner.replace(/<[^>]*>/g, '') + '`')
+    .replace(/<div[^>]*>/gi, '\n').replace(/<\/div>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .trim();
+}
+
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
-  return content.split(/(\*\*[^*\n]+\*\*|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g).map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
-    }
-    if (/^https?:\/\//i.test(part)) {
-      const trailing = part.match(/[),.!?]+$/)?.[0] || '';
-      const href = trailing ? part.slice(0, -trailing.length) : part;
-      return (
-        <React.Fragment key={i}>
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold underline underline-offset-2"
-            style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}
-          >
-            {href}
-          </a>
-          {trailing}
-        </React.Fragment>
-      );
-    }
-    if (/^@/.test(part)) {
-      return isOwn
-        ? <span key={i} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{part}</span>
-        : <span key={i} className="font-bold" style={{ color: 'var(--accent-text)' }}>{part}</span>;
-    }
-    return part;
+  const MDPattern = /(\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
+  const result: React.ReactNode[] = [];
+  content.split('\n').forEach((line, li) => {
+    if (li > 0) result.push(<br key={`br${li}`} />);
+    line.split(MDPattern).forEach((part, i) => {
+      const k = `${li}-${i}`;
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
+        return result.push(<strong key={k}>{part.slice(2, -2)}</strong>);
+      if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
+        return result.push(<s key={k}>{part.slice(2, -2)}</s>);
+      if (part.startsWith('__') && part.endsWith('__') && part.length > 4)
+        return result.push(<u key={k}>{part.slice(2, -2)}</u>);
+      if (part.startsWith('_') && part.endsWith('_') && !part.startsWith('__') && part.length > 2)
+        return result.push(<em key={k}>{part.slice(1, -1)}</em>);
+      if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
+        return result.push(<code key={k} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{part.slice(1, -1)}</code>);
+      if (/^https?:\/\//i.test(part)) {
+        const trailing = part.match(/[),.!?]+$/)?.[0] || '';
+        const href = trailing ? part.slice(0, -trailing.length) : part;
+        return result.push(
+          <React.Fragment key={k}>
+            <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>
+            {trailing}
+          </React.Fragment>
+        );
+      }
+      if (/^@/.test(part))
+        return result.push(isOwn
+          ? <span key={k} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{part}</span>
+          : <span key={k} className="font-bold" style={{ color: 'var(--accent-text)' }}>{part}</span>
+        );
+      result.push(part);
+    });
   });
+  return result;
 }
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null && 'response' in error &&
@@ -298,6 +323,7 @@ const getConvName = (c: SSConversation, uid: string) => {
 };
 const getConvAvatar = (c: SSConversation, uid: string) =>
   c.type === 'group' ? c.avatar : safeMembers(c).find(m => m._id !== uid)?.avatar;
+const getConvEmoji = (c: SSConversation) => c.type === 'group' ? (c.emoji || null) : null;
 
 const avaColors = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal'];
 const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % avaColors.length];
@@ -310,6 +336,12 @@ function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: 
     return <img src={resolved} alt="" className="w-full h-full object-cover" onError={() => setBroken(true)} />;
   }
   return <span className="text-white font-bold" style={{ fontSize: size }}>{(name || '?').trim().charAt(0).toUpperCase() || '#'}</span>;
+}
+
+function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; name: string; avatar?: string | null; size?: number }) {
+  const emoji = getConvEmoji(conv);
+  if (emoji) return <span style={{ fontSize: size + 4, lineHeight: 1 }}>{emoji}</span>;
+  return <GroupAvatarFace src={avatar} name={name} size={size} />;
 }
 
 interface CrmUser { _id: string; fullName: string; username: string; email?: string; avatar?: string; role: string }
@@ -349,30 +381,71 @@ function DateSep({ date }: { date: string }) {
 }
 
 // ─── Voice note player ────────────────────────────────────────────────────────
-function VoicePlayer({ src, duration, own }: { src: string; duration?: number; own: boolean }) {
+function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: string; duration?: number; own: boolean }) {
+  const { getToken } = useAuth();
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = React.useState(false);
   const [cur, setCur] = React.useState(0);
+  const [audioErr, setAudioErr] = React.useState(false);
+  const [pending, setPending] = React.useState(false);
+  const [voiceToken, setVoiceToken] = React.useState<string | null>(null);
   const total = duration || 0;
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  const proxySrc = `${API_BASE}/api/supraspace/conversations/${convId}/messages/${msgId}/voice`;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    getToken().then((freshToken) => {
+      if (!cancelled) setVoiceToken(freshToken);
+    }).catch(() => {
+      if (!cancelled) setVoiceToken(null);
+    });
+    return () => { cancelled = true; };
+  }, [getToken]);
+
+  const handlePlay = React.useCallback(() => {
+    const a = audioRef.current;
+    if (!a || pending) return;
+    if (playing) { a.pause(); return; }
+    setPending(true);
+    a.play()
+      .then(() => setPending(false))
+      .catch(() => { setPending(false); setAudioErr(true); });
+  }, [playing, pending]);
+
   return (
     <div className={cn('ss4-voice-bar', own ? 'ss4-file-own' : 'ss4-file-other')} style={{ minWidth: 200, maxWidth: 280 }}>
       <button
-        onClick={() => { const a = audioRef.current; if (!a) return; if (playing) { a.pause(); } else { a.play(); } }}
-        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+        onClick={handlePlay}
+        disabled={audioErr}
+        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
         style={{ background: own ? 'rgba(255,255,255,0.18)' : 'var(--accent-muted)', color: own ? '#fff' : 'var(--accent)' }}>
-        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
       <div className="flex-1 min-w-0">
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: own ? 'rgba(255,255,255,0.2)' : 'var(--border-2)' }}>
-          <div style={{ width: total ? `${Math.min(100, (cur / total) * 100)}%` : '0%', height: '100%', background: own ? '#fff' : 'var(--accent)', transition: 'width .1s linear' }} />
-        </div>
-        <p className="ss4-mono mt-1" style={{ fontSize: 10, color: own ? 'rgba(255,255,255,0.8)' : 'var(--text-tertiary)' }}>
-          {fmtDuration(cur)}{total ? ` / ${fmtDuration(total)}` : ''}
-        </p>
+        {audioErr ? (
+          <p className="ss4-mono" style={{ fontSize: 10, color: 'var(--danger, #f87171)' }}>Unable to play audio</p>
+        ) : (
+          <>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: own ? 'rgba(255,255,255,0.2)' : 'var(--border-2)' }}>
+              <div style={{ width: total ? `${Math.min(100, (cur / total) * 100)}%` : '0%', height: '100%', background: own ? '#fff' : 'var(--accent)', transition: 'width .1s linear' }} />
+            </div>
+            <p className="ss4-mono mt-1" style={{ fontSize: 10, color: own ? 'rgba(255,255,255,0.8)' : 'var(--text-tertiary)' }}>
+              {fmtDuration(cur)}{total ? ` / ${fmtDuration(total)}` : ''}
+            </p>
+          </>
+        )}
       </div>
-      <audio ref={audioRef} src={src} preload="metadata"
-        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setCur(0); }}
-        onTimeUpdate={e => setCur((e.target as HTMLAudioElement).currentTime)} />
+      <audio
+        ref={audioRef}
+        src={voiceToken ? `${proxySrc}?t=${encodeURIComponent(voiceToken)}` : ''}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCur(0); }}
+        onTimeUpdate={e => setCur((e.target as HTMLAudioElement).currentTime)}
+        onError={() => setAudioErr(true)}
+      />
     </div>
   );
 }
@@ -814,7 +887,7 @@ function Bubble({
           <img src={message.gif.url} alt={message.gif.title || 'GIF'} className="rounded-xl" style={{ maxWidth: 240, maxHeight: 240, display: 'block' }} />
         )}
 
-        {voiceAtt && <VoicePlayer src={voiceAtt.url} duration={voiceAtt.duration} own={isOwn} />}
+        {voiceAtt && <VoicePlayer convId={message.conversationId} msgId={message._id} duration={voiceAtt.duration} own={isOwn} />}
 
         {message.type === 'poll' && message.poll && (
           <PollCard poll={message.poll} uid={uid} onVote={(optId) => onVotePoll(message._id, optId)} />
@@ -1058,16 +1131,17 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
 // ─── New Conversation Modal ───────────────────────────────────────────────────
 function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
   users: CrmUser[];
-  channels: Array<{ _id: string; name?: string; avatar?: string }>;
+  channels: Array<{ _id: string; name?: string; avatar?: string; emoji?: string | null }>;
   theme: 'dark' | 'light';
   onClose: () => void; onStartDM: (id: string) => void;
-  onCreateGroup: (name: string, ids: string[]) => void;
+  onCreateGroup: (name: string, ids: string[], emoji?: string) => void;
   onCreateSpace: (name: string, convIds: string[], emoji?: string) => void;
   defaultTab?: 'dm' | 'group' | 'space';
 }) {
   const [tab, setTab] = React.useState<'dm' | 'group' | 'space'>(defaultTab);
   const [q, setQ] = React.useState('');
   const [groupName, setGroupName] = React.useState('');
+  const [groupEmoji, setGroupEmoji] = React.useState('');
   const [spaceEmoji, setSpaceEmoji] = React.useState('');
   const [sel, setSel] = React.useState<string[]>([]);
   const [selConvs, setSelConvs] = React.useState<string[]>([]);
@@ -1099,7 +1173,10 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
         </div>
         <div className="px-4 pb-4 space-y-3">
           {tab === 'group' && (
-            <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+            <div className="flex gap-2">
+              <input value={groupEmoji} onChange={e => setGroupEmoji(e.target.value)} placeholder="#" className="w-12 h-9 rounded-lg px-2 text-center ss4-search-input" style={{ fontFamily: 'Geist, sans-serif', fontSize: 18 }} maxLength={4} />
+              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+            </div>
           )}
           {tab === 'space' && (
             <div className="flex gap-2">
@@ -1124,7 +1201,7 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
                         className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
                         style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
                         <div className="h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden ss4-ava-purple">
-                          {c.avatar ? <img src={c.avatar} alt="" className="w-full h-full object-cover" /> : <Hash className="h-4 w-4" style={{ color: '#fff' }} />}
+                          {c.emoji ? <span style={{ fontSize: 16 }}>{c.emoji}</span> : c.avatar ? <img src={c.avatar} alt="" className="w-full h-full object-cover" /> : <Hash className="h-4 w-4" style={{ color: '#fff' }} />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.name || 'Untitled'}</p>
@@ -1154,7 +1231,7 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
             )}
           </div>
           {tab === 'group' && sel.length > 0 && (
-            <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel)} disabled={!groupName.trim()}
+            <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel, groupEmoji || undefined)} disabled={!groupName.trim()}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
               <Users className="h-3.5 w-3.5" /> Create Channel · {sel.length} {sel.length === 1 ? 'member' : 'members'}
             </button>
@@ -1578,6 +1655,7 @@ export default function SupraSpacePage() {
   const [uploading, setUploading] = React.useState(false);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [pendingMeeting, setPendingMeeting] = React.useState<PendingMeetingDraft | null>(null);
+  const [pendingGif, setPendingGif] = React.useState<{ url: string; width?: number; height?: number; title?: string } | null>(null);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' | 'space' }>({ open: false, tab: 'dm' });
@@ -1608,6 +1686,7 @@ export default function SupraSpacePage() {
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
+  const [showFormatBar, setShowFormatBar] = React.useState(false);
   const autrixRef = React.useRef<HTMLDivElement>(null);
 
   const [showInfo, setShowInfo] = React.useState(false);
@@ -1616,6 +1695,7 @@ export default function SupraSpacePage() {
   const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
   const [editingGcName, setEditingGcName] = React.useState(false);
   const [gcNameInput, setGcNameInput] = React.useState('');
+  const [gcEmojiInput, setGcEmojiInput] = React.useState('');
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const emojiRef = React.useRef<HTMLDivElement>(null);
   const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string } | null>(null);
@@ -1653,8 +1733,11 @@ export default function SupraSpacePage() {
   const endRef = React.useRef<HTMLDivElement>(null);
   const messageScrollRef = React.useRef<HTMLDivElement>(null);
   const pendingScrollRestoreRef = React.useRef<{ convId: string; scrollHeight: number; scrollTop: number } | null>(null);
+  const forceScrollToBottomRef = React.useRef<string | null>(null);
+  const suppressAutoScrollOnceRef = React.useRef(false);
+  const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const textareaRef = React.useRef<HTMLDivElement>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -1702,7 +1785,7 @@ export default function SupraSpacePage() {
     (activeConv.admins || []).map(String).includes(uid) ||
     String((activeConv as any).createdBy) === uid
   ));
-  const isReportGroup = activeConv?.name === 'Online Team Report';
+  const isReportGroup = /^DayPulse Reports$/i.test(activeConv?.name || '');
 
   const isPinnedConv = React.useCallback((c: SSConversation) => (c.pinnedBy || []).map(String).includes(uid), [uid]);
   const isArchivedConv = React.useCallback((c: SSConversation) => (c.archivedBy || []).map(String).includes(uid), [uid]);
@@ -1800,7 +1883,7 @@ export default function SupraSpacePage() {
 
   const fetchConversationMessages = React.useCallback(async (
     conversationId: string,
-    options: { force?: boolean; silent?: boolean } = {},
+    options: { force?: boolean; silent?: boolean; scrollToBottom?: boolean } = {},
   ) => {
     const t = tokenRef.current;
     if (!conversationId || !t) return false;
@@ -1832,6 +1915,22 @@ export default function SupraSpacePage() {
         ...p,
         [conversationId]: rejectSuspiciousEmpty ? 'stale' : 'loaded',
       }));
+      if (!rejectSuspiciousEmpty) {
+        emptyHistoryRetryRef.current[conversationId] = 0;
+        if (options.scrollToBottom) forceScrollToBottomRef.current = conversationId;
+      } else {
+        const retries = emptyHistoryRetryRef.current[conversationId] || 0;
+        if (retries < 2) {
+          emptyHistoryRetryRef.current[conversationId] = retries + 1;
+          window.setTimeout(() => {
+            fetchConversationMessages(conversationId, {
+              force: true,
+              silent: true,
+              scrollToBottom: options.scrollToBottom,
+            });
+          }, 450 * (retries + 1));
+        }
+      }
       return !rejectSuspiciousEmpty;
     } catch {
       setMsgFetchState(p => ({ ...p, [conversationId]: 'error' }));
@@ -1840,6 +1939,27 @@ export default function SupraSpacePage() {
       if (!options.silent) setLoadingMsgs(false);
     }
   }, []);
+
+  const openConversation = React.useCallback((conversationId: string | null) => {
+    if (!conversationId) return;
+    pendingScrollRestoreRef.current = null;
+    forceScrollToBottomRef.current = conversationId;
+    setShowInfo(false);
+    setActiveId(conversationId);
+
+    const hasCachedMessages = conversationId in msgsRef.current;
+    const status = msgFetchStateRef.current[conversationId] || 'idle';
+    fetchConversationMessages(conversationId, {
+      force: !hasCachedMessages || status === 'error' || status === 'stale',
+      silent: hasCachedMessages && status === 'loaded',
+      scrollToBottom: true,
+    });
+
+    window.setTimeout(() => {
+      const el = messageScrollRef.current;
+      if (el && activeIdRef.current === conversationId) el.scrollTop = el.scrollHeight;
+    }, 0);
+  }, [fetchConversationMessages]);
 
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
@@ -1934,7 +2054,7 @@ export default function SupraSpacePage() {
             } else if (joinRes.data?.data?.jitsi) {
               const session = joinRes.data.data as CallSession;
               const convId = session.call?.conversationId;
-              if (convId && fetchedConvos.some(c => c._id === String(convId))) setActiveId(String(convId));
+              if (convId && fetchedConvos.some(c => c._id === String(convId))) openConversation(String(convId));
               setActiveMeeting(session);
             }
             router.replace('/crm/supra-space', { scroll: false });
@@ -1955,7 +2075,7 @@ export default function SupraSpacePage() {
             const c = dmRes.data?.data;
             if (c) {
               setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
-              setActiveId(c._id);
+              openConversation(c._id);
               router.replace('/crm/supra-space', { scroll: false });
             }
           } catch (dmErr: any) {
@@ -2022,7 +2142,7 @@ export default function SupraSpacePage() {
   const targetConvId = searchParams.get('convId');
   React.useEffect(() => {
     if (loading || !targetConvId) return;
-    setActiveId(targetConvId);
+    openConversation(targetConvId);
     router.replace('/crm/supra-space', { scroll: false });
   }, [loading, targetConvId, router]);
 
@@ -2035,7 +2155,7 @@ export default function SupraSpacePage() {
         const c = r.data?.data;
         if (!c) return;
         setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
-        setActiveId(c._id);
+        openConversation(c._id);
         router.replace('/crm/supra-space', { scroll: false });
       })
       .catch((err) => {
@@ -2183,12 +2303,29 @@ export default function SupraSpacePage() {
 
     const heightDelta = el.scrollHeight - pending.scrollHeight;
     el.scrollTop = pending.scrollTop + heightDelta;
+    suppressAutoScrollOnceRef.current = true;
     pendingScrollRestoreRef.current = null;
   }, [activeId, activeMsgs.length]);
 
   React.useEffect(() => {
     const el = messageScrollRef.current;
     if (!el || pendingScrollRestoreRef.current) return;
+
+    if (suppressAutoScrollOnceRef.current) {
+      suppressAutoScrollOnceRef.current = false;
+      return;
+    }
+
+    if (forceScrollToBottomRef.current === activeId) {
+      requestAnimationFrame(() => {
+        const scrollEl = messageScrollRef.current;
+        if (!scrollEl || forceScrollToBottomRef.current !== activeId) return;
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+        endRef.current?.scrollIntoView({ behavior: 'auto' });
+        forceScrollToBottomRef.current = null;
+      });
+      return;
+    }
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const shouldStickToBottom = activeMsgs.length <= 40 || distanceFromBottom < 220;
@@ -2293,11 +2430,18 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     if (!activeId || !token) return;
-    // Use key-existence check (in msgs) instead of truthiness (!msgs[activeId]).
-    // ![] is false in JS, so an empty-array cache would permanently block re-fetches
-    // even when new messages arrived or the previous fetch failed silently.
-    if (!(activeId in msgs)) {
-      fetchConversationMessages(activeId, { force: true });
+    const status = msgFetchStateRef.current[activeId] || 'idle';
+    const shouldFetch =
+      !(activeId in msgsRef.current) ||
+      status === 'error' ||
+      status === 'stale' ||
+      forceScrollToBottomRef.current === activeId;
+
+    if (shouldFetch) {
+      fetchConversationMessages(activeId, {
+        force: true,
+        scrollToBottom: forceScrollToBottomRef.current === activeId,
+      });
     }
     markRead(activeId);
     ctxMarkAsRead(activeId);
@@ -2316,7 +2460,7 @@ export default function SupraSpacePage() {
     return () => leaveConversation(activeId);
   }, [activeId, isConnected, joinConversation, leaveConversation]);
 
-  React.useEffect(() => { setPendingFiles([]); setPendingMeeting(null); setUploadNotice(null); setShowInfo(false); }, [activeId]);
+  React.useEffect(() => { setPendingFiles([]); setPendingMeeting(null); setPendingGif(null); setUploadNotice(null); setShowInfo(false); }, [activeId]);
 
   React.useEffect(() => {
     const make = (ref: React.RefObject<HTMLDivElement | null>, close: () => void) => (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
@@ -2353,16 +2497,17 @@ export default function SupraSpacePage() {
     const hasText = Boolean(input.trim());
     const hasPendingFiles = pendingFiles.length > 0;
     const hasPendingMeeting = !!pendingMeeting;
-    if (!hasText && !hasPendingFiles && !hasPendingMeeting) return;
+    const hasPendingGif = !!pendingGif;
+    if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     const conversationId = activeId;
-    const content = input.trim();
+    const content = textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim();
     const replyMessageId = replyTo?._id;
     setSending(true);
     sendTypingStop(conversationId);
     try {
       if (hasPendingMeeting) {
-        if (hasPendingFiles) {
-          showUploadNotice('error', 'Send attachments separately before sending a meeting.');
+        if (hasPendingFiles || hasPendingGif) {
+          showUploadNotice('error', 'Send attachments and GIFs separately before sending a meeting.');
           return;
         }
         const r = await apiClient.post('/api/calls/meeting', {
@@ -2372,12 +2517,16 @@ export default function SupraSpacePage() {
           optionalMessage: content,
         }, { headers: { Authorization: `Bearer ${token}` } });
         if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        setPendingMeeting(null); setInput(''); setReplyTo(null);
+        setPendingMeeting(null); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (r.data?.data?.meetingLink) {
           try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
           catch { toast.success('Meeting sent'); }
         }
       } else if (hasPendingFiles) {
+        if (hasPendingGif) {
+          showUploadNotice('error', 'Send GIFs separately from file attachments.');
+          return;
+        }
         setUploading(true);
         const fd = new FormData();
         pendingFiles.forEach(f => fd.append('files', f));
@@ -2385,16 +2534,25 @@ export default function SupraSpacePage() {
         if (replyMessageId) fd.append('replyTo', replyMessageId);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
         if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingFiles([]); setInput(''); setReplyTo(null);
+        setPendingFiles([]); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         showUploadNotice('success', pendingFiles.length === 1 ? 'Attachment sent.' : `${pendingFiles.length} attachments sent.`);
+      } else if (hasPendingGif) {
+        const r = await apiClient.post(
+          `/api/supraspace/conversations/${conversationId}/messages`,
+          { content, gif: pendingGif, replyTo: replyMessageId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
+        setPendingGif(null); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
       } else {
-        setInput(''); setReplyTo(null);
+        setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/messages`, { content, replyTo: replyMessageId }, { headers: { Authorization: `Bearer ${token}` } });
         if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
       }
     } catch (error) {
       if (hasPendingFiles) showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
       else if (hasPendingMeeting) showUploadNotice('error', getErrorMessage(error, 'Failed to send meeting.'));
+      else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
       else setInput(content);
     } finally { setSending(false); setUploading(false); }
   };
@@ -2420,11 +2578,20 @@ export default function SupraSpacePage() {
     ta.style.height = `${Math.min(ta.scrollHeight, 144)}px`;
   }, [input]);
 
-  const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
+  const getCaretOffset = (el: HTMLElement): number => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return 0;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.selectNodeContents(el);
+    range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+    return range.toString().length;
+  };
+
+  const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const val = el.innerText.replace(/\n$/, '');
     setInput(val);
-    // Detect @mention trigger (anchor-based so names with spaces work)
-    const cursor = e.target.selectionStart ?? val.length;
+    const cursor = getCaretOffset(el);
     if (mentionAnchor >= 0) {
       if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
         setMentionQuery(null); setMentionAnchor(-1);
@@ -2485,12 +2652,10 @@ export default function SupraSpacePage() {
     setRecording(false);
   };
 
-  const sendGif = async (gif: { url: string; width?: number; height?: number; title?: string }) => {
-    if (!activeId) return;
-    try {
-      const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/messages`, { gif }, { headers: { Authorization: `Bearer ${token}` } });
-      if (r.data?.data) appendMessageLocal(activeId, r.data.data);
-    } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to send GIF.')); }
+  const selectGif = (gif: { url: string; width?: number; height?: number; title?: string }) => {
+    setPendingGif(gif);
+    setGifOpen(false);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const handleReact = async (msgId: string, emoji: string) => {
@@ -2590,10 +2755,11 @@ export default function SupraSpacePage() {
       else if (r.data?.data) patchConv(activeConv._id, r.data.data);
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to remove member.')); }
   };
-  const renameChannel = async (name: string) => {
+  const updateChannelDetails = async (name: string, emoji: string) => {
     if (!activeConv || !name.trim()) return;
-    patchConv(activeConv._id, { name: name.trim() });
-    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { name: name.trim() }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
+    const next = { name: name.trim(), emoji: emoji.trim() || null };
+    patchConv(activeConv._id, next);
+    try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, next, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const applyTheme = async (t: { accent: string | null; wallpaper: string | null }) => {
     if (!activeConv) return; setThemeOpen(false);
@@ -2637,23 +2803,56 @@ export default function SupraSpacePage() {
         casual: `Rewrite this message in a friendly, casual tone. Return only the text:\n\n"${input.trim()}"`,
         draft: `Draft a brief professional reply for "${cName}". Return only the message text.\n\nRecent:\n${recent || '(none)'}`,
       };
-      const r = await apiClient.post('/api/supraleo/chat', { message: prompts[action], module: 'supraspace' }, { headers: { Authorization: `Bearer ${token}` } });
-      const reply = r.data?.data?.message || '';
-      if (reply.trim()) setInput(reply.trim());
-    } catch { } finally { setAutrixLoading(false); }
+      const r = await apiClient.post('/api/supraleo/refine', { text: prompts[action] }, { headers: { Authorization: `Bearer ${token}` } });
+      const reply = r.data?.data?.refined || '';
+      if (reply.trim()) { setInput(reply.trim()); if (textareaRef.current) textareaRef.current.innerText = reply.trim(); }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'AI service is unavailable';
+      toast.error(msg);
+    } finally { setAutrixLoading(false); }
   };
+
+  const applyFormat = React.useCallback((type: 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'quote' | 'link' | 'code' | 'codeblock') => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    const selectedText = sel?.toString() || '';
+    switch (type) {
+      case 'bold':      document.execCommand('bold', false); break;
+      case 'italic':    document.execCommand('italic', false); break;
+      case 'underline': document.execCommand('underline', false); break;
+      case 'strike':    document.execCommand('strikethrough', false); break;
+      case 'list':
+        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '• ' + (selectedText || 'item'));
+        break;
+      case 'quote':
+        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '> ' + (selectedText || 'quote'));
+        break;
+      case 'link':
+        document.execCommand('insertText', false, selectedText ? `[${selectedText}](url)` : '[text](url)');
+        break;
+      case 'code':
+        document.execCommand('insertText', false, '`' + (selectedText || 'code') + '`');
+        break;
+      case 'codeblock':
+        document.execCommand('insertText', false, '```\n' + (selectedText || 'code') + '\n```');
+        break;
+    }
+    setInput(el.innerText.replace(/\n$/, ''));
+  }, []);
 
   const handleDM = async (targetId: string) => {
     setShowModal({ open: false, tab: 'dm' }); setActiveUsersOpen(false);
     try {
       const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: targetId }, { headers: { Authorization: `Bearer ${token}` } });
       const c = r.data?.data;
-      setConvos(p => p.find(x => x._id === c._id) ? p : [c, ...p]); setActiveId(c._id);
+      setConvos(p => p.find(x => x._id === c._id) ? p : [c, ...p]); openConversation(c._id);
     } catch { }
   };
-  const handleGroup = async (name: string, ids: string[]) => {
+  const handleGroup = async (name: string, ids: string[], emoji?: string) => {
     setShowModal({ open: false, tab: 'dm' });
-    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); setActiveId(r.data?.data._id); } catch { }
+    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, emoji, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); openConversation(r.data?.data._id); } catch { }
   };
   const handleCreateSpace = async (name: string, convIds: string[], emoji?: string) => {
     setShowModal({ open: false, tab: 'dm' });
@@ -2707,6 +2906,7 @@ export default function SupraSpacePage() {
 
   const loadMore = React.useCallback(async () => {
     if (!activeId || !hasMore[activeId] || loadingMsgs) return;
+    if (forceScrollToBottomRef.current === activeId) forceScrollToBottomRef.current = null;
     const scrollEl = messageScrollRef.current;
     if (scrollEl) {
       pendingScrollRestoreRef.current = {
@@ -2733,7 +2933,7 @@ export default function SupraSpacePage() {
   }, [activeId, hasMore, loadingMsgs, loadMore]);
 
   const openSearchResult = (convId: string, messageId: string) => {
-    setActiveId(convId); setQ('');
+    openConversation(convId); setQ('');
     setTimeout(() => document.getElementById(`ss4-msg-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
   };
 
@@ -2828,7 +3028,7 @@ export default function SupraSpacePage() {
         style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
         data-conv-before={isDraggable ? conv._id : undefined}
         data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
-        onClick={() => setActiveId(conv._id)}
+        onClick={() => openConversation(conv._id)}
         onContextMenu={e => e.preventDefault()}
         onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
         onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
@@ -2847,7 +3047,7 @@ export default function SupraSpacePage() {
         )}
         <div className="relative shrink-0">
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-            {conv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+            {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
           </div>
           {conv.type === 'direct' && online ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
             : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
@@ -2855,10 +3055,10 @@ export default function SupraSpacePage() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
-            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold')} style={{ fontSize: 12.5 }}>{cName}</p>
-            {!rowHov && <span className="shrink-0" style={{ fontSize: 9.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
+            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold')} style={{ fontSize: 14 }}>{cName}</p>
+            {!rowHov && <span className="shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
           </div>
-          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
+          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 13, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
           <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov ? 1 : 0 }}>
@@ -2876,7 +3076,7 @@ export default function SupraSpacePage() {
                 <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => toggleArchiveConv(conv)}>
                   {archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />} {archived ? 'Unarchive' : 'Archive'}
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => { handleStartCall(conv); setActiveId(conv._id); }}>
+                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => { handleStartCall(conv); openConversation(conv._id); }}>
                   <Phone className="h-3.5 w-3.5" /> Call
                 </DropdownMenuItem>
                 {conv.type === 'group' && ctxSpaces.length > 0 && (
@@ -3041,7 +3241,7 @@ export default function SupraSpacePage() {
               {dmList.length > 0 && (
                 <div>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
-                    <span className="ss4-section-label">Direct Messages</span>
+                    <span className="ss4-section-label"><MessageSquare className="h-2.5 w-2.5 mr-1" /> Direct Messages</span>
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('dm') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
                   {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} />)}</div>}
@@ -3126,7 +3326,7 @@ export default function SupraSpacePage() {
                   data-drop-zone="__channels__"
                   style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(91,124,246,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('channels')}>
-                    <span className="ss4-section-label">Channels</span>
+                    <span className="ss4-section-label"><Hash className="h-2.5 w-2.5 mr-1" /> Channels</span>
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('channels') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
                   {!collapsedSections.has('channels') && (
@@ -3185,7 +3385,7 @@ export default function SupraSpacePage() {
                     <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
                       <div className="relative shrink-0">
                         <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                          {activeConv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
                         </div>
                       </div>
                       <div className="min-w-0 flex-1">
@@ -3247,29 +3447,6 @@ export default function SupraSpacePage() {
                       </div>
                     )}
                     {(loadingMsgs || activeMsgStatus === 'loading') && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-                    {!loadingMsgs && activeMsgs.length === 0 && activeConv && (activeMsgStatus === 'error' || activeMsgStatus === 'stale' || activeConvHasHistorySignal) && (
-                      <div className="flex flex-col items-center justify-center py-16 gap-3 select-none px-6 text-center">
-                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center" style={{ background: 'var(--accent-muted)' }}>
-                          <Wifi className="h-5 w-5" style={{ color: 'var(--accent)' }} />
-                        </div>
-                        <div>
-                          <p className="font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
-                            Reconnecting conversation history
-                          </p>
-                          <p className="mt-1 max-w-xs" style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
-                            Messages are still being refreshed. You do not need to reload the page.
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => activeId && fetchConversationMessages(activeId, { force: true })}
-                          className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5"
-                          style={{ fontSize: 12 }}
-                        >
-                          {activeMsgStatus === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
-                          Retry now
-                        </button>
-                      </div>
-                    )}
                     {!loadingMsgs && activeMsgs.length === 0 && activeConv && activeMsgStatus !== 'error' && activeMsgStatus !== 'stale' && !activeConvHasHistorySignal && (
                       <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
                         <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
@@ -3347,6 +3524,26 @@ export default function SupraSpacePage() {
                         <PendingMeetingPreview meeting={pendingMeeting} onRemove={() => setPendingMeeting(null)} />
                       </div>
                     )}
+                    {pendingGif && (
+                      <div className="ss4-reply-bar flex items-start gap-3 px-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <p className="font-semibold truncate" style={{ fontSize: 11, color: 'var(--accent-text)' }}>
+                              GIF ready to send
+                            </p>
+                            <button onClick={() => setPendingGif(null)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Remove GIF">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <img
+                            src={pendingGif.url}
+                            alt={pendingGif.title || 'Selected GIF'}
+                            className="rounded-lg object-cover"
+                            style={{ maxWidth: 220, maxHeight: 150, border: '1px solid var(--border-2)' }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {isReportGroup ? (
                       <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
@@ -3385,28 +3582,82 @@ export default function SupraSpacePage() {
                             ))}
                           </div>
                         )}
+                        {showFormatBar && (
+                          <div className="flex items-center gap-0.5 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Bold">
+                              <Bold className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Italic">
+                              <Italic className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Underline">
+                              <Underline className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Strikethrough">
+                              <Strikethrough className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Bullet list">
+                              <List className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Quote">
+                              <TextQuote className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Link">
+                              <Link2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Inline code">
+                              <Code2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
+                            <button
+                              onMouseDown={e => { e.preventDefault(); handleAutrix('improve'); }}
+                              disabled={autrixLoading || !input.trim()}
+                              className="h-7 px-2.5 flex items-center gap-1.5 rounded-md font-semibold transition-colors hover:bg-(--bg-hover) disabled:opacity-40"
+                              title="Refine with AI"
+                            >
+                              {autrixLoading
+                                ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: '#b49dff' }} />
+                                : <Sparkles className="h-3 w-3" style={{ color: '#b49dff' }} />}
+                              <span style={{ fontSize: 11, color: '#b49dff' }}>Refine</span>
+                            </button>
+                          </div>
+                        )}
                         <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
-                          <textarea ref={textareaRef} value={input} onChange={handleTyping} onKeyDown={e => {
-                            if (mentionQuery !== null && mentionOptions.length > 0) {
-                              if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
-                              if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-                              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
-                              if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
-                            }
-                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                          }} onPaste={e => {
-                            const items = e.clipboardData?.items;
-                            if (!items) return;
-                            const imgItems = Array.from(items).filter(it => it.type.startsWith('image/'));
-                            if (imgItems.length === 0) return;
-                            e.preventDefault();
-                            const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
-                            if (files.length > 0) {
-                              const dt = new DataTransfer();
-                              files.forEach(f => dt.items.add(f));
-                              handleUpload(dt.files);
-                            }
-                          }} onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)} placeholder="Message..." rows={1} className="flex-1 resize-none bg-transparent text-sm focus:outline-none max-h-36 min-h-7 py-0.5" style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)', overflowY: 'auto' }} />
+                          <div className="relative flex-1 min-w-0">
+                            {!input && <span className="absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
+                            <div
+                              ref={textareaRef}
+                              contentEditable
+                              suppressContentEditableWarning
+                              onInput={handleTyping}
+                              onKeyDown={e => {
+                                if (mentionQuery !== null && mentionOptions.length > 0) {
+                                  if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
+                                  if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
+                                  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
+                                  if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
+                                }
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                                if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); }
+                              }}
+                              onPaste={e => {
+                                const items = e.clipboardData?.items;
+                                const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
+                                if (imgItems.length > 0) {
+                                  e.preventDefault();
+                                  const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
+                                  if (files.length > 0) { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); handleUpload(dt.files); }
+                                  return;
+                                }
+                                const text = e.clipboardData?.getData('text/plain');
+                                if (text) { e.preventDefault(); document.execCommand('insertText', false, text); }
+                              }}
+                              onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
+                              className="text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
+                              style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none' }}
+                            />
+                          </div>
                         </div>
                         <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
                           <div className="flex items-center gap-0.5">
@@ -3415,13 +3666,13 @@ export default function SupraSpacePage() {
                             <button onClick={startRecording} className="ss4-icon-btn h-8 w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
                             <div ref={gifRef} className="relative">
                               <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="GIF"><Film className="h-4 w-4" /></button>
-                              {gifOpen && <GifPicker onPick={sendGif} onClose={() => setGifOpen(false)} />}
+                              {gifOpen && <GifPicker onPick={selectGif} onClose={() => setGifOpen(false)} />}
                             </div>
                             <div ref={emojiRef} className="relative">
                               <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
                               {emojiOpen && (
                                 <div className="absolute bottom-full left-0 mb-2 z-50">
-                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { setInput(prev => prev + d.emoji); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
+                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { const el = textareaRef.current; if (el) { el.focus(); document.execCommand('insertText', false, d.emoji); setInput(el.innerText.replace(/\n$/, '')); } setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
                                 </div>
                               )}
                             </div>
@@ -3450,8 +3701,15 @@ export default function SupraSpacePage() {
                                 </div>
                               )}
                             </div>
+                            <button
+                              onClick={() => setShowFormatBar(v => !v)}
+                              className={cn('ss4-icon-btn h-8 w-8', showFormatBar && 'ss4-video-btn')}
+                              title="Formatting options"
+                            >
+                              <Type className="h-4 w-4" />
+                            </button>
                           </div>
-                          <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting)} className="ss4-send-btn h-8 w-8 flex items-center justify-center shrink-0">
+                          <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-8 w-8 flex items-center justify-center shrink-0">
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           </button>
                         </div>
@@ -3486,7 +3744,7 @@ export default function SupraSpacePage() {
                     <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                       <div className="relative">
                         <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                          {activeConv.type === 'group' ? <GroupAvatarFace src={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                         </div>
                         {activeConv.type === 'group' && isAdmin && (
                           <>
@@ -3498,13 +3756,14 @@ export default function SupraSpacePage() {
 
                       {activeConv.type === 'group' && editingGcName ? (
                         <div className="flex items-center gap-2 w-full max-w-xs">
-                          <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { renameChannel(gcNameInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
-                          <button onClick={() => { renameChannel(gcNameInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
+                          <input value={gcEmojiInput} onChange={e => setGcEmojiInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} placeholder="#" className="w-11 h-8 rounded-lg px-2 text-sm ss4-search-input text-center" maxLength={4} />
+                          <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
+                          <button onClick={() => { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5">
-                          <p className="ss4-display font-bold text-center" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{cName}</p>
-                          {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
+                          <p className="ss4-display font-bold text-center" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{activeConv.type === 'group' && activeConv.emoji ? `${activeConv.emoji} ` : ''}{cName}</p>
+                          {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
                         </div>
                       )}
                       <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
@@ -3705,7 +3964,7 @@ export default function SupraSpacePage() {
           const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
             { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
             { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
-            { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); setActiveId(sheetConv._id); setConvMobileSheet(null); } },
+            { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); openConversation(sheetConv._id); setConvMobileSheet(null); } },
             { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
           ];
           return (
