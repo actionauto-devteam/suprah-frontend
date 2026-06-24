@@ -74,15 +74,15 @@ export function ConfirmationModal({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent className="max-w-100 rounded-2xl gap-6 p-6">
+      <AlertDialogContent className="w-[calc(100vw-1rem)] sm:max-w-100 rounded-2xl gap-6 p-6">
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className={cn(
               "p-2 rounded-xl border",
-              variant === 'danger' && "bg-red-50 border-red-100",
-              variant === 'success' && "bg-emerald-50 border-emerald-100",
-              variant === 'warning' && "bg-amber-50 border-amber-100",
-              variant === 'primary' && "bg-blue-50 border-blue-100",
+              variant === 'danger' && "bg-red-50 border-red-100 dark:bg-red-950/30 dark:border-red-900/50",
+              variant === 'success' && "bg-emerald-50 border-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-900/50",
+              variant === 'warning' && "bg-amber-50 border-amber-100 dark:bg-amber-950/30 dark:border-amber-900/50",
+              variant === 'primary' && "bg-blue-50 border-blue-100 dark:bg-blue-950/30 dark:border-blue-900/50",
             )}>
               {styles.icon}
             </div>

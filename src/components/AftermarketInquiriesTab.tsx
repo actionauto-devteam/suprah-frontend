@@ -303,7 +303,7 @@ function InvoiceBuilder({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-xl max-h-[90vh] overflow-hidden rounded-[14px] border border-border bg-background shadow-2xl flex flex-col">
+      <div className="relative w-full max-w-xl max-h-[90dvh] overflow-hidden rounded-[14px] border border-border bg-background shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2.5">
@@ -317,7 +317,7 @@ function InvoiceBuilder({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="h-7 w-7 rounded-xl flex items-center justify-center hover:bg-muted transition-colors">
+          <button onClick={onClose} className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -326,7 +326,7 @@ function InvoiceBuilder({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ scrollbarWidth: "thin" }}>
           {/* Line items */}
           <div className="space-y-2">
-            <div className="grid grid-cols-[1fr_56px_88px_28px] gap-2 px-0.5">
+            <div className="hidden sm:grid grid-cols-[1fr_56px_88px_28px] gap-2 px-0.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">Item</span>
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono text-center">Qty</span>
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono text-right">Unit</span>
@@ -334,13 +334,13 @@ function InvoiceBuilder({
             </div>
 
             {lines.map((l, i) => (
-              <div key={i} className="grid grid-cols-[1fr_56px_88px_28px] gap-2 items-center">
+              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border/40 p-2 sm:border-0 sm:p-0 sm:grid sm:grid-cols-[1fr_56px_88px_28px] sm:items-center sm:gap-2">
                 <div className="flex flex-col gap-1">
                   <Input
                     value={l.label}
                     onChange={(e) => updateLine(i, { label: e.target.value })}
                     placeholder="Description"
-                    className="h-8 text-xs rounded-lg"
+                    className="h-9 text-xs rounded-lg"
                   />
                   <div className="flex gap-1">
                     {(["product", "fee", "charge", "discount"] as const).map((k) => (
@@ -348,7 +348,7 @@ function InvoiceBuilder({
                         key={k}
                         onClick={() => updateLine(i, { kind: k })}
                         className={cn(
-                          "text-[9px] font-bold uppercase tracking-wide font-mono px-1.5 py-0.5 rounded transition-colors",
+                          "text-[9px] font-bold uppercase tracking-wide font-mono px-1.5 py-1 rounded transition-colors",
                           l.kind === k ? "bg-primary/15 text-primary" : "text-muted-foreground/50 hover:text-foreground"
                         )}
                       >
@@ -357,28 +357,32 @@ function InvoiceBuilder({
                     ))}
                   </div>
                 </div>
-                <Input
-                  type="number"
-                  min={0}
-                  value={l.quantity}
-                  onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })}
-                  className="h-8 text-xs rounded-lg text-center"
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={l.unitPrice}
-                  onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) })}
-                  className="h-8 text-xs rounded-lg text-right"
-                />
-                <button
-                  onClick={() => removeLine(i)}
-                  disabled={lines.length === 1}
-                  className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-2 sm:contents">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={l.quantity}
+                    onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })}
+                    className="h-9 text-xs rounded-lg text-center w-20 sm:w-auto"
+                    placeholder="Qty"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={l.unitPrice}
+                    onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) })}
+                    className="h-9 text-xs rounded-lg text-right flex-1 sm:flex-none sm:w-auto"
+                    placeholder="Unit price"
+                  />
+                  <button
+                    onClick={() => removeLine(i)}
+                    disabled={lines.length === 1}
+                    className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
 
@@ -654,7 +658,7 @@ function InquiryThread({ conversationId }: { conversationId: string }) {
             className="flex-1 resize-none bg-transparent text-sm focus:outline-none min-h-7 max-h-24 py-0.5 placeholder:text-muted-foreground/50"
           />
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => fileRef.current?.click()} className="h-7 w-7 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <button onClick={() => fileRef.current?.click()} className="h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               <Paperclip className="h-4 w-4" />
             </button>
             <input ref={fileRef} type="file" multiple accept="*/*" className="sr-only" onChange={(e) => { handleFileSelect(e.target.files); e.currentTarget.value = ""; }} />
@@ -662,7 +666,7 @@ function InquiryThread({ conversationId }: { conversationId: string }) {
               onClick={handleSend}
               disabled={(!reply.trim() && pendingFiles.length === 0) || sending}
               className={cn(
-                "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
+                "h-9 w-9 rounded-xl flex items-center justify-center transition-all",
                 reply.trim() || pendingFiles.length > 0 ? "bg-primary hover:bg-primary/90 text-primary-foreground" : "bg-muted text-muted-foreground/40 cursor-not-allowed"
               )}
             >
@@ -836,7 +840,7 @@ function DetailPanel({
                   onClick={() => changeStatus(s)}
                   disabled={statusBusy || inquiry.status === s}
                   className={cn(
-                    "text-[10px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-lg transition-colors",
+                    "text-[10px] font-bold uppercase tracking-wide font-mono px-2 py-2 rounded-lg transition-colors",
                     inquiry.status === s ? "bg-primary/15 text-primary cursor-default" : "text-muted-foreground/60 hover:text-foreground hover:bg-muted"
                   )}
                 >
@@ -976,7 +980,7 @@ export function AftermarketInquiriesTab() {
                 </span>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-7 w-7 p-0 rounded-xl hover:bg-primary/10 hover:text-primary">
+            <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary">
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -1041,7 +1045,7 @@ export function AftermarketInquiriesTab() {
         ) : (
           <>
             <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-card md:hidden">
-              <button onClick={() => setActiveId(null)} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted">
+              <button onClick={() => setActiveId(null)} className="h-9 w-9 rounded-md flex items-center justify-center hover:bg-muted">
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
               <p className="font-semibold text-sm">Inquiry detail</p>

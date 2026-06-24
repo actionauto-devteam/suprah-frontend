@@ -104,7 +104,7 @@ export default function GarageReviewPage() {
           <button
             onClick={() => setActiveTab("transfer")}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap",
+              "flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap",
               activeTab === "transfer"
                 ? "bg-card dark:bg-zinc-800 text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
@@ -115,7 +115,7 @@ export default function GarageReviewPage() {
           <button
             onClick={() => setActiveTab("auction")}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap",
+              "flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap",
               activeTab === "auction"
                 ? "bg-card dark:bg-zinc-800 text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
@@ -226,7 +226,7 @@ function TransferTab({ token }: { token: string }) {
               <Car className="h-4 w-4 text-emerald-500" /> 1 · Vehicle
             </h2>
             {selectedVehicle && (
-              <button onClick={() => setSelectedVehicle(null)} className="text-[11px] text-muted-foreground hover:text-red-500 flex items-center gap-1">
+              <button onClick={() => setSelectedVehicle(null)} className="text-[11px] text-muted-foreground hover:text-red-500 flex items-center gap-1 -m-1.5 px-1.5 py-1.5">
                 <X className="h-3 w-3" /> Clear
               </button>
             )}
@@ -262,7 +262,7 @@ function TransferTab({ token }: { token: string }) {
               <UserIcon className="h-4 w-4 text-emerald-500" /> 2 · Customer
             </h2>
             {selectedCustomer && (
-              <button onClick={() => setSelectedCustomer(null)} className="text-[11px] text-muted-foreground hover:text-red-500 flex items-center gap-1">
+              <button onClick={() => setSelectedCustomer(null)} className="text-[11px] text-muted-foreground hover:text-red-500 flex items-center gap-1 -m-1.5 px-1.5 py-1.5">
                 <X className="h-3 w-3" /> Clear
               </button>
             )}

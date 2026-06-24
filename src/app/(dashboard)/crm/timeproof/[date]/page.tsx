@@ -255,7 +255,7 @@ const Lightbox = ({
         </div>
         <button
           onClick={onClose}
-          className="h-8 w-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 transition-colors"
+          className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
@@ -401,7 +401,7 @@ export default function ScreenshotGalleryPage() {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
+            className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -601,9 +601,9 @@ export default function ScreenshotGalleryPage() {
                           <div className="absolute inset-0 bg-rose-500/20 border-2 border-rose-500/40 rounded-xl" />
                         )}
 
-                        {/* Hover zoom icon */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                          <ZoomIn className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                        {/* Zoom icon — always visible on touch, hover-reveal on desktop */}
+                        <div className="absolute inset-0 bg-black/15 sm:bg-black/0 sm:group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <ZoomIn className="h-5 w-5 text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                         </div>
                       </div>
                     </button>

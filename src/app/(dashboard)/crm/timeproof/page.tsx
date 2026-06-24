@@ -672,7 +672,7 @@ export default function TimeprofPage() {
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.push("/crm/dashboard")}
-            className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
+            className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -702,7 +702,7 @@ export default function TimeprofPage() {
               <button
                 onClick={() => router.push("/crm/timeproof/users")}
                 title="View all users"
-                className="h-8 px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"
+                className="h-9 px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"
               >
                 <Users className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">View Users</span>
@@ -711,13 +711,13 @@ export default function TimeprofPage() {
             <button
               onClick={exportCSV}
               title="Export CSV"
-              className="h-8 w-8 rounded-xl border border-border/40 flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground"
+              className="h-9 w-9 rounded-xl border border-border/40 flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={copyProof}
-              className={`h-8 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied
+              className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied
                   ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
                   : "border-border/40 hover:bg-muted/30 text-muted-foreground"
                 }`}
@@ -779,20 +779,20 @@ export default function TimeprofPage() {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={prevMonth}
-                    className="h-8 w-8 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
+                    className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <button
                     onClick={nextMonth}
-                    className="h-8 w-8 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
+                    className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
                   <button
                     onClick={goToday}
                     disabled={isCurrentMonth}
-                    className="h-8 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground"
+                    className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground"
                   >
                     Today
                   </button>
@@ -980,7 +980,7 @@ export default function TimeprofPage() {
                         <button
                           onClick={togglePhp}
                           disabled={fetchingPhp}
-                          className={`h-6 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp
+                          className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp
                               ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
                               : "border-border/30 text-muted-foreground/40 hover:border-border/60"
                             }`}
@@ -996,7 +996,7 @@ export default function TimeprofPage() {
                             onClick={fetchPhpRate}
                             disabled={fetchingPhp}
                             title="Refresh rate"
-                            className="h-6 w-6 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                            className="h-9 w-9 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors"
                           >
                             <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
                           </button>
@@ -1075,7 +1075,7 @@ export default function TimeprofPage() {
                 </div>
                 <button
                   onClick={copyProof}
-                  className="shrink-0 h-8 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+                  className="shrink-0 h-9 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? "Copied" : "Share"}

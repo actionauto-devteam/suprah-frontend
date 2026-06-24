@@ -411,7 +411,7 @@ export default function AdminShiftBoardPage() {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.push("/crm/timeproof")}
-            className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-zinc-800/60 transition-colors text-zinc-500"
+            className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-zinc-800/60 transition-colors text-zinc-500"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -437,7 +437,7 @@ export default function AdminShiftBoardPage() {
             )}
             <button
               onClick={() => router.push("/team-pulse?tab=calendar")}
-              className="h-8 px-3 rounded-xl border border-zinc-800 flex items-center gap-1.5 hover:bg-zinc-800/50 transition-colors text-zinc-400 hover:text-zinc-200"
+              className="h-9 px-3 rounded-xl border border-zinc-800 flex items-center gap-1.5 hover:bg-zinc-800/50 transition-colors text-zinc-400 hover:text-zinc-200"
               title="View early-out / out-of-office calendar"
             >
               <CalendarDays className="h-3.5 w-3.5" />
@@ -445,7 +445,7 @@ export default function AdminShiftBoardPage() {
             </button>
             <button
               onClick={fetchData}
-              className="h-8 w-8 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-zinc-800/50 transition-colors text-zinc-500"
+              className="h-9 w-9 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-zinc-800/50 transition-colors text-zinc-500"
               title="Refresh"
             >
               <RefreshCw className="h-3.5 w-3.5" />

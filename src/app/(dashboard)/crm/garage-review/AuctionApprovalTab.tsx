@@ -98,7 +98,7 @@ export function AuctionApprovalTab({ token }: { token: string }) {
               key={s}
               onClick={() => setStatus(s)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border",
+                "flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border",
                 status === s
                   ? "bg-card dark:bg-zinc-800 text-foreground border-border/40 shadow-sm"
                   : "text-muted-foreground border-transparent hover:text-foreground",
@@ -217,7 +217,7 @@ function ListingDetailDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0 sm:max-w-3xl">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto p-0 gap-0">
         <DialogHeader className="px-5 py-4 border-b border-border/40">
           <div className="flex items-center justify-between gap-3 pr-6">
             <div className="min-w-0">

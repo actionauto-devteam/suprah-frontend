@@ -408,7 +408,7 @@ function PendingFile({ file, onRemove }: { file: File; onRemove: () => void }) {
         ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 44 }} />
         : <div className="flex items-center justify-center" style={{ height: 44 }}><FileText className="h-4 w-4 text-muted-foreground" /></div>}
       <p className="px-1 text-[9px] text-muted-foreground truncate">{file.name}</p>
-      <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-background/90 flex items-center justify-center border border-border"><X className="h-2 w-2" /></button>
+      <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-background/90 flex items-center justify-center border border-border before:absolute before:-inset-2 before:content-['']"><X className="h-2 w-2" /></button>
     </div>
   );
 }
@@ -681,7 +681,7 @@ export function CustomersConcernTab() {
               variant="ghost"
               size="sm"
               onClick={() => refetchConvs()}
-              className="h-7 w-7 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
+              className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
@@ -705,7 +705,7 @@ export function CustomersConcernTab() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "pb-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors border-b-2",
+                  "py-2 text-[11px] font-bold uppercase tracking-wide transition-colors border-b-2",
                   filter === f
                     ? "text-primary border-primary"
                     : "text-muted-foreground border-transparent hover:text-foreground"
@@ -768,7 +768,7 @@ export function CustomersConcernTab() {
             <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
               <button
                 onClick={() => setActiveId(null)}
-                className="md:hidden h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted"
+                className="md:hidden h-9 w-9 rounded-md flex items-center justify-center hover:bg-muted"
               >
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
@@ -804,7 +804,7 @@ export function CustomersConcernTab() {
                     size="sm"
                     onClick={() => handleResolve(false)}
                     disabled={resolvingId === activeId}
-                    className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                    className="h-9 px-2.5 text-xs gap-1.5 rounded-xl"
                   >
                     {resolvingId === activeId ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -818,7 +818,7 @@ export function CustomersConcernTab() {
                     size="sm"
                     onClick={() => handleResolve(true)}
                     disabled={resolvingId === activeId}
-                    className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                    className="h-9 px-2.5 text-xs gap-1.5 rounded-xl"
                   >
                     {resolvingId === activeId ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -835,7 +835,7 @@ export function CustomersConcernTab() {
                     size="sm"
                     onClick={() => setShowHistory((v) => !v)}
                     className={cn(
-                      "h-7 px-2 text-xs gap-1.5 rounded-xl",
+                      "h-9 px-2 text-xs gap-1.5 rounded-xl",
                       showHistory && "bg-muted"
                     )}
                   >
@@ -849,7 +849,7 @@ export function CustomersConcernTab() {
                   </Button>
 
                   {showHistory && (
-                    <div className="absolute right-0 top-full mt-1.5 w-72 max-h-80 overflow-y-auto rounded-[10px] border border-border bg-popover shadow-lg z-20 p-1.5">
+                    <div className="absolute right-0 top-full mt-1.5 w-[calc(100vw-2rem)] sm:w-72 max-h-80 overflow-y-auto rounded-[10px] border border-border bg-popover shadow-lg z-20 p-1.5">
                       {relatedCases.length === 0 ? (
                         <p className="text-xs text-muted-foreground px-2.5 py-4 text-center">
                           No other cases for this customer.
@@ -985,7 +985,7 @@ export function CustomersConcernTab() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => fileRef.current?.click()}
-                      className="h-7 w-7 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                       <Paperclip className="h-4 w-4" />
                     </button>
@@ -995,7 +995,7 @@ export function CustomersConcernTab() {
                       onClick={handleSend}
                       disabled={(!reply.trim() && pendingFiles.length === 0) || sending}
                       className={cn(
-                        "h-7 w-7 rounded-xl flex items-center justify-center transition-all",
+                        "h-9 w-9 rounded-xl flex items-center justify-center transition-all",
                         reply.trim() || pendingFiles.length > 0
                           ? "bg-primary hover:bg-primary/90 text-primary-foreground"
                           : "bg-muted text-muted-foreground/40 cursor-not-allowed"

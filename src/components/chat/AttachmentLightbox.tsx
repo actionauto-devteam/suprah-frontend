@@ -44,13 +44,13 @@ export function AttachmentLightbox({
             <a
               href={attachment.src}
               download={attachment.name}
-              className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white no-underline hover:bg-white/20 transition-colors"
+              className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-medium text-white no-underline hover:bg-white/20 transition-colors"
             >
               <Download className="h-3 w-3" /> Download
             </a>
             <button
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
             >
               <X className="h-4 w-4 text-white" />
             </button>
@@ -60,14 +60,14 @@ export function AttachmentLightbox({
           <img
             src={attachment.src}
             alt={attachment.name}
-            className="max-h-[80vh] max-w-full rounded-xl object-contain shadow-2xl"
+            className="max-h-[80dvh] max-w-full rounded-xl object-contain shadow-2xl"
           />
         ) : (
           <video
             src={attachment.src}
             controls
             autoPlay
-            className="max-h-[80vh] max-w-full rounded-xl shadow-2xl"
+            className="max-h-[80dvh] max-w-full rounded-xl shadow-2xl"
           />
         )}
       </div>

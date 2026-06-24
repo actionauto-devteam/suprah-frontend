@@ -462,7 +462,7 @@ export function CustomerCallsTab() {
                 </span>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-7 w-7 p-0 rounded-xl hover:bg-chart-4/10 hover:text-chart-4">
+            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-9 w-9 p-0 rounded-xl hover:bg-chart-4/10 hover:text-chart-4">
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -524,7 +524,7 @@ export function CustomerCallsTab() {
             <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
               <button
                 onClick={() => setActiveId(null)}
-                className="md:hidden h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted"
+                className="md:hidden h-9 w-9 rounded-md flex items-center justify-center hover:bg-muted"
               >
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
@@ -562,7 +562,7 @@ export function CustomerCallsTab() {
                     <Button
                       size="sm"
                       onClick={handleJoinCall}
-                      className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                      className="h-9 px-2.5 text-xs gap-1.5 rounded-xl"
                     >
                       <PhoneCall className="h-3 w-3" />
                       Join
@@ -572,7 +572,7 @@ export function CustomerCallsTab() {
                       variant="outline"
                       onClick={handleEndCall}
                       disabled={endingCall}
-                      className="h-7 px-2.5 text-xs gap-1.5 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10"
+                      className="h-9 px-2.5 text-xs gap-1.5 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10"
                     >
                       {endingCall ? <Loader2 className="h-3 w-3 animate-spin" /> : <PhoneOff className="h-3 w-3" />}
                       End
@@ -585,7 +585,7 @@ export function CustomerCallsTab() {
                         size="sm"
                         onClick={handleStartCall}
                         disabled={startingCall}
-                        className="h-7 px-2.5 text-xs gap-1.5 rounded-xl"
+                        className="h-9 px-2.5 text-xs gap-1.5 rounded-xl"
                       >
                         {startingCall ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -603,7 +603,7 @@ export function CustomerCallsTab() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-xl">
+                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-xl">
                       <Users className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
                   </TooltipTrigger>
@@ -665,7 +665,7 @@ export function CustomerCallsTab() {
                     onClick={() => handleSendPreset(preset.key)}
                     disabled={sendingPreset !== null}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-chart-4/10 hover:border-chart-4/40 disabled:opacity-50",
+                      "flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-2.5 py-2.5 text-xs font-medium transition-all hover:bg-chart-4/10 hover:border-chart-4/40 disabled:opacity-50",
                       preset.key === "declined" && "border-destructive/20 text-destructive hover:bg-destructive/10 hover:border-destructive/30"
                     )}
                   >

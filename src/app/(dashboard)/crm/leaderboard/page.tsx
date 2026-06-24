@@ -453,7 +453,7 @@ function LeaderboardRow({
         </p>
       </div>
 
-      <ChevronRight className="h-4 w-4 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-colors shrink-0" />
+      <ChevronRight className="h-4 w-4 text-muted-foreground/40 sm:text-muted-foreground/20 sm:group-hover:text-muted-foreground/40 transition-colors shrink-0" />
     </div>
   );
 }
@@ -819,20 +819,20 @@ export default function LeaderboardPage() {
     <div className="min-h-screen w-full bg-background">
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/90 backdrop-blur-xl">
-        <div className="flex items-center justify-between h-14 px-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 sm:min-h-14">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 rounded-xl"
+              className="h-9 w-9 p-0 rounded-xl shrink-0"
               onClick={() => router.push("/crm/dashboard")}
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div className="h-8 w-8 rounded-lg bg-amber-500/15 border border-amber-500/20 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-amber-500/15 border border-amber-500/20 flex items-center justify-center shrink-0">
               <Trophy className="h-4 w-4 text-amber-500" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold leading-none">Leaderboard</p>
               <p className="text-[9px] uppercase tracking-[0.25em] text-muted-foreground/70 mt-0.5 font-semibold">
                 Analytics & Rankings
@@ -844,7 +844,7 @@ export default function LeaderboardPage() {
               value={periodType}
               onValueChange={(v) => setPeriodType(v as any)}
             >
-              <SelectTrigger className="h-8 w-28 text-xs rounded-xl border-border/40">
+              <SelectTrigger className="h-9 w-24 sm:w-28 text-xs rounded-xl border-border/40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -856,7 +856,7 @@ export default function LeaderboardPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 rounded-xl"
+              className="h-9 w-9 p-0 rounded-xl shrink-0"
               onClick={() => {
                 fetchLeaderboard();
                 fetchOrgUsers();
@@ -871,20 +871,20 @@ export default function LeaderboardPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 text-xs rounded-xl border-border/40"
+                className="h-9 gap-1.5 text-xs rounded-xl border-border/40 px-2.5 sm:px-3"
                 onClick={handleExport}
               >
-                <Download className="h-3.5 w-3.5" /> Export
+                <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Export</span>
               </Button>
             )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* ── My Stats Strip ── */}
         {statPeriod && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/3 px-6 py-4">
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/3 px-4 sm:px-6 py-4">
             <p className="text-[10px] uppercase tracking-widest text-emerald-600 dark:text-emerald-400 font-bold mb-3 flex items-center gap-1.5">
               <Sparkles className="h-3 w-3" /> My Performance —{" "}
               {periodType === "daily"
@@ -1168,23 +1168,23 @@ export default function LeaderboardPage() {
           {/* ─ ACTIVITY FEED TAB ───────────────────────────────────────── */}
           <TabsContent value="activity" className="mt-4">
             <div className="rounded-2xl border border-border/40 bg-card">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-muted-foreground/60" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground/70">
+              <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-border/30">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Activity className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground/70 truncate">
                     Live Activity Feed
                   </span>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs gap-1.5 rounded-xl"
+                  className="h-9 text-xs gap-1.5 rounded-xl shrink-0"
                   onClick={fetchActivityFeed}
                 >
                   <RefreshCw className="h-3 w-3" /> Refresh
                 </Button>
               </div>
-              <div className="px-6 py-2 divide-y divide-border/20">
+              <div className="px-4 sm:px-6 py-2 divide-y divide-border/20">
                 {activityFeed.length === 0 ? (
                   <div className="py-12 text-center">
                     <Activity className="h-8 w-8 text-muted-foreground/15 mx-auto mb-2" />

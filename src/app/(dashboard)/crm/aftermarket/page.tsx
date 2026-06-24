@@ -24,6 +24,16 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 
@@ -126,7 +136,7 @@ function ProductCard({
       )}
     >
       {/* Media */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+      <div className="relative aspect-4/3 overflow-hidden bg-muted">
         <MediaThumb product={product} className="transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100" />
 
         {/* status + price overlays */}
@@ -143,12 +153,12 @@ function ProductCard({
           <PriceTag price={product.price} />
         </div>
 
-        {/* hover actions */}
-        <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:opacity-100">
+        {/* actions — always visible on touch, hover-reveal on desktop */}
+        <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 p-2.5 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100 motion-reduce:opacity-100">
           <button
             onClick={onEdit}
             aria-label="Edit product"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-background/90 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/90 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
@@ -156,7 +166,7 @@ function ProductCard({
             onClick={onDelete}
             disabled={deleting}
             aria-label="Delete product"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
           >
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
           </button>
@@ -219,11 +229,11 @@ function ProductRow({
       >
         {product.price != null ? money(product.price) : "Quote"}
       </span>
-      <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity sm:opacity-60 sm:group-hover:opacity-100">
         <button
           onClick={onEdit}
           aria-label="Edit product"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -231,7 +241,7 @@ function ProductRow({
           onClick={onDelete}
           disabled={deleting}
           aria-label="Delete product"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
           {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
@@ -312,7 +322,7 @@ function ProductEditor({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[16px] border border-border bg-background shadow-2xl">
+      <div className="relative flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-2.5">
@@ -324,7 +334,7 @@ function ProductEditor({
               <p className="text-[11px] text-muted-foreground">Appears in the customer storefront</p>
             </div>
           </div>
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-xl hover:bg-muted">
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -340,7 +350,7 @@ function ProductEditor({
                 onDragLeave={() => setDragging(false)}
                 onDrop={(e) => { e.preventDefault(); setDragging(false); acceptMedia(e.dataTransfer.files?.[0]); }}
                 className={cn(
-                  "relative flex aspect-[4/3] cursor-pointer items-center justify-center overflow-hidden rounded-[12px] border-2 border-dashed transition-colors",
+                  "relative flex aspect-4/3 cursor-pointer items-center justify-center overflow-hidden rounded-[12px] border-2 border-dashed transition-colors",
                   dragging ? "border-primary bg-primary/5" : "border-border bg-muted/30 hover:border-primary/40"
                 )}
               >
@@ -487,6 +497,7 @@ export default function CrmAftermarketPage() {
   const [editing, setEditing] = React.useState<AftermarketProduct | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<AftermarketProduct | null>(null);
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebSearch(search.trim()), 300);
@@ -516,13 +527,13 @@ export default function CrmAftermarketPage() {
   );
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this product? This can't be undone.")) return;
     setDeletingId(id);
     try {
       await apiClient.delete(`/api/crm/aftermarket/${id}`);
       queryClient.invalidateQueries({ queryKey: ["crm-aftermarket-products"] });
     } finally {
       setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -575,7 +586,7 @@ export default function CrmAftermarketPage() {
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                "-mb-px border-b-2 pb-2 text-[11px] font-bold uppercase tracking-wide transition-colors",
+                "-mb-px border-b-2 py-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors",
                 filter === f ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
@@ -602,7 +613,7 @@ export default function CrmAftermarketPage() {
                 onClick={() => setView(mode)}
                 aria-label={`${mode} view`}
                 className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+                  "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
                   view === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -620,7 +631,7 @@ export default function CrmAftermarketPage() {
       {isLoading ? (
         <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : products.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-[16px] border border-dashed border-border py-20 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-20 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-[14px] bg-muted">
             <Package className="h-6 w-6 text-muted-foreground/50" />
           </div>
@@ -646,7 +657,7 @@ export default function CrmAftermarketPage() {
               product={p}
               deleting={deletingId === p._id}
               onEdit={() => setEditing(p)}
-              onDelete={() => handleDelete(p._id)}
+              onDelete={() => setDeleteTarget(p)}
             />
           ))}
         </div>
@@ -658,7 +669,7 @@ export default function CrmAftermarketPage() {
               product={p}
               deleting={deletingId === p._id}
               onEdit={() => setEditing(p)}
-              onDelete={() => handleDelete(p._id)}
+              onDelete={() => setDeleteTarget(p)}
             />
           ))}
         </div>
@@ -671,6 +682,27 @@ export default function CrmAftermarketPage() {
           onSaved={onSaved}
         />
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget ? `"${deleteTarget.name}" will be removed from the customer storefront. This can't be undone.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deletingId === deleteTarget?._id}
+              onClick={() => deleteTarget && handleDelete(deleteTarget._id)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

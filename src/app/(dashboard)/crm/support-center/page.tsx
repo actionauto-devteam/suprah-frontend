@@ -144,7 +144,7 @@ function SupportCenterView() {
             </div>
 
             {/* Live stat strip */}
-            <div className="flex items-center gap-4 font-mono">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono">
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-chart-2/60" />
@@ -180,7 +180,7 @@ function SupportCenterView() {
           </div>
 
           {/* Tab nav — underline style */}
-          <div className="shrink-0 flex gap-6 border-b border-border -mt-1">
+          <div className="shrink-0 flex gap-6 overflow-x-auto border-b border-border -mt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {tabs.map((tab) => {
               const active = activeTab === tab.id;
               return (
@@ -189,7 +189,7 @@ function SupportCenterView() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "relative flex items-center gap-2 pb-3 text-sm font-bold transition-colors border-b-2 -mb-px",
+                    "relative flex shrink-0 items-center gap-2 whitespace-nowrap py-3 text-sm font-bold transition-colors border-b-2 -mb-px",
                     active
                       ? "text-foreground border-primary"
                       : "text-muted-foreground border-transparent hover:text-foreground/80"

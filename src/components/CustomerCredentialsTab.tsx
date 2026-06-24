@@ -205,7 +205,7 @@ function SyncBar({
         <button
           onClick={onSync}
           disabled={status === "syncing"}
-          className={`flex items-center gap-1.5 px-3 h-8 rounded-md border border-current/20 text-xs font-semibold transition-colors ${c.btnHover}`}
+          className={`flex items-center gap-1.5 px-3 h-9 rounded-md border border-current/20 text-xs font-semibold transition-colors shrink-0 ${c.btnHover}`}
         >
           <RefreshCw className={`h-3 w-3 ${status === "syncing" ? "animate-spin" : ""}`} />
           {c.btnLabel}
@@ -367,13 +367,13 @@ function CustomerFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden rounded-xl border border-border bg-card">
-        <div className="px-6 py-5 border-b border-border/60 bg-muted/30">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl p-0 gap-0 overflow-hidden rounded-xl border border-border bg-card">
+        <div className="px-4 sm:px-6 py-5 border-b border-border/60 bg-muted/30">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center shrink-0">
               {isEditing ? <Edit2 className="h-4 w-4 text-white" /> : <Plus className="h-4 w-4 text-white" />}
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-base font-bold text-foreground">
                 {isEditing ? "Edit Customer Record" : "New Customer Record"}
               </DialogTitle>
@@ -386,7 +386,7 @@ function CustomerFormModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[68vh] px-6 py-5 space-y-6">
+        <div className="overflow-y-auto max-h-[calc(90dvh-160px)] px-4 sm:px-6 py-5 space-y-6">
           {error && (
             <Alert variant="destructive" className="py-3 rounded-lg">
               <AlertCircle className="h-4 w-4" />
@@ -410,7 +410,7 @@ function CustomerFormModal({
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Personal Information</span>
               <div className="h-px flex-1 bg-border" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <FieldLabel required>First Name</FieldLabel>
                 <Input value={form.firstName} onChange={e => set("firstName", e.target.value)} placeholder="John" className="h-9 text-sm rounded-md border-border" />
@@ -472,8 +472,8 @@ function CustomerFormModal({
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Address</span>
               <div className="h-px flex-1 bg-border" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2 space-y-1.5">
                 <FieldLabel>Street Address</FieldLabel>
                 <Input value={form.address?.street} onChange={e => setAddr("street", e.target.value)} placeholder="123 Main Street" className="h-9 text-sm rounded-md border-border" />
               </div>
@@ -502,7 +502,7 @@ function CustomerFormModal({
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Vehicle Interest</span>
               <div className="h-px flex-1 bg-border" />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { key: "year", label: "Year", placeholder: "2024" },
                 { key: "make", label: "Make", placeholder: "Toyota" },
@@ -524,7 +524,7 @@ function CustomerFormModal({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="sm:col-span-2 space-y-1.5">
                 <FieldLabel>Budget</FieldLabel>
                 <Input value={form.vehicleInterest?.budget} onChange={e => setVehicle("budget", e.target.value)} placeholder="e.g., $30,000" className="h-9 text-sm rounded-md border-border" />
               </div>
@@ -543,7 +543,7 @@ function CustomerFormModal({
           </section>
         </div>
 
-        <div className="px-6 py-4 border-t border-border/60 flex items-center justify-between bg-muted/20">
+        <div className="px-4 sm:px-6 py-4 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 bg-muted/20">
           {dupResult?.isDuplicate && !isEditing ? (
             <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -587,13 +587,13 @@ function LogConversationModal({ open, onOpenChange, onLog, isSaving }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl p-0 gap-0 border-border bg-card">
-        <div className="px-6 py-5 border-b border-border/60 bg-muted/30">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto rounded-xl p-0 gap-0 border-border bg-card">
+        <div className="px-4 sm:px-6 py-5 border-b border-border/60 bg-muted/30">
           <DialogTitle className="text-base font-bold text-foreground">Log Communication</DialogTitle>
           <p className="text-[11px] text-muted-foreground mt-0.5">Record a communication interaction with this customer</p>
         </div>
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="px-4 sm:px-6 py-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <FieldLabel>Channel</FieldLabel>
               <Select value={form.channel} onValueChange={v => setForm(p => ({ ...p, channel: v }))}>
@@ -631,7 +631,7 @@ function LogConversationModal({ open, onOpenChange, onLog, isSaving }: {
             />
           </div>
         </div>
-        <div className="px-6 py-4 border-t border-border/60 flex justify-end gap-2 bg-muted/20">
+        <div className="px-4 sm:px-6 py-4 border-t border-border/60 flex justify-end gap-2 bg-muted/20">
           <Button variant="outline" size="sm" className="h-9 text-xs rounded-md" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button size="sm" className="h-9 text-xs rounded-md bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleSubmit} disabled={isSaving || !form.content.trim()}>
             {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
@@ -740,8 +740,8 @@ function CustomerDetail({
   return (
     <>
       <div className="flex flex-col h-full bg-background">
-        <div className="px-5 py-4 border-b border-border/60 flex items-center gap-3 bg-muted/20">
-          <button onClick={onBack} className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground shrink-0">
+        <div className="px-4 sm:px-5 py-4 border-b border-border/60 flex items-center gap-3 bg-muted/20">
+          <button onClick={onBack} className="h-9 w-9 rounded-md flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </button>
           <Avatar customer={customer} size={40} />
@@ -758,10 +758,10 @@ function CustomerDetail({
             <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">{customer.email} · {customer.phone}</p>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
-            <button onClick={onEdit} title="Edit record" className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors text-muted-foreground/60 hover:text-foreground">
+            <button onClick={onEdit} title="Edit record" className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-muted transition-colors text-muted-foreground/60 hover:text-foreground">
               <Edit2 className="h-3.5 w-3.5" />
             </button>
-            <button onClick={onDelete} title="Delete record" className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-muted-foreground/60 hover:text-red-500 dark:hover:text-red-400">
+            <button onClick={onDelete} title="Delete record" className="h-9 w-9 flex items-center justify-center rounded-md hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-muted-foreground/60 hover:text-red-500 dark:hover:text-red-400">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -784,19 +784,19 @@ function CustomerDetail({
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-          <TabsList className="mx-5 mt-3 mb-0 justify-start h-8 bg-muted w-auto shrink-0 gap-0.5 rounded-md p-0.5">
+          <TabsList className="mx-4 sm:mx-5 mt-3 mb-0 justify-start h-9 bg-muted w-auto shrink-0 gap-0.5 rounded-md p-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { value: "overview", label: "Overview" },
               { value: "transactions", label: `Transactions (${sortedTxs.length})` },
               { value: "conversations", label: `Conversations (${sortedConvs.length})` },
             ].map(t => (
-              <TabsTrigger key={t.value} value={t.value} className="text-[11px] h-7 px-3 rounded-sm font-semibold">
+              <TabsTrigger key={t.value} value={t.value} className="text-[11px] h-8 px-3 rounded-sm font-semibold whitespace-nowrap shrink-0">
                 {t.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value="overview" className="flex-1 overflow-auto px-5 py-4 space-y-5">
+          <TabsContent value="overview" className="flex-1 overflow-auto px-4 sm:px-5 py-4 space-y-5">
             <section>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5">Contact Information</p>
               <div className="rounded-lg border border-border/60 overflow-hidden divide-y divide-border/30 bg-muted/10">
@@ -897,7 +897,7 @@ function CustomerDetail({
             </section>
           </TabsContent>
 
-          <TabsContent value="transactions" className="flex-1 overflow-auto px-5 py-4">
+          <TabsContent value="transactions" className="flex-1 overflow-auto px-4 sm:px-5 py-4">
             {sortedTxs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="h-12 w-12 rounded-lg border-2 border-dashed border-border flex items-center justify-center mb-3">
@@ -937,12 +937,12 @@ function CustomerDetail({
             )}
           </TabsContent>
 
-          <TabsContent value="conversations" className="flex-1 overflow-auto px-5 py-4">
-            <div className="flex items-center justify-between mb-4">
+          <TabsContent value="conversations" className="flex-1 overflow-auto px-4 sm:px-5 py-4">
+            <div className="flex items-center justify-between gap-2 mb-4">
               <p className="text-[12px] font-semibold text-muted-foreground">{sortedConvs.length} communication records</p>
               <button
                 onClick={() => setConvOpen(true)}
-                className="flex items-center gap-1.5 px-3 h-7 rounded-md border border-border text-[11px] font-bold text-muted-foreground hover:bg-muted/60 transition-colors uppercase tracking-wide"
+                className="flex items-center gap-1.5 px-3 h-9 rounded-md border border-border text-[11px] font-bold text-muted-foreground hover:bg-muted/60 transition-colors uppercase tracking-wide shrink-0"
               >
                 <Plus className="h-3 w-3" /> Log
               </button>
@@ -1145,12 +1145,12 @@ export function CustomerCredentialsTab({
   ];
 
   return (
-    <div className="flex flex-col h-full gap-5 bg-card p-6 rounded-xl" style={{ minHeight: 640 }}>
+    <div className="flex flex-col h-full min-h-0 gap-4 sm:gap-5 bg-card p-4 sm:p-6 rounded-xl">
 
       {/* ── Page Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
             Customer Records
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -1233,7 +1233,7 @@ export function CustomerCredentialsTab({
                 className="pl-9 h-9 text-[13px] rounded-md border-border"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/60 hover:text-foreground">
+                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded text-muted-foreground/60 hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -1244,7 +1244,7 @@ export function CustomerCredentialsTab({
                 <button
                   key={opt.value}
                   onClick={() => { setSourceFilter(opt.value); setPage(1); }}
-                  className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-[10px] font-bold transition-all duration-200 ${sourceFilter === opt.value
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-md text-[10px] font-bold transition-all duration-200 ${sourceFilter === opt.value
                     ? "bg-primary text-primary-foreground shadow-md scale-105"
                     : "bg-card text-muted-foreground border border-border hover:border-border/80 hover:text-foreground hover:shadow-sm"
                     }`}
@@ -1344,13 +1344,13 @@ export function CustomerCredentialsTab({
 
           {pages > 1 && (
             <div className="flex items-center justify-between pt-3 mt-2 border-t border-border">
-              <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+              <Button variant="outline" size="sm" className="h-9 text-xs rounded-md" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
                 Previous
               </Button>
               <span className="text-[11px] text-muted-foreground/60 font-mono tabular-nums">
                 {page} / {pages}
               </span>
-              <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}>
+              <Button variant="outline" size="sm" className="h-9 text-xs rounded-md" onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}>
                 Next
               </Button>
             </div>
@@ -1422,24 +1422,24 @@ export function CustomerCredentialsTab({
       )}
 
       <Dialog open={!!deleteConfirmId} onOpenChange={open => { if (!open) setDeleteConfirmId(null); }}>
-        <DialogContent className="max-w-sm rounded-xl p-0 gap-0 border-border bg-card">
-          <div className="px-6 py-5 border-b border-border/60 bg-muted/30">
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-sm rounded-xl p-0 gap-0 border-border bg-card">
+          <div className="px-4 sm:px-6 py-5 border-b border-border/60 bg-muted/30">
             <DialogTitle className="text-base font-bold text-foreground">Delete Customer Record</DialogTitle>
           </div>
-          <div className="px-6 py-4">
+          <div className="px-4 sm:px-6 py-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
               This action permanently removes the customer record, including all associated transactions and communication history.{" "}
               <strong className="text-foreground/90">This cannot be undone.</strong>
             </p>
           </div>
-          <div className="px-6 py-4 border-t border-border/60 flex justify-end gap-2 bg-muted/20">
-            <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={() => setDeleteConfirmId(null)}>
+          <div className="px-4 sm:px-6 py-4 border-t border-border/60 flex justify-end gap-2 bg-muted/20">
+            <Button variant="outline" size="sm" className="h-9 text-xs rounded-md" onClick={() => setDeleteConfirmId(null)}>
               Cancel
             </Button>
             <Button
               variant="destructive"
               size="sm"
-              className="h-8 text-xs rounded-md"
+              className="h-9 text-xs rounded-md"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               disabled={isDeleting}
             >

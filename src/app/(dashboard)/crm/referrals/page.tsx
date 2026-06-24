@@ -161,27 +161,27 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+      <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-5 border-b border-zinc-800">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
               <UserPlus className="h-4 w-4 text-emerald-400" />
             </div>
-            <div>
-              <p className="text-sm font-bold text-white">Create Customer Account</p>
-              <p className="text-[11px] text-zinc-500">{lead.name} · {lead.phone}</p>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">Create Customer Account</p>
+              <p className="text-[11px] text-zinc-500 truncate">{lead.name} · {lead.phone}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {result ? (
             // Success state
             <div className="space-y-5 text-center">
@@ -307,13 +307,13 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+      <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-5 border-b border-zinc-800">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center border",
+              "w-8 h-8 rounded-lg flex items-center justify-center border shrink-0",
               lead.requestType === "voice"
                 ? "bg-emerald-500/10 border-emerald-500/20"
                 : "bg-blue-500/10 border-blue-500/20"
@@ -322,22 +322,22 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
                 ? <Phone className="h-4 w-4 text-emerald-400" />
                 : <Video className="h-4 w-4 text-blue-400" />}
             </div>
-            <div>
-              <p className="text-sm font-bold text-white">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">
                 {lead.requestType === "voice" ? "Voice" : "Video"} Call
               </p>
-              <p className="text-[11px] text-zinc-500">{lead.name} · {lead.phone}</p>
+              <p className="text-[11px] text-zinc-500 truncate">{lead.name} · {lead.phone}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
 
           {/* ── Step 1: Setup ───────────────────────────── */}
           {step === "setup" && (
@@ -428,7 +428,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
                   </p>
                   <button
                     onClick={copyLink}
-                    className="shrink-0 text-zinc-400 hover:text-white transition-colors"
+                    className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
                   >
                     {copied
                       ? <Check className="h-4 w-4 text-emerald-400" />
@@ -745,7 +745,7 @@ export default function ReferralsPage() {
           <div className="flex items-center gap-3 h-14 sm:h-16 px-4 sm:px-6 max-w-6xl mx-auto">
             <button
               onClick={() => router.push("/crm/dashboard")}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -767,7 +767,7 @@ export default function ReferralsPage() {
             <button
               onClick={() => fetchLeads(true)}
               disabled={refreshing}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40"
+              className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40"
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
             </button>
@@ -783,7 +783,7 @@ export default function ReferralsPage() {
                 key={tab.key}
                 onClick={() => setFilter(tab.key)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150",
+                  "inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all duration-150",
                   filter === tab.key
                     ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-transparent"
                     : "bg-white dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200"

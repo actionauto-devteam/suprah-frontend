@@ -118,19 +118,17 @@ const StatCard = ({
 }: {
   label: string; value: string; sub?: string; icon: React.ElementType; accent?: boolean; amber?: boolean
 }) => (
-  <div className={`rounded-xl border px-4 py-3.5 space-y-2 ${
-    accent ? "border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20"
-    : amber ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
-    : "border-border/40 bg-card"
-  }`}>
+  <div className={`rounded-xl border px-4 py-3.5 space-y-2 ${accent ? "border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20"
+      : amber ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
+        : "border-border/40 bg-card"
+    }`}>
     <div className="flex items-center justify-between">
       <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">{label}</p>
       <Icon className={`h-3.5 w-3.5 ${accent ? "text-emerald-600" : amber ? "text-amber-500" : "text-muted-foreground/25"}`} />
     </div>
-    <p className={`text-2xl font-black tracking-tight leading-none ${
-      accent ? "text-emerald-700 dark:text-emerald-300"
-      : amber ? "text-amber-700 dark:text-amber-300" : ""
-    }`}>{value}</p>
+    <p className={`text-2xl font-black tracking-tight leading-none ${accent ? "text-emerald-700 dark:text-emerald-300"
+        : amber ? "text-amber-700 dark:text-amber-300" : ""
+      }`}>{value}</p>
     {sub && <p className="text-[10px] text-muted-foreground/40 leading-none">{sub}</p>}
   </div>
 )
@@ -165,7 +163,7 @@ const MonthCalendar = ({
         <div key={wi} className="grid grid-cols-7 border-b border-border/20 last:border-b-0">
           {cells.slice(wi * 7, wi * 7 + 7).map((dayNum, di) => {
             if (dayNum === null) {
-              return <div key={di} className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-[90px] sm:min-h-[100px]" />
+              return <div key={di} className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-22.5 sm:min-h-25" />
             }
             const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`
             const data = calendar[ds]
@@ -179,7 +177,7 @@ const MonthCalendar = ({
                 key={di}
                 onClick={() => !isFuture && onSelectDay(ds)}
                 className={[
-                  "border-r border-border/20 last:border-r-0 min-h-[90px] sm:min-h-[100px] p-2 flex flex-col gap-1 transition-all duration-100",
+                  "border-r border-border/20 last:border-r-0 min-h-22.5 sm:min-h-25 p-2 flex flex-col gap-1 transition-all duration-100",
                   isFuture ? "opacity-30 cursor-default select-none" : "cursor-pointer hover:bg-muted/20",
                   isToday || hasData ? `border ${colors.bg}` : "",
                 ].filter(Boolean).join(" ")}
@@ -189,7 +187,7 @@ const MonthCalendar = ({
                     isToday
                       ? "h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black"
                       : isFuture ? "text-[12px] font-bold text-muted-foreground/20"
-                      : "text-[12px] font-bold text-muted-foreground/50"
+                        : "text-[12px] font-bold text-muted-foreground/50"
                   }>{dayNum}</span>
                   {isCurrentlyLive && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse mt-0.5" />}
                 </div>
@@ -269,7 +267,7 @@ export default function AdminUserTimeprofPage() {
 
   React.useEffect(() => {
     if (!data?.isLive) return
-    const id = setInterval(() => {}, 60_000)
+    const id = setInterval(() => { }, 60_000)
     return () => clearInterval(id)
   }, [data?.isLive])
 
@@ -372,7 +370,7 @@ export default function AdminUserTimeprofPage() {
   const calcPayoutDate = payoutPeriod === 1
     ? `${calcMonthLong} 21`
     : new Date(Date.UTC(viewYear, viewMonth + 1, 6))
-        .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
+      .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
 
   const payDayDate = React.useMemo(() => {
     if (payoutPeriod === 1) return new Date(Date.UTC(viewYear, viewMonth, 21))
@@ -527,7 +525,7 @@ export default function AdminUserTimeprofPage() {
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.push("/crm/timeproof/users")}
-            className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
+            className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -573,11 +571,10 @@ export default function AdminUserTimeprofPage() {
             <button
               onClick={copyProof}
               disabled={!data}
-              className={`h-8 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${
-                copied
+              className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied
                   ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
                   : "border-border/40 hover:bg-muted/30 text-muted-foreground"
-              } disabled:opacity-40 disabled:cursor-not-allowed`}
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">{copied ? "Copied!" : "Copy Proof"}</span>
@@ -632,13 +629,13 @@ export default function AdminUserTimeprofPage() {
               <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
                 <h2 className="text-base font-black tracking-tight">{monthLabel}</h2>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={prevMonth} className="h-8 w-8 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
+                  <button onClick={prevMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <button onClick={nextMonth} className="h-8 w-8 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
+                  <button onClick={nextMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
                     <ChevronRight className="h-4 w-4" />
                   </button>
-                  <button onClick={goToday} disabled={isCurrentMonth} className="h-8 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
+                  <button onClick={goToday} disabled={isCurrentMonth} className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
                     Today
                   </button>
                 </div>
@@ -700,11 +697,10 @@ export default function AdminUserTimeprofPage() {
                       <button
                         key={p}
                         onClick={() => setPayoutPeriod(p)}
-                        className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${
-                          payoutPeriod === p
+                        className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p
                             ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
                             : "border-border/40 text-muted-foreground hover:bg-muted/30"
-                        }`}
+                          }`}
                       >
                         {label}
                       </button>
@@ -755,17 +751,16 @@ export default function AdminUserTimeprofPage() {
                       <button
                         onClick={togglePhp}
                         disabled={fetchingPhp}
-                        className={`h-6 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${
-                          showPhp
+                        className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp
                             ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
                             : "border-border/30 text-muted-foreground/40 hover:border-border/60"
-                        }`}
+                          }`}
                       >
                         {fetchingPhp ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : showPhp ? "PHP ✓" : "PHP"}
                       </button>
                       {showPhp && phpRate && (
                         <button onClick={fetchPhpRate} disabled={fetchingPhp} title="Refresh rate"
-                          className="h-6 w-6 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                          className="h-9 w-9 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
                           <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
                         </button>
                       )}
@@ -830,7 +825,7 @@ export default function AdminUserTimeprofPage() {
                 </div>
                 <button
                   onClick={copyProof}
-                  className="shrink-0 h-8 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+                  className="shrink-0 h-9 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? "Copied" : "Share"}
