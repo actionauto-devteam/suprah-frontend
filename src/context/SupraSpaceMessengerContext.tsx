@@ -61,6 +61,8 @@ interface MessengerCtxValue {
   totalUnread: number;
   crmUserId: string | null;
   crmToken: string | null;
+  isLoadingConversations: boolean;
+  conversationError: boolean;
   isConnected: boolean;
   openChats: string[];
   minimizedChats: Set<string>;
@@ -108,7 +110,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const crmUserId                         = crmToken ? decodeCrmUserId(crmToken) : null;
   const [conversations, setConversations] = React.useState<SSConv[]>([]);
   const [spaces, setSpaces]               = React.useState<SSSpace[]>([]);
+  const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
+  const [conversationError, setConversationError] = React.useState(false);
   const conversationsRef                  = React.useRef<SSConv[]>([]);
+  const tokenRecoveryAttemptedRef         = React.useRef(false);
   const [socket, setSocket]               = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected]     = React.useState(false);
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
@@ -146,15 +151,30 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   // ── Fetch conversations when CRM token is available ──────────────────────────
   const fetchConversations = React.useCallback(() => {
     if (!crmToken) return;
+    setIsLoadingConversations(true);
+    setConversationError(false);
     apiClient
       .get('/api/supraspace/conversations', {
         headers: { Authorization: `Bearer ${crmToken}` },
         _skipAuthRefresh: true,
       } as any)
       .then((r) => {
-        setConversations(sortByLastMessage(r.data?.data || []));
+        const next = sortByLastMessage(r.data?.data || []);
+        setConversations(next);
+        if (next.length > 0) tokenRecoveryAttemptedRef.current = false;
+        if (next.length === 0 && !tokenRecoveryAttemptedRef.current && typeof window !== 'undefined') {
+          tokenRecoveryAttemptedRef.current = true;
+          window.dispatchEvent(new Event('supraspace:refresh-crm-token'));
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        setConversationError(true);
+        if (!tokenRecoveryAttemptedRef.current && typeof window !== 'undefined') {
+          tokenRecoveryAttemptedRef.current = true;
+          window.dispatchEvent(new Event('supraspace:refresh-crm-token'));
+        }
+      })
+      .finally(() => setIsLoadingConversations(false));
   }, [crmToken]);
 
   // ── Fetch spaces ─────────────────────────────────────────────────────────────
@@ -344,6 +364,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         totalUnread,
         crmUserId,
         crmToken,
+        isLoadingConversations,
+        conversationError,
         isConnected,
         openChats,
         minimizedChats,

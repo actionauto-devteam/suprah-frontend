@@ -60,7 +60,16 @@ function previewText(conv: SSConv): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MessengerDropdown() {
-  const { conversations, totalUnread, crmUserId, crmToken, openChatPopup, refreshConversations } =
+  const {
+    conversations,
+    totalUnread,
+    crmUserId,
+    crmToken,
+    isLoadingConversations,
+    conversationError,
+    openChatPopup,
+    refreshConversations,
+  } =
     useSupraSpaceMessenger();
   const router = useRouter();
 
@@ -88,6 +97,7 @@ export function MessengerDropdown() {
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (!next) resetCreate();
+    if (next) refreshConversations();
   };
 
   const enterCreate = async () => {
@@ -238,8 +248,36 @@ export function MessengerDropdown() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-card/80" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}>
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
-                <p className="text-[12px] text-muted-foreground">No conversations yet</p>
+                {isLoadingConversations ? (
+                  <>
+                    <Loader2 className="size-7 animate-spin text-green-500/70 mb-2" />
+                    <p className="text-[12px] text-muted-foreground">Loading conversations...</p>
+                  </>
+                ) : conversationError ? (
+                  <>
+                    <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
+                    <p className="text-[12px] font-semibold text-foreground/80">Could not load conversations</p>
+                    <button
+                      onClick={() => refreshConversations()}
+                      className="mt-3 rounded-lg px-3 py-1.5 text-[11px] font-semibold"
+                      style={{ background: 'rgba(52,201,125,0.12)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.25)' }}
+                    >
+                      Try again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
+                    <p className="text-[12px] text-muted-foreground">No conversations yet</p>
+                    <button
+                      onClick={() => refreshConversations()}
+                      className="mt-3 rounded-lg px-3 py-1.5 text-[11px] font-semibold"
+                      style={{ background: 'rgba(52,201,125,0.12)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.25)' }}
+                    >
+                      Refresh
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               conversations.map((conv) => {

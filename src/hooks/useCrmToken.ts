@@ -23,6 +23,17 @@ function getJwtType(token: string | null): string | null {
 export function useCrmToken() {
   const { getToken } = useAuth();
   const [crmToken, setCrmToken] = React.useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = React.useState(0);
+
+  React.useEffect(() => {
+    const refresh = () => {
+      if (typeof window !== 'undefined') localStorage.removeItem('crm_token');
+      setCrmToken(null);
+      setRefreshNonce((n) => n + 1);
+    };
+    window.addEventListener('supraspace:refresh-crm-token', refresh);
+    return () => window.removeEventListener('supraspace:refresh-crm-token', refresh);
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -69,7 +80,7 @@ export function useCrmToken() {
     return () => {
       active = false;
     };
-  }, [getToken]);
+  }, [getToken, refreshNonce]);
 
   return crmToken;
 }
