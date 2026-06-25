@@ -14,7 +14,7 @@ import {
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
   MoreHorizontal, Copy, GripVertical, Link2,
-  Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Type,
+  Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Type, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -670,6 +670,37 @@ async function copyImageToClipboard(url: string): Promise<void> {
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': copyBlob })]);
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename || 'download';
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+async function downloadMediaFile(url: string, filename: string): Promise<void> {
+  const resolvedUrl = resolveImageUrl(url) || url;
+  const fetchUrl = resolvedUrl.includes('.r2.cloudflarestorage.com')
+    ? `/api/proxy-image?url=${encodeURIComponent(resolvedUrl)}`
+    : resolvedUrl;
+
+  const res = await fetch(fetchUrl, { cache: 'no-store', credentials: 'include' });
+  if (!res.ok) throw new Error('download failed');
+  const blob = await res.blob();
+  downloadBlob(blob, filename);
+}
+
+const clampLightboxZoom = (value: number) => Math.min(4, Math.max(1, Number(value.toFixed(2))));
+const touchDistance = (touches: React.TouchList | TouchList) => {
+  const [first, second] = [touches[0], touches[1]];
+  if (!first || !second) return 0;
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+};
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
@@ -1282,23 +1313,121 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
 
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image' | 'video'; name: string; onClose: () => void }) {
+  const [downloading, setDownloading] = React.useState(false);
+  const [zoom, setZoom] = React.useState(1);
+  const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
+  React.useEffect(() => {
+    setZoom(1);
+    pinchRef.current = null;
+  }, [src]);
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadMediaFile(src, name);
+      toast.success('Download started');
+    } catch {
+      toast.error('Unable to download this file.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+  const zoomBy = (delta: number) => setZoom(current => clampLightboxZoom(current + delta));
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (type !== 'image') return;
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 0.18 : -0.18);
+  };
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (type !== 'image' || e.touches.length !== 2) return;
+    pinchRef.current = { distance: touchDistance(e.touches), zoom };
+  };
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (type !== 'image' || e.touches.length !== 2 || !pinchRef.current) return;
+    e.preventDefault();
+    const nextDistance = touchDistance(e.touches);
+    if (!nextDistance || !pinchRef.current.distance) return;
+    setZoom(clampLightboxZoom(pinchRef.current.zoom * (nextDistance / pinchRef.current.distance)));
+  };
+  const handleTouchEnd = () => {
+    pinchRef.current = null;
+  };
+
   return (
     <div className="ss4-overlay fixed inset-0 z-200 flex flex-col items-center justify-center p-4" onClick={onClose}>
       <div className="relative flex flex-col items-center gap-3 max-w-4xl w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between w-full px-1">
           <p className="font-medium truncate" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{name}</p>
           <div className="flex items-center gap-2">
-            <a href={src} download={name} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 no-underline" style={{ fontSize: 11 }}><Download className="h-3 w-3" /> Download</a>
+            {type === 'image' && (
+              <div className="hidden sm:flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => zoomBy(-0.25)}
+                  disabled={zoom <= 1}
+                  className="ss4-pill-btn h-7 w-7 flex items-center justify-center disabled:opacity-45"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="h-3 w-3" />
+                </button>
+                <span className="ss4-pill-btn h-7 px-2 flex items-center justify-center tabular-nums" style={{ fontSize: 10, minWidth: 44 }}>
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => zoomBy(0.25)}
+                  disabled={zoom >= 4}
+                  className="ss4-pill-btn h-7 w-7 flex items-center justify-center disabled:opacity-45"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={downloading}
+              className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 disabled:opacity-60"
+              style={{ fontSize: 11 }}
+            >
+              {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              Download
+            </button>
             <button onClick={onClose} className="ss4-icon-btn h-8 w-8" style={{ background: 'rgba(255,255,255,0.1)' }}><X className="h-4 w-4" style={{ color: '#fff' }} /></button>
           </div>
         </div>
         {type === 'image'
-          ? <img src={src} alt={name} className="rounded-xl max-h-[80vh] max-w-full object-contain" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }} />
+          ? (
+            <div
+              className="max-h-[80vh] max-w-full overflow-auto rounded-xl"
+              onWheel={handleWheel}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
+              style={{ touchAction: zoom > 1 ? 'none' : 'pinch-zoom' }}
+            >
+              <img
+                src={src}
+                alt={name}
+                className="rounded-xl max-h-[80vh] max-w-full object-contain transition-transform duration-100 ease-out"
+                style={{
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                  transform: `scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  cursor: zoom > 1 ? 'zoom-out' : 'zoom-in',
+                }}
+                draggable={false}
+              />
+            </div>
+          )
           : <video src={src} controls autoPlay className="rounded-xl max-h-[80vh] max-w-full" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }} />}
       </div>
     </div>
