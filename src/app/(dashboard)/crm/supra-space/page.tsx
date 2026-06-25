@@ -35,10 +35,12 @@ import { CallBanner } from './CallBanner';
 import { IncomingCallModal } from './IncomingCallModal';
 import { CallExperience } from './CallExperience';
 import { EmojiReactionPicker } from '@/components/supraspace/EmojiReactionPicker';
+import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 
 const SS4_MAX_UPLOAD_FILES = 5;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
 const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 40 * 1024 * 1024;
+type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike';
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
 ]);
@@ -242,7 +244,11 @@ function getJwtType(token: string | null): string | null {
 }
 
 function htmlToMarkdown(el: HTMLElement): string {
-  return el.innerHTML
+  const html = el.innerHTML.replace(
+    /<img\b[^>]*(?:alt|aria-label|title)=["']([^"']+)["'][^>]*>/gi,
+    (_match, label) => label,
+  );
+  return html
     .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
     .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
     .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '_$1_')
@@ -256,7 +262,33 @@ function htmlToMarkdown(el: HTMLElement): string {
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_m, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .trim();
+}
+
+function clipboardHtmlToPlainText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+    if (tag === 'img') return el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+
+    const inner = Array.from(el.childNodes).map(walk).join('');
+    if (['div', 'p', 'li', 'section', 'article'].includes(tag)) return `${inner}\n`;
+    return inner;
+  };
+
+  return Array.from(doc.body.childNodes)
+    .map(walk)
+    .join('')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd();
 }
 
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
@@ -372,7 +404,7 @@ function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
 // ─── Date Separator ───────────────────────────────────────────────────────────
 function DateSep({ date }: { date: string }) {
   return (
-    <div className="flex items-center gap-3 my-6 px-5">
+    <div className="flex items-center gap-2.5 sm:gap-3 my-3.5 sm:my-6 px-4 sm:px-5">
       <div className="flex-1 ss4-date-line" />
       <span className="ss4-date-chip">{fmtDate(date)}</span>
       <div className="flex-1 ss4-date-line" />
@@ -740,8 +772,8 @@ function Bubble({
 
   if (message.isDeleted) {
     return (
-      <div className={cn('flex gap-2.5 px-5', isOwn && 'flex-row-reverse')}>
-        <div className="w-8 shrink-0" />
+      <div className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5', isOwn && 'flex-row-reverse')}>
+        <div className="w-7 sm:w-8 shrink-0" />
         <p className="text-xs italic py-1" style={{ color: 'var(--text-disabled)' }}>This message was deleted</p>
       </div>
     );
@@ -751,16 +783,16 @@ function Bubble({
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
 
   return (
-    <div className={cn('flex gap-2.5 px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
+    <div className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
       onMouseEnter={() => { cancelHide(); setHov(true); }} onMouseLeave={scheduleHide}
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}>
       {showAvatar ? (
-        <div className={cn('h-8 w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
+        <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender?.avatar
             ? <img src={resolveImageUrl(message.sender.avatar)} alt="" className="w-full h-full object-cover" />
             : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(message.sender?.fullName || '')}</span>}
         </div>
-      ) : <div className="w-8 shrink-0" />}
+      ) : <div className="w-7 sm:w-8 shrink-0" />}
 
       <div className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
         {showAvatar && !isOwn && (
@@ -805,7 +837,7 @@ function Bubble({
               </div>
             </div>
           ) : (
-            <div className={cn('ss4-msg-bubble px-4 py-2.5 text-sm leading-relaxed', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+            <div className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
               <p className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
@@ -1687,6 +1719,12 @@ export default function SupraSpacePage() {
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
+  const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+  });
   const autrixRef = React.useRef<HTMLDivElement>(null);
 
   const [showInfo, setShowInfo] = React.useState(false);
@@ -2578,6 +2616,25 @@ export default function SupraSpacePage() {
     ta.style.height = `${Math.min(ta.scrollHeight, 144)}px`;
   }, [input]);
 
+  const refreshActiveFormats = React.useCallback(() => {
+    const el = textareaRef.current;
+    const selection = window.getSelection();
+    if (!el || !selection || selection.rangeCount === 0 || !el.contains(selection.anchorNode)) {
+      return;
+    }
+    setActiveFormats({
+      bold: document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+      underline: document.queryCommandState('underline'),
+      strike: document.queryCommandState('strikethrough'),
+    });
+  }, []);
+
+  React.useEffect(() => {
+    document.addEventListener('selectionchange', refreshActiveFormats);
+    return () => document.removeEventListener('selectionchange', refreshActiveFormats);
+  }, [refreshActiveFormats]);
+
   const getCaretOffset = (el: HTMLElement): number => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return 0;
@@ -2586,6 +2643,30 @@ export default function SupraSpacePage() {
     range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
     return range.toString().length;
   };
+
+  const setEditableTextAndCaret = React.useCallback((text: string, caretOffset: number) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.textContent = text;
+    el.focus();
+
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const range = document.createRange();
+    const textNode = el.firstChild;
+    const safeOffset = Math.min(caretOffset, text.length);
+
+    if (textNode?.nodeType === Node.TEXT_NODE) {
+      range.setStart(textNode, safeOffset);
+    } else {
+      range.setStart(el, el.childNodes.length);
+    }
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    refreshActiveFormats();
+  }, [refreshActiveFormats]);
 
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -2608,16 +2689,19 @@ export default function SupraSpacePage() {
     sendTypingStart(activeId);
     if (typingRef.current) clearTimeout(typingRef.current);
     typingRef.current = setTimeout(() => sendTypingStop(activeId!), 2000);
+    refreshActiveFormats();
   };
 
   const insertMention = React.useCallback((name: string) => {
     const before = input.slice(0, mentionAnchor);
     const after = input.slice(mentionAnchor + 1 + (mentionQuery?.length ?? 0));
-    setInput(`${before}@${name} ${after}`);
+    const next = `${before}@${name} ${after}`;
+    const caretOffset = before.length + name.length + 2;
+    setInput(next);
     setMentionQuery(null);
     setMentionAnchor(-1);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  }, [input, mentionAnchor, mentionQuery]);
+    setTimeout(() => setEditableTextAndCaret(next, caretOffset), 0);
+  }, [input, mentionAnchor, mentionQuery, setEditableTextAndCaret]);
 
   const startRecording = async () => {
     try {
@@ -2812,7 +2896,7 @@ export default function SupraSpacePage() {
     } finally { setAutrixLoading(false); }
   };
 
-  const applyFormat = React.useCallback((type: 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'quote' | 'link' | 'code' | 'codeblock') => {
+  const applyFormat = React.useCallback((type: RichTextFormat | 'list' | 'quote' | 'link' | 'code' | 'codeblock') => {
     const el = textareaRef.current;
     if (!el) return;
     el.focus();
@@ -2840,7 +2924,17 @@ export default function SupraSpacePage() {
         break;
     }
     setInput(el.innerText.replace(/\n$/, ''));
-  }, []);
+    requestAnimationFrame(refreshActiveFormats);
+  }, [refreshActiveFormats]);
+
+  const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
+    'h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)',
+    activeFormats[format] && 'ss4-video-btn'
+  ), [activeFormats]);
+
+  const formatIconStyle = React.useCallback((format: RichTextFormat): React.CSSProperties => ({
+    color: activeFormats[format] ? 'var(--accent-text)' : 'var(--text-secondary)',
+  }), [activeFormats]);
 
   const handleDM = async (targetId: string) => {
     setShowModal({ open: false, tab: 'dm' }); setActiveUsersOpen(false);
@@ -3123,6 +3217,7 @@ export default function SupraSpacePage() {
 
   return (
     <>
+      {me?.role && <CrmPushPrompt role={me.role} />}
       {/* Global grabbing cursor while any drag is active */}
       {(dragConvId || dragSpaceId) && (
         <style>{`* { cursor: grabbing !important; }`}</style>
@@ -3380,11 +3475,11 @@ export default function SupraSpacePage() {
               {activeId && activeConv && (
                 <>
                   {/* Chat header */}
-                  <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-3">
+                  <div className="ss4-chat-header shrink-0 flex items-center gap-2 px-2.5 py-2.5 sm:gap-2.5 sm:px-4 sm:py-3">
                     <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); }}><ChevronLeft className="h-4 w-4" /></button>
                     <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
                       <div className="relative shrink-0">
-                        <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
+                        <div className={cn('h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
                           {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
                         </div>
                       </div>
@@ -3419,7 +3514,7 @@ export default function SupraSpacePage() {
                     if (pinnedMsgs.length === 0) return null;
                     const latest = pinnedMsgs[pinnedMsgs.length - 1];
                     return (
-                      <div className="shrink-0 flex items-center gap-2.5 px-4 py-2 transition-colors"
+                      <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 transition-colors sm:gap-2.5 sm:px-4 sm:py-2"
                         style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
                         <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
                         <div className="min-w-0 flex-1 cursor-pointer"
@@ -3436,7 +3531,7 @@ export default function SupraSpacePage() {
                   <div
                     ref={messageScrollRef}
                     onScroll={handleMessageScroll}
-                    className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 ss4-scroll"
+                    className="flex-1 min-h-0 overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
                     style={wallpaper ? { backgroundImage: wallpaper } : undefined}
                   >
                     {hasMore[activeId] && (
@@ -3479,8 +3574,8 @@ export default function SupraSpacePage() {
                           {pinEvents.find(e => e.msgId === msg._id) && (() => {
                             const ev = pinEvents.find(e => e.msgId === msg._id)!;
                             return (
-                              <div className="flex items-center justify-center px-4 py-1.5 my-0.5">
-                                <div className="flex items-center gap-2 px-4 py-1.5 rounded-full" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
+                              <div className="flex items-center justify-center px-3 py-1 my-0.5 sm:px-4 sm:py-1.5">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:px-4" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
                                   <span style={{ fontSize: 14 }}>⭐</span>
                                   <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
                                     <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
@@ -3493,9 +3588,9 @@ export default function SupraSpacePage() {
                       );
                     })}
                     {typers.length > 0 && (
-                      <div className="flex gap-2.5 px-5 py-1">
-                        <div className="w-8" />
-                        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
+                      <div className="flex gap-2 px-4 py-1 sm:gap-2.5 sm:px-5">
+                        <div className="w-7 sm:w-8" />
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-2xl rounded-tl-sm sm:gap-2.5 sm:px-4 sm:py-2.5" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
                           <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing</span>
                           <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
                         </div>
@@ -3505,7 +3600,7 @@ export default function SupraSpacePage() {
                   </div>
 
                   {/* Input */}
-                  <div className="shrink-0 px-3 sm:px-4 pb-24 md:pb-2 pt-2 space-y-1.5">
+                  <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
@@ -3584,17 +3679,17 @@ export default function SupraSpacePage() {
                         )}
                         {showFormatBar && (
                           <div className="flex items-center gap-0.5 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Bold">
-                              <Bold className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
+                              <Bold className="h-3.5 w-3.5" style={formatIconStyle('bold')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Italic">
-                              <Italic className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className={formatButtonClass('italic')} title="Italic" aria-pressed={activeFormats.italic}>
+                              <Italic className="h-3.5 w-3.5" style={formatIconStyle('italic')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Underline">
-                              <Underline className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className={formatButtonClass('underline')} title="Underline" aria-pressed={activeFormats.underline}>
+                              <Underline className="h-3.5 w-3.5" style={formatIconStyle('underline')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Strikethrough">
-                              <Strikethrough className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={formatButtonClass('strike')} title="Strikethrough" aria-pressed={activeFormats.strike}>
+                              <Strikethrough className="h-3.5 w-3.5" style={formatIconStyle('strike')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Bullet list">
@@ -3623,7 +3718,7 @@ export default function SupraSpacePage() {
                             </button>
                           </div>
                         )}
-                        <div className="flex items-end gap-2 px-3.5 pt-3 pb-2">
+                        <div className="flex items-end gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
                           <div className="relative flex-1 min-w-0">
                             {!input && <span className="absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
                             <div
@@ -3631,6 +3726,9 @@ export default function SupraSpacePage() {
                               contentEditable
                               suppressContentEditableWarning
                               onInput={handleTyping}
+                              onFocus={refreshActiveFormats}
+                              onMouseUp={refreshActiveFormats}
+                              onKeyUp={refreshActiveFormats}
                               onKeyDown={e => {
                                 if (mentionQuery !== null && mentionOptions.length > 0) {
                                   if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
@@ -3643,6 +3741,18 @@ export default function SupraSpacePage() {
                               }}
                               onPaste={e => {
                                 const items = e.clipboardData?.items;
+                                const text = e.clipboardData?.getData('text/plain') || '';
+                                const html = e.clipboardData?.getData('text/html') || '';
+                                const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
+                                if (richText) {
+                                  e.preventDefault();
+                                  document.execCommand('insertText', false, richText);
+                                  requestAnimationFrame(() => {
+                                    const el = textareaRef.current;
+                                    if (el) setInput(el.innerText.replace(/\n$/, ''));
+                                  });
+                                  return;
+                                }
                                 const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
                                 if (imgItems.length > 0) {
                                   e.preventDefault();
@@ -3650,8 +3760,6 @@ export default function SupraSpacePage() {
                                   if (files.length > 0) { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); handleUpload(dt.files); }
                                   return;
                                 }
-                                const text = e.clipboardData?.getData('text/plain');
-                                if (text) { e.preventDefault(); document.execCommand('insertText', false, text); }
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                               className="text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
@@ -3659,17 +3767,17 @@ export default function SupraSpacePage() {
                             />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
+                        <div className="flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
-                            <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-8 w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
-                            <button onClick={startRecording} className="ss4-icon-btn h-8 w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
+                            <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
+                            <button onClick={startRecording} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
                             <div ref={gifRef} className="relative">
-                              <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="GIF"><Film className="h-4 w-4" /></button>
+                              <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="GIF"><Film className="h-4 w-4" /></button>
                               {gifOpen && <GifPicker onPick={selectGif} onClose={() => setGifOpen(false)} />}
                             </div>
                             <div ref={emojiRef} className="relative">
-                              <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
+                              <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
                               {emojiOpen && (
                                 <div className="absolute bottom-full left-0 mb-2 z-50">
                                   <EmojiPicker onEmojiClick={(d: EmojiClickData) => { const el = textareaRef.current; if (el) { el.focus(); document.execCommand('insertText', false, d.emoji); setInput(el.innerText.replace(/\n$/, '')); } setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
@@ -3677,7 +3785,7 @@ export default function SupraSpacePage() {
                               )}
                             </div>
                             <div ref={createMenuRef} className="relative">
-                              <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-8 w-8" title="Poll or event"><Plus className="h-4 w-4" /></button>
+                              <button onClick={() => setCreateMenuOpen(v => !v)} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Poll or event"><Plus className="h-4 w-4" /></button>
                               {createMenuOpen && (
                                 <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 160, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
                                   <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><BarChart3 className="h-3.5 w-3.5" /> Create Poll</button>
@@ -3687,7 +3795,7 @@ export default function SupraSpacePage() {
                               )}
                             </div>
                             <div ref={autrixRef} className="relative">
-                              <button onClick={() => setAutrixOpen(v => !v)} className="ss4-ai-btn h-8 px-2.5 flex items-center gap-1.5" title="Suprah Autrix">
+                              <button onClick={() => setAutrixOpen(v => !v)} className="ss4-ai-btn h-7 px-2 flex items-center gap-1.5 sm:h-8 sm:px-2.5" title="Suprah Autrix">
                                 {autrixLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#b49dff' }} /> : <Sparkles className="h-3.5 w-3.5" style={{ color: '#b49dff' }} />}
                                 <span className="ss4-ai-text font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Autrix</span>
                               </button>
@@ -3703,13 +3811,13 @@ export default function SupraSpacePage() {
                             </div>
                             <button
                               onClick={() => setShowFormatBar(v => !v)}
-                              className={cn('ss4-icon-btn h-8 w-8', showFormatBar && 'ss4-video-btn')}
+                              className={cn('ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8', showFormatBar && 'ss4-video-btn')}
                               title="Formatting options"
                             >
                               <Type className="h-4 w-4" />
                             </button>
                           </div>
-                          <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-8 w-8 flex items-center justify-center shrink-0">
+                          <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           </button>
                         </div>
