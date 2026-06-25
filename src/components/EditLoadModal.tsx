@@ -128,30 +128,30 @@ export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalPr
   const fieldClass = "w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
   const dateFieldClass = cn(fieldClass, "dark:scheme-dark")
   const labelClass = "block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
-  const sectionClass = "rounded-xl border border-border/60 bg-muted/20 p-5 space-y-4"
+  const sectionClass = "rounded-xl border border-border/60 bg-muted/20 p-3.5 sm:p-5 space-y-4"
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-card text-card-foreground rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden border border-border">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-card text-card-foreground rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95dvh] sm:max-h-[90dvh] overflow-hidden border border-border">
         {/* Header */}
-        <div className="p-6 pb-4 flex items-start justify-between border-b border-border bg-muted/10">
-          <div>
-            <h2 className="text-xl font-black flex items-center gap-2">
-              <Truck className="size-5 text-primary" />
-              EDIT LOAD <span className="text-primary font-mono ml-2">#{load.loadNumber}</span>
+        <div className="p-4 sm:p-6 pb-3 sm:pb-4 flex items-start justify-between gap-3 border-b border-border bg-muted/10">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-xl font-black flex items-center gap-2 flex-wrap">
+              <Truck className="size-4 sm:size-5 text-primary shrink-0" />
+              EDIT LOAD <span className="text-primary font-mono break-all">#{load.loadNumber}</span>
             </h2>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 font-medium">
               Manage status, timeline, routing, and financials
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors shrink-0">
             <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
-          <div className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95dvh-132px)] sm:max-h-[calc(90dvh-140px)] custom-scrollbar">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Status & ID */}
             <div className={sectionClass}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -297,9 +297,9 @@ export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalPr
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 flex items-center justify-end gap-3 border-t border-border bg-muted/10">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-            <Button type="submit" disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold min-w-[120px]">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-end gap-2 sm:gap-3 border-t border-border bg-muted/10">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving} className="w-full sm:w-auto">Cancel</Button>
+            <Button type="submit" disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold w-full sm:w-auto sm:min-w-30">
               {isSaving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>

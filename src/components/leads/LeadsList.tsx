@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Search, Inbox } from "lucide-react";
+import { Search, Inbox, Check } from "lucide-react";
 import { ChannelBadge } from "./atomic/ChannelBadge";
 import { StatusPill } from "./atomic/StatusPill";
 import { Pagination } from "./atomic/Pagination";
@@ -21,6 +21,9 @@ interface LeadsListProps {
   itemsPerPage: number;
   sourceEmail: string;
   markAsRead: (id: string) => void;
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (lead: any) => void;
 }
 
 const AVA_COLORS = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal', 'ss4-ava-amber', 'ss4-ava-rose'];
@@ -47,12 +50,15 @@ export const LeadsList = React.memo(
     itemsPerPage,
     sourceEmail,
     markAsRead,
+    selectMode = false,
+    selectedIds,
+    onToggleSelect,
   }: LeadsListProps) => {
     const listRef = React.useRef<HTMLDivElement>(null);
 
     return (
       <div
-        className={`ss4-sidebar flex flex-col w-full lg:w-75 xl:w-80 shrink-0 z-10 ${
+        className={`ss4-sidebar flex flex-col w-full h-full min-h-0 lg:w-75 xl:w-80 shrink-0 z-10 ${
           selectedLeadId ? 'hidden lg:flex' : 'flex'
         }`}
       >
@@ -107,25 +113,42 @@ export const LeadsList = React.memo(
               const sel = selectedLeadId === lead._id;
               const isHighlighted = highlightedLeadIds.has(lead._id);
               const avaColor = getAvaColor(lead.firstName || '');
+              const isChecked = !!selectedIds?.has(lead._id);
 
               return (
                 <button
                   key={lead._id}
                   id={`lead-${lead._id}`}
                   onClick={() => {
+                    if (selectMode) {
+                      onToggleSelect?.(lead);
+                      return;
+                    }
                     onLeadSelect(lead);
                     if (!lead.isRead) markAsRead(lead._id);
                   }}
                   className={`ss4-conv relative w-full flex items-start gap-3 px-3 py-2.5 text-left group ${
                     sel ? 'ss4-conv-active' : isHighlighted ? 'ss4-conv-active animate-pulse' : ''
-                  }`}
+                  } ${isChecked ? 'ss4-conv-active' : ''}`}
                 >
-                  {/* Avatar */}
+                  {/* Avatar / checkbox */}
                   <div className="relative shrink-0 mt-0.5">
-                    <div className={`h-9 w-9 rounded-full ${avaColor} flex items-center justify-center text-white font-bold`} style={{ fontSize: 12 }}>
-                      {ini(lead.firstName, lead.lastName)}
-                    </div>
-                    {!lead.isRead && (
+                    {selectMode ? (
+                      <div
+                        className="h-9 w-9 rounded-full flex items-center justify-center border-2 transition-colors"
+                        style={{
+                          borderColor: isChecked ? 'var(--accent)' : 'var(--border-1)',
+                          background: isChecked ? 'var(--accent)' : 'transparent',
+                        }}
+                      >
+                        {isChecked && <Check className="h-4 w-4 text-white" />}
+                      </div>
+                    ) : (
+                      <div className={`h-9 w-9 rounded-full ${avaColor} flex items-center justify-center text-white font-bold`} style={{ fontSize: 12 }}>
+                        {ini(lead.firstName, lead.lastName)}
+                      </div>
+                    )}
+                    {!selectMode && !lead.isRead && (
                       <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} />
                     )}
                   </div>

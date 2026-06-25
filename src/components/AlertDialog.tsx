@@ -32,37 +32,37 @@ interface AlertDialogProps {
 const alertConfig = {
   success: {
     icon: CheckCircle,
-    iconColor: "text-green-600",
-    bgColor: "bg-green-50",
-    borderColor: "border-green-200",
+    iconColor: "text-green-600 dark:text-green-400",
+    bgColor: "bg-green-50 dark:bg-green-950",
+    borderColor: "border-green-200 dark:border-green-800",
     buttonColor: "bg-green-600 hover:bg-green-700",
   },
   error: {
     icon: XCircle,
-    iconColor: "text-red-600",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
+    iconColor: "text-red-600 dark:text-red-400",
+    bgColor: "bg-red-50 dark:bg-red-950",
+    borderColor: "border-red-200 dark:border-red-800",
     buttonColor: "bg-red-600 hover:bg-red-700",
   },
   warning: {
     icon: AlertTriangle,
-    iconColor: "text-yellow-600",
-    bgColor: "bg-yellow-50",
-    borderColor: "border-yellow-200",
+    iconColor: "text-yellow-600 dark:text-yellow-400",
+    bgColor: "bg-yellow-50 dark:bg-yellow-950",
+    borderColor: "border-yellow-200 dark:border-yellow-800",
     buttonColor: "bg-yellow-600 hover:bg-yellow-700",
   },
   info: {
     icon: Info,
-    iconColor: "text-blue-600",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    bgColor: "bg-blue-50 dark:bg-blue-950",
+    borderColor: "border-blue-200 dark:border-blue-800",
     buttonColor: "bg-blue-600 hover:bg-blue-700",
   },
   confirm: {
     icon: AlertTriangle,
-    iconColor: "text-orange-600",
-    bgColor: "bg-orange-50",
-    borderColor: "border-orange-200",
+    iconColor: "text-orange-600 dark:text-orange-400",
+    bgColor: "bg-orange-50 dark:bg-orange-950",
+    borderColor: "border-orange-200 dark:border-orange-800",
     buttonColor: "bg-primary hover:bg-primary/90",
   },
 };
@@ -118,7 +118,7 @@ export function AlertDialog({
         <DialogHeader className="space-y-5 text-left">
           <div className="flex items-start gap-4">
             <div
-              className={`flex-shrink-0 rounded-2xl p-3 ${config.bgColor} border ${config.borderColor}`}
+              className={`shrink-0 rounded-2xl p-3 ${config.bgColor} border ${config.borderColor}`}
             >
               <Icon className={`w-6 h-6 ${config.iconColor}`} />
             </div>
@@ -139,7 +139,7 @@ export function AlertDialog({
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
                     File name
                   </p>
-                  <p className="mt-1 break-words text-sm font-semibold leading-5 text-foreground">
+                  <p className="mt-1 wrap-break-word text-sm font-semibold leading-5 text-foreground">
                     {detail}
                   </p>
                 </div>

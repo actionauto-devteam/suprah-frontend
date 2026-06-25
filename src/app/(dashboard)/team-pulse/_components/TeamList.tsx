@@ -440,7 +440,7 @@ export function TeamList({
         )}
 
         {/* Results count + clear */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto justify-between sm:justify-start basis-full sm:basis-auto mt-1.5 sm:mt-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-border/20">
           {hasFilters && (
             <button
               onClick={clearFilters}
@@ -508,10 +508,7 @@ export function TeamList({
           )}
         </div>
       ) : viewMode === "grid" ? (
-        <div
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 overflow-y-auto no-scrollbar pb-4"
-          style={{ maxHeight: 560 }}
-        >
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-4 sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
           {filtered.map((m) => (
             <MemberCard
               key={m._id}
@@ -525,10 +522,7 @@ export function TeamList({
           ))}
         </div>
       ) : (
-        <div
-          className="space-y-1.5 overflow-y-auto no-scrollbar pb-4 overscroll-contain"
-          style={{ maxHeight: 560 }}
-        >
+        <div className="space-y-1.5 pb-4 overscroll-contain sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
           {filtered.map((m) => (
             <MemberCard
               key={m._id}

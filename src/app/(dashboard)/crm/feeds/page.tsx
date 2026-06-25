@@ -609,7 +609,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
             <span className="text-[10px] text-muted-foreground/50 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
             {canDelete && (
-              <button onClick={() => setShowDeleteModal(true)} className="text-[10px] text-muted-foreground/30 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 font-medium">
+              <button onClick={() => setShowDeleteModal(true)} className="text-[10px] text-muted-foreground/40 hover:text-rose-500 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 font-medium">
                 Delete
               </button>
             )}
@@ -905,7 +905,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
             {(canEdit || canDelete) && !isEditing && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>

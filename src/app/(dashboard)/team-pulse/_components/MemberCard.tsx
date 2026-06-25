@@ -112,8 +112,8 @@ function PingPopover({
           disabled={!canPing}
           title={cooldownLabel ? `Cooldown: ${cooldownLabel}` : `Ping ${member.name.split(" ")[0]}`}
           className={cn(
-            "flex items-center gap-1 rounded-lg border transition-all shrink-0",
-            compact ? "p-1.5" : "px-2 py-1.5",
+            "flex items-center justify-center gap-1 rounded-lg border transition-all shrink-0",
+            compact ? "size-8" : "h-9 px-2.5",
             canPing
               ? "border-amber-300/50 text-amber-600 hover:bg-amber-50 hover:border-amber-400 dark:border-amber-700/40 dark:text-amber-400 dark:hover:bg-amber-950/30"
               : "border-border/20 text-muted-foreground/25 cursor-not-allowed",
@@ -253,7 +253,7 @@ export function MemberCard({
               onClick={handleMessage}
               disabled={dmLoading}
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition-all",
+                "flex items-center justify-center gap-1 h-8 px-2.5 rounded-lg text-[10px] font-bold border transition-all",
                 "bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground hover:border-primary",
               )}
               title="Message"
@@ -337,7 +337,7 @@ export function MemberCard({
               onClick={handleMessage}
               disabled={dmLoading}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 border transition-all",
+                "flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold shrink-0 border transition-all",
                 "bg-primary/8 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground hover:border-primary",
                 dmLoading && "opacity-60 cursor-wait",
               )}

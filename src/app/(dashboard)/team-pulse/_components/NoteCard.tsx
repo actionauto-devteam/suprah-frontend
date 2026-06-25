@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { CheckCheck, Pencil, Pin, PinOff, Timer, Trash2, Users, X, ZoomIn } from "lucide-react";
+import { CheckCheck, GripVertical, Pencil, Pin, PinOff, Timer, Trash2, X, ZoomIn } from "lucide-react";
+import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -23,8 +24,7 @@ import {
   useBoardNoteReactions,
   useToggleBoardNoteReaction,
 } from "@/hooks/useTeamPulse";
-import { N, SKEWS, ANNOUNCE_CONFIG } from "./team-pulse-constants";
-import { PushPin } from "./StatusDot";
+import { N, ANNOUNCE_CONFIG } from "./team-pulse-constants";
 import { toast } from "sonner";
 
 const EMOJI_REACTIONS = [
@@ -59,7 +59,7 @@ function ReactionBar({
   if (total === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1 px-3.5 pb-1.5 pt-1">
+    <div className="flex flex-wrap items-center gap-1.5 px-4 pb-2 pt-1">
       {counts.map((r) =>
         r.count > 0 ? (
           <Tooltip key={r.key}>
@@ -67,7 +67,7 @@ function ReactionBar({
               <button
                 onClick={() => toggleReaction.mutate({ noteId, reaction: r.key })}
                 className={cn(
-                  "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold transition-all border",
+                  "flex items-center gap-1 min-h-7 px-2 py-1 rounded-full text-[11px] font-bold transition-all border",
                   r.mine
                     ? "bg-primary/10 border-primary/30 text-primary"
                     : "bg-black/5 dark:bg-white/8 border-transparent hover:border-border/50 text-foreground/60",
@@ -97,7 +97,7 @@ function ReactionPicker({ noteId, onClose }: { noteId: string; onClose: () => vo
 
   return (
     <div
-      className="absolute bottom-full left-0 mb-1.5 z-40 flex items-center gap-1 px-2 py-1.5 rounded-xl bg-background/95 border border-border/60 shadow-xl backdrop-blur-sm"
+      className="absolute bottom-full left-0 mb-1.5 z-40 flex items-center gap-0.5 px-1.5 py-1 rounded-xl bg-background/95 border border-border/60 shadow-xl backdrop-blur-sm"
       onMouseLeave={onClose}
     >
       {EMOJI_REACTIONS.map((r) => (
@@ -108,7 +108,7 @@ function ReactionPicker({ noteId, onClose }: { noteId: string; onClose: () => vo
             toggleReaction.mutate({ noteId, reaction: r.key });
             onClose();
           }}
-          className="text-xl hover:scale-125 transition-transform leading-none"
+          className="size-9 flex items-center justify-center text-xl hover:scale-125 active:scale-110 transition-transform leading-none rounded-lg"
         >
           {r.label}
         </button>
@@ -140,22 +140,22 @@ function ImageLightbox({ url, name, onClose }: { url: string; name: string; onCl
 
 export function NoteCard({
   note,
-  index,
   isMe,
   isAdmin,
   myUserId,
   onDelete,
   onPin,
   onEdit,
+  dragHandleProps,
 }: {
   note: BoardNote;
-  index: number;
   isMe: boolean;
   isAdmin: boolean;
   myUserId?: string;
   onDelete: () => void;
   onPin: () => void;
   onEdit: () => void;
+  dragHandleProps?: { attributes?: DraggableAttributes; listeners?: DraggableSyntheticListeners };
 }) {
   const [showReactionPicker, setShowReactionPicker] = React.useState(false);
   const [lightboxUrl, setLightboxUrl] = React.useState<{ url: string; name: string } | null>(null);
@@ -177,6 +177,7 @@ export function NoteCard({
     a.mimeType?.startsWith("image/"),
   ) ?? [];
   const displayDate = note.postedAt || note.createdAt;
+  const canManage = isMe || isAdmin;
 
   async function handleAck() {
     try {
@@ -196,42 +197,26 @@ export function NoteCard({
           onClose={() => setLightboxUrl(null)}
         />
       )}
-      <div
-        className={cn(
-          "relative group transition-all duration-200",
-          SKEWS[index % SKEWS.length],
-          "hover:rotate-0! hover:scale-[1.04] hover:z-30",
-        )}
-        style={{ paddingTop: 22 }}
-      >
-        <PushPin color={style.pin} />
-
-        {note.pinned && (
-          <div className="absolute bottom-1 left-3 right-3 h-3 bg-black/20 dark:bg-black/40 blur-md rounded-full -z-10" />
-        )}
+      <div className="relative group pt-3">
+        <div
+          className={cn(
+            "absolute -top-0 left-4 z-20 flex items-center gap-1 h-5 px-2 rounded-b-md text-[8px] font-black uppercase tracking-widest border-x border-b shadow-sm",
+            style.pin,
+            "border-black/10 text-black/55 dark:text-black/60",
+          )}
+        >
+          <Pin className="size-2.5" />
+        </div>
 
         <div
           className={cn(
-            "rounded-xl overflow-hidden flex flex-col relative",
+            "rounded-xl overflow-hidden flex flex-col relative border shadow-sm",
+            "transition-shadow duration-150 sm:group-hover:shadow-md",
+            note.pinned && "ring-2 ring-offset-1 ring-offset-background ring-amber-400/60 dark:ring-amber-500/50",
             style.bg,
             isNonGeneral ? announceConfig.border : "",
           )}
-          style={{
-            boxShadow:
-              "0 2px 4px rgba(0,0,0,0.10), 0 8px 20px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.06)",
-          }}
         >
-          {/* Emoji PIN — top-right corner decoration */}
-          {note.emoji && (
-            <span
-              className="absolute top-2 right-2 text-2xl leading-none select-none z-20 pointer-events-none"
-              style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.25))" }}
-              aria-hidden
-            >
-              {note.emoji}
-            </span>
-          )}
-
           {isNonGeneral && (
             <div
               className={cn(
@@ -244,49 +229,64 @@ export function NoteCard({
             </div>
           )}
 
-          {note.pinned && (
-            <div className="flex items-center gap-1 px-3.5 pt-2 pb-0">
-              <Pin className="size-2.5 text-foreground/30" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-foreground/30">
-                Pinned
-              </span>
-            </div>
-          )}
-
           <div
             className={cn(
               "flex items-start gap-2 px-3.5 pt-3 pb-2",
               style.top,
-              (isNonGeneral || note.pinned) && "pt-2",
             )}
           >
+            {note.emoji && (
+              <span
+                className="text-xl leading-none select-none shrink-0 -mt-0.5"
+                aria-hidden
+              >
+                {note.emoji}
+              </span>
+            )}
+
             <div className="flex-1 min-w-0">
-              {note.title && (
-                <p className={cn("text-sm font-black tracking-tight leading-snug wrap-break-word", note.emoji ? "pr-8" : "")}>
+              {note.pinned && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-foreground/35 mb-0.5">
+                  <Pin className="size-2.5" />
+                  Pinned
+                </span>
+              )}
+              {note.title ? (
+                <p className="text-sm font-black tracking-tight leading-snug wrap-break-word">
                   {note.title}
                 </p>
-              )}
-              {!note.title && (
-                <p className={cn("text-[10px] italic text-foreground/25 uppercase tracking-widest font-semibold", note.emoji ? "pr-8" : "")}>
+              ) : (
+                <p className="text-[10px] italic text-foreground/25 uppercase tracking-widest font-semibold">
                   Note
                 </p>
               )}
             </div>
+
             <div
               className={cn(
-                "flex items-center gap-0.5 shrink-0 -mt-0.5 -mr-0.5 transition-opacity",
-                note.emoji ? "-mr-7" : "",
-                isMe || isAdmin
+                "flex items-center gap-0.5 shrink-0 -mt-1 -mr-1 transition-opacity",
+                canManage
                   ? "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   : "opacity-0 group-hover:opacity-100",
               )}
             >
+              {dragHandleProps && (
+                <button
+                  type="button"
+                  {...dragHandleProps.attributes}
+                  {...dragHandleProps.listeners}
+                  className="size-7 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-foreground/40 cursor-grab active:cursor-grabbing touch-none"
+                  aria-label="Drag to reorder"
+                >
+                  <GripVertical className="size-3.5" />
+                </button>
+              )}
               {isAdmin && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       onClick={onPin}
-                      className="p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-foreground/50"
+                      className="size-7 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-foreground/50"
                     >
                       {note.pinned ? (
                         <PinOff className="size-3.5" />
@@ -303,15 +303,15 @@ export function NoteCard({
               {isMe && (
                 <button
                   onClick={onEdit}
-                  className="p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-foreground/50"
+                  className="size-7 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-foreground/50"
                 >
                   <Pencil className="size-3.5" />
                 </button>
               )}
-              {(isMe || isAdmin) && (
+              {canManage && (
                 <button
                   onClick={onDelete}
-                  className="p-1 rounded-lg hover:bg-red-500/15 transition-colors text-foreground/50 hover:text-red-600"
+                  className="size-7 flex items-center justify-center rounded-lg hover:bg-red-500/15 transition-colors text-foreground/50 hover:text-red-600"
                 >
                   <Trash2 className="size-3.5" />
                 </button>
@@ -383,9 +383,9 @@ export function NoteCard({
           <div className="px-3.5 pb-3 pt-0 flex items-center justify-between gap-2">
             <div className="relative">
               <button
+                onClick={() => setShowReactionPicker((v) => !v)}
                 onMouseEnter={() => setShowReactionPicker(true)}
-                onFocus={() => setShowReactionPicker(true)}
-                className="text-[11px] text-foreground/40 hover:text-foreground/70 transition-colors px-1 py-0.5 rounded"
+                className="min-h-7 text-[11px] font-semibold text-foreground/40 hover:text-foreground/70 transition-colors px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
               >
                 + React
               </button>
@@ -402,7 +402,7 @@ export function NoteCard({
                 onClick={handleAck}
                 disabled={!!hasAcked || ackNote.isPending}
                 className={cn(
-                  "flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all",
+                  "flex items-center gap-1 min-h-7 text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all",
                   hasAcked
                     ? "bg-emerald-100 text-emerald-700 border-emerald-300/50 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-700/40 cursor-default"
                     : "bg-black/5 dark:bg-white/8 border-border/40 text-foreground/50 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400",
@@ -419,7 +419,7 @@ export function NoteCard({
               {isOwner ? (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="flex items-center gap-1 hover:opacity-80 transition-opacity">
+                    <button className="flex items-center gap-1 min-h-6 py-0.5 hover:opacity-80 transition-opacity">
                       <CheckCheck className="size-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold underline underline-offset-2">
                         {(note.ackedByDetails ?? []).length} read
@@ -453,16 +453,6 @@ export function NoteCard({
               )}
             </div>
           )}
-
-          <div
-            className="absolute bottom-0 right-0 pointer-events-none"
-            style={{
-              width: 0,
-              height: 0,
-              borderLeft: "18px solid transparent",
-              borderBottom: "18px solid rgba(0,0,0,0.09)",
-            }}
-          />
         </div>
       </div>
     </>

@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   Headset,
   Gift,
+  Star,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1064,6 +1065,11 @@ export default function CrmDashboardPage() {
       icon: <Headset className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
       label: "Support Center",
       route: "/crm/support-center",
+    },
+    {
+      icon: <Star className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />,
+      label: "Reviews",
+      route: "/crm/reviews",
     },
     {
       icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />,

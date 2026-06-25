@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Phone, Mail, Clock3, Car, X, Calendar, ArrowLeft } from "lucide-react";
+import { Phone, Mail, Clock3, Car, X, Calendar, ArrowLeft, Users } from "lucide-react";
 import { ChannelBadge } from "./atomic/ChannelBadge";
 import { StatusPill } from "./atomic/StatusPill";
 import { ParsedContent } from "./ParsedContent";
@@ -13,6 +13,8 @@ interface ConversationViewProps {
   threads: any[];
   onClose: () => void;
   sourceEmail: string;
+  siblingCount?: number;
+  onReplyToSiblings?: () => void;
 }
 
 const AVA_CLASSES = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal', 'ss4-ava-amber', 'ss4-ava-rose'];
@@ -102,7 +104,7 @@ function Bubble({ content, isOwn, senderName, showAvatar, time }: {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export const ConversationView = React.memo(
-  ({ lead, threads, onClose, sourceEmail }: ConversationViewProps) => {
+  ({ lead, threads, onClose, sourceEmail, siblingCount = 0, onReplyToSiblings }: ConversationViewProps) => {
     const msgRef = React.useRef<HTMLDivElement>(null);
     const isNearBottomRef = React.useRef(true);
 
@@ -130,6 +132,8 @@ export const ConversationView = React.memo(
 
     const vehicle = lead.vehicle;
     const avaClass = getAvaClass(lead.firstName || '');
+    const [showHistory, setShowHistory] = React.useState(false);
+    const statusHistory: any[] = lead.statusHistory || [];
 
     return (
       <div className="flex-1 flex flex-col min-w-0 min-h-0" style={{ background: 'var(--bg-base)' }}>
@@ -155,6 +159,15 @@ export const ConversationView = React.memo(
               </h2>
               <ChannelBadge channel={lead.channel} />
               <StatusPill status={lead.status} />
+              {statusHistory.length > 0 && (
+                <button
+                  onClick={() => setShowHistory(v => !v)}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full"
+                  style={{ fontSize: 10, color: 'var(--text-tertiary)', border: '1px solid var(--border-1)' }}
+                >
+                  History ({statusHistory.length})
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
               {lead.email && (
@@ -203,6 +216,18 @@ export const ConversationView = React.memo(
               via {sourceEmail}
             </span>
           </div>
+          {siblingCount > 0 && onReplyToSiblings && (
+            <button
+              onClick={onReplyToSiblings}
+              className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded-lg w-full sm:w-fit text-left"
+              style={{ fontSize: 11, background: 'var(--accent-muted)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent-text)' }}
+            >
+              <Users className="h-3 w-3 shrink-0" />
+              <span className="font-medium">
+                {siblingCount} other {siblingCount === 1 ? 'inquiry' : 'inquiries'} for this vehicle — Reply to all
+              </span>
+            </button>
+          )}
           {lead.appointment && (
             <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded-lg w-fit" style={{ fontSize: 10, background: 'var(--accent-muted)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent-text)' }}>
               <Calendar className="h-2.5 w-2.5 shrink-0" />
@@ -213,6 +238,28 @@ export const ConversationView = React.memo(
             </div>
           )}
         </div>
+
+        {/* ── Status history timeline ── */}
+        {showHistory && statusHistory.length > 0 && (
+          <div className="px-3 sm:px-4 py-2.5 shrink-0 space-y-1.5" style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-subtle)' }}>
+            {statusHistory.slice().reverse().map((h, idx) => (
+              <div key={idx} className="flex items-start gap-2" style={{ fontSize: 11 }}>
+                <Clock3 className="h-3 w-3 shrink-0 mt-0.5" style={{ color: 'var(--text-disabled)' }} />
+                <div className="min-w-0">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    <strong>{h.from || '—'}</strong> → <strong>{h.to}</strong>
+                  </span>
+                  <span className="ml-1.5" style={{ color: 'var(--text-disabled)' }}>
+                    {h.changedAt ? fmtFull(new Date(h.changedAt)) : ''}
+                  </span>
+                  {h.reason && (
+                    <p className="mt-0.5" style={{ color: 'var(--text-tertiary)' }}>&ldquo;{h.reason}&rdquo;</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Message stream ── */}
         <div

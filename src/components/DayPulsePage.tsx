@@ -138,12 +138,12 @@ interface ReactionSummary { [key: string]: { count: number; users: string[] } }
 interface ReactionState { summary: ReactionSummary; myReaction: ReactionType | null }
 
 const REACTIONS = [
-  { type: "like" as ReactionType, emoji: "Ã°Å¸â€˜Â", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love" as ReactionType, emoji: "Ã¢ÂÂ¤Ã¯Â¸Â", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
-  { type: "haha" as ReactionType, emoji: "Ã°Å¸Ëœâ€š", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
-  { type: "wow" as ReactionType, emoji: "Ã°Å¸ËœÂ®", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
-  { type: "sad" as ReactionType, emoji: "Ã°Å¸ËœÂ¢", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
-  { type: "angry" as ReactionType, emoji: "Ã°Å¸ËœÂ¡", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
+  { type: "like" as ReactionType, emoji: "👍", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
+  { type: "love" as ReactionType, emoji: "❤️", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
+  { type: "haha" as ReactionType, emoji: "😂", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
+  { type: "wow" as ReactionType, emoji: "😮", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
+  { type: "sad" as ReactionType, emoji: "😢", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
+  { type: "angry" as ReactionType, emoji: "😡", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
 
@@ -351,7 +351,7 @@ function AttachmentPreviewModal({
   const imageLike = isImageAttachment(attachment)
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-2xl rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-border/40 px-5 py-4">
@@ -427,7 +427,7 @@ function ReactionDetailsModal({ summary, onClose }: {
   const total = allEntries.length
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
@@ -546,7 +546,7 @@ function ReactionBar({
               ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/40 text-muted-foreground/50 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
               ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "Ã°Å¸â€˜Â"}</span>}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : REACTIONS[0].emoji}</span>}
             {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
           </button>
           {showPicker && (
@@ -598,7 +598,7 @@ function DeleteModal({ label = "report", onConfirm, onCancel, loading }: {
   label?: string; onConfirm: () => void; onCancel: () => void; loading: boolean
 }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 p-6 space-y-5">
         <div className="flex items-start gap-3">
@@ -665,7 +665,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
           <div className="flex items-center gap-2 mt-1 pl-1 flex-wrap">
             <span className="text-[10px] text-muted-foreground/50 cursor-default" title={fullDate(comment.createdAt)}>{timeAgo(comment.createdAt)}</span>
             {canDelete && (
-              <button onClick={() => setShowDelete(true)} className="text-[10px] text-muted-foreground/30 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 font-medium">
+              <button onClick={() => setShowDelete(true)} className="text-[10px] text-muted-foreground/40 hover:text-rose-500 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 font-medium">
                 Delete
               </button>
             )}
@@ -900,7 +900,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           {(canEdit || canDelete) && !isEditing && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 hover:bg-muted/60">
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1195,7 +1195,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
       const res = await apiClient.post("/api/crm/daypulse", payload)
       const report: DayPulseReport = res.data?.data?.report
       onPosted(report)
-// DayPulse -> SupraSpace report channel
+      // DayPulse -> SupraSpace report channel
       postDayPulseToGroupChat(report)
       setAcc(""); setBlk(""); setInp("")
       setPendingAttachments({ accomplishment: [], blockers: [], inProgress: [] })

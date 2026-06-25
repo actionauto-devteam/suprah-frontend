@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, RefreshCw } from "lucide-react";
+import { Car, Package, RefreshCw } from "lucide-react";
 import { CarInventoryCard } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
@@ -9,22 +9,16 @@ import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
-import { InventoryFilters } from "@/components/inventory-filters";
+import { ShopInventoryFilters } from "@/components/shop-inventory-filters";
 import { InventoryPagination } from "@/components/inventory-pagination";
 import { useAuth } from "@/providers/AuthProvider";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
 import { useOrg } from "@/hooks/useOrg";
-import { LayoutGrid, Table as TableIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type SortOption =
   | "price-asc"
@@ -76,15 +70,15 @@ function InventoryContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { getToken } = useAuth();
+  const { isCustomer } = useOrg();
 
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [isPremiumView, setIsPremiumView] = React.useState(true);
   const [shippingRates, setShippingRates] = React.useState<
     Record<string, number>
   >({});
-  const [isSortSheetOpen, setIsSortSheetOpen] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
 
   const {
     selectedVehicle,
@@ -100,7 +94,6 @@ function InventoryContent() {
     handleVideo,
     handleGetQuote,
   } = useInventoryActions();
-  const { isCustomer } = useOrg();
 
   // Pagination State
   const [page, setPage] = React.useState(Number(searchParams.get("page")) || 1);
@@ -240,15 +233,8 @@ function InventoryContent() {
     }
   };
 
-  // Auto-modal logic removed as we now use dedicated vehicle pages
-
   const handleFilterChange = (key: string, value: any) => {
     setFilters((prev: any) => ({ ...prev, [key]: value }));
-    setPage(1);
-  };
-
-  const handleBulkFilterChange = (newFilters: any) => {
-    setFilters((prev: any) => ({ ...prev, ...newFilters }));
     setPage(1);
   };
 
@@ -273,11 +259,11 @@ function InventoryContent() {
     setPage(1);
   };
 
-  const handleSortChange = (value: SortOption) => {
+  const handleSortChange = (value: string) => {
     let sortBy = "createdAt";
     let sortOrder = "desc";
 
-    switch (value) {
+    switch (value as SortOption) {
       case "price-asc":
         sortBy = "price";
         sortOrder = "asc";
@@ -411,13 +397,6 @@ function InventoryContent() {
     return "make-asc";
   }, [filters.sortBy, filters.sortOrder]);
 
-  const currentSortLabel = React.useMemo(() => {
-    return (
-      INVENTORY_SORT_OPTIONS.find((option) => option.value === currentSortValue)
-        ?.label ?? "Make (A-Z)"
-    );
-  }, [currentSortValue]);
-
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {
     try {
       const token = await getToken();
@@ -463,16 +442,16 @@ function InventoryContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 sm:p-8">
         <div className="text-center max-w-md">
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-destructive mb-2">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-6">
+            <h2 className="text-lg sm:text-xl font-semibold text-destructive mb-2">
               Error Loading Inventory
             </h2>
-            <p className="text-destructive/80 mb-4">{error}</p>
+            <p className="text-sm text-destructive/80 mb-4">{error}</p>
             <button
               onClick={fetchVehicles}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-xl hover:bg-destructive/90 transition-colors"
             >
               <RefreshCw className="h-4 w-4" /> Retry Loading
             </button>
@@ -483,118 +462,123 @@ function InventoryContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="border-b bg-card sticky top-0 z-10 shadow-sm">
-        <div className="max-w-8xl mx-auto px-4 py-4 space-y-4">
-          <InventoryFilters
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onBulkFilterChange={handleBulkFilterChange}
-            onClearFilters={handleClearFilters}
-          />
+    <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col gap-4 sm:gap-5 px-3 sm:px-4 py-4 sm:py-6">
+      {/* ─── Header ──────────────────────────────────────────────── */}
+      <div className="shrink-0">
+        <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-primary/0" />
+          <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-primary/6 blur-3xl pointer-events-none" />
 
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <p className="text-sm font-medium text-muted-foreground">
-                <span className="font-bold text-foreground">{total}</span>{" "}
-                Vehicles Found
-              </p>
+          <div className="relative px-4 sm:px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
+                    Dealership
+                  </span>
+                </div>
+
+                <div>
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-none text-foreground uppercase">
+                    All <span className="text-primary">Inventory</span>
+                  </h1>
+                  <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                    Manage and review every vehicle on the lot
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
+                    {isLoading ? (
+                      <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
+                    ) : total}
+                    {" "}vehicles
+                  </span>
+                </div>
+              </div>
+
               <button
                 onClick={fetchVehicles}
                 disabled={isLoading}
-                className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                className={cn(
+                  "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all shrink-0",
+                  "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
               >
-                <RefreshCw
-                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+                <span className="hidden sm:inline">Refresh</span>
               </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-foreground">
-                Sort by
-              </span>
-              <div className="relative hidden md:block">
-                <select
-                  value={currentSortValue}
-                  onChange={(e) =>
-                    handleSortChange(e.target.value as SortOption)
-                  }
-                  className="appearance-none border border-border rounded px-3 py-1.5 pr-8 text-sm bg-card text-foreground focus:ring-2 focus:ring-ring focus:border-transparent outline-none transition-all cursor-pointer"
-                >
-                  {INVENTORY_SORT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              </div>
-              <div className="md:hidden">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsSortSheetOpen(true)}
-                  className="h-9 min-w-42.5 justify-between gap-2"
-                >
-                  <span className="truncate">{currentSortLabel}</span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </div>
-              <Sheet open={isSortSheetOpen} onOpenChange={setIsSortSheetOpen}>
-                <SheetContent
-                  side="bottom"
-                  className="rounded-t-2xl p-0 max-h-[70vh]"
-                  showCloseButton={false}
-                >
-                  <SheetHeader className="border-b border-border px-4 py-3">
-                    <SheetTitle className="text-base font-semibold">
-                      Sort Inventory
-                    </SheetTitle>
-                  </SheetHeader>
-                  <div className="max-h-[65vh] overflow-y-auto p-2">
-                    {INVENTORY_SORT_OPTIONS.map((option) => {
-                      const isSelected = currentSortValue === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            handleSortChange(option.value);
-                            setIsSortSheetOpen(false);
-                          }}
-                          className={`w-full rounded-md px-3 py-3 text-left text-sm flex items-center justify-between transition-colors ${isSelected ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}
-                        >
-                          <span>{option.label}</span>
-                          {isSelected ? <Check className="h-4 w-4" /> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SheetContent>
-              </Sheet>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 max-w-8xl mx-auto px-4 py-8 w-full bg-muted/20 rounded-xl">
+      {/* ─── Filters ─────────────────────────────────────────────── */}
+      <div className="shrink-0">
+        <ShopInventoryFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={handleClearFilters}
+          apiPath="/api/vehicles/filters"
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          currentSortValue={currentSortValue}
+          onSortChange={handleSortChange}
+          sortOptions={INVENTORY_SORT_OPTIONS}
+        />
+      </div>
+
+      {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
+      <div className="flex-1 min-h-0">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
+          <div
+            className={cn(
+              viewMode === "grid"
+                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+                : "flex flex-col gap-2.5",
+            )}
+          >
+            {[...Array(viewMode === "grid" ? 8 : 6)].map((_, i) => (
               <div
                 key={i}
-                className="h-100 bg-muted rounded-lg animate-pulse"
+                className={cn(
+                  "rounded-2xl bg-muted animate-pulse dark:bg-zinc-900",
+                  viewMode === "grid" ? "h-100" : "h-24",
+                )}
               />
             ))}
           </div>
+        ) : vehicles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <Package className="h-7 w-7 text-muted-foreground/30" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-base font-bold text-foreground">No vehicles found</h2>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Try adjusting your filters or clearing them to see more results.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleClearFilters} className="gap-1.5 rounded-xl">
+              Clear Filters
+            </Button>
+          </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             <div
-              className={`grid gap-6 items-stretch ${isPremiumView ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"}`}
+              className={cn(
+                "items-stretch",
+                viewMode === "grid"
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+                  : "flex flex-col gap-2.5",
+              )}
             >
               {vehicles.map((vehicle) =>
-                isPremiumView ? (
+                viewMode === "grid" ? (
                   <PremiumVehicleCard
                     key={vehicle.id}
                     vehicle={vehicle}
@@ -611,6 +595,7 @@ function InventoryContent() {
                   <CarInventoryCard
                     key={vehicle.id}
                     vehicle={vehicle}
+                    viewMode="list"
                     shippingPrice={shippingRates[vehicle.id]}
                     onGetQuote={handleGetQuote}
                     onVehicleClick={handleVehicleClick}
@@ -618,7 +603,6 @@ function InventoryContent() {
                     onApplyNow={handleApplyNow}
                     onCallUs={handleCallUs}
                     onVideo={handleVideo}
-                    onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
                   />
                 ),
               )}
@@ -675,8 +659,9 @@ export default function InventoryPage() {
   return (
     <React.Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center p-8">
-          Loading...
+        <div className="min-h-screen flex items-center justify-center gap-3 p-8 text-muted-foreground">
+          <Car className="h-5 w-5 animate-pulse" />
+          Loading inventory...
         </div>
       }
     >

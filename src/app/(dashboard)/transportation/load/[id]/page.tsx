@@ -33,17 +33,17 @@ function LoadDetailsSkeleton() {
 
 function StatusBadge({ status }: { status?: string }) {
   if (!status) return null
-  let color = "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
+  let color = "bg-muted text-muted-foreground border-border"
   switch (status) {
-    case "Posted": color = "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-500/20 dark:text-orange-300 dark:border-orange-500/30"; break;
+    case "Posted": color = "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30"; break;
     case "Assigned": color = "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30"; break;
-    case "Accepted": color = "bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30"; break;
+    case "Accepted": color = "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30"; break;
     case "Picked Up": color = "bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30"; break;
-    case "In-Transit": color = "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30"; break;
-    case "Delivered": color = "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30"; break;
+    case "In-Transit": color = "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/30"; break;
+    case "Delivered": color = "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30"; break;
     case "Cancelled": color = "bg-red-100 text-red-800 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30"; break;
   }
-  return <Badge variant="outline" className={`${color} px-3 py-1 font-medium text-xs rounded-full shadow-none`}>{status}</Badge>
+  return <Badge variant="outline" className={`${color} px-3 py-1 font-medium text-xs rounded-full shadow-none shrink-0`}>{status}</Badge>
 }
 
 const PLACEHOLDER_VALUES = new Set([
@@ -155,12 +155,12 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
       <CardContent className="pb-4">
         <div className="space-y-0 relative">
           {/* Vertical Progress Line */}
-          <div className="absolute left-[19px] top-2 bottom-2 w-[1px] bg-border" />
+          <div className="absolute left-4.75 top-2 bottom-2 w-px bg-border" />
           <motion.div
             initial={{ height: 0 }}
             animate={{ height: `${(currentStepIdx / (steps.length - 1)) * 100}%` }}
             transition={{ duration: 0.8, ease: "easeInOut" }}
-            className="absolute left-[19px] top-2 w-[1px] bg-primary origin-top"
+            className="absolute left-4.75 top-2 w-px bg-primary origin-top"
           />
 
           {steps.map((step, i) => {
@@ -265,26 +265,26 @@ export default function LoadDetailsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in zoom-in-[0.98] duration-300">
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in zoom-in-[0.98] duration-300">
 
       {/* ── Header ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <Button variant="ghost" size="sm" className="pl-0 text-muted-foreground hover:text-foreground mb-2" onClick={() => router.back()}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <div className="space-y-1 min-w-0">
+          <Button variant="ghost" size="sm" className="pl-0 text-muted-foreground hover:text-foreground mb-2 -ml-1" onClick={() => router.back()}>
             <ArrowLeft className="size-4 mr-2" /> Back to Loads
           </Button>
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">{load.loadNumber}</h1>
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground break-all">{load.loadNumber}</h1>
             <StatusBadge status={load.status} />
           </div>
-          <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2 mt-1 flex-wrap">
             Posted {formatDate(load.createdAt)}
             {load.postType === "assign-carrier" && <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Direct Dispatch</Badge>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="bg-background"><FileText className="size-4 mr-2 text-muted-foreground" /> Print Bol</Button>
-          <Button variant="default" size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">Edit Load</Button>
+          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial"><FileText className="size-4 mr-2 text-muted-foreground" /> Print Bol</Button>
+          <Button variant="default" size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial">Edit Load</Button>
         </div>
       </div>
 
@@ -293,7 +293,7 @@ export default function LoadDetailsPage() {
         <CardContent className="p-0">
           <div className="flex flex-col lg:flex-row relative">
             {/* Pickup */}
-            <div className="flex-1 p-6 md:p-8 lg:bg-blue-500/[0.03]">
+            <div className="flex-1 p-4 sm:p-6 md:p-8 lg:bg-blue-500/3">
               <div className="flex items-start gap-4">
                 <div className="bg-blue-500/10 p-3 rounded-2xl shrink-0 mt-1 border border-blue-500/20">
                   <MapPin className="size-5 text-blue-600 dark:text-blue-400" />
@@ -329,20 +329,20 @@ export default function LoadDetailsPage() {
 
             {/* Visual Divider / Connector */}
             <div className="hidden lg:flex flex-col items-center justify-center relative px-2">
-              <div className="h-full w-px bg-gradient-to-b from-transparent via-border to-transparent absolute left-1/2 -translate-x-1/2"></div>
+              <div className="h-full w-px bg-linear-to-b from-transparent via-border to-transparent absolute left-1/2 -translate-x-1/2"></div>
               <div className="bg-background border-2 border-border rounded-full p-2.5 z-10 shadow-sm relative">
                 <Truck className="size-5 text-muted-foreground" />
               </div>
             </div>
             {/* Mobile Divider */}
-            <div className="lg:hidden h-px w-full bg-gradient-to-r from-transparent via-border to-transparent relative flex items-center justify-center my-2">
+            <div className="lg:hidden h-px w-full bg-linear-to-r from-transparent via-border to-transparent relative flex items-center justify-center my-2">
               <div className="bg-background border-2 border-border rounded-full p-1.5 z-10 absolute">
                 <Truck className="size-4 text-muted-foreground" />
               </div>
             </div>
 
             {/* Delivery */}
-            <div className="flex-1 p-6 md:p-8 lg:bg-green-500/[0.03] relative">
+            <div className="flex-1 p-4 sm:p-6 md:p-8 lg:bg-green-500/3 relative">
               <div className="flex items-start gap-4">
                 <div className="bg-green-500/10 p-3 rounded-2xl shrink-0 mt-1 border border-green-500/20">
                   <MapPin className="size-5 text-green-600 dark:text-green-400" />
@@ -380,7 +380,7 @@ export default function LoadDetailsPage() {
           <Separator className="bg-border/50" />
 
           {/* Dates Bar */}
-          <div className="bg-muted/30 px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-4 text-sm relative z-0">
+          <div className="bg-muted/30 px-4 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-4 text-sm relative z-0">
             <div className="flex flex-col">
               <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Calendar className="size-3.5" /> First Available</p>
               <p className="font-medium text-foreground pl-5">{formatShortDate(load.dates?.firstAvailable)}</p>
@@ -475,7 +475,7 @@ export default function LoadDetailsPage() {
 
           {/* Proof of Delivery Preview */}
           {load.proofOfDelivery && (
-            <Card className="border-border shadow-sm bg-card overflow-hidden p-0 border-blue-500/20">
+            <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
               <CardHeader className="p-4 border-b border-border/50 bg-blue-500/5">
                 <CardTitle className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 flex items-center gap-2">
                   <FileCheck className="size-3.5" /> Proof of Delivery
@@ -483,23 +483,23 @@ export default function LoadDetailsPage() {
               </CardHeader>
               <CardContent className="p-4 space-y-4">
                 <div className="relative group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-                  <img 
-                    src={load.proofOfDelivery.imageUrl} 
-                    alt="POD Preview" 
+                  <img
+                    src={load.proofOfDelivery.imageUrl}
+                    alt="POD Preview"
                     className="w-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Eye className="size-6 text-white" />
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col gap-1.5">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
                   <p className="text-sm font-medium">{new Date(load.proofOfDelivery.submittedAt).toLocaleString()}</p>
                 </div>
 
                 <Link href={`/billing/driver-payouts/${load._id}`}>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/20 gap-2">
+                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
                     <DollarSign className="size-4" /> Review & Approve Payout
                   </Button>
                 </Link>

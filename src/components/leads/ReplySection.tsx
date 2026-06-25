@@ -7,6 +7,7 @@ import {
   DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { STATUS_CONFIG } from "./atomic/StatusPill"
+import { StatusReasonModal } from "./StatusReasonModal"
 
 interface ReplySectionProps {
   isClosed: boolean
@@ -14,9 +15,9 @@ interface ReplySectionProps {
   setReplyMessage: (msg: string) => void
   onSend: () => void
   isSending: boolean
-  onStatusChange: (status: string) => void
+  onStatusChange: (status: string, reason?: string) => void
   onApptOpen: () => void
-  onReopen: () => void
+  onReopen: (reason?: string) => void
   onQuoteShipping: () => void
   selectedLeadStatus: string
 }
@@ -33,22 +34,49 @@ export const ReplySection = React.memo(({
   onQuoteShipping,
   selectedLeadStatus,
 }: ReplySectionProps) => {
+  const [reasonModal, setReasonModal] = React.useState<null | 'close' | 'reopen'>(null)
+
+  const handleReasonConfirm = (reason: string) => {
+    if (reasonModal === 'close') onStatusChange('Closed', reason)
+    else if (reasonModal === 'reopen') onReopen(reason)
+    setReasonModal(null)
+  }
+
+  const reasonModalProps = reasonModal === 'close'
+    ? {
+      title: 'Close this ticket',
+      description: 'Why is this inquiry being closed? This is logged on the ticket for the team to see later.',
+      confirmLabel: 'Close ticket',
+    }
+    : {
+      title: 'Reopen this ticket',
+      description: 'Why is this inquiry being reopened? This is logged on the ticket for the team to see later.',
+      confirmLabel: 'Reopen ticket',
+    }
 
   // ── Closed state ─────────────────────────────────────────────────────────────
   if (isClosed) {
     return (
-      <div
-        className="px-5 py-3.5 flex items-center justify-between shrink-0"
-        style={{ borderTop: '1px solid var(--border-1)', background: 'var(--bg-elevated)' }}
-      >
-        <div className="flex items-center gap-2">
-          <Lock className="h-3.5 w-3.5" style={{ color: 'var(--text-disabled)' }} />
-          <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>This inquiry is closed</span>
+      <>
+        <div
+          className="px-5 py-3.5 flex items-center justify-between shrink-0"
+          style={{ borderTop: '1px solid var(--border-1)', background: 'var(--bg-elevated)' }}
+        >
+          <div className="flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5" style={{ color: 'var(--text-disabled)' }} />
+            <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>This inquiry is closed</span>
+          </div>
+          <button onClick={() => setReasonModal('reopen')} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-9 sm:h-7 text-xs font-medium">
+            <LockOpen className="h-3 w-3" /> Reopen
+          </button>
         </div>
-        <button onClick={onReopen} className="ss4-pill-btn flex items-center gap-1.5 px-3 h-9 sm:h-7 text-xs font-medium">
-          <LockOpen className="h-3 w-3" /> Reopen
-        </button>
-      </div>
+        <StatusReasonModal
+          open={reasonModal === 'reopen'}
+          onOpenChange={(o) => !o && setReasonModal(null)}
+          onConfirm={handleReasonConfirm}
+          {...reasonModalProps}
+        />
+      </>
     )
   }
 
@@ -102,7 +130,7 @@ export const ReplySection = React.memo(({
                   .map(([s, c]) => (
                     <DropdownMenuItem
                       key={s}
-                      onClick={() => onStatusChange(s)}
+                      onClick={() => s === "Closed" ? setReasonModal('close') : onStatusChange(s)}
                       className="flex items-center gap-2 text-xs text-muted-foreground rounded-lg cursor-pointer px-2.5 py-2 focus:bg-muted focus:text-foreground"
                     >
                       <span className={`h-2 w-2 rounded-full shrink-0 ${c.dot}`} />
@@ -123,7 +151,7 @@ export const ReplySection = React.memo(({
             </button>
 
             <button
-              onClick={() => onStatusChange("Closed")}
+              onClick={() => setReasonModal('close')}
               className="flex items-center gap-1.5 px-2.5 h-9 sm:h-7 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap shrink-0"
               style={{ color: 'var(--danger)', opacity: 0.7 }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
@@ -149,6 +177,13 @@ export const ReplySection = React.memo(({
           </div>
         </div>
       </div>
+
+      <StatusReasonModal
+        open={reasonModal === 'close'}
+        onOpenChange={(o) => !o && setReasonModal(null)}
+        onConfirm={handleReasonConfirm}
+        {...reasonModalProps}
+      />
     </div>
   )
 })

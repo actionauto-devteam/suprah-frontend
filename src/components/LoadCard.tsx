@@ -46,11 +46,20 @@ function getStatusTheme(status: LoadStatus) {
         bg: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800",
         indicator: "bg-blue-500"
       }
-    case "In-Transit":
-    case "Picked Up":
+    case "Accepted":
       return {
         bg: "bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-800",
         indicator: "bg-purple-500"
+      }
+    case "Picked Up":
+      return {
+        bg: "bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:border-indigo-800",
+        indicator: "bg-indigo-500"
+      }
+    case "In-Transit":
+      return {
+        bg: "bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-800",
+        indicator: "bg-sky-500"
       }
     case "Delivered":
       return {
@@ -124,7 +133,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                 alt="Load Vehicle"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" />
 
               <div className="absolute bottom-3 left-3 flex flex-col gap-1">
                 <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">Load Number</span>
@@ -142,17 +151,17 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
             <div className="flex-1 p-5 lg:p-6 flex flex-col justify-between min-w-0">
               <div className="space-y-4">
                 {/* Header Row */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("size-2 rounded-full animate-pulse", theme.indicator)} />
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
+                    <div className={cn("size-2 rounded-full animate-pulse shrink-0", theme.indicator)} />
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate">
                       {isLoadBoard ? "Public Load Board" : "Assigned Shipment"}
                     </span>
-                    <span className="text-[10px] text-muted-foreground/50">·</span>
-                    <span className="text-[10px] text-muted-foreground/80 font-bold">{formatDate(load.createdAt)}</span>
+                    <span className="text-[10px] text-muted-foreground/50 hidden xs:inline">·</span>
+                    <span className="text-[10px] text-muted-foreground/80 font-bold hidden xs:inline">{formatDate(load.createdAt)}</span>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -176,7 +185,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
                         onClick={(e) => {
                           e.stopPropagation()
                           setIsDeleteDialogOpen(true)

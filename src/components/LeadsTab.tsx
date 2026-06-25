@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { RefreshCw, Mail, MessageSquare, Sun, Moon } from "lucide-react"
+import { RefreshCw, Mail, MessageSquare, Sun, Moon, CheckSquare, X } from "lucide-react"
 import { useLeads, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
 import { useAuth } from "@/providers/AuthProvider"
@@ -21,6 +21,7 @@ import { LeadsList } from "./leads/LeadsList"
 import { ConversationView } from "./leads/ConversationView"
 import { ReplySection } from "./leads/ReplySection"
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal"
+import { BulkReplyModal, BulkReplyRecipient } from "@/components/leads/BulkReplyModal"
 
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab"
@@ -65,7 +66,7 @@ export function LeadsTab({
   // -- Main Data Hook --
   const {
     leads, isLoading, total, pages, updateLeadStatus, markAsRead, refetch,
-    sync, isSyncing: isWorkerSyncing
+    sync, isSyncing: isWorkerSyncing, bulkReply, isBulkReplying
   } = useLeads({
     page: currentPage,
     limit: LEADS_PER_PAGE,
@@ -128,6 +129,72 @@ export function LeadsTab({
   const [threads, setThreads] = React.useState<Record<string, any[]>>({})
   const [highlightedLeadIds, setHighlightedLeadIds] = React.useState<Set<string>>(new Set())
   const [shippingOpen, setShippingOpen] = React.useState(false)
+
+  // -- Bulk reply: select mode + selection --
+  const [selectMode, setSelectMode] = React.useState(false)
+  const [selectedLeadIds, setSelectedLeadIds] = React.useState<Set<string>>(new Set())
+  const [bulkModalOpen, setBulkModalOpen] = React.useState(false)
+
+  // Group currently loaded leads by vehicle stock # to power the
+  // "N other inquiries for this vehicle" nudge in the conversation view.
+  const leadsByVehicleStock = React.useMemo(() => {
+    const map = new Map<string, Lead[]>()
+    for (const l of leads) {
+      const stock = (l.vehicle as any)?.stock
+      if (!stock) continue
+      const arr = map.get(stock) || []
+      arr.push(l)
+      map.set(stock, arr)
+    }
+    return map
+  }, [leads])
+
+  const toggleSelectMode = () => {
+    setSelectMode(prev => {
+      if (prev) setSelectedLeadIds(new Set())
+      return !prev
+    })
+  }
+
+  const toggleLeadSelected = (lead: Lead) => {
+    setSelectedLeadIds(prev => {
+      const next = new Set(prev)
+      if (next.has(lead._id)) next.delete(lead._id)
+      else next.add(lead._id)
+      return next
+    })
+  }
+
+  const bulkRecipients: BulkReplyRecipient[] = React.useMemo(
+    () => leads
+      .filter(l => selectedLeadIds.has(l._id))
+      .map(l => ({ _id: l._id, firstName: l.firstName, lastName: l.lastName, email: l.email })),
+    [leads, selectedLeadIds]
+  )
+
+  const handleBulkSend = async (message: string) => {
+    const leadIds = Array.from(selectedLeadIds)
+    try {
+      const result = await bulkReply({ leadIds, message })
+      addToast(result.failed.length === 0 ? 'success' : 'error',
+        result.failed.length === 0
+          ? `Reply sent to ${result.sent} customer${result.sent === 1 ? '' : 's'}`
+          : `Sent to ${result.sent}, ${result.failed.length} failed`)
+      setBulkModalOpen(false)
+      setSelectedLeadIds(new Set())
+      setSelectMode(false)
+    } catch {
+      addToast('error', 'Failed to send bulk reply')
+    }
+  }
+
+  const openBulkReplyForSiblings = (vehicleStock: string, includeLeadId?: string) => {
+    const siblings = leadsByVehicleStock.get(vehicleStock) || []
+    const ids = new Set(siblings.map(l => l._id))
+    if (includeLeadId) ids.add(includeLeadId)
+    setSelectedLeadIds(ids)
+    setBulkModalOpen(true)
+  }
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return
@@ -308,10 +375,10 @@ export function LeadsTab({
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 5000)
   }
 
-  const handleStatus = async (status: string, targetLead?: Lead) => {
+  const handleStatus = async (status: string, reason?: string, targetLead?: Lead) => {
     const leadToUpdate = targetLead || selectedLead
     if (!leadToUpdate) return
-    await updateLeadStatus({ id: leadToUpdate._id, status })
+    await updateLeadStatus({ id: leadToUpdate._id, status, reason })
     _setSelectedLead(p => (p && p._id === leadToUpdate._id) ? { ...p, status: status as any } : p)
     if (leadToUpdate._id === selectedLead?._id) {
       if (status === 'Closed') setIsClosed(true)
@@ -332,7 +399,7 @@ export function LeadsTab({
 
       // Only transition to Pending if it's currently New
       if (lead.status === 'New') {
-        await handleStatus('Pending', lead)
+        await handleStatus('Pending', undefined, lead)
       }
     }
   }
@@ -453,6 +520,14 @@ export function LeadsTab({
           {/* Actions */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
+              onClick={toggleSelectMode}
+              className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[11px] font-medium transition-all"
+              style={selectMode ? { color: 'var(--accent)', borderColor: 'var(--accent)' } : undefined}
+            >
+              {selectMode ? <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" /> : <CheckSquare className="h-3.5 w-3.5 sm:h-3 sm:w-3" />}
+              <span className="hidden sm:inline">{selectMode ? 'Cancel' : 'Select'}</span>
+            </button>
+            <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
               className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
@@ -502,23 +577,45 @@ export function LeadsTab({
           <InboundCallsTab />
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <LeadsList
-            leads={leads}
-            isLoading={isLoading}
-            total={total}
-            pages={pages}
-            currentPage={currentPage}
-            selectedLeadId={selectedLead?._id}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onPageChange={setCurrentPage}
-            onLeadSelect={setSelectedLead}
-            highlightedLeadIds={highlightedLeadIds}
-            itemsPerPage={LEADS_PER_PAGE}
-            sourceEmail={LEADS_SOURCE_EMAIL}
-            markAsRead={markAsRead}
-          />
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
+          <div className={cn('flex flex-col w-full lg:w-75 xl:w-80 shrink-0 min-h-0', selectedLead ? 'hidden lg:flex' : 'flex')}>
+            {selectMode && (
+              <div
+                className="flex items-center justify-between gap-2 px-3 py-2 shrink-0"
+                style={{ borderBottom: '1px solid var(--border-1)', background: 'var(--bg-elevated)' }}
+              >
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {selectedLeadIds.size} selected
+                </span>
+                <button
+                  onClick={() => setBulkModalOpen(true)}
+                  disabled={selectedLeadIds.size === 0}
+                  className="ss4-pill-btn px-3 h-8 text-[12px] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  Reply to all
+                </button>
+              </div>
+            )}
+            <LeadsList
+              leads={leads}
+              isLoading={isLoading}
+              total={total}
+              pages={pages}
+              currentPage={currentPage}
+              selectedLeadId={selectedLead?._id}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onPageChange={setCurrentPage}
+              onLeadSelect={setSelectedLead}
+              highlightedLeadIds={highlightedLeadIds}
+              itemsPerPage={LEADS_PER_PAGE}
+              sourceEmail={LEADS_SOURCE_EMAIL}
+              markAsRead={markAsRead}
+              selectMode={selectMode}
+              selectedIds={selectedLeadIds}
+              onToggleSelect={toggleLeadSelected}
+            />
+          </div>
 
           {/* Right panel */}
           <div
@@ -532,6 +629,12 @@ export function LeadsTab({
                   threads={threads[selectedLead._id] || []}
                   onClose={() => setSelectedLead(null)}
                   sourceEmail={LEADS_SOURCE_EMAIL}
+                  siblingCount={
+                    (selectedLead.vehicle as any)?.stock
+                      ? (leadsByVehicleStock.get((selectedLead.vehicle as any).stock)?.filter(l => l._id !== selectedLead._id).length || 0)
+                      : 0
+                  }
+                  onReplyToSiblings={() => openBulkReplyForSiblings((selectedLead.vehicle as any).stock, selectedLead._id)}
                 />
                 <ReplySection
                   isClosed={isClosed}
@@ -542,7 +645,7 @@ export function LeadsTab({
                   onStatusChange={handleStatus}
                   onApptOpen={() => setApptOpen(true)}
                   onQuoteShipping={() => setShippingOpen(true)}
-                  onReopen={() => handleStatus('Pending')}
+                  onReopen={(reason) => handleStatus('Pending', reason)}
                   selectedLeadStatus={selectedLead.status}
                 />
               </>
@@ -601,6 +704,17 @@ export function LeadsTab({
           email: selectedLead.email,
           phone: selectedLead.phone,
         } : undefined}
+      />
+
+      <BulkReplyModal
+        open={bulkModalOpen}
+        onOpenChange={setBulkModalOpen}
+        recipients={bulkRecipients}
+        onRemoveRecipient={(id) => setSelectedLeadIds(prev => {
+          const next = new Set(prev); next.delete(id); return next
+        })}
+        onSend={handleBulkSend}
+        isSending={isBulkReplying}
       />
     </div>
   )

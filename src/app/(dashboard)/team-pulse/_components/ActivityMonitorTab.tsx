@@ -326,7 +326,7 @@ export function ActivityMonitorTab({ members, myUserId }: Props) {
             ))}
           </div>
 
-          <div className="space-y-2 max-h-130 overflow-y-auto pr-0.5">
+          <div className="space-y-2 pr-0.5 sm:max-h-130 sm:overflow-y-auto">
             {filteredMembers.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
                 <User2 className="size-8" />
@@ -379,7 +379,7 @@ export function ActivityMonitorTab({ members, myUserId }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="max-h-130 overflow-y-auto px-3 divide-y divide-border/30">
+              <div className="px-3 divide-y divide-border/30 sm:max-h-130 sm:overflow-y-auto">
                 {events.map((event) => (
                   <EventItem key={event._id} event={event} myUserId={myUserId} />
                 ))}

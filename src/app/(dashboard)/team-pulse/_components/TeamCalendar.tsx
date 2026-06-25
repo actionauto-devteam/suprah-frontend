@@ -484,7 +484,7 @@ export function TeamCalendar({
                 }
                 showOutsideDays={false}
                 hideNavigation
-                className="w-full [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(12)] lg:[--cell-size:--spacing(14)]"
+                className="w-full [--cell-size:--spacing(11)] sm:[--cell-size:--spacing(12)] lg:[--cell-size:--spacing(14)]"
                 classNames={{ month_caption: "hidden" }}
                 components={{
                   DayButton: ({ day, modifiers, ...props }: any) => {
@@ -536,7 +536,25 @@ export function TeamCalendar({
                           {day.date.getDate()}
                         </span>
                         {hits.length > 0 && (
-                          <div className="flex flex-col gap-0.5 mt-1 w-full z-10">
+                          <div className="flex sm:hidden flex-wrap gap-0.5 mt-1 w-full z-10 justify-start">
+                            {hits.slice(0, 4).map((a) => {
+                              const cfg = A[a.type as AbsenceType];
+                              return (
+                                <span
+                                  key={a._id}
+                                  className={cn("size-1.5 rounded-full shrink-0", cfg?.dot ?? "bg-gray-400")}
+                                />
+                              );
+                            })}
+                            {hits.length > 4 && (
+                              <span className="text-[7px] font-black leading-none text-muted-foreground/60">
+                                +{hits.length - 4}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {hits.length > 0 && (
+                          <div className="hidden sm:flex flex-col gap-0.5 mt-1 w-full z-10">
                             {hits.slice(0, MAX_LABELS).map((a) => {
                               const cfg = A[a.type as AbsenceType];
                               const firstName =
@@ -868,7 +886,7 @@ export function TeamCalendar({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="size-6 opacity-40 hover:opacity-100 hover:text-destructive"
+                                    className="size-8 opacity-60 sm:opacity-40 hover:opacity-100 hover:text-destructive"
                                     title="Delete"
                                     onClick={() => handleDeleteAbsence(a._id)}
                                   >
@@ -1143,7 +1161,7 @@ export function TeamCalendar({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-5 opacity-100 sm:opacity-0 sm:group-hover/e:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                          className="size-7 opacity-100 sm:opacity-0 sm:group-hover/e:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
                           onClick={() => handleDeleteAbsence(a._id)}
                         >
                           <Trash2 className="size-3" />

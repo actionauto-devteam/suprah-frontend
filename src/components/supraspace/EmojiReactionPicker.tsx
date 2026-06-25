@@ -44,7 +44,7 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
   return createPortal(
     <div
       ref={pickerRef}
-      className="fixed z-[9999] flex flex-col rounded-2xl shadow-2xl"
+      className="fixed z-9999 flex flex-col rounded-2xl shadow-2xl"
       style={{
         top,
         left: position.left,
@@ -78,7 +78,7 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
             className={cn(
               'shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-base transition-colors',
               activeCat === cat.key && !search
-                ? 'bg-[var(--positive-muted,rgba(52,201,125,0.2))] text-white'
+                ? 'bg-(--positive-muted,rgba(52,201,125,0.2)) text-white'
                 : 'hover:bg-white/10 text-white/50'
             )}
           >

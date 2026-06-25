@@ -217,12 +217,3 @@ export const N: Record<
     hex: "#38bdf8",
   },
 };
-
-export const SKEWS = [
-  "-rotate-[1.1deg]",
-  "rotate-[0.8deg]",
-  "-rotate-[0.4deg]",
-  "rotate-[1.3deg]",
-  "-rotate-[0.6deg]",
-  "rotate-[0.3deg]",
-];

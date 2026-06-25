@@ -263,21 +263,21 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
       )}
       <div className="divide-y divide-border/20">
         {entries.map((entry) => (
-          <div key={`${entry._id}-${entry.type}`} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5">
+          <div key={`${entry._id}-${entry.type}`} className="flex flex-wrap items-start gap-3 sm:gap-4 px-4 sm:px-5 xl:px-8 py-4 xl:py-5">
             <Avatar className="h-9 w-9 xl:h-11 xl:w-11 shrink-0">
               <AvatarImage src={entry.avatar} />
               <AvatarFallback className={`text-[10px] xl:text-xs font-bold text-white ${roleColor(entry.role)}`}>
                 {ini(entry.fullName)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 basis-50">
               <p className="text-xs text-muted-foreground/80 truncate">{entry.fullName}</p>
               {entry.daysUntil === 0 ? (
-                <p className={`text-sm xl:text-base font-bold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
+                <p className={`text-sm xl:text-base font-bold line-clamp-2 mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
                   {greeting(entry)}
                 </p>
               ) : (
-                <p className={`text-sm xl:text-base font-semibold truncate mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
+                <p className={`text-sm xl:text-base font-semibold line-clamp-2 mt-0.5 ${entry.type === "birthday" ? "text-pink-500" : "text-amber-500"}`}>
                   {`In ${entry.daysUntil} day${entry.daysUntil !== 1 ? "s" : ""}, ${entry.fullName.split(" ")[0]} will celebrate ${entry.type === "birthday"
                     ? `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} birthday!`
                     : `${entry.gender === "male" ? "his" : entry.gender === "female" ? "her" : "his/her"} ${entry.yearsCount ? `${ordinal(entry.yearsCount)}-year ` : ""}work anniversary!`
@@ -477,7 +477,7 @@ function OffboardingTab({
                 size="sm"
                 variant="outline"
                 onClick={() => setOffboardTarget({ _id: emp._id, fullName: emp.fullName, email: emp.email, username: emp.username, role: emp.role, avatar: emp.avatar })}
-                className="h-7 xl:h-8 rounded-lg text-[11px] xl:text-xs font-semibold border-amber-500/20 text-amber-600 hover:bg-amber-500/10 gap-1.5"
+                className="h-8 xl:h-9 shrink-0 rounded-lg text-[11px] xl:text-xs font-semibold border-amber-500/20 text-amber-600 hover:bg-amber-500/10 gap-1.5"
               >
                 <UserMinus className="h-3 w-3" />
                 Offboard
@@ -598,36 +598,63 @@ export default function TeamEngagementPage() {
   return (
     <div className="min-h-screen w-full bg-background">
       {/* ── Page Content ── */}
-      <main className="w-full max-w-450 mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-8 xl:py-10 space-y-6 xl:space-y-8">
+      <main className="w-full max-w-450 mx-auto px-3 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-5 sm:py-8 xl:py-10 space-y-5 sm:space-y-6 xl:space-y-8">
         {/* Page header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/crm/dashboard")}
-            className="h-8 w-8 p-0 rounded-xl border border-border/40 hover:bg-muted/50"
+            className="h-9 w-9 p-0 rounded-xl border border-border/40 hover:bg-muted/50 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">
-              Manage your CRM workspace
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">Team Engagement</h1>
+            <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+              Milestones, onboarding &amp; offboarding for your team
             </p>
           </div>
           <Badge
             variant="outline"
-            className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex"
+            className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex shrink-0"
           >
             {user.role}
           </Badge>
         </div>
 
+        {/* ─── Mobile nav — compact horizontal pills, replaces the desktop sidebar card ─── */}
+        <div
+          className="flex items-center gap-2 overflow-x-auto pb-0.5 lg:hidden"
+          style={{ scrollbarWidth: "none" } as React.CSSProperties}
+        >
+          <button
+            onClick={() => router.push("/crm/settings")}
+            className="shrink-0 flex items-center gap-1.5 rounded-full border border-border/40 bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/60 transition-colors"
+          >
+            <Users className="h-3.5 w-3.5" />
+            User Management
+          </button>
+          <button
+            onClick={() => router.push("/crm/settings/integrations")}
+            className="shrink-0 flex items-center gap-1.5 rounded-full border border-border/40 bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/60 transition-colors"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            Lead Integrations
+          </button>
+          <button
+            onClick={() => router.push("/crm/hr")}
+            className="shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-600"
+          >
+            <HeartHandshake className="h-3.5 w-3.5" />
+            Team Engagement
+          </button>
+        </div>
 
         {/* Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8">
-          {/* ─── Sidebar nav ─── */}
-          <div className="lg:col-span-3 xl:col-span-3">
+          {/* ─── Sidebar nav (desktop only) ─── */}
+          <div className="hidden lg:block lg:col-span-3 xl:col-span-3">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border/30">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
@@ -690,12 +717,15 @@ export default function TeamEngagementPage() {
               </div>
 
               {/* Tab switcher */}
-              <div className="flex border-b border-border/30 px-3 xl:px-5">
+              <div
+                className="flex border-b border-border/30 px-3 xl:px-5 overflow-x-auto"
+                style={{ scrollbarWidth: "none" } as React.CSSProperties}
+              >
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${activeTab === tab.id
+                    className={`flex shrink-0 items-center gap-2 px-3.5 sm:px-4 py-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${activeTab === tab.id
                         ? "border-emerald-500 text-emerald-600"
                         : "border-transparent text-muted-foreground/80 hover:text-foreground"
                       }`}

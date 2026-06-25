@@ -188,7 +188,7 @@ export function SchedulesTab({
                   </div>
                   <button
                     onClick={() => openDialog(dateStr)}
-                    className="size-5 rounded flex items-center justify-center text-muted-foreground/30 hover:text-foreground hover:bg-muted/50 transition-colors"
+                    className="size-7 rounded-md flex items-center justify-center text-muted-foreground/30 hover:text-foreground hover:bg-muted/50 transition-colors"
                   >
                     <Plus className="size-3.5" />
                   </button>
@@ -213,7 +213,7 @@ export function SchedulesTab({
                         {canDelete && (
                           <button
                             onClick={() => handleDelete(shift._id)}
-                            className="opacity-0 group-hover/shift:opacity-100 transition-opacity hover:text-red-600 shrink-0 mt-0.5"
+                            className="size-5 -mt-0.5 -mr-0.5 flex items-center justify-center rounded transition-colors opacity-70 sm:opacity-0 sm:group-hover/shift:opacity-100 hover:bg-red-500/15 hover:text-red-600 shrink-0"
                           >
                             <X className="size-2.5" />
                           </button>
@@ -246,7 +246,7 @@ export function SchedulesTab({
                 <span className="text-[10px] text-muted-foreground/50 tabular-nums">{myShifts.length} shift{myShifts.length !== 1 ? "s" : ""}</span>
                 <button
                   onClick={() => { setForm((p) => ({ ...p, userId: m._id })); openDialog(format(new Date(), "yyyy-MM-dd")); }}
-                  className="size-6 flex items-center justify-center rounded-md hover:bg-muted/60 text-muted-foreground/40 hover:text-foreground transition-colors shrink-0"
+                  className="size-8 flex items-center justify-center rounded-md hover:bg-muted/60 text-muted-foreground/40 hover:text-foreground transition-colors shrink-0"
                 >
                   <Plus className="size-3.5" />
                 </button>

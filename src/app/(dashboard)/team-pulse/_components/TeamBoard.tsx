@@ -68,7 +68,7 @@ import {
   useReorderBoardNotes,
   useUploadBoardNoteAttachments,
 } from "@/hooks/useTeamPulse";
-import { N, SKEWS, ANNOUNCE_CONFIG } from "./team-pulse-constants";
+import { N, ANNOUNCE_CONFIG } from "./team-pulse-constants";
 import { NoteCard } from "./NoteCard";
 import { PushPin } from "./StatusDot";
 
@@ -96,7 +96,6 @@ const FRAME_STYLE: React.CSSProperties = {
 
 function SortableNoteItem({
   note,
-  index,
   userName,
   myUserId,
   isAdmin,
@@ -105,7 +104,6 @@ function SortableNoteItem({
   onEdit,
 }: {
   note: BoardNote;
-  index: number;
   userName?: string;
   myUserId?: string;
   isAdmin: boolean;
@@ -120,27 +118,19 @@ function SortableNoteItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
-    cursor: isDragging ? "grabbing" : "grab",
-    touchAction: "none",
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className="break-inside-avoid mb-7"
-    >
+    <div ref={setNodeRef} style={style} className="break-inside-avoid mb-5">
       <NoteCard
         note={note}
-        index={index}
         isMe={note.userName === userName}
         isAdmin={isAdmin}
         myUserId={myUserId}
         onDelete={onDelete}
         onPin={onPin}
         onEdit={onEdit}
+        dragHandleProps={{ attributes, listeners }}
       />
     </div>
   );
@@ -335,11 +325,11 @@ export function TeamBoard({
 
       {/* THE CORK BOARD */}
       {boardLoading ? (
-        <div style={{ ...CORK_STYLE, ...FRAME_STYLE, padding: 28, minHeight: 320 }}>
+        <div className="relative overflow-hidden rounded-xl p-3.5 sm:p-6 md:p-7 min-h-80" style={{ ...CORK_STYLE, ...FRAME_STYLE }}>
           <div className="absolute inset-0 dark:bg-black/50 rounded-lg" />
-          <div className="relative columns-1 sm:columns-2 lg:columns-3 gap-6">
+          <div className="relative columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-5">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="break-inside-avoid mb-6 h-36 rounded-xl bg-white/20 animate-pulse" />
+              <div key={i} className="break-inside-avoid mb-5 h-36 rounded-xl bg-white/20 animate-pulse" />
             ))}
           </div>
         </div>
@@ -384,7 +374,7 @@ export function TeamBoard({
           </div>
         </div>
       ) : (
-        <div className="relative overflow-hidden rounded-xl" style={{ ...CORK_STYLE, ...FRAME_STYLE, padding: "28px 24px 24px" }}>
+        <div className="relative overflow-hidden rounded-xl p-3.5 pt-7 sm:p-6 sm:pt-8 md:p-7 md:pt-9" style={{ ...CORK_STYLE, ...FRAME_STYLE }}>
           <div className="absolute inset-0 dark:bg-black/50 pointer-events-none rounded-sm" />
 
           {/* Corner screws decoration */}
@@ -406,12 +396,11 @@ export function TeamBoard({
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={filteredNotes.map((n) => n._id)} strategy={rectSortingStrategy}>
-              <div className="relative columns-1 sm:columns-2 lg:columns-3 gap-6" style={{ paddingTop: 12 }}>
-                {filteredNotes.map((note, i) => (
+              <div className="relative columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-5">
+                {filteredNotes.map((note) => (
                   <SortableNoteItem
                     key={note._id}
                     note={note}
-                    index={i}
                     userName={userName}
                     myUserId={myUserId}
                     isAdmin={isAdmin}

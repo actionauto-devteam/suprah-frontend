@@ -31,9 +31,17 @@ export interface Lead {
     year: string
     make: string
     model: string
+    stock?: string
   }
   comments: string
   appointment?: any
+  statusHistory?: {
+    from: string
+    to: string
+    changedAt: string
+    changedBy?: string
+    reason?: string
+  }[]
   createdAt: string
   updatedAt: string
 }
@@ -150,9 +158,9 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
   // ── Update lead status ─────────────────────────────────────────────────────
   const updateLeadMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, reason }: { id: string; status: string; reason?: string }) => {
       const headers = await getAuthHeaders()
-      const response = await apiClient.patch(`/api/leads/${id}`, { status }, headers)
+      const response = await apiClient.patch(`/api/leads/${id}`, { status, reason }, headers)
       return response.data
     },
     onSuccess: () => invalidateAndRefetch(300),
@@ -189,6 +197,16 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     onSuccess: () => invalidateAndRefetch(300),
   })
 
+  // ── Bulk reply to multiple inquiries ────────────────────────────────────────
+  const bulkReplyMutation = useMutation({
+    mutationFn: async ({ leadIds, message }: { leadIds: string[]; message: string }) => {
+      const headers = await getAuthHeaders()
+      const response = await apiClient.post(`/api/leads/bulk-reply`, { leadIds, message }, headers)
+      return response.data as { success: boolean; sent: number; failed: { leadId: string; error: string }[] }
+    },
+    onSuccess: () => invalidateAndRefetch(300),
+  })
+
   // ── Sync Gmail & Calendar (Unified Org-level) ──────────────────────────────
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -214,6 +232,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     markAsRead: markAsReadMutation.mutateAsync,
     markAsPending: markAsPendingMutation.mutateAsync,
     reply: replyMutation.mutate,
+    bulkReply: bulkReplyMutation.mutateAsync,
+    isBulkReplying: bulkReplyMutation.isPending,
     sync: stableSync,
     isSyncing: syncMutation.isPending,
   }

@@ -83,11 +83,11 @@ function PremiumVehicleCardComponent({
 
   return (
     <Card
-      className="group relative overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-green-500/60 shadow-sm hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
+      className="group relative overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-primary/50 shadow-sm hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
       onClick={() => onVehicleClick?.(vehicle)}
     >
       {/* Premium Image Header */}
-      <div className="relative aspect-16/10 overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+      <div className="relative aspect-16/10 overflow-hidden bg-muted dark:bg-zinc-900">
         {imgError ? (
           /* ── Unified fallback: single flex layout, no absolute layer conflicts ── */
           <div className="absolute inset-0 flex flex-col bg-zinc-300 dark:bg-zinc-800">
@@ -97,7 +97,7 @@ function PremiumVehicleCardComponent({
                 Stock #{vehicle.stockNumber}
               </Badge>
               {vehicle.featured && (
-                <Badge className="bg-green-500/90 text-white border-none font-medium px-3 py-1">
+                <Badge className="bg-primary/90 text-primary-foreground border-none font-medium px-3 py-1">
                   Member Exclusive
                 </Badge>
               )}
@@ -126,7 +126,7 @@ function PremiumVehicleCardComponent({
                 <p className="text-xs text-zinc-700 dark:text-zinc-400 font-semibold uppercase tracking-wider">
                   Est. Monthly
                 </p>
-                <p className="text-lg font-extrabold text-green-700 dark:text-green-400">
+                <p className="text-lg font-extrabold text-primary">
                   ${Math.floor(memberPrice / 60)}
                   <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     /mo
@@ -139,8 +139,8 @@ function PremiumVehicleCardComponent({
           <>
             {/* Loading skeleton */}
             {!imgLoaded && (
-              <div className="absolute inset-0 z-10 bg-zinc-200/70 dark:bg-zinc-800/70 animate-pulse flex items-center justify-center">
-                <TruckIcon className="w-10 h-10 text-zinc-500/40" />
+              <div className="absolute inset-0 z-10 bg-muted/70 animate-pulse flex items-center justify-center">
+                <TruckIcon className="w-10 h-10 text-muted-foreground/40" />
               </div>
             )}
 
@@ -164,7 +164,7 @@ function PremiumVehicleCardComponent({
                 Stock #{vehicle.stockNumber}
               </Badge>
               {vehicle.featured && (
-                <Badge className="bg-green-500/90 text-white backdrop-blur-md border-none font-medium px-3 py-1">
+                <Badge className="bg-primary/90 text-primary-foreground backdrop-blur-md border-none font-medium px-3 py-1">
                   Member Exclusive
                 </Badge>
               )}
@@ -185,7 +185,7 @@ function PremiumVehicleCardComponent({
                 <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
                   Est. Monthly
                 </p>
-                <p className="text-xl font-bold text-green-400">
+                <p className="text-xl font-bold text-primary">
                   ${Math.floor(memberPrice / 60)}
                   <span className="text-sm font-medium text-zinc-300">/mo</span>
                 </p>
@@ -196,7 +196,7 @@ function PremiumVehicleCardComponent({
       </div>
 
       {/* Card Body */}
-      <div className="p-5 flex flex-col flex-1 bg-linear-to-b from-transparent to-zinc-50/50 dark:to-zinc-900/20">
+      <div className="p-4 sm:p-5 flex flex-col flex-1 bg-linear-to-b from-transparent to-muted/30">
         {/* Core Specs Grid */}
         <div className="flex items-center justify-between py-4 border-b border-border/50 mb-4">
           <div className="flex flex-col items-center flex-1 border-r border-border/50">
@@ -221,21 +221,21 @@ function PremiumVehicleCardComponent({
           </div>
         </div>
 
-        {/* Financials Box (Inspired by the provided image) */}
-        <div className="bg-zinc-100 dark:bg-zinc-900/50 rounded-xl p-4 mb-6 border border-zinc-200 dark:border-zinc-800">
+        {/* Financials Box */}
+        <div className="bg-muted/40 rounded-xl p-4 mb-6 border border-border/50">
           <div className="flex justify-between items-center mb-2">
             <span className="text-muted-foreground font-medium">
               Retail Price:
             </span>
-            <span className="text-red-500 font-bold line-through decoration-red-500/50 decoration-2 text-lg">
+            <span className="text-muted-foreground/70 font-bold line-through decoration-2 text-lg">
               ${retailPrice.toLocaleString()}
             </span>
           </div>
-          <div className="flex justify-between items-center bg-green-50 dark:bg-green-500/10 -mx-2 px-2 py-2 rounded-lg border-l-4 border-green-500">
+          <div className="flex justify-between items-center bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
             <span className="text-foreground font-bold tracking-tight">
               One Time Payment:
             </span>
-            <span className="text-2xl font-extrabold text-green-600 dark:text-green-400">
+            <span className="text-2xl font-extrabold text-primary">
               ${memberPrice.toLocaleString()}
             </span>
           </div>
@@ -243,46 +243,46 @@ function PremiumVehicleCardComponent({
 
         {/* Action Buttons */}
         <div
-          className="mt-auto flex flex-col gap-2.5"
+          className="mt-auto flex flex-col gap-2 sm:gap-2.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
             <Button
               onClick={() => onCheckAvailability?.(vehicle)}
               variant="outline"
-              className="w-full text-sm h-11 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-semibold"
+              className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
             >
-              <CheckCircle2 className="w-4 h-4 mr-2 text-blue-500" />{" "}
+              <CheckCircle2 className="w-4 h-4 mr-1.5 sm:mr-2 text-blue-500 shrink-0" />
               Availability
             </Button>
             <Button
               onClick={() => onVideo?.(vehicle)}
               variant="outline"
-              className="w-full text-sm h-11 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-semibold"
+              className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
             >
-              <Play className="w-4 h-4 mr-2 text-red-500" /> Video
+              <Play className="w-4 h-4 mr-1.5 sm:mr-2 text-red-500 shrink-0" /> Video
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
             <Button
               onClick={() => onApplyNow?.(vehicle)}
-              className="w-full text-sm h-11 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 font-semibold shadow-md"
+              className="w-full text-xs sm:text-sm h-11 font-semibold shadow-md"
             >
               Apply Now
             </Button>
             <Button
               onClick={() => onCallUs?.(vehicle)}
               variant="outline"
-              className="w-full text-sm h-11 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-semibold"
+              className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
             >
-              <Phone className="w-4 h-4 mr-2 text-emerald-500" /> Call Us
+              <Phone className="w-4 h-4 mr-1.5 sm:mr-2 text-primary shrink-0" /> Call Us
             </Button>
           </div>
 
           <Button
             onClick={() => (onCreateLoad || onGetQuote)?.(vehicle)}
-            className="w-full bg-green-600 hover:bg-green-700 text-white shadow-md active:scale-[0.99] transition-all"
+            className="w-full shadow-md active:scale-[0.99] transition-all"
           >
             <TruckIcon className="w-4 h-4 mr-2" /> Create Managed Load
           </Button>

@@ -256,7 +256,7 @@ export function ShippingQuoteModal({
             </div>
 
             {vehicles?.length === 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">
+              <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded p-2 text-xs text-yellow-800 dark:text-yellow-300">
                 No vehicles available. Check console for details.
               </div>
             )}

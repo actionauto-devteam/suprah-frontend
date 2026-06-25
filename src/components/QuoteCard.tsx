@@ -85,14 +85,14 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
 
     return (
         <>
-            <Card className="border border-gray-200 dark:border-gray-700 p-0 hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+            <Card className="border border-border p-0 hover:shadow-lg transition-shadow duration-300 overflow-hidden">
                 <AlertDialog {...alert} onOpenChange={hideAlert} />
                 <CardContent className="p-0">
-                    <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100 dark:divide-gray-700">
+                    <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border">
                         {/* Left Section - Vehicle Info */}
-                        <div className="w-full lg:w-1/3 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6">
+                        <div className="w-full lg:w-1/3 bg-linear-to-br from-muted/40 to-card p-4 sm:p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 tracking-wider uppercase">Vehicle Info</h3>
+                                <h3 className="text-xs font-bold text-muted-foreground tracking-wider uppercase">Vehicle Info</h3>
                                 <Badge variant="outline" className="bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 text-xs">
                                     <Check className="w-3 h-3 mr-1" />
                                     Ready
@@ -106,16 +106,16 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                         alt={vehicleName}
                                         className="w-full h-40 object-cover rounded-lg shadow-sm group-hover:shadow-md transition-shadow"
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                    <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                 </div>
                             )}
 
                             <div className="space-y-3">
                                 <div>
-                                    <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{vehicleName}</p>
+                                    <p className="text-base font-semibold text-foreground">{vehicleName}</p>
                                     <div className="flex items-center gap-2 mt-1">
                                         {quote.vehicleLocation && (
-                                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                                 <MapPin className="w-3 h-3" />
                                                 {quote.vehicleLocation}
                                             </span>
@@ -123,35 +123,35 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                     </div>
                                 </div>
 
-                                <div className="space-y-1.5 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                <div className="space-y-1.5 pt-3 border-t border-border">
                                     {(vehicle?.vin || quote.vin) && (
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">VIN</span>
-                                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{vehicle?.vin || quote.vin}</span>
+                                            <span className="text-xs text-muted-foreground">VIN</span>
+                                            <span className="text-xs font-medium text-foreground">{vehicle?.vin || quote.vin}</span>
                                         </div>
                                     )}
                                     {(vehicle?.stockNumber || quote.stockNumber) && (
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">Stock #</span>
-                                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{vehicle?.stockNumber || quote.stockNumber}</span>
+                                            <span className="text-xs text-muted-foreground">Stock #</span>
+                                            <span className="text-xs font-medium text-foreground">{vehicle?.stockNumber || quote.stockNumber}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                                <div className="pt-3 border-t border-border">
                                     <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3 space-y-1">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-600 dark:text-gray-400">Quote Rate</span>
+                                            <span className="text-xs text-muted-foreground">Quote Rate</span>
                                             <span className="text-lg font-bold text-green-700 dark:text-green-400">${quote.rate.toLocaleString()}</span>
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">ETA</span>
-                                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{quote.eta.min}-{quote.eta.max} days</span>
+                                            <span className="text-xs text-muted-foreground">ETA</span>
+                                            <span className="text-xs font-medium text-foreground">{quote.eta.min}-{quote.eta.max} days</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 pt-2">
+                                <div className="text-xs text-muted-foreground flex items-center gap-1 pt-2">
                                     <Calendar className="w-3 h-3" />
                                     Added {formatDate(quote.createdAt)}
                                 </div>
@@ -169,9 +169,9 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                                 <User className="w-2.5 h-2.5 text-green-600 dark:text-green-400" />
                                             </div>
                                         )}
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        <span className="text-xs text-muted-foreground">
                                             By{" "}
-                                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                                            <span className="font-medium text-foreground">
                                                 {quote.createdBy.name || quote.createdBy.email || "Unknown"}
                                             </span>
                                         </span>
@@ -181,14 +181,14 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                         </div>
 
                         {/* Right Section - Shipment Details */}
-                        <div className="w-full lg:w-2/3 p-4 sm:p-6 bg-white dark:bg-gray-800">
+                        <div className="w-full lg:w-2/3 p-4 sm:p-6 bg-card">
                             <div className="flex items-center justify-between mb-5">
-                                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 tracking-wider uppercase">Shipment Details</h3>
+                                <h3 className="text-xs font-bold text-muted-foreground tracking-wider uppercase">Shipment Details</h3>
                                 <div className="flex items-center gap-2">
                                     {quote.organization && (
-                                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <Building2 className="w-3 h-3" />
-                                            <span className="font-medium text-gray-700 dark:text-gray-300">{quote.organization.name}</span>
+                                            <span className="font-medium text-foreground">{quote.organization.name}</span>
                                         </div>
                                     )}
                                     <Badge className="bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900 border border-yellow-200 dark:border-yellow-700">
@@ -199,19 +199,19 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
 
                             <div className="space-y-5">
                                 {/* Customer & Route Info */}
-                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg p-4 border border-blue-100 dark:border-blue-800">
+                                <div className="bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg p-4 border border-blue-100 dark:border-blue-800">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                                            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                                 <Package className="w-3 h-3" />
                                                 Customer
                                             </p>
-                                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{quote.firstName} {quote.lastName}</p>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{quote.email}</p>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">{quote.phone}</p>
+                                            <p className="text-sm font-semibold text-foreground">{quote.firstName} {quote.lastName}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">{quote.email}</p>
+                                            <p className="text-xs text-muted-foreground">{quote.phone}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                                            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                                 <MapPin className="w-3 h-3" />
                                                 Route
                                             </p>
@@ -219,18 +219,18 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5"></div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{quote.fromAddress}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{quote.fromZip}</p>
+                                                        <p className="text-sm font-medium text-foreground">{quote.fromAddress}</p>
+                                                        <p className="text-xs text-muted-foreground">{quote.fromZip}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-1">
-                                                    <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+                                                    <div className="w-px h-4 bg-border"></div>
                                                 </div>
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5"></div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{quote.toAddress}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">{quote.toZip}</p>
+                                                        <p className="text-sm font-medium text-foreground">{quote.toAddress}</p>
+                                                        <p className="text-xs text-muted-foreground">{quote.toZip}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -240,46 +240,46 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
 
                                 {/* Shipment Options */}
                                 <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 sm:gap-3">
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 sm:p-3 border border-gray-100 dark:border-gray-700">
-                                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Transport Type</p>
-                                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    <div className="bg-muted/40 rounded-lg p-2 sm:p-3 border border-border">
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 sm:mb-1">Transport Type</p>
+                                        <p className="text-xs sm:text-sm font-semibold text-foreground">
                                             {quote.enclosedTrailer ? 'Enclosed' : 'Open'}
                                         </p>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 sm:p-3 border border-gray-100 dark:border-gray-700">
-                                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Status</p>
-                                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                    <div className="bg-muted/40 rounded-lg p-2 sm:p-3 border border-border">
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 sm:mb-1">Status</p>
+                                        <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
                                             {quote.vehicleInoperable ? 'Inoperable' : 'Operable'}
                                         </p>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 sm:p-3 border border-gray-100 dark:border-gray-700">
-                                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Units</p>
-                                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">{quote.units}</p>
+                                    <div className="bg-muted/40 rounded-lg p-2 sm:p-3 border border-border">
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 sm:mb-1">Units</p>
+                                        <p className="text-xs sm:text-sm font-semibold text-foreground">{quote.units}</p>
                                     </div>
                                 </div>
 
                                 {/* Timeline Status */}
-                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-700">
-                                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1">
+                                <div className="bg-muted/40 rounded-lg p-4 border border-border">
+                                    <p className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1">
                                         <Clock className="w-3 h-3" />
                                         Shipment Timeline
                                     </p>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Requested Pickup</p>
-                                            <p className="text-xs font-medium text-gray-900 dark:text-gray-100">{formatDate(quote.createdAt)}</p>
+                                            <p className="text-xs text-muted-foreground mb-1">Requested Pickup</p>
+                                            <p className="text-xs font-medium text-foreground">{formatDate(quote.createdAt)}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Scheduled Pickup</p>
-                                            <p className="text-xs font-medium text-gray-400 dark:text-gray-500">Pending</p>
+                                            <p className="text-xs text-muted-foreground mb-1">Scheduled Pickup</p>
+                                            <p className="text-xs font-medium text-muted-foreground/60">Pending</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Scheduled Delivery</p>
-                                            <p className="text-xs font-medium text-gray-400 dark:text-gray-500">Pending</p>
+                                            <p className="text-xs text-muted-foreground mb-1">Scheduled Delivery</p>
+                                            <p className="text-xs font-medium text-muted-foreground/60">Pending</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Estimated Miles</p>
-                                            <p className="text-xs font-medium text-gray-900 dark:text-gray-100">{quote.miles} mi</p>
+                                            <p className="text-xs text-muted-foreground mb-1">Estimated Miles</p>
+                                            <p className="text-xs font-medium text-foreground">{quote.miles} mi</p>
                                         </div>
                                     </div>
                                 </div>
@@ -287,7 +287,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                 {/* Action Buttons */}
                                 <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 pt-2">
                                     <Button
-                                        className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-sm h-9 sm:h-10 text-xs sm:text-sm"
+                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white shadow-sm h-9 sm:h-10 text-xs sm:text-sm"
                                         onClick={handleConvertToLoad}
                                         disabled={isConvertingToLoad || isConvertingToLoad || isDeleting}
                                     >
@@ -296,7 +296,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                     </Button>
                                     <Button
                                         variant="outline"
-                                        className="border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 h-9 sm:h-10 text-xs sm:text-sm"
+                                        className="border-border hover:bg-muted h-9 sm:h-10 text-xs sm:text-sm"
                                         onClick={() => setIsEditModalOpen(true)}
                                         disabled={isConvertingToLoad || isConvertingToLoad || isDeleting}
                                     >

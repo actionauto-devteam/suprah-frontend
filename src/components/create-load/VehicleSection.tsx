@@ -146,7 +146,7 @@ function VinPicker({ value, onChange }: VinPickerProps) {
               <ChevronsUpDown className="size-3.5 ml-2 shrink-0 text-muted-foreground" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[340px] p-0" align="start">
+          <PopoverContent className="w-[calc(100vw-2rem)] sm:w-85 p-0" align="start">
             <Command>
               <CommandInput
                 placeholder="Search VIN, make, or model…"
