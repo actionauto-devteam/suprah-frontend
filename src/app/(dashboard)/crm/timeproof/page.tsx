@@ -81,8 +81,8 @@ const toDateStr = (d: Date) => {
   return `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, "0")}-${String(m.getUTCDate()).padStart(2, "0")}`
 }
 
-// Pay schedule: 1st–15th → payday 21st | 16th–end → payday 6th of next month.
-// Calculator unlocks 1 day before payday and stays available through the period end.
+// Pay schedule: 1st–15th → payday 20th | 16th–end → payday 5th of next month.
+// Calculator unlocks on the 5th/20th and stays available through the period end.
 function getPayoutWindowState(dayOfMonth: number): { available: boolean; nextUnlockLabel: string; daysUntil: number } {
   if (dayOfMonth >= 5 && dayOfMonth <= 15) return { available: true, nextUnlockLabel: "", daysUntil: 0 }
   if (dayOfMonth >= 20) return { available: true, nextUnlockLabel: "", daysUntil: 0 }
@@ -443,8 +443,8 @@ export default function TimeprofPage() {
     ? `${nowMonthShort} 1–15`
     : `${nowMonthShort} 16–${cutoffSummary.lastDay}`
   const currentPayoutDue = currentCutoff === 1
-    ? `Due ${nowMonthShort} 21`
-    : `Due ${new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 6)).toLocaleString("en-US", { month: "short", timeZone: "UTC" })} 6`
+    ? `Due ${nowMonthShort} 20`
+    : `Due ${new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 5)).toLocaleString("en-US", { month: "short", timeZone: "UTC" })} 5`
 
   /* ── Payout calculator derived ── */
   const calcSeconds = payoutPeriod === 1 ? calcCutoffSummary.p1Seconds : calcCutoffSummary.p2Seconds
@@ -457,16 +457,16 @@ export default function TimeprofPage() {
     ? `${calcMonthShort} 1–15`
     : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
   const calcPayoutDate = payoutPeriod === 1
-    ? `${calcMonthLong} 21`
-    : new Date(Date.UTC(viewYear, viewMonth + 1, 6))
+    ? `${calcMonthLong} 20`
+    : new Date(Date.UTC(viewYear, viewMonth + 1, 5))
       .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
 
   /* ── Pay day availability ── */
   const payDayDate = React.useMemo(() => {
     if (payoutPeriod === 1) {
-      return new Date(Date.UTC(viewYear, viewMonth, 21))
+      return new Date(Date.UTC(viewYear, viewMonth, 20))
     }
-    return new Date(Date.UTC(viewYear, viewMonth + 1, 6))
+    return new Date(Date.UTC(viewYear, viewMonth + 1, 5))
   }, [payoutPeriod, viewYear, viewMonth])
 
   const isPayDayReached = new Date() >= payDayDate

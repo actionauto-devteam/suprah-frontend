@@ -108,6 +108,7 @@ function fmt(d: Date) {
 
 type ApiError = {
   response?: {
+    status?: number;
     data?: {
       message?: string;
     };
@@ -500,6 +501,8 @@ export default function CrmDashboardPage() {
   const [showTrayModal, setShowTrayModal] = React.useState(false);
   const [trayChecking, setTrayChecking] = React.useState(false);
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false);
+  const [serverIsShiftFromToday, setServerIsShiftFromToday] = React.useState(false);
+  const [locallyResumedShift, setLocallyResumedShift] = React.useState(false);
   const [serverShiftStartedAt, setServerShiftStartedAt] = React.useState<string | null>(null);
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(
@@ -601,6 +604,7 @@ export default function CrmDashboardPage() {
       const s = res.data?.data;
       if (s) {
         setServerIsOnShift(!!s.isOnShift);
+        setServerIsShiftFromToday(!!s.isShiftFromToday);
         setServerShiftStartedAt(s.shiftStartedAt ?? null);
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000);
 
@@ -748,11 +752,19 @@ export default function CrmDashboardPage() {
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     setIsClocking(true);
     setClockMsg("");
+    // Always read the freshest token from storage — the React state copy is set
+    // at page load and goes stale after the 12h CRM JWT expiry.
+    const freshToken = localStorage.getItem("crm_token");
+    if (!freshToken) {
+      router.replace("/crm");
+      return;
+    }
     try {
       const res = await apiClient.post(
         "/api/crm/time-clock",
         { type, ...(note && { note }) },
-        { headers: { Authorization: `Bearer ${token}` } },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { headers: { Authorization: `Bearer ${freshToken}` }, _skipAuthRefresh: true } as any,
       );
       const data = res.data?.data || res.data;
       setTodayLogs(data.todayLogs || []);
@@ -760,6 +772,7 @@ export default function CrmDashboardPage() {
         setIsOnBreak(false);
         setBreakAccumulatedMs(0);
         setResumeOriginalClockIn(null);
+        setLocallyResumedShift(false);
       }
       setClockMsg(
         `${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`,
@@ -770,12 +783,23 @@ export default function CrmDashboardPage() {
     } catch (err: unknown) {
       const apiError = err as ApiError;
       const msg = apiError.response?.data?.message || "Failed";
+      const status = apiError.response?.status;
+
+      // CRM token expired or invalid — clear stored credentials and redirect
+      // to CRM login so the user can get a fresh token.
+      if (status === 401) {
+        localStorage.removeItem("crm_token");
+        localStorage.removeItem("crm_user");
+        router.replace("/crm");
+        return;
+      }
 
       // Graceful "Resume" path: backend already has an open clock-in (e.g. a
       // forgotten clock-out from earlier or yesterday that today's logs don't
       // surface). The user clicking Start Shift means they want to be on shift,
       // so treat this as a successful state-sync rather than a hard error.
       if (type === "time-in" && /already clocked in/i.test(msg)) {
+        setLocallyResumedShift(true);
         setClockMsg(`Resumed your open shift at ${fmt(new Date())}`);
         await refreshShiftState();
         setTimeout(() => fetchActivityState(), 2500);
@@ -923,7 +947,13 @@ export default function CrmDashboardPage() {
   // earlier today is still recognised even when today's todayTimeLogs is empty.
   // Without this the CRM would show "Ready to clock in" while backend rejects
   // Start Shift with "already clocked in", confusing the user.
-  const hasClockedIn = !!timeIn || serverIsOnShift;
+  //
+  // serverIsOnShift alone must NOT flip the UI on a new MDT day — an unclosed
+  // shift from yesterday would make Break/End Shift appear instead of Start
+  // Shift. We only fold it in when the server confirms the shift is from today
+  // (serverIsShiftFromToday) or the user explicitly resumed it this session
+  // (locallyResumedShift).
+  const hasClockedIn = !!timeIn || (serverIsOnShift && (serverIsShiftFromToday || locallyResumedShift));
   const hasClockedOut = !!timeOut;
   const isActive = hasClockedIn && !hasClockedOut;
   const isComplete = hasClockedOut;
