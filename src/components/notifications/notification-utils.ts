@@ -126,13 +126,18 @@ const ROUTE_MAP: Record<string, string> = {
   reminder: '/crm',
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
+  driver_request: '/driver-tracker', driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
+  driver_assigned: '/driver/loads', driver_payout: '/driver/earnings',
   message_received: '/crm/supra-space',
-  aftermarket_inquiry: '/crm/support-center', aftermarket_order: '/crm/aftermarket',
+  aftermarket_inquiry: '/crm/support-center?tab=aftermarket', aftermarket_invoice: '/customer/payments', aftermarket_order: '/crm/aftermarket',
   driver_location_update: '/driver-tracker',
-  payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
+  payment_request: '/customer/payments', payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
   payout_processed: '/billing',
   team_invite_sent: '/settings', team_member_joined: '/settings', team_member_left: '/settings', role_changed: '/settings',
   password_changed: '/profile', email_changed: '/profile', profile_updated: '/profile', login_alert: '/profile',
+  referral_joined: '/customer/refer', referral_rewarded: '/customer/refer',
+  system_announcement: '/notifications', general: '/notifications',
+  delivery_confirmed: '/transportation', proof_submitted: '/transportation',
 };
 
 const DRIVER_ROUTE_MAP: Record<string, string> = {
@@ -168,14 +173,14 @@ export function getNotificationRoute(notification: Notification, pathname?: stri
   // Prefer the contextual route embedded in metadata (e.g. lead-reminder deep links)
   if (notification.metadata?.route) return notification.metadata.route as string;
 
-  if (!pathname) return ROUTE_MAP[notification.type] || null;
+  if (!pathname) return ROUTE_MAP[notification.type] || '/notifications';
 
   const role = getRoleContext(pathname);
 
-  if (role === 'driver') return DRIVER_ROUTE_MAP[notification.type] || null;
-  if (role === 'customer') return CUSTOMER_ROUTE_MAP[notification.type] || null;
-  if (role === 'admin') return ADMIN_ROUTE_MAP[notification.type] || ROUTE_MAP[notification.type] || null;
-  return ROUTE_MAP[notification.type] || null;
+  if (role === 'driver') return DRIVER_ROUTE_MAP[notification.type] || ROUTE_MAP[notification.type] || '/driver/notifications';
+  if (role === 'customer') return CUSTOMER_ROUTE_MAP[notification.type] || ROUTE_MAP[notification.type] || '/customer/notifications';
+  if (role === 'admin') return ADMIN_ROUTE_MAP[notification.type] || ROUTE_MAP[notification.type] || '/admin/notifications';
+  return ROUTE_MAP[notification.type] || '/notifications';
 }
 
 export function formatNotificationDate(dateStr: string): string {

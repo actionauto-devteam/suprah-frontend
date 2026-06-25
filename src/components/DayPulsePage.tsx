@@ -39,9 +39,7 @@ import {
 import { apiClient } from "@/lib/api-client"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 1 Ã¢â‚¬â€ Department definitions + color tokens
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 1 - Department definitions + color tokens
 
 export const DEPARTMENTS = [
   { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald" },
@@ -85,9 +83,7 @@ function getDeptStyle(color: string) {
   return DEPT_STYLES[color] ?? DEPT_STYLES.emerald
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 2 Ã¢â‚¬â€ Shared types, reactions, panel constants, SupraSpace helpers
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 2 - Shared types, reactions, panel constants, SupraSpace helpers
 
 interface DayPulseReport {
   _id: string
@@ -221,7 +217,7 @@ const DAYPULSE_SECTION_CONFIG: Array<{
       key: "accomplishment",
       label: "Accomplishment",
       icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
-      placeholder: "What did you accomplish today? Include completed tasks, closed deals, resolved issuesÃ¢â‚¬Â¦",
+      placeholder: "What did you accomplish today? Include completed tasks, closed deals, resolved issues...",
       borderClass: "bg-emerald-500/5 border-emerald-500/15",
       accentClass: "text-emerald-500",
     },
@@ -243,10 +239,7 @@ const DAYPULSE_SECTION_CONFIG: Array<{
     },
   ]
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 3 Ã¢â‚¬â€ Helpers, attachment grouping, AttachmentPreviewModal
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-
+// PART 3 - Helpers, attachment grouping, AttachmentPreviewModal
 function ini(n: string) {
   return n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
 }
@@ -404,9 +397,7 @@ function AttachmentPreviewModal({
   )
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 4 Ã¢â‚¬â€ ReactionDetailsModal (who reacted) + ReactionBar + DeleteModal
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 4 - ReactionDetailsModal (who reacted) + ReactionBar + DeleteModal
 
 function ReactionDetailsModal({ summary, onClose }: {
   summary: ReactionSummary; onClose: () => void
@@ -621,9 +612,7 @@ function DeleteModal({ label = "report", onConfirm, onCancel, loading }: {
   )
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 5 Ã¢â‚¬â€ CommentItem + CommentSection
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 5 - CommentItem + CommentSection
 
 function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionState, onReactionChange }: {
   comment: Comment; currentUser: CrmUser; token: string; postId: string
@@ -803,9 +792,7 @@ function CommentSection({ reportId, currentUser, token }: {
   )
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 6 Ã¢â‚¬â€ ReportCard
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 6 - ReportCard
 
 function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reactionState, onReactionChange }: {
   report: DayPulseReport; currentUser: CrmUser; token: string
@@ -872,7 +859,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
 
       <article className={`group rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-border/60 hover:shadow-lg ${style.glow}`}>
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header band Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Header band */}
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar className={`h-9 w-9 shrink-0 ring-2 ${style.ring}`}>
@@ -920,7 +907,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           )}
         </div>
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Structured sections Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Structured sections */}
         {isEditing ? (
           <div className="px-5 pb-5 space-y-3">
             {[
@@ -1050,7 +1037,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           </div>
         )}
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Footer: reactions + comment toggle Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Footer: reactions + comment toggle */}
         <div className="px-5 pb-5 flex items-center justify-between gap-3 flex-wrap">
           <ReactionBar
             targetType="post" targetId={report._id} token={token}
@@ -1065,7 +1052,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
           </button>
         </div>
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Comments Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Comments */}
         {showComments && (
           <div className="px-5 pb-5">
             <CommentSection reportId={report._id} currentUser={currentUser} token={token} />
@@ -1076,9 +1063,7 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
   )
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 7 Ã¢â‚¬â€ ReportComposer
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 7 - ReportComposer
 
 function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   currentUser: CrmUser; token: string; selectedDept: DepartmentKey | null; onPosted: (r: DayPulseReport) => void
@@ -1211,7 +1196,9 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
   const deptStyle = getDeptStyle(selectedDeptMeta?.color ?? "emerald")
 
   return (
-    <div className={`rounded-3xl border bg-card/60 backdrop-blur-xl transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}>
+    <div
+      className={`rounded-3xl border bg-card/60 backdrop-blur-xl transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}
+    >
       {previewAttachment && (
         <AttachmentPreviewModal
           attachment={previewAttachment.attachment}
@@ -1228,11 +1215,15 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
         >
           <Avatar className="h-10 w-10 shrink-0 ring-1 ring-emerald-500/25">
             <AvatarImage src={currentUser.avatar} />
-            <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
+            <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">
+              {ini(currentUser.fullName)}
+            </AvatarFallback>
           </Avatar>
           <div className="flex-1 rounded-2xl bg-muted/30 border border-border/40 px-4 py-3 text-sm text-muted-foreground/50 hover:bg-muted/50 transition-colors">
-            <span className="mb-0.5 block text-[11px] font-medium text-muted-foreground/40">New report</span>
-            File your DayPulse updateÃ¢â‚¬Â¦
+            <span className="mb-0.5 block text-[11px] font-medium text-muted-foreground/40">
+              New report
+            </span>
+            File your DayPulse update…
           </div>
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/50 shrink-0">
             <CalendarDays className="h-3.5 w-3.5" />
@@ -1248,10 +1239,18 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                 <Sparkles className="h-4 w-4 text-emerald-500" />
               </div>
               <div className="min-w-0">
-                <span className="block text-sm font-semibold text-foreground">New DayPulse Report</span>
+                <span className="block text-sm font-semibold text-foreground">
+                  New DayPulse Report
+                </span>
               </div>
             </div>
-            <button onClick={() => { setOpen(false); setError("") }} className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
+            <button
+              onClick={() => {
+                setOpen(false);
+                setError("");
+              }}
+              className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1261,22 +1260,26 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
             {/* Department */}
             <div>
               <label className="mb-2 flex items-center gap-1 text-[11px] font-medium text-muted-foreground/60">
-                <Hash className="h-3 w-3" /> Department <span className="text-rose-500">*</span>
+                <Hash className="h-3 w-3" /> Department{" "}
+                <span className="text-rose-500">*</span>
               </label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className={`w-full flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs font-medium transition-all
+                  <button
+                    className={`w-full flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs font-medium transition-all
                     ${dept ? `${deptStyle.badge} border-current` : "border-border/40 text-muted-foreground/50 hover:border-border/70"}`}
                   >
                     <span className="flex items-center gap-1.5 truncate">
-                      {selectedDeptMeta ? selectedDeptMeta.label : "Select department"}
+                      {selectedDeptMeta
+                        ? selectedDeptMeta.label
+                        : "Select department"}
                     </span>
                     <ChevronDown className="h-3 w-3 shrink-0" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 rounded-2xl border-border/40 shadow-xl p-1.5 max-h-64 overflow-y-auto bg-card/95 backdrop-blur-xl">
                   {DEPARTMENTS.map((d) => {
-                    const s = getDeptStyle(d.color)
+                    const s = getDeptStyle(d.color);
                     return (
                       <DropdownMenuItem
                         key={d.key}
@@ -1285,7 +1288,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                       >
                         <span>{d.label}</span>
                       </DropdownMenuItem>
-                    )
+                    );
                   })}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1294,7 +1297,8 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
             {/* Date */}
             <div>
               <label className="mb-2 flex items-center gap-1 text-[11px] font-medium text-muted-foreground/60">
-                <CalendarDays className="h-3 w-3" /> Report Date <span className="text-rose-500">*</span>
+                <CalendarDays className="h-3 w-3" /> Report Date{" "}
+                <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
@@ -1307,94 +1311,135 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           </div>
 
           {/* Structured sections */}
-          {DAYPULSE_SECTION_CONFIG.map(({ key, label, icon, placeholder, borderClass }) => {
-            const value = key === "accomplishment" ? accomplishment : key === "blockers" ? blockers : inProgress
-            const onChange = key === "accomplishment" ? setAcc : key === "blockers" ? setBlk : setInp
-            const attachments = pendingAttachments[key]
+          {DAYPULSE_SECTION_CONFIG.map(
+            ({ key, label, icon, placeholder, borderClass }) => {
+              const value =
+                key === "accomplishment"
+                  ? accomplishment
+                  : key === "blockers"
+                    ? blockers
+                    : inProgress;
+              const onChange =
+                key === "accomplishment"
+                  ? setAcc
+                  : key === "blockers"
+                    ? setBlk
+                    : setInp;
+              const attachments = pendingAttachments[key];
 
-            return (
-              <div key={label} className="space-y-3">
-                <div>
-                  <label className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/60">
-                    {icon}{label} <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    value={value}
-                    onChange={(e) => { onChange(e.target.value); setError("") }}
-                    rows={3} maxLength={5000}
-                    placeholder={placeholder}
-                    className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed placeholder:text-muted-foreground/40 transition-all"
-                  />
-                  <div className="mt-1.5 text-right">
-                    <span className={`text-[10px] tabular-nums ${value.length > 4500 ? "text-rose-500" : "text-muted-foreground/40"}`}>{value.length}/5000</span>
-                  </div>
-                </div>
-
-                <div className={`rounded-2xl border px-4 py-3 ${borderClass}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] font-medium text-muted-foreground/60">Attachments</p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground/40">Up to {MAX_DAYPULSE_ATTACHMENTS_PER_SECTION} files for this section</p>
+              return (
+                <div key={label} className="space-y-3">
+                  <div>
+                    <label className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/60">
+                      {icon}
+                      {label} <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      value={value}
+                      onChange={(e) => {
+                        onChange(e.target.value);
+                        setError("");
+                      }}
+                      rows={3}
+                      maxLength={5000}
+                      placeholder={placeholder}
+                      className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed placeholder:text-muted-foreground/40 transition-all"
+                    />
+                    <div className="mt-1.5 text-right">
+                      <span
+                        className={`text-[10px] tabular-nums ${value.length > 4500 ? "text-rose-500" : "text-muted-foreground/40"}`}
+                      >
+                        {value.length}/5000
+                      </span>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 rounded-xl border-border/40 bg-card/60 text-xs gap-2"
-                      onClick={() => openAttachmentPicker(key)}
-                    >
-                      <Paperclip className="h-3.5 w-3.5" />
-                      Attach file
-                    </Button>
                   </div>
 
-                  {attachments.length > 0 ? (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {attachments.map((file, index) => {
-                        const imageLike = file.type.startsWith("image/")
+                  <div
+                    className={`rounded-2xl border px-4 py-3 ${borderClass}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] font-medium text-muted-foreground/60">
+                          Attachments
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground/40">
+                          Up to {MAX_DAYPULSE_ATTACHMENTS_PER_SECTION} files for
+                          this section
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 rounded-xl border-border/40 bg-card/60 text-xs gap-2"
+                        onClick={() => openAttachmentPicker(key)}
+                      >
+                        <Paperclip className="h-3.5 w-3.5" />
+                        Attach file
+                      </Button>
+                    </div>
 
-                        return (
-                          <div
-                            key={`${key}-${file.name}-${file.size}-${file.lastModified}-${index}`}
-                            onClick={() => setPreviewAttachment({
-                              attachment: {
-                                url: URL.createObjectURL(file),
-                                fileKey: `${file.name}-${file.lastModified}-${index}`,
-                                originalName: file.name,
-                                mimeType: file.type,
-                                size: file.size,
-                                section: key,
-                              },
-                              heading: `${label} attachment`,
-                            })}
-                            role="button"
-                            tabIndex={0}
-                            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/40 bg-card/60 px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
-                          >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
-                              {imageLike ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
-                              <p className="text-[10px] text-muted-foreground/55">{formatBytes(file.size)}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(event) => { event.stopPropagation(); removeAttachment(key, index) }}
-                              className="rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground/75"
-                              aria-label={`Remove ${file.name}`}
+                    {attachments.length > 0 ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {attachments.map((file, index) => {
+                          const imageLike = file.type.startsWith("image/");
+
+                          return (
+                            <div
+                              key={`${key}-${file.name}-${file.size}-${file.lastModified}-${index}`}
+                              onClick={() =>
+                                setPreviewAttachment({
+                                  attachment: {
+                                    url: URL.createObjectURL(file),
+                                    fileKey: `${file.name}-${file.lastModified}-${index}`,
+                                    originalName: file.name,
+                                    mimeType: file.type,
+                                    size: file.size,
+                                    section: key,
+                                  },
+                                  heading: `${label} attachment`,
+                                })
+                              }
+                              role="button"
+                              tabIndex={0}
+                              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/40 bg-card/60 px-3 py-2.5 text-left transition-colors hover:border-border/60 hover:bg-muted/30"
                             >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : null}
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/30">
+                                {imageLike ? (
+                                  <ImageIcon className="h-4 w-4" />
+                                ) : (
+                                  <FileText className="h-4 w-4" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium text-foreground">
+                                  {file.name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/55">
+                                  {formatBytes(file.size)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  removeAttachment(key, index);
+                                }}
+                                className="rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground/75"
+                                aria-label={`Remove ${file.name}`}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              );
+            },
+          )}
 
           <input
             ref={fileInputRef}
@@ -1413,9 +1458,20 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
           )}
 
           <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-border/20">
-            <p className="pt-3 text-[10px] font-medium text-muted-foreground/40">Ã¢Å’Ëœ/Ctrl + Enter to submit</p>
+            <p className="pt-3 text-[10px] font-medium text-muted-foreground/40">
+              ⌘/Ctrl + Enter to submit
+            </p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="h-10 rounded-xl text-xs px-4 font-medium" onClick={() => { setOpen(false); setError("") }} disabled={submitting}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 rounded-xl text-xs px-4 font-medium"
+                onClick={() => {
+                  setOpen(false);
+                  setError("");
+                }}
+                disabled={submitting}
+              >
                 Cancel
               </Button>
               <Button
@@ -1424,7 +1480,11 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                 disabled={submitting || !canSubmit}
                 className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold gap-2 px-5 disabled:opacity-40"
               >
-                {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {submitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
                 Submit Report
               </Button>
             </div>
@@ -1432,12 +1492,10 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-// PART 8 Ã¢â‚¬â€ DateNavigator, DeptTabBar, DayPulsePage (main export)
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// PART 8 - DateNavigator, DeptTabBar, DayPulsePage (main export)
 
 function DateNavigator({ selectedDate, onDateChange }: {
   selectedDate: string; onDateChange: (d: string) => void
@@ -1523,7 +1581,7 @@ function DeptTabBar({ selected, onSelect }: {
         <ChevronLeft className="h-3.5 w-3.5" />
       </button>
 
-      {/* Tab strip Ã¢â‚¬â€ clip here intentionally, scroll via JS */}
+      {/* Tab strip clip here intentionally, scroll via JS */}
       <div
         ref={scrollRef}
         className="flex items-center gap-1.5 flex-1 min-w-0"
@@ -1727,7 +1785,7 @@ export default function DayPulsePage({ currentUser, token }: {
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
-            <p className="text-xs font-medium text-muted-foreground/50">Loading reportsÃ¢â‚¬Â¦</p>
+            <p className="text-xs font-medium text-muted-foreground/50">Loading reports</p>
           </div>
         ) : reports.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 py-18">
