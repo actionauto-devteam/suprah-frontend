@@ -26,6 +26,11 @@ import {
   Paperclip,
   Image as ImageIcon,
   FileText,
+  Bold,
+  Italic,
+  List,
+  TextQuote,
+  Code2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -59,6 +64,10 @@ export const DEPARTMENTS = [
 
 export type DepartmentKey = typeof DEPARTMENTS[number]["key"]
 type DayPulseAttachmentSection = "accomplishment" | "blockers" | "inProgress"
+const DAYPULSE_SECTION_MAX_LENGTH = 10000
+const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
+type DayPulseTextFormat = "bold" | "italic" | "list" | "quote" | "code"
+type DayPulseFormatState = Record<DayPulseTextFormat, boolean>
 
 // Color token maps (Tailwind-safe Ã¢â‚¬â€ avoids dynamic class generation)
 const DEPT_STYLES: Record<string, {
@@ -149,21 +158,44 @@ const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 
 // DayPulse -> SupraSpace report channel
 const DAYPULSE_REPORT_ENDPOINT = '/api/supraspace/daypulse-report'
+const toMDTDate = (date: Date) => new Date(date.getTime() + MDT_OFFSET_MS)
+
+function toMDTDateKey(date: Date): string {
+  const mdt = toMDTDate(date)
+  return [
+    mdt.getUTCFullYear(),
+    String(mdt.getUTCMonth() + 1).padStart(2, "0"),
+    String(mdt.getUTCDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function reportDateKey(dateStr: string): string {
+  const match = dateStr.match(/^\d{4}-\d{2}-\d{2}/)
+  return match ? match[0] : toMDTDateKey(new Date(dateStr))
+}
+
+function formatMDTTime(dateStr: string): string {
+  return toMDTDate(new Date(dateStr)).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  })
+}
+
 function toBullets(text: string): string {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-  return lines.map(l => `- ${l}`).join('\n')
+  return lines.map((line) => {
+    const normalized = line.replace(/^[-•]\s+/, "")
+    return `- ${normalized}`
+  }).join('\n')
 }
 
 async function postDayPulseToGroupChat(report: DayPulseReport): Promise<void> {
   const buildBody = (): Record<string, unknown> => {
     const dept = DEPARTMENTS.find(d => d.key === report.department)
     const deptLabel = dept?.label ?? report.department
-    const dateStr = new Date(report.reportDate).toLocaleDateString('en-US', {
-      month: 'long', day: 'numeric', year: 'numeric',
-    })
-    const timeStr = new Date(report.createdAt).toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit',
-    })
+    const dateStr = formatReportDate(reportDateKey(report.reportDate))
+    const timeStr = formatMDTTime(report.createdAt)
 
     const content =
       `Department - ${deptLabel}\n` +
@@ -254,7 +286,11 @@ function timeAgo(dateStr: string): string {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   if (d < 7) return `${d}d ago`
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return toMDTDate(new Date(dateStr)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
 }
 
 function formatBytes(bytes: number): string {
@@ -274,22 +310,22 @@ function formatBytes(bytes: number): string {
 }
 
 function fullDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-US", {
+  return toMDTDate(new Date(dateStr)).toLocaleString("en-US", {
     weekday: "short", month: "short", day: "numeric",
     year: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZone: "UTC",
   })
 }
 
-/** Format a YYYY-MM-DD string for display */
+/** Format a YYYY-MM-DD MDT calendar date for display. */
 function formatReportDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00Z")
+  const d = new Date(dateStr + "T12:00:00Z")
   return d.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
 }
 
-/** Today as YYYY-MM-DD in local time */
+/** Today as YYYY-MM-DD in CRM MDT time. */
 function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  return toMDTDateKey(new Date())
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -330,6 +366,165 @@ function groupDayPulseAttachments(attachments?: DayPulseAttachment[]) {
 
 function isImageAttachment(attachment: Pick<DayPulseAttachment, "mimeType" | "originalName">) {
   return attachment.mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(attachment.originalName)
+}
+
+function applyDayPulseFormat(value: string, start: number, end: number, format: DayPulseTextFormat) {
+  const before = value.slice(0, start)
+  const selected = value.slice(start, end)
+  const after = value.slice(end)
+  const fallback: Record<DayPulseTextFormat, string> = {
+    bold: "bold text",
+    italic: "italic text",
+    list: "list item",
+    quote: "quote",
+    code: "code",
+  }
+  const text = selected || fallback[format]
+  let replacement = text
+
+  if (format === "bold") replacement = `**${text}**`
+  if (format === "italic") replacement = `_${text}_`
+  if (format === "code") replacement = `\`${text}\``
+  if (format === "list") {
+    replacement = text
+      .split("\n")
+      .map((line) => line.trimStart().startsWith("- ") ? line : `- ${line}`)
+      .join("\n")
+  }
+  if (format === "quote") {
+    replacement = text
+      .split("\n")
+      .map((line) => line.trimStart().startsWith("> ") ? line : `> ${line}`)
+      .join("\n")
+  }
+
+  return {
+    next: `${before}${replacement}${after}`,
+    selectionStart: before.length,
+    selectionEnd: before.length + replacement.length,
+  }
+}
+
+function getLineInfo(value: string, position: number) {
+  const lineStart = value.lastIndexOf("\n", Math.max(position - 1, 0)) + 1
+  const nextBreak = value.indexOf("\n", position)
+  const lineEnd = nextBreak === -1 ? value.length : nextBreak
+  const line = value.slice(lineStart, lineEnd)
+  return { line, lineStart, lineEnd }
+}
+
+function hasOpenMarker(line: string, positionInLine: number, marker: string) {
+  const before = line.slice(0, positionInLine)
+  return before.split(marker).length % 2 === 0
+}
+
+function getDayPulseFormatState(value: string, start: number, end: number): DayPulseFormatState {
+  const { line, lineStart } = getLineInfo(value, start)
+  const positionInLine = start - lineStart
+  const selected = value.slice(start, end)
+  return {
+    bold: Boolean(selected.startsWith("**") && selected.endsWith("**")) || hasOpenMarker(line, positionInLine, "**"),
+    italic: Boolean(selected.startsWith("_") && selected.endsWith("_")) || hasOpenMarker(line, positionInLine, "_"),
+    list: line.trimStart().startsWith("- "),
+    quote: line.trimStart().startsWith("> "),
+    code: Boolean(selected.startsWith("`") && selected.endsWith("`")) || hasOpenMarker(line, positionInLine, "`"),
+  }
+}
+
+function renderFormattedDayPulseText(text: string) {
+  const lines = text.split("\n")
+  return lines.map((line, lineIndex) => {
+    const parts = line.split(/(\*\*[^*\n]+\*\*|_[^_\n]+_|`[^`\n]+`)/g)
+    const rendered = parts.map((part, partIndex) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={partIndex}>{part.slice(2, -2)}</strong>
+      }
+      if (part.startsWith("_") && part.endsWith("_")) {
+        return <em key={partIndex}>{part.slice(1, -1)}</em>
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={partIndex} className="rounded bg-muted/60 px-1 py-0.5 text-[0.9em]">{part.slice(1, -1)}</code>
+      }
+      return <React.Fragment key={partIndex}>{part}</React.Fragment>
+    })
+
+    if (line.trimStart().startsWith("- ")) {
+      return <div key={lineIndex} className="flex gap-2"><span className="shrink-0">•</span><span>{renderFormattedDayPulseText(line.replace(/^\s*-\s*/, ""))}</span></div>
+    }
+    if (line.trimStart().startsWith("> ")) {
+      return <blockquote key={lineIndex} className="my-1 border-l-2 border-emerald-500/40 pl-3 text-muted-foreground/90">{renderFormattedDayPulseText(line.replace(/^\s*>\s*/, ""))}</blockquote>
+    }
+    return <React.Fragment key={lineIndex}>{rendered}{lineIndex < lines.length - 1 ? <br /> : null}</React.Fragment>
+  })
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function markdownToDayPulseHtml(text: string) {
+  const inline = (line: string) => escapeHtml(line)
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/_([^_\n]+)_/g, "<em>$1</em>")
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+
+  const html: string[] = []
+  let listItems: string[] = []
+  const flushList = () => {
+    if (listItems.length) {
+      html.push(`<ul>${listItems.map((item) => `<li>${inline(item)}</li>`).join("")}</ul>`)
+      listItems = []
+    }
+  }
+
+  text.split("\n").forEach((line) => {
+    if (line.trimStart().startsWith("- ")) {
+      listItems.push(line.replace(/^\s*-\s*/, ""))
+      return
+    }
+    flushList()
+    if (line.trimStart().startsWith("> ")) {
+      html.push(`<blockquote>${inline(line.replace(/^\s*>\s*/, ""))}</blockquote>`)
+      return
+    }
+    html.push(line ? `<div>${inline(line)}</div>` : "<div><br></div>")
+  })
+  flushList()
+  return html.join("") || ""
+}
+
+function dayPulseHtmlToMarkdown(root: HTMLElement) {
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ""
+    if (node.nodeType !== Node.ELEMENT_NODE) return ""
+
+    const el = node as HTMLElement
+    const tag = el.tagName.toLowerCase()
+    const inner = Array.from(el.childNodes).map(walk).join("")
+
+    if (tag === "br") return "\n"
+    if (tag === "strong" || tag === "b") return `**${inner}**`
+    if (tag === "em" || tag === "i") return `_${inner}_`
+    if (tag === "code") return `\`${inner}\``
+    if (tag === "li") return `- ${inner.trim()}\n`
+    if (tag === "ul" || tag === "ol") return `${inner}\n`
+    if (tag === "blockquote") {
+      return `${inner.split("\n").filter(Boolean).map((line) => `> ${line}`).join("\n")}\n`
+    }
+    if (["div", "p"].includes(tag)) return `${inner}\n`
+    return inner
+  }
+
+  return Array.from(root.childNodes)
+    .map(walk)
+    .join("")
+    .replace(/\u00a0/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd()
 }
 
 function AttachmentPreviewModal({
@@ -392,6 +587,215 @@ function AttachmentPreviewModal({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+type ExpandableTextareaProps = {
+  value: string
+  onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void
+  placeholder: string
+  maxLength?: number
+  className?: string
+}
+
+function ExpandableTextarea({
+  value,
+  onChange,
+  placeholder,
+  maxLength = DAYPULSE_SECTION_MAX_LENGTH,
+  className = "",
+}: ExpandableTextareaProps) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const lastMarkdownRef = React.useRef("")
+  const [refining, setRefining] = React.useState(false)
+  const [activeFormats, setActiveFormats] = React.useState<DayPulseFormatState>({
+    bold: false,
+    italic: false,
+    list: false,
+    quote: false,
+    code: false,
+  })
+
+  const resizeToContent = React.useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${Math.min(el.scrollHeight, 420)}px`
+  }, [])
+
+  React.useLayoutEffect(() => {
+    const el = ref.current
+    if (el && document.activeElement !== el && value !== lastMarkdownRef.current) {
+      el.innerHTML = markdownToDayPulseHtml(value)
+      lastMarkdownRef.current = value
+    }
+    resizeToContent()
+  }, [value, resizeToContent])
+
+  const updateValue = React.useCallback((next: string) => {
+    lastMarkdownRef.current = next
+    onChange({ target: { value: next } } as React.ChangeEvent<HTMLTextAreaElement>)
+  }, [onChange])
+
+  const refreshActiveFormats = React.useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const selection = window.getSelection()
+    const anchor = selection?.anchorNode
+    const currentElement = anchor instanceof Element ? anchor : anchor?.parentElement
+    setActiveFormats({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      list: document.queryCommandState("insertUnorderedList") || Boolean(currentElement?.closest("li")),
+      quote: Boolean(currentElement?.closest("blockquote")),
+      code: Boolean(currentElement?.closest("code")),
+    })
+  }, [])
+
+  const syncMarkdownFromEditor = React.useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const next = dayPulseHtmlToMarkdown(el).slice(0, maxLength)
+    updateValue(next)
+    requestAnimationFrame(() => {
+      resizeToContent()
+      refreshActiveFormats()
+    })
+  }, [maxLength, refreshActiveFormats, resizeToContent, updateValue])
+
+  const applyFormat = (format: DayPulseTextFormat) => {
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    if (format === "bold") document.execCommand("bold")
+    if (format === "italic") document.execCommand("italic")
+    if (format === "list") {
+      if (!el.textContent?.trim()) {
+        document.execCommand("insertHTML", false, "<ul><li><br></li></ul>")
+      } else {
+        document.execCommand("insertUnorderedList")
+      }
+    }
+    if (format === "quote") document.execCommand("formatBlock", false, activeFormats.quote ? "div" : "blockquote")
+    if (format === "code") {
+      const selection = window.getSelection()
+      const selectedText = selection?.toString() || "code"
+      document.execCommand("insertHTML", false, `<code>${escapeHtml(selectedText)}</code>`)
+    }
+    requestAnimationFrame(() => {
+      syncMarkdownFromEditor()
+      refreshActiveFormats()
+    })
+  }
+
+  const replaceRange = (_start: number, _end: number, _replacement: string) => { }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter") return
+    const el = ref.current as unknown as HTMLTextAreaElement
+    if (!el) return
+    const { line, lineStart } = getLineInfo(value, el.selectionStart)
+    const leading = line.match(/^\s*/)?.[0] || ""
+    const trimmed = line.trim()
+    if (trimmed === "-") {
+      event.preventDefault()
+      replaceRange(lineStart, el.selectionStart, "")
+      return
+    }
+    if (line.trimStart().startsWith("- ")) {
+      event.preventDefault()
+      replaceRange(el.selectionStart, el.selectionEnd, `\n${leading}- `)
+      return
+    }
+    if (trimmed === ">") {
+      event.preventDefault()
+      replaceRange(lineStart, el.selectionStart, "")
+      return
+    }
+    if (line.trimStart().startsWith("> ")) {
+      event.preventDefault()
+      replaceRange(el.selectionStart, el.selectionEnd, `\n${leading}> `)
+    }
+  }
+
+  const refineText = async () => {
+    if (refining || !value.trim()) return
+    setRefining(true)
+    try {
+      const prompt = `Improve this DayPulse update for clarity, grammar, and professional tone. Keep the original meaning and language. Return only the improved text:\n\n${value.trim()}`
+      const res = await apiClient.post("/api/supraleo/refine", { text: prompt })
+      const refined = res.data?.data?.refined || ""
+      if (refined.trim()) {
+        const next = refined.trim()
+        updateValue(next)
+        if (ref.current) ref.current.innerHTML = markdownToDayPulseHtml(next)
+      }
+    } catch {
+      // Keep the current text if the writing assistant is unavailable.
+    } finally {
+      setRefining(false)
+      requestAnimationFrame(resizeToContent)
+    }
+  }
+
+  const formatControls: Array<{ type: DayPulseTextFormat; label: string; icon: React.ReactNode }> = [
+    { type: "bold", label: "Bold", icon: <Bold className="h-3.5 w-3.5" /> },
+    { type: "italic", label: "Italic", icon: <Italic className="h-3.5 w-3.5" /> },
+    { type: "list", label: "Bullet list", icon: <List className="h-3.5 w-3.5" /> },
+    { type: "quote", label: "Quote", icon: <TextQuote className="h-3.5 w-3.5" /> },
+    { type: "code", label: "Inline code", icon: <Code2 className="h-3.5 w-3.5" /> },
+  ]
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border/40 bg-muted/20 focus-within:ring-2 focus-within:ring-emerald-500/25 transition-colors">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border/30 px-2.5 py-2">
+        {formatControls.map((control) => (
+          <button
+            key={control.type}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => applyFormat(control.type)}
+            title={control.label}
+            aria-pressed={activeFormats[control.type]}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-muted/60 hover:text-foreground ${activeFormats[control.type] ? "bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-500/25" : "text-muted-foreground/65"}`}
+          >
+            {control.icon}
+          </button>
+        ))}
+        <div className="mx-1 h-4 w-px bg-border/50" />
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={refineText}
+          disabled={refining || !value.trim()}
+          title="Refine writing"
+          className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold text-violet-400 transition-colors hover:bg-violet-500/10 disabled:opacity-40"
+        >
+          {refining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Refine
+        </button>
+      </div>
+      <div className="relative">
+        {!value.trim() && (
+          <span className="pointer-events-none absolute left-4 top-4 text-sm text-muted-foreground/40">
+            {placeholder}
+          </span>
+        )}
+        <div
+          ref={ref}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={syncMarkdownFromEditor}
+          onFocus={refreshActiveFormats}
+          onClick={refreshActiveFormats}
+          onKeyUp={refreshActiveFormats}
+          onMouseUp={refreshActiveFormats}
+          onBlur={syncMarkdownFromEditor}
+          className={`w-full min-h-28 max-h-[420px] border-0 bg-transparent text-sm p-4 resize-y overflow-auto focus:outline-none leading-relaxed text-foreground/90 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:pl-1 [&_blockquote]:border-l-2 [&_blockquote]:border-emerald-500/40 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-muted/60 [&_code]:px-1 [&_code]:py-0.5 ${className}`}
+          style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        />
       </div>
     </div>
   )
@@ -917,12 +1321,11 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
             ].map(({ label, icon, value, onChange, placeholder }) => (
               <div key={label}>
                 <label className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/60">{icon}{label}</label>
-                <textarea
+                <ExpandableTextarea
                   value={value}
                   onChange={(e) => { onChange(e.target.value); setEditError("") }}
-                  rows={3} maxLength={5000}
                   placeholder={placeholder}
-                  className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-3 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed placeholder:text-muted-foreground/40"
+                  className="p-3"
                 />
               </div>
             ))}
@@ -948,7 +1351,9 @@ function ReportCard({ report, currentUser, token, onUpdated, onDeleted, reaction
                     {icon}
                     <span className={`text-[11px] font-semibold ${accentClass}/90`}>{label}</span>
                   </div>
-                  <p className="text-sm leading-7 whitespace-pre-wrap wrap-break-word text-foreground/85">{content}</p>
+                  <div className="text-sm leading-7 whitespace-pre-wrap wrap-break-word text-foreground/85">
+                    {renderFormattedDayPulseText(content)}
+                  </div>
 
                   {sectionAttachments.length > 0 ? (
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1334,22 +1739,20 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
                       {icon}
                       {label} <span className="text-rose-500">*</span>
                     </label>
-                    <textarea
+                    <ExpandableTextarea
                       value={value}
                       onChange={(e) => {
                         onChange(e.target.value);
                         setError("");
                       }}
-                      rows={3}
-                      maxLength={5000}
+                      maxLength={DAYPULSE_SECTION_MAX_LENGTH}
                       placeholder={placeholder}
-                      className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed placeholder:text-muted-foreground/40 transition-all"
                     />
                     <div className="mt-1.5 text-right">
                       <span
-                        className={`text-[10px] tabular-nums ${value.length > 4500 ? "text-rose-500" : "text-muted-foreground/40"}`}
+                        className={`text-[10px] tabular-nums ${value.length > DAYPULSE_SECTION_MAX_LENGTH * 0.9 ? "text-rose-500" : "text-muted-foreground/40"}`}
                       >
-                        {value.length}/5000
+                        {value.length}/{DAYPULSE_SECTION_MAX_LENGTH.toLocaleString()}
                       </span>
                     </div>
                   </div>

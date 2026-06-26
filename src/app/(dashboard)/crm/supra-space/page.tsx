@@ -37,10 +37,10 @@ import { CallExperience } from './CallExperience';
 import { EmojiReactionPicker } from '@/components/supraspace/EmojiReactionPicker';
 import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 
-const SS4_MAX_UPLOAD_FILES = 5;
+const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
 const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 40 * 1024 * 1024;
-type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike';
+type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'quote' | 'code';
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
 ]);
@@ -296,7 +296,9 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
   const result: React.ReactNode[] = [];
   content.split('\n').forEach((line, li) => {
     if (li > 0) result.push(<br key={`br${li}`} />);
-    line.split(MDPattern).forEach((part, i) => {
+    const bulletMatch = line.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
+    const displayLine = bulletMatch ? `${bulletMatch[1]}• ${bulletMatch[2]}` : line;
+    displayLine.split(MDPattern).forEach((part, i) => {
       const k = `${li}-${i}`;
       if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
         return result.push(<strong key={k}>{part.slice(2, -2)}</strong>);
@@ -1853,6 +1855,9 @@ export default function SupraSpacePage() {
     italic: false,
     underline: false,
     strike: false,
+    list: false,
+    quote: false,
+    code: false,
   });
   const autrixRef = React.useRef<HTMLDivElement>(null);
 
@@ -2751,11 +2756,21 @@ export default function SupraSpacePage() {
     if (!el || !selection || selection.rangeCount === 0 || !el.contains(selection.anchorNode)) {
       return;
     }
+    const cursor = getCaretOffset(el);
+    const value = el.innerText.replace(/\n$/, '');
+    const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
+    const lineEndRaw = value.indexOf('\n', cursor);
+    const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
+    const line = value.slice(lineStart, lineEnd);
+    const beforeCursor = line.slice(0, cursor - lineStart);
     setActiveFormats({
       bold: document.queryCommandState('bold'),
       italic: document.queryCommandState('italic'),
       underline: document.queryCommandState('underline'),
       strike: document.queryCommandState('strikethrough'),
+      list: line.trimStart().startsWith('• '),
+      quote: line.trimStart().startsWith('> '),
+      code: beforeCursor.split('`').length % 2 === 0,
     });
   }, []);
 
@@ -3025,7 +3040,54 @@ export default function SupraSpacePage() {
     } finally { setAutrixLoading(false); }
   };
 
-  const applyFormat = React.useCallback((type: RichTextFormat | 'list' | 'quote' | 'link' | 'code' | 'codeblock') => {
+  const handleFormattedLineBreak = React.useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return false;
+    const value = el.innerText.replace(/\n$/, '');
+    const cursor = getCaretOffset(el);
+    const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
+    const lineEndRaw = value.indexOf('\n', cursor);
+    const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
+    const line = value.slice(lineStart, lineEnd);
+    const leading = line.match(/^\s*/)?.[0] || '';
+    const trimmed = line.trim();
+
+    if (trimmed === '•') {
+      const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
+      setInput(next);
+      setEditableTextAndCaret(next, lineStart);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    if (line.trimStart().startsWith('• ')) {
+      const insert = `\n${leading}• `;
+      const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      const caret = cursor + insert.length;
+      setInput(next);
+      setEditableTextAndCaret(next, caret);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    if (trimmed === '>') {
+      const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
+      setInput(next);
+      setEditableTextAndCaret(next, lineStart);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    if (line.trimStart().startsWith('> ')) {
+      const insert = `\n${leading}> `;
+      const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      const caret = cursor + insert.length;
+      setInput(next);
+      setEditableTextAndCaret(next, caret);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    return false;
+  }, [refreshActiveFormats, setEditableTextAndCaret]);
+
+  const applyFormat = React.useCallback((type: RichTextFormat | 'link' | 'codeblock') => {
     const el = textareaRef.current;
     if (!el) return;
     el.focus();
@@ -3821,17 +3883,17 @@ export default function SupraSpacePage() {
                               <Strikethrough className="h-3.5 w-3.5" style={formatIconStyle('strike')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Bullet list">
-                              <List className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={formatButtonClass('list')} title="Bullet list" aria-pressed={activeFormats.list}>
+                              <List className="h-3.5 w-3.5" style={formatIconStyle('list')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Quote">
-                              <TextQuote className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className={formatButtonClass('quote')} title="Quote" aria-pressed={activeFormats.quote}>
+                              <TextQuote className="h-3.5 w-3.5" style={formatIconStyle('quote')} />
                             </button>
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Link">
                               <Link2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Inline code">
-                              <Code2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className={formatButtonClass('code')} title="Inline code" aria-pressed={activeFormats.code}>
+                              <Code2 className="h-3.5 w-3.5" style={formatIconStyle('code')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
                             <button
@@ -3866,7 +3928,10 @@ export default function SupraSpacePage() {
                                   if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
                                 }
                                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                                if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); }
+                                if (e.key === 'Enter' && e.shiftKey) {
+                                  e.preventDefault();
+                                  if (!handleFormattedLineBreak()) document.execCommand('insertLineBreak');
+                                }
                               }}
                               onPaste={e => {
                                 const items = e.clipboardData?.items;
