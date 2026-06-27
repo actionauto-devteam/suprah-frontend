@@ -18,6 +18,8 @@ import {
   User,
   Copy,
   Check,
+  Link2,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -640,12 +642,339 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
   );
 }
 
+// ─── Invite Link Modal ────────────────────────────────────────────────────────
+
+interface InviteLinkModalProps {
+  token: string;
+  onClose: () => void;
+}
+
+const INVITE_SHARE_PLATFORMS = [
+  {
+    name: "WhatsApp",
+    bg: "bg-[#25D366] hover:bg-[#1da851]",
+    getUrl: (link: string) =>
+      `https://wa.me/?text=${encodeURIComponent(`You're invited! Click the link below to create your account:\n\n${link}\n\nThis link is one-time use and expires in 24 hours.`)}`,
+  },
+  {
+    name: "Messenger",
+    bg: "bg-[#0084FF] hover:bg-[#006fd4]",
+    getUrl: (link: string) =>
+      `fb-messenger://share?link=${encodeURIComponent(link)}`,
+  },
+  {
+    name: "Viber",
+    bg: "bg-[#7360F2] hover:bg-[#5d4dd4]",
+    getUrl: (link: string) =>
+      `viber://forward?text=${encodeURIComponent(`You're invited! Click the link below to create your account:\n\n${link}\n\nThis link is one-time use and expires in 24 hours.`)}`,
+  },
+  {
+    name: "Telegram",
+    bg: "bg-[#229ED9] hover:bg-[#1a8abf]",
+    getUrl: (link: string) =>
+      `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("You're invited! Create your account using this link.")}`,
+  },
+  {
+    name: "Gmail",
+    bg: "bg-[#EA4335] hover:bg-[#d33829]",
+    getUrl: (link: string) =>
+      `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent("You're invited!")}&body=${encodeURIComponent(`You're invited to create an account!\n\nClick the link below to get started:\n${link}\n\nThis link is one-time use and expires in 24 hours.`)}`,
+  },
+];
+
+function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [invite, setInvite] = React.useState<{ shortCode: string; link: string; expiresAt: string } | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError("");
+    setInvite(null);
+    try {
+      const res = await apiClient.post(
+        "/api/crm/customer-invites/generate",
+        { count: 1 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const list = res.data?.data?.invites ?? [];
+      if (list.length > 0) setInvite(list[0]);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to generate invite link.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyLink = () => {
+    if (!invite) return;
+    navigator.clipboard.writeText(invite.link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleNativeShare = async () => {
+    if (!invite) return;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: "You're invited!",
+          text: "Click the link below to create your account.",
+          url: invite.link,
+        });
+      } catch { /* user cancelled */ }
+    } else {
+      copyLink();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-lg max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-zinc-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+              <Link2 className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">Generate Invite Link</p>
+              <p className="text-xs text-zinc-400">One-time use · expires in 24 hours</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-5 space-y-4">
+          <Button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="w-full h-11 text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+          >
+            {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating…</> : "Generate"}
+          </Button>
+
+          {error && (
+            <p className="text-sm text-red-400 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </p>
+          )}
+
+          {invite && (
+            <div className="space-y-4">
+              {/* Link row */}
+              <div className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3">
+                <span className="flex-1 text-xs text-zinc-300 truncate font-mono">{invite.link}</span>
+                <button
+                  onClick={copyLink}
+                  className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
+                  title="Copy link"
+                >
+                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {/* Share platforms */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-3">Share via</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {INVITE_SHARE_PLATFORMS.map((p) => (
+                    <a
+                      key={p.name}
+                      href={p.getUrl(invite.link)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        "flex items-center justify-center py-2.5 rounded-xl text-xs font-semibold text-white transition-colors",
+                        p.bg
+                      )}
+                    >
+                      {p.name}
+                    </a>
+                  ))}
+                  <button
+                    onClick={handleNativeShare}
+                    className="flex items-center justify-center py-2.5 rounded-xl text-xs font-semibold text-zinc-300 bg-zinc-700 hover:bg-zinc-600 transition-colors"
+                  >
+                    More…
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-400 font-medium text-center">
+                This link is one-time use and expires 24 hours from now.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bulk Create Modal ────────────────────────────────────────────────────────
+
+interface BulkCreateModalProps {
+  token: string;
+  onClose: () => void;
+}
+
+type BulkResult = { email: string; status: "created" | "already_exists" | "error"; reason?: string };
+
+function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
+  const [emailsRaw, setEmailsRaw] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [results, setResults] = React.useState<BulkResult[]>([]);
+  const [summary, setSummary] = React.useState<{ created: number; skipped: number; failed: number } | null>(null);
+
+  const handleCreate = async () => {
+    const emails = emailsRaw
+      .split(/[\n,]+/)
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    if (emails.length === 0) { setError("Please enter at least one email."); return; }
+    if (emails.length > 50) { setError("Maximum 50 emails at once."); return; }
+
+    setLoading(true);
+    setError("");
+    setResults([]);
+    setSummary(null);
+
+    try {
+      const res = await apiClient.post(
+        "/api/crm/customer-invites/bulk-create",
+        { emails },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = res.data?.data;
+      setResults(data?.results ?? []);
+      setSummary({ created: data?.created ?? 0, skipped: data?.skipped ?? 0, failed: data?.failed ?? 0 });
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to create accounts.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+              <Users className="h-4 w-4 text-violet-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">Bulk Create Accounts</p>
+              <p className="text-[11px] text-zinc-500">Create accounts for existing customers</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!summary ? (
+            <>
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1.5">Customer emails</p>
+                <p className="text-[11px] text-zinc-600 mb-2">One email per line (max 50). A temporary password will be sent to each.</p>
+                <textarea
+                  value={emailsRaw}
+                  onChange={(e) => setEmailsRaw(e.target.value)}
+                  placeholder={"customer1@email.com\ncustomer2@email.com\ncustomer3@email.com"}
+                  rows={8}
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-950 text-white text-sm placeholder:text-zinc-700 p-3 resize-none focus:outline-none focus:border-zinc-500 transition-colors"
+                  disabled={loading}
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-red-400 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />{error}
+                </p>
+              )}
+
+              <Button
+                onClick={handleCreate}
+                disabled={loading || !emailsRaw.trim()}
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-semibold"
+              >
+                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating accounts…</> : "Create accounts & send emails"}
+              </Button>
+
+              <p className="text-[10px] text-zinc-600 text-center">
+                Each customer will receive an email with their login credentials. Temporary password: <strong className="text-zinc-500">customersaccount</strong>
+              </p>
+            </>
+          ) : (
+            // Results view
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Created", value: summary.created, color: "text-emerald-400" },
+                  { label: "Skipped", value: summary.skipped, color: "text-amber-400" },
+                  { label: "Failed", value: summary.failed, color: "text-red-400" },
+                ].map((s) => (
+                  <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-center">
+                    <p className={cn("text-2xl font-black", s.color)}>{s.value}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-email results */}
+              <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                {results.map((r) => (
+                  <div key={r.email} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950">
+                    <span className={cn("shrink-0 text-xs font-bold", {
+                      "text-emerald-400": r.status === "created",
+                      "text-amber-400": r.status === "already_exists",
+                      "text-red-400": r.status === "error",
+                    })}>
+                      {r.status === "created" ? "✓" : r.status === "already_exists" ? "—" : "✗"}
+                    </span>
+                    <span className="flex-1 text-xs text-zinc-300 truncate">{r.email}</span>
+                    {r.reason && <span className="text-[10px] text-zinc-600 shrink-0">{r.reason}</span>}
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={onClose}
+                className="w-full bg-zinc-700 hover:bg-zinc-600 text-white"
+              >
+                Done
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ReferralsPage() {
   const router = useRouter();
 
   const [token, setToken] = React.useState<string | null>(null);
+  const [userRole, setUserRole] = React.useState<string>("");
   const [leads, setLeads] = React.useState<ReferralLead[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -654,6 +983,8 @@ export default function ReferralsPage() {
   const [callTarget, setCallTarget] = React.useState<ReferralLead | null>(null);
   const [activeCall, setActiveCall] = React.useState<CallData | null>(null);
   const [mounted, setMounted] = React.useState(false);
+  const [showInviteModal, setShowInviteModal] = React.useState(false);
+  const [showBulkModal, setShowBulkModal] = React.useState(false);
 
   // Auth check
   React.useEffect(() => {
@@ -664,6 +995,18 @@ export default function ReferralsPage() {
     }
     setToken(t);
     setMounted(true);
+    apiClient
+      .get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setUserRole(data?.role ?? "");
+      })
+      .catch(() => {
+        try {
+          const u = JSON.parse(localStorage.getItem("crm_user") || "{}");
+          setUserRole(u.role ?? "");
+        } catch { /* ignore */ }
+      });
   }, [router]);
 
   const fetchLeads = React.useCallback(
@@ -763,6 +1106,27 @@ export default function ReferralsPage() {
                 </p>
               </div>
             </div>
+
+            {userRole === "admin" && (
+              <>
+                <button
+                  onClick={() => setShowBulkModal(true)}
+                  title="Bulk create customer accounts"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-violet-400 hover:text-violet-500 dark:hover:border-violet-500 dark:hover:text-violet-400 bg-white dark:bg-zinc-900/60 hover:bg-violet-50 dark:hover:bg-violet-500/5 transition-colors shrink-0"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Bulk Create</span>
+                </button>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  title="Generate invite link"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-emerald-400 hover:text-emerald-500 dark:hover:border-emerald-500 dark:hover:text-emerald-400 bg-white dark:bg-zinc-900/60 hover:bg-emerald-50 dark:hover:bg-emerald-500/5 transition-colors shrink-0"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Invite Link</span>
+                </button>
+              </>
+            )}
 
             <button
               onClick={() => fetchLeads(true)}
@@ -877,6 +1241,14 @@ export default function ReferralsPage() {
           domain={activeCall.domain}
           onClose={() => setActiveCall(null)}
         />
+      )}
+
+      {showInviteModal && token && (
+        <InviteLinkModal token={token} onClose={() => setShowInviteModal(false)} />
+      )}
+
+      {showBulkModal && token && (
+        <BulkCreateModal token={token} onClose={() => setShowBulkModal(false)} />
       )}
 
     </>
