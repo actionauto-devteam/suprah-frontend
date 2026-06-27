@@ -53,12 +53,12 @@ const FILTER_STYLE: Record<
 > = {
   all: {
     activeClass: "bg-indigo-500/20 border-indigo-500/40",
-    badgeClass: "bg-indigo-500/20 text-indigo-400",
-    icon: <LayoutGrid className="size-3 text-indigo-400" />,
+    badgeClass: "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400",
+    icon: <LayoutGrid className="size-3 text-indigo-600 dark:text-indigo-400" />,
   },
   active: {
     activeClass: "bg-emerald-500/20 border-emerald-500/40",
-    badgeClass: "bg-emerald-500/20 text-emerald-400",
+    badgeClass: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
     icon: (
       <span className="relative flex size-2">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-40" />
@@ -68,18 +68,18 @@ const FILTER_STYLE: Record<
   },
   offline: {
     activeClass: "bg-slate-500/20 border-slate-500/40",
-    badgeClass: "bg-slate-500/20 text-slate-400",
+    badgeClass: "bg-slate-500/20 text-slate-600 dark:text-slate-400",
     icon: <span className="inline-block size-2 rounded-full bg-slate-400" />,
   },
   sharing: {
     activeClass: "bg-blue-500/20 border-blue-500/40",
-    badgeClass: "bg-blue-500/20 text-blue-400",
-    icon: <Wifi className="size-3 text-blue-400" />,
+    badgeClass: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    icon: <Wifi className="size-3 text-blue-600 dark:text-blue-400" />,
   },
   "not-sharing": {
     activeClass: "bg-amber-500/20 border-amber-500/40",
-    badgeClass: "bg-amber-500/20 text-amber-400",
-    icon: <WifiOff className="size-3 text-amber-400" />,
+    badgeClass: "bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    icon: <WifiOff className="size-3 text-amber-600 dark:text-amber-400" />,
   },
 };
 
@@ -160,7 +160,7 @@ export function DriverTrackerListCard({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name, email, or load..."
-            className="h-8 pl-9 text-[11px] rounded-lg border-border/40 bg-muted/30"
+            className="h-10 sm:h-8 pl-9 text-base sm:text-[11px] rounded-lg border-border/40 bg-muted/30"
           />
         </div>
 
@@ -172,7 +172,7 @@ export function DriverTrackerListCard({
               <button
                 key={opt.key}
                 onClick={() => setFilter(opt.key)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md flex-1 min-w-[calc(33%-0.25rem)] transition-all ${
+                className={`flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-2 sm:py-1.5 min-h-9 rounded-md flex-1 min-w-[calc(33%-0.25rem)] transition-all ${
                   isActive
                     ? `${cfg.activeClass} border shadow-sm`
                     : "border border-transparent hover:bg-muted/50"
@@ -272,7 +272,7 @@ export function DriverTrackerListCard({
                         {shipments.length > 0 && (
                           <Badge
                             variant="outline"
-                            className={`text-[9px] font-semibold h-5 ${eq?.maxVehicleCapacity && shipments.length >= eq.maxVehicleCapacity ? "border-red-500/50 text-red-600" : "border-border/50"}`}
+                            className={`text-[9px] font-semibold h-5 ${eq?.maxVehicleCapacity && shipments.length >= eq.maxVehicleCapacity ? "border-red-500/50 text-red-600 dark:text-red-400" : "border-border/50"}`}
                           >
                             {shipments.length}
                             {eq?.maxVehicleCapacity
@@ -284,16 +284,16 @@ export function DriverTrackerListCard({
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="size-6 p-0"
+                          className="size-8 sm:size-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             setExpandedId(isExpanded ? null : driver.id);
                           }}
                         >
                           {isExpanded ? (
-                            <ChevronUp className="size-3" />
+                            <ChevronUp className="size-3.5 sm:size-3" />
                           ) : (
-                            <ChevronDown className="size-3" />
+                            <ChevronDown className="size-3.5 sm:size-3" />
                           )}
                         </Button>
                       </div>
@@ -325,13 +325,13 @@ export function DriverTrackerListCard({
                     </div>
                     {eq?.trailerType && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-semibold text-purple-600">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-semibold text-purple-600 dark:text-purple-400">
                           <Truck className="size-2.5" />
                           {trailerLabel(eq.trailerType)}
                         </span>
                         {eq.maxVehicleCapacity && eq.maxVehicleCapacity > 0 && (
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/10 text-red-600" : "bg-indigo-500/10 text-indigo-600"}`}
+                            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"}`}
                           >
                             {shipments.length}/{eq.maxVehicleCapacity} loads
                           </span>
@@ -373,7 +373,7 @@ export function DriverTrackerListCard({
                           Load Capacity
                         </p>
                         <p
-                          className={`text-[11px] font-bold ${shipments.length >= eq.maxVehicleCapacity ? "text-red-600" : ""}`}
+                          className={`text-[11px] font-bold ${shipments.length >= eq.maxVehicleCapacity ? "text-red-600 dark:text-red-400" : ""}`}
                         >
                           {shipments.length}/{eq.maxVehicleCapacity} active
                         </p>
@@ -412,7 +412,7 @@ export function DriverTrackerListCard({
                         <p className="text-[9px] text-red-500 font-medium">
                           Compliance
                         </p>
-                        <p className="text-[11px] font-bold text-red-600">
+                        <p className="text-[11px] font-bold text-red-600 dark:text-red-400">
                           Expired
                         </p>
                       </div>

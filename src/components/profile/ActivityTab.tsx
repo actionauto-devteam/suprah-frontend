@@ -95,19 +95,19 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
                       className={cn(
                         "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
                         activity.type === "login" &&
-                          "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400",
+                        "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400",
                         activity.type === "profile_update" &&
-                          "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400",
+                        "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400",
                         activity.type === "password_change" &&
-                          "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400",
+                        "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400",
                         activity.type === "avatar_updated" &&
-                          "bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400",
+                        "bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400",
                         activity.type === "quote_created" &&
-                          "bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
+                        "bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
                         activity.type === "shipment_created" &&
-                          "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+                        "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
                         activity.type === "google_calendar_connected" &&
-                          "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400",
+                        "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400",
                         ![
                           "login",
                           "profile_update",
@@ -117,7 +117,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
                           "shipment_created",
                           "google_calendar_connected",
                         ].includes(activity.type) &&
-                          "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+                        "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
                       )}
                     >
                       {activityIcons[activity.type] || (
@@ -130,7 +130,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                             {activity.title}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 break-words">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 wrap-break-word">
                             {activity.description}
                           </p>
                         </div>

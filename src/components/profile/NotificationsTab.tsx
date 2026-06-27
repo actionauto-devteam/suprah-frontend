@@ -62,17 +62,17 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
     return (
         <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-green-500 to-teal-600 flex items-center justify-center">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-green-500 to-teal-600 flex items-center justify-center shrink-0">
                         <Bell className="size-4 text-white" />
                     </div>
-                    <div>
-                        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Notification Preferences</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">Control which notifications you receive</p>
+                    <div className="min-w-0">
+                        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">Notification Preferences</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300 truncate">Control which notifications you receive</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                     <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800">
                         <div className={cn(
                             "w-2 h-2 rounded-full",
@@ -137,27 +137,27 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
                 <div className="space-y-6">
                     {/* --- WEB PUSH DEVICE SETTINGS --- */}
-                    <div className="p-5 rounded-2xl border-2 border-emerald-100 bg-emerald-50/30 dark:border-emerald-900/40 dark:bg-emerald-950/20 animate-slide-up">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <div className="p-4 sm:p-5 rounded-2xl border-2 border-emerald-100 bg-emerald-50/30 dark:border-emerald-900/40 dark:bg-emerald-950/20 animate-slide-up">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
                                     <SmartphoneNfc className="size-6 text-white" />
                                 </div>
-                                <div className="space-y-0.5">
-                                    <h3 className="font-bold text-base flex items-center gap-2">
+                                <div className="space-y-0.5 min-w-0">
+                                    <h3 className="font-bold text-base flex items-center gap-2 flex-wrap">
                                         Push Notifications
                                         {isSupported && (
                                             <Badge variant="outline" className={cn(
                                                 "text-xs h-5 px-2 font-bold uppercase tracking-tight",
                                                 isSubscribed
-                                                    ? "border-emerald-500 text-emerald-600 bg-emerald-50"
+                                                    ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40"
                                                     : "border-gray-300 text-gray-500 bg-gray-50 dark:bg-gray-800"
                                             )}>
                                                 {isSubscribed ? "Active on this device" : "Inactive"}
                                             </Badge>
                                         )}
                                     </h3>
-                                    <p className="text-sm text-muted-foreground max-w-[440px] leading-relaxed">
+                                    <p className="text-sm text-muted-foreground max-w-full sm:max-w-110 leading-relaxed">
                                         {isSupported
                                             ? "Enable real-time alerts on this browser to receive instant updates even when the app is closed."
                                             : "Your browser does not support Web Push notifications. Please use a modern browser like Chrome, Safari, or Edge."}
@@ -165,7 +165,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 shrink-0 self-end sm:self-auto">
                                 {isPushLoading && <Loader2 className="size-5 animate-spin text-emerald-600" />}
                                 <Switch
                                     checked={isSubscribed}
@@ -195,22 +195,22 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                 key={category.title}
                                 className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden"
                             >
-                                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50">
-                                    <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3 p-3 bg-gray-50 dark:bg-gray-800/50">
+                                    <div className="flex items-center gap-3 min-w-0">
                                         <div className={cn(
-                                            "w-9 h-9 rounded-lg flex items-center justify-center transition-all bg-linear-to-br",
+                                            "w-9 h-9 rounded-lg flex items-center justify-center transition-all bg-linear-to-br shrink-0",
                                             category.color
                                         )}>
                                             <CategoryIcon className="size-4 text-white" />
                                         </div>
-                                        <div>
-                                            <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{category.title}</h3>
+                                        <div className="min-w-0">
+                                            <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{category.title}</h3>
                                             <p className="text-sm text-gray-600 dark:text-gray-300">
                                                 {categoryEnabled}/{category.items.length} active
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 shrink-0">
                                         <div className={cn(
                                             "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
                                             allEnabled && "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",

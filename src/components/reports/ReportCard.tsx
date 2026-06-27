@@ -111,7 +111,7 @@ export function ReportCard({
           onDownload()
         }}
         disabled={isDownloading}
-        className="absolute bottom-3.5 right-3.5 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary disabled:opacity-50"
+        className="absolute bottom-3.5 right-3.5 size-8 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity rounded-md hover:bg-muted text-muted-foreground hover:text-primary disabled:opacity-50"
       >
         {isDownloading ? (
           <Loader2 className="size-4 animate-spin" />

@@ -100,16 +100,16 @@ export function GoogleCalendarConnect() {
   }
 
   const base =
-    "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[13px] font-medium transition-all duration-150 cursor-pointer"
+    "inline-flex items-center gap-2 px-3 py-2 sm:py-1.5 min-h-9 rounded-full border text-[13px] font-medium transition-all duration-150 cursor-pointer"
 
   if (isLoading) return (
-    <button disabled className={`${base} border-zinc-200 text-zinc-400 bg-white cursor-not-allowed`}>
+    <button disabled className={`${base} border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 bg-white dark:bg-zinc-900 cursor-not-allowed`}>
       <Loader2 className="size-3.5 animate-spin" /> Checking…
     </button>
   )
 
   if (isConnecting) return (
-    <button disabled className={`${base} border-zinc-200 text-zinc-400 bg-white cursor-not-allowed`}>
+    <button disabled className={`${base} border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 bg-white dark:bg-zinc-900 cursor-not-allowed`}>
       <Loader2 className="size-3.5 animate-spin" />
       {isConnected ? "Disconnecting…" : "Connecting…"}
     </button>
@@ -122,8 +122,8 @@ export function GoogleCalendarConnect() {
       onMouseLeave={() => setHovered(false)}
       className={`${base} ${
         hovered
-          ? "border-red-300 text-red-600 bg-red-50"
-          : "border-green-300 text-green-700 bg-green-50"
+          ? "border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40"
+          : "border-green-300 dark:border-green-500/40 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40"
       }`}
     >
       <GoogleIcon />
@@ -137,7 +137,7 @@ export function GoogleCalendarConnect() {
   return (
     <button
       onClick={handleConnect}
-      className={`${base} border-zinc-200 text-zinc-700 bg-white hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50`}
+      className={`${base} border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 hover:border-blue-400 dark:hover:border-blue-500/50 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40`}
     >
       <GoogleIcon />
       Connect Google Calendar

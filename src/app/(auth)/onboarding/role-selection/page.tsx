@@ -137,13 +137,13 @@ export default function OnboardingPage() {
                     onClick={() => setSelectedOrgId(org._id)}
                     className={`group flex items-center gap-4 p-5 text-left rounded-2xl border transition-all active:scale-[0.98]
                       ${selectedOrgId === org._id
-                        ? 'border-emerald-500/60 bg-emerald-500/[0.06]'
-                        : 'border-white/5 bg-white/[0.02] hover:border-white/10'}`}
+                        ? 'border-emerald-500/60 bg-emerald-500/6'
+                        : 'border-white/5 bg-white/2 hover:border-white/10'}`}
                   >
                     {org.logoUrl ? (
                       <img src={org.logoUrl} alt={org.name} className="h-10 w-10 rounded-lg object-cover shrink-0" />
                     ) : (
-                      <div className="h-10 w-10 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
+                      <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
                         <Building2 className="h-5 w-5 text-zinc-500" />
                       </div>
                     )}
@@ -186,9 +186,9 @@ function IdentityCard({ icon, title, description, onClick, isLoading, disabled }
     <button
       onClick={onClick}
       disabled={disabled}
-      className="group relative flex items-center gap-6 p-6 text-left bg-white/[0.02] border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/[0.03] transition-all rounded-[1.5rem] disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden active:scale-[0.98]"
+      className="group relative flex items-center gap-6 p-6 text-left bg-white/2 border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/3 transition-all rounded-3xl disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden active:scale-[0.98]"
     >
-      <div className="h-12 w-12 rounded-xl bg-white/[0.05] group-hover:bg-emerald-500/10 flex items-center justify-center text-zinc-400 group-hover:text-emerald-500 transition-colors shrink-0">
+      <div className="h-12 w-12 rounded-xl bg-white/5 group-hover:bg-emerald-500/10 flex items-center justify-center text-zinc-400 group-hover:text-emerald-500 transition-colors shrink-0">
         {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : icon}
       </div>
       <div>

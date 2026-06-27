@@ -133,10 +133,10 @@ export function DriverTrackerLoadsCard({
         {drivers.map((item) => {
           const shipments = item.shipments ?? [];
           return (
-            <div key={item.id} className="p-4 hover:bg-accent/30 transition-colors">
-              <div className="flex items-center justify-between gap-4">
+            <div key={item.id} className="p-3 sm:p-4 hover:bg-accent/30 transition-colors">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <Avatar className="size-10 border-2 border-background shadow-sm">
+                  <Avatar className="size-10 border-2 border-background shadow-sm shrink-0">
                     {item.driver?.avatar && <AvatarImage src={item.driver.avatar} />}
                     <AvatarFallback className="text-xs font-bold bg-primary/5 text-primary">
                       {item.driver?.name?.[0]?.toUpperCase() || "?"}
@@ -146,15 +146,15 @@ export function DriverTrackerLoadsCard({
                     <p className="text-sm font-bold text-foreground truncate">
                       {item.driver?.name || "Unknown Driver"}
                     </p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 font-medium">
                         <Package className="size-3" />
                         {shipments.length} load{shipments.length !== 1 ? "s" : ""}
                       </span>
                       {item.equipment?.trailerType && (
                         <>
-                          <span className="text-muted-foreground/20">|</span>
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 border-purple-200 gap-0.5">
+                          <span className="hidden sm:inline text-muted-foreground/20">|</span>
+                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 gap-0.5">
                             <Truck className="size-2.5" />{trailerLabel(item.equipment.trailerType)}
                           </Badge>
                         </>
@@ -162,7 +162,7 @@ export function DriverTrackerLoadsCard({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
                   {shipments.length > 0 && shipments.length <= 2 && shipments.map((s) => (
                     <div key={s.id} className="flex items-center gap-1">
                       <Badge variant="outline" className="text-[10px] font-semibold h-6 gap-1 border-border/50">
@@ -178,7 +178,7 @@ export function DriverTrackerLoadsCard({
                         </Badge>
                       )}
                       {(s as any).proofPending && (
-                        <Badge className="text-[9px] h-5 px-1.5 gap-0.5 bg-amber-500/10 text-amber-600 border-amber-500/20 animate-pulse">
+                        <Badge className="text-[9px] h-5 px-1.5 gap-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 animate-pulse">
                           <Camera className="size-2.5" />Proof
                         </Badge>
                       )}
@@ -187,7 +187,7 @@ export function DriverTrackerLoadsCard({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-8 px-3 text-xs font-semibold gap-1.5 border-border/50 hover:bg-primary/5 hover:text-primary hover:border-primary/30"
+                    className="h-9 sm:h-8 px-3 text-xs font-semibold gap-1.5 border-border/50 hover:bg-primary/5 hover:text-primary hover:border-primary/30 w-full sm:w-auto"
                     onClick={() => setViewDriver(item)}
                   >
                     <Eye className="size-3.5" />
@@ -202,13 +202,13 @@ export function DriverTrackerLoadsCard({
 
       <Dialog open={viewDriver !== null && !reassignShipmentId} onOpenChange={(open) => { if (!open) setViewDriver(null); }}>
         <DialogContent
-          className="sm:max-w-lg"
+          className="sm:max-w-lg w-[calc(100%-1.5rem)] sm:w-full"
           overlayClassName="bg-black/72 backdrop-blur-[4px]"
         >
           <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <Truck className="size-4 text-primary" />
-              {currentViewDriver?.driver?.name || "Driver"} — Assigned Loads
+            <DialogTitle className="text-base font-bold flex items-center gap-2 pr-6">
+              <Truck className="size-4 text-primary shrink-0" />
+              <span className="truncate">{currentViewDriver?.driver?.name || "Driver"} — Assigned Loads</span>
             </DialogTitle>
             <p className="text-[11px] text-muted-foreground/60 font-medium">
               {currentViewDriver?.shipments?.length || 0} load{(currentViewDriver?.shipments?.length || 0) !== 1 ? "s" : ""} assigned
@@ -221,19 +221,19 @@ export function DriverTrackerLoadsCard({
                   </Badge>
                 )}
                 {currentViewDriver.equipment.trailerType && (
-                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 border-purple-200 gap-0.5">
+                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 gap-0.5">
                     <Truck className="size-2.5" />{trailerLabel(currentViewDriver.equipment.trailerType)}
                   </Badge>
                 )}
                 {currentViewDriver.equipment.maxVehicleCapacity != null && (
-                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30">
                     Cap: {currentViewDriver.equipment.maxVehicleCapacity}
                   </Badge>
                 )}
               </div>
             )}
           </DialogHeader>
-          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[55vh] sm:max-h-96 overflow-y-auto modal-scrollbar pr-1">
             {(currentViewDriver?.shipments?.length || 0) === 0 && (
               <div className="flex flex-col items-center justify-center py-8 gap-2">
                 <Package className="size-8 text-muted-foreground/30" />
@@ -241,9 +241,9 @@ export function DriverTrackerLoadsCard({
               </div>
             )}
             {currentViewDriver?.shipments?.map((shipment) => (
-              <div key={shipment.id} className="rounded-xl border border-border/40 p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200">
+              <div key={shipment.id} className="rounded-xl border border-border/40 p-3 sm:p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200">
                 <div
-                  className="flex items-center justify-between gap-3 cursor-pointer"
+                  className="flex items-start justify-between gap-3 cursor-pointer"
                   onClick={() => {
                     const query = shipment.trackingNumber || shipment.id;
                     router.push(`/transportation?search=${encodeURIComponent(query)}`);
@@ -254,7 +254,7 @@ export function DriverTrackerLoadsCard({
                       <Package className="size-5 text-primary" />
                     </div>
                     <div className="min-w-0 space-y-1">
-                      <p className="text-sm font-bold text-foreground">
+                      <p className="text-sm font-bold text-foreground truncate">
                         {shipment.trackingNumber || shipment.id}
                       </p>
                       {(shipment.origin || shipment.destination) && (
@@ -267,16 +267,16 @@ export function DriverTrackerLoadsCard({
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
                     {(shipment as any).proofPending && (
-                      <Badge className="text-[9px] h-5 px-1.5 gap-0.5 bg-amber-500/10 text-amber-600 border-amber-500/20 animate-pulse">
+                      <Badge className="text-[9px] h-5 px-1.5 gap-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 animate-pulse">
                         <Camera className="size-2.5" />Proof
                       </Badge>
                     )}
                     <Badge variant="outline" className={cn("text-[10px] font-semibold", (shipment.status && STATUS_BADGE[shipment.status]) || "border-border/50")}>
                       {shipment.status || "—"}
                     </Badge>
-                    <ExternalLink className="size-3.5 text-muted-foreground/40" />
+                    <ExternalLink className="size-3.5 text-muted-foreground/40 hidden sm:block" />
                   </div>
                 </div>
 
@@ -286,7 +286,7 @@ export function DriverTrackerLoadsCard({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 px-2.5 text-[10px] font-semibold gap-1 text-destructive border-destructive/20 hover:bg-destructive/10"
+                        className="h-9 sm:h-7 px-2.5 text-[10px] font-semibold gap-1 text-destructive border-destructive/20 hover:bg-destructive/10 flex-1 sm:flex-initial"
                         disabled={removing === shipment.id}
                         onClick={(e) => { e.stopPropagation(); handleRemove(shipment.id); }}
                       >
@@ -298,7 +298,7 @@ export function DriverTrackerLoadsCard({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 px-2.5 text-[10px] font-semibold gap-1 border-border/50 hover:bg-primary/5"
+                        className="h-9 sm:h-7 px-2.5 text-[10px] font-semibold gap-1 border-border/50 hover:bg-primary/5 flex-1 sm:flex-initial"
                         disabled={reassigning === shipment.id}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -320,7 +320,7 @@ export function DriverTrackerLoadsCard({
 
       <Dialog open={reassignShipmentId !== null} onOpenChange={(open) => { if (!open) setReassignShipmentId(null); }}>
         <DialogContent
-          className="sm:max-w-xl"
+          className="sm:max-w-xl w-[calc(100%-1.5rem)] sm:w-full"
           overlayClassName="bg-black/72 backdrop-blur-[4px]"
         >
           <DialogHeader>
@@ -339,11 +339,11 @@ export function DriverTrackerLoadsCard({
               value={driverSearch}
               onChange={(e) => setDriverSearch(e.target.value)}
               placeholder="Search drivers..."
-              className="h-9 pl-9 text-xs rounded-lg border-border/40"
+              className="h-10 sm:h-9 pl-9 text-base sm:text-xs rounded-lg border-border/40"
             />
           </div>
 
-          <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[50vh] sm:max-h-80 overflow-y-auto modal-scrollbar pr-1">
             {reassignCandidates.length === 0 && (
               <div className="flex flex-col items-center justify-center py-8 gap-2">
                 <p className="text-xs text-muted-foreground">No other drivers available</p>
@@ -354,7 +354,7 @@ export function DriverTrackerLoadsCard({
               return (
                 <div
                   key={d.id}
-                  className="flex items-center justify-between rounded-xl border border-border/40 p-3 gap-3 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border/40 p-3 gap-3 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
                 >
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     <Avatar className="size-10 border-2 border-background shadow-sm shrink-0">
@@ -370,18 +370,18 @@ export function DriverTrackerLoadsCard({
                         {eq?.truckMake && (
                           <>
                             <span className="text-muted-foreground/30">|</span>
-                            <span>{eq.truckMake} {eq.truckModel || ""}</span>
+                            <span className="truncate">{eq.truckMake} {eq.truckModel || ""}</span>
                           </>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {eq?.trailerType && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 border-purple-200 gap-0.5">
+                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 gap-0.5">
                             <Truck className="size-2.5" />{trailerLabel(eq.trailerType)}
                           </Badge>
                         )}
                         {eq?.maxVehicleCapacity != null && eq.maxVehicleCapacity > 0 && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30">
                             Cap: {eq.maxVehicleCapacity}
                           </Badge>
                         )}
@@ -390,7 +390,7 @@ export function DriverTrackerLoadsCard({
                   </div>
                   <Button
                     size="sm"
-                    className="h-8 px-3 text-xs font-bold shrink-0 shadow-sm"
+                    className="h-10 sm:h-8 px-3 text-xs font-bold shrink-0 shadow-sm w-full sm:w-auto"
                     disabled={reassigning !== null}
                     onClick={() => d.driver?.id && reassignShipmentId && handleReassign(reassignShipmentId, d.driver.id)}
                   >

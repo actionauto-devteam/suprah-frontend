@@ -98,17 +98,15 @@ export function OutboundCallPanel({
 
       {/* Outbound Sync Overlay Monitoring Display */}
       {activeCall && (
-        <div className={`px-4 py-4 border-b border-zinc-100 dark:border-zinc-800 flex flex-col items-center gap-3.5 transition-colors ${
-          isDialing ? "bg-violet-50/30 dark:bg-violet-500/5" : isConnected ? "bg-emerald-50/30 dark:bg-emerald-500/5" : "bg-red-50/30 dark:bg-red-500/5"
-        }`}>
+        <div className={`px-4 py-4 border-b border-zinc-100 dark:border-zinc-800 flex flex-col items-center gap-3.5 transition-colors ${isDialing ? "bg-violet-50/30 dark:bg-violet-500/5" : isConnected ? "bg-emerald-50/30 dark:bg-emerald-500/5" : "bg-red-50/30 dark:bg-red-500/5"
+          }`}>
           <div className="relative">
-            <div className={`h-14 w-14 rounded-xl flex items-center justify-center text-white text-base font-bold ${
-              isConnected
-                ? "bg-gradient-to-br from-violet-500 to-indigo-600"
+            <div className={`h-14 w-14 rounded-xl flex items-center justify-center text-white text-base font-bold ${isConnected
+                ? "bg-linear-to-br from-violet-500 to-indigo-600"
                 : isDialing
-                ? "bg-zinc-400 dark:bg-zinc-700"
-                : "bg-gradient-to-br from-red-500 to-red-600"
-            } shadow-sm`}>
+                  ? "bg-zinc-400 dark:bg-zinc-700"
+                  : "bg-linear-to-br from-red-500 to-red-600"
+              } shadow-sm`}>
               {activeCall.contactName ? getInitials(activeCall.contactName) : <Phone className="h-5 w-5" />}
             </div>
             {isDialing && (
@@ -117,45 +115,41 @@ export function OutboundCallPanel({
           </div>
 
           <div className="text-center px-2 w-full">
-            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate max-w-[180px] mx-auto">{activeCall.contactName || "Remote Connection"}</p>
+            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate max-w-45 mx-auto">{activeCall.contactName || "Remote Connection"}</p>
             <p className="text-xs text-zinc-400 dark:text-zinc-500 font-mono mt-0.5">{activeCall.dialedNumber}</p>
-            <p className={`text-[10px] font-bold tracking-wider uppercase mt-1.5 ${
-              isDialing ? "text-violet-600 dark:text-violet-400" : isConnected ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-            }`}>
+            <p className={`text-[10px] font-bold tracking-wider uppercase mt-1.5 ${isDialing ? "text-violet-600 dark:text-violet-400" : isConnected ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+              }`}>
               {activeCall.status === "dialing" ? "Routing trunk..." :
-               activeCall.status === "ringing" ? "Terminal alerting..." :
-               activeCall.status === "connected" ? "Link Established" :
-               activeCall.status === "on-hold" ? "Session On Hold" :
-               activeCall.status === "failed" ? "Handshake Failed" :
-               activeCall.status === "no-answer" ? "No Answer" : activeCall.status}
+                activeCall.status === "ringing" ? "Terminal alerting..." :
+                  activeCall.status === "connected" ? "Link Established" :
+                    activeCall.status === "on-hold" ? "Session On Hold" :
+                      activeCall.status === "failed" ? "Handshake Failed" :
+                        activeCall.status === "no-answer" ? "No Answer" : activeCall.status}
             </p>
           </div>
 
           {isConnected && (
-            <div className="grid grid-cols-3 gap-1.5 w-full max-w-[240px] mx-auto">
+            <div className="grid grid-cols-3 gap-1.5 w-full max-w-60 mx-auto">
               <button
                 onClick={onMuteToggle}
-                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer ${
-                  activeCall.isMuted ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400" : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                }`}
+                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer ${activeCall.isMuted ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400" : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  }`}
               >
                 {activeCall.isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
                 Mute
               </button>
               <button
                 onClick={onHoldToggle}
-                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer ${
-                  isOnHold ? "bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-400/25 text-amber-600 dark:text-amber-400" : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                }`}
+                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer ${isOnHold ? "bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-400/25 text-amber-600 dark:text-amber-400" : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  }`}
               >
                 {isOnHold ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
                 Hold
               </button>
               <button
                 onClick={onRecordToggle}
-                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer ${
-                  activeCall.isRecording ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400" : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                }`}
+                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer ${activeCall.isRecording ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400" : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  }`}
               >
                 <Radio className="h-3.5 w-3.5" />
                 Record

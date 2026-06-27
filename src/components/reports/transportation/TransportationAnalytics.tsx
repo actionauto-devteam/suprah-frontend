@@ -229,14 +229,14 @@ export function TransportationAnalytics({
             {monthLabel} — loads by status
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center gap-6 pt-2">
+        <CardContent className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-2">
           {totalLoads === 0 ? (
             <p className="text-sm text-muted-foreground py-8 w-full text-center">
               No load data for this period.
             </p>
           ) : (
             <>
-              <div className="relative shrink-0">
+              <div className="relative shrink-0 mx-auto sm:mx-0">
                 <ResponsiveContainer width={160} height={160}>
                   <PieChart>
                     <Tooltip content={<PieTooltip />} />
@@ -280,7 +280,7 @@ export function TransportationAnalytics({
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-2 min-w-0 flex-1">
+              <div className="flex flex-col gap-2 w-full sm:flex-1 sm:min-w-0">
                 {loadStatusData.map((entry) => (
                   <div
                     key={entry.name}
@@ -318,14 +318,14 @@ export function TransportationAnalytics({
             {monthLabel} — conversion metrics
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center gap-6 pt-2">
+        <CardContent className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-2">
           {totalQuotes === 0 ? (
             <p className="text-sm text-muted-foreground py-8 w-full text-center">
               No quotes for this period.
             </p>
           ) : (
             <>
-              <div className="relative shrink-0">
+              <div className="relative shrink-0 mx-auto sm:mx-0">
                 <ResponsiveContainer width={160} height={160}>
                   <PieChart>
                     <Tooltip content={<PieTooltip />} />
@@ -371,7 +371,7 @@ export function TransportationAnalytics({
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-2 min-w-0 flex-1">
+              <div className="flex flex-col gap-2 w-full sm:flex-1 sm:min-w-0">
                 {quoteStatusData.map((entry) => (
                   <div
                     key={entry.name}

@@ -100,19 +100,17 @@ export function CallQueue({ queue, logs, onPickupQueued }: CallQueueProps) {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-all relative cursor-pointer ${
-              tab === t.id ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
-            }`}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-all relative cursor-pointer ${tab === t.id ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
           >
             {t.icon}
             {t.label}
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-              tab === t.id
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${tab === t.id
                 ? t.id === "queue" && queue.length > 0
                   ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400"
                   : "bg-zinc-200 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-400"
                 : "bg-zinc-100 dark:bg-zinc-800/40 border-transparent text-zinc-400 dark:text-zinc-600"
-            }`}>
+              }`}>
               {t.count}
             </span>
             {tab === t.id && (
@@ -149,9 +147,8 @@ export function CallQueue({ queue, logs, onPickupQueued }: CallQueueProps) {
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Clock className="h-3.5 w-3.5 text-zinc-300 dark:text-zinc-600" />
-                    <span className={`text-xs font-mono font-semibold tabular-nums ${
-                      wait > 120 ? "text-red-500 dark:text-red-400" : wait > 60 ? "text-amber-500 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400"
-                    }`}>
+                    <span className={`text-xs font-mono font-semibold tabular-nums ${wait > 120 ? "text-red-500 dark:text-red-400" : wait > 60 ? "text-amber-500 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400"
+                      }`}>
                       {formatWait(wait)}
                     </span>
                   </div>
@@ -188,7 +185,7 @@ export function CallQueue({ queue, logs, onPickupQueued }: CallQueueProps) {
                 {logStatusLabel(log.status)}
               </span>
 
-              <div className="shrink-0 text-right min-w-[65px]">
+              <div className="shrink-0 text-right min-w-16.25">
                 <p className="text-xs font-mono font-medium text-zinc-700 dark:text-zinc-300 tabular-nums">{formatDuration(log.duration)}</p>
                 <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">{timeAgo(log.startedAt)}</p>
               </div>

@@ -793,7 +793,7 @@ function ExpandableTextarea({
           onKeyUp={refreshActiveFormats}
           onMouseUp={refreshActiveFormats}
           onBlur={syncMarkdownFromEditor}
-          className={`w-full min-h-28 max-h-[420px] border-0 bg-transparent text-sm p-4 resize-y overflow-auto focus:outline-none leading-relaxed text-foreground/90 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:pl-1 [&_blockquote]:border-l-2 [&_blockquote]:border-emerald-500/40 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-muted/60 [&_code]:px-1 [&_code]:py-0.5 ${className}`}
+          className={`w-full min-h-28 max-h-105 border-0 bg-transparent text-sm p-4 resize-y overflow-auto focus:outline-none leading-relaxed text-foreground/90 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:pl-1 [&_blockquote]:border-l-2 [&_blockquote]:border-emerald-500/40 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-muted/60 [&_code]:px-1 [&_code]:py-0.5 ${className}`}
           style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
         />
       </div>

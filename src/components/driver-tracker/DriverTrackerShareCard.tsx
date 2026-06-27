@@ -59,7 +59,7 @@ export function DriverTrackerShareCard({
         </div>
       </CardHeader>
       <CardContent className="p-5 space-y-4">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5 sm:gap-1.5">
           {STATUS_CONFIG.map((item) => {
             const locked = item.needsLoad && !hasActiveLoad;
             const btn = (
@@ -68,7 +68,7 @@ export function DriverTrackerShareCard({
                 size="sm"
                 variant="outline"
                 disabled={locked}
-                className={`h-8 px-2 text-[11px] font-semibold transition-all duration-200 ${shareStatus === item.key
+                className={`h-10 sm:h-8 px-2 text-[11px] font-semibold transition-all duration-200 ${shareStatus === item.key
                     ? item.color + " border"
                     : "border-border/50 text-muted-foreground"
                   } ${locked ? "opacity-40 cursor-not-allowed" : ""}`}
@@ -91,7 +91,7 @@ export function DriverTrackerShareCard({
         </div>
         <Button
           size="sm"
-          className={`w-full h-9 text-xs font-bold transition-all duration-300 ${isSharing
+          className={`w-full h-11 sm:h-9 text-xs font-bold transition-all duration-300 ${isSharing
             ? "bg-rose-500/10 text-rose-600 border border-rose-200/50 hover:bg-rose-500/20 shadow-none"
             : "bg-primary text-primary-foreground shadow-sm hover:shadow-md"
             }`}

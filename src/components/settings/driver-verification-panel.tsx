@@ -89,7 +89,7 @@ export function DriverVerificationPanel() {
         </div>
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email..." className="h-8 pl-8 text-xs" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email..." className="h-10 sm:h-8 pl-8 text-base sm:text-xs" />
         </div>
       </div>
 

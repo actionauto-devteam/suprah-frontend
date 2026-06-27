@@ -332,7 +332,7 @@ export default function MemberProfilePage() {
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border",
                     (profile as any).accountStatus?.isActive
                       ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-800/40"
-                      : "bg-red-50 text-red-700 border-red-200",
+                      : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/40",
                   )}
                 >
                   <span

@@ -397,7 +397,7 @@ export default function ReportsPage() {
             value={reportData?.loads.length || 0}
             sub="Current period"
             icon={Truck}
-            color="text-blue-600 bg-blue-50 dark:bg-blue-950/40"
+            color="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
           />
           <StatBox
             label="Delivered"
@@ -407,7 +407,7 @@ export default function ReportsPage() {
             }
             sub="Successful cycles"
             icon={CheckSquare}
-            color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40"
+            color="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
           />
           <StatBox
             label="Revenue"
@@ -416,7 +416,7 @@ export default function ReportsPage() {
             )}
             sub="Gross succeeding"
             icon={CreditCard}
-            color="text-violet-600 bg-violet-50 dark:bg-violet-950/40"
+            color="text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40"
           />
           <StatBox
             label="Driver Payouts"
@@ -425,7 +425,7 @@ export default function ReportsPage() {
             )}
             sub="Completed settlements"
             icon={Users}
-            color="text-amber-600 bg-amber-50 dark:bg-amber-950/40"
+            color="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40"
           />
         </div>
 
@@ -521,13 +521,13 @@ export default function ReportsPage() {
                     subtitle="Logistics & Delivery"
                     description="Full delivery cycles, carrier payouts, and logistics efficiency tracking."
                     category="Logistics"
-                    categoryClass="text-emerald-600 border-emerald-200 bg-emerald-50"
+                    categoryClass="text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40"
                     stats={[
                       { icon: <Truck className="size-3" />, label: `${filteredLoads.length} active` },
                       { icon: <Database className="size-3" />, label: "System Sync" }
                     ]}
                     highlights={[
-                      { label: "Success Rate", value: `${loadSummary.onTimeRate}%`, color: "text-emerald-600" },
+                      { label: "Success Rate", value: `${loadSummary.onTimeRate}%`, color: "text-emerald-600 dark:text-emerald-400" },
                       { label: "Total Revenue", value: transportFmtCurrency(loadSummary.totalRate), color: "text-foreground" }
                     ]}
                     isSelected={selected.has("load-report")}
@@ -541,13 +541,13 @@ export default function ReportsPage() {
                     subtitle="Sales & Conversion"
                     description="Market quote history, conversion rates and pending logistics drafts."
                     category="Transportation"
-                    categoryClass="text-amber-600 border-amber-200 bg-amber-50"
+                    categoryClass="text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40"
                     stats={[
                       { icon: <FileText className="size-3" />, label: `${filteredQuotes.length} quotes` },
                       { icon: <Users className="size-3" />, label: "Client Direct" }
                     ]}
                     highlights={[
-                      { label: "Conv. Rate", value: `${quoteSummary.conversionRate}%`, color: "text-amber-600" },
+                      { label: "Conv. Rate", value: `${quoteSummary.conversionRate}%`, color: "text-amber-600 dark:text-amber-400" },
                       { label: "Avg Rate", value: transportFmtCurrency(quoteSummary.avgRate), color: "text-foreground" }
                     ]}
                     isSelected={selected.has("quote-report")}
@@ -565,13 +565,13 @@ export default function ReportsPage() {
                   subtitle="Fleet Analytics"
                   description="Individual driver metrics, completion rates and settlement logs."
                   category="Operations"
-                  categoryClass="text-blue-600 border-blue-200 bg-blue-50"
+                  categoryClass="text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-950/40"
                   stats={[
                     { icon: <Truck className="size-3" />, label: "Fleet Wide" },
                     { icon: <CheckSquare className="size-3" />, label: "Compliance" }
                   ]}
                   highlights={[
-                    { label: "Avg Score", value: "98.2", color: "text-blue-600" },
+                    { label: "Avg Score", value: "98.2", color: "text-blue-600 dark:text-blue-400" },
                     { label: "Payouts", value: formatCurrency(payoutTotal), color: "text-foreground" }
                   ]}
                   isSelected={selected.has("driver-report")}
@@ -588,13 +588,13 @@ export default function ReportsPage() {
                   subtitle="Financial Audit"
                   description="Complete financial audit of succeeding payments and gross revenue."
                   category="Finance"
-                  categoryClass="text-violet-600 border-violet-200 bg-violet-50"
+                  categoryClass="text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-950/40"
                   stats={[
                     { icon: <CreditCard className="size-3" />, label: "Bank Sync" },
                     { icon: <Search className="size-3" />, label: "Audit Ready" }
                   ]}
                   highlights={[
-                    { label: "Gross", value: formatCurrency(revenueTotal), color: "text-violet-600" },
+                    { label: "Gross", value: formatCurrency(revenueTotal), color: "text-violet-600 dark:text-violet-400" },
                     { label: "Vol.", value: rawPayments.length, color: "text-foreground" }
                   ]}
                   isSelected={selected.has("billing-report")}

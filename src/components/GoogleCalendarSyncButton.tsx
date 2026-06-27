@@ -114,10 +114,10 @@ export function GoogleCalendarSyncButton({ onSyncComplete }: GoogleCalendarSyncB
 
       {message && (
         <div
-          className={`absolute top-full right-0 mt-2 px-3 py-2 rounded-md text-sm whitespace-nowrap z-50 shadow-md max-w-xs ${
+          className={`absolute top-full right-0 mt-2 px-3 py-2 rounded-md text-sm z-50 shadow-md w-72 max-w-[min(20rem,calc(100vw-2rem))] ${
             syncResult === 'success'
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-500/30'
+              : 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-500/30'
           }`}
         >
           {message}

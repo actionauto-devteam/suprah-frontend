@@ -679,7 +679,7 @@ function StatCard({
 }) {
   return (
     <div
-      className={`flex-1 min-w-[110px] rounded-lg border bg-card px-4 py-3 ${accent}`}
+      className={`flex-1 min-w-27.5 rounded-lg border bg-card px-4 py-3 ${accent}`}
     >
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
@@ -793,38 +793,38 @@ function LoadPreview({ loads }: { loads: Load[] }) {
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="overflow-x-auto">
-              <div className="overflow-y-auto max-h-[420px]">
+              <div className="overflow-y-auto max-h-105">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/60 hover:bg-muted/60">
-                      <TableHead className="text-xs font-semibold w-[100px]">
+                      <TableHead className="text-xs font-semibold w-25">
                         Load #
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[90px]">
+                      <TableHead className="text-xs font-semibold w-22.5">
                         Status
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[110px]">
+                      <TableHead className="text-xs font-semibold w-27.5">
                         Customer
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[120px]">
+                      <TableHead className="text-xs font-semibold w-30">
                         Vehicle
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[120px]">
+                      <TableHead className="text-xs font-semibold w-30">
                         VIN
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[90px]">
+                      <TableHead className="text-xs font-semibold w-22.5">
                         Origin
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[90px]">
+                      <TableHead className="text-xs font-semibold w-22.5">
                         Destination
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[70px]">
+                      <TableHead className="text-xs font-semibold w-17.5">
                         Type
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[80px]">
+                      <TableHead className="text-xs font-semibold w-20">
                         Rate
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[100px]">
+                      <TableHead className="text-xs font-semibold w-25">
                         Driver
                       </TableHead>
                     </TableRow>
@@ -849,7 +849,7 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                         <TableCell className="font-medium text-foreground">
                           {loadCustomer(l)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate max-w-[120px]">
+                        <TableCell className="text-muted-foreground truncate max-w-30">
                           {loadVehicle(l)}
                         </TableCell>
                         <TableCell className="font-mono text-[10px] text-muted-foreground">
@@ -969,38 +969,38 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="overflow-x-auto">
-              <div className="overflow-y-auto max-h-[420px]">
+              <div className="overflow-y-auto max-h-105">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/60 hover:bg-muted/60">
-                      <TableHead className="text-xs font-semibold w-[110px]">
+                      <TableHead className="text-xs font-semibold w-27.5">
                         Customer
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[120px]">
+                      <TableHead className="text-xs font-semibold w-30">
                         Vehicle
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[100px]">
+                      <TableHead className="text-xs font-semibold w-25">
                         From
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[100px]">
+                      <TableHead className="text-xs font-semibold w-25">
                         To
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[70px]">
+                      <TableHead className="text-xs font-semibold w-17.5">
                         Miles
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[80px]">
+                      <TableHead className="text-xs font-semibold w-20">
                         Rate
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[60px]">
+                      <TableHead className="text-xs font-semibold w-15">
                         ETA
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[70px]">
+                      <TableHead className="text-xs font-semibold w-17.5">
                         Type
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[50px]">
+                      <TableHead className="text-xs font-semibold w-12.5">
                         Units
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-[80px]">
+                      <TableHead className="text-xs font-semibold w-20">
                         Status
                       </TableHead>
                     </TableRow>
@@ -1014,7 +1014,7 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
                         <TableCell className="font-medium text-foreground">
                           {quoteCustomer(q)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate max-w-[120px]">
+                        <TableCell className="text-muted-foreground truncate max-w-30">
                           {quoteVehicle(q)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -1090,14 +1090,13 @@ export function TransportationPreviewModal({
         className="w-[96vw] max-w-300 sm:max-w-[min(96vw,1200px)] p-0 gap-0 overflow-hidden max-h-[92dvh] min-h-[62dvh] flex flex-col rounded-2xl border-border/60 bg-background/95 shadow-2xl"
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <div className="flex items-start justify-between px-5 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">
+          <div className="flex items-start gap-3 min-w-0">
             <div
-              className={`size-10 rounded-lg flex items-center justify-center border ${
-                isLoad
+              className={`size-10 rounded-lg flex items-center justify-center border shrink-0 ${isLoad
                   ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
                   : "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800"
-              }`}
+                }`}
             >
               {isLoad ? (
                 <Truck className={`size-4.5 ${accentColor}`} />
@@ -1105,21 +1104,21 @@ export function TransportationPreviewModal({
                 <MapPin className={`size-4.5 ${accentColor}`} />
               )}
             </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground leading-tight">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-foreground leading-tight truncate">
                 {title}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 {monthLabel}
                 <span className="mx-1.5 opacity-40">·</span>
                 Preview before download
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto sm:mt-0.5">
             <Button
               size="sm"
-              className="gap-1.5 text-xs font-medium"
+              className="gap-1.5 text-xs font-medium h-9"
               onClick={onDownload}
               disabled={isDownloading}
             >
@@ -1128,7 +1127,8 @@ export function TransportationPreviewModal({
               ) : (
                 <Download className="size-3.5" />
               )}
-              Download PDF
+              <span className="hidden xs:inline">Download PDF</span>
+              <span className="xs:hidden">Download</span>
             </Button>
             <Button
               type="button"
@@ -1136,14 +1136,14 @@ export function TransportationPreviewModal({
               size="icon"
               aria-label="Close report preview"
               onClick={onClose}
-              className="size-8 text-muted-foreground hover:text-foreground"
+              className="size-9 text-muted-foreground hover:text-foreground"
             >
               <X className="size-4" />
             </Button>
           </div>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5 flex-1">
+        <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
           {isLoad ? (
             <LoadPreview loads={loads} />
           ) : (

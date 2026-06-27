@@ -109,7 +109,7 @@ function QuickStat({
   color: string;
 }) {
   return (
-    <div className="flex items-center gap-3 flex-1 min-w-[140px]">
+    <div className="flex items-center gap-3 flex-1 min-w-35">
       <div
         className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}
       >
@@ -203,13 +203,13 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
           </CardHeader>
           <CardContent>
             {totalLoads === 0 ? (
-              <div className="flex items-center justify-center h-[160px] text-sm text-muted-foreground">
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
                 No load data for this period.
               </div>
             ) : (
-              <div className="flex items-center gap-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 {/* Fixed-size donut wrapper */}
-                <div className="relative w-[160px] h-[160px] shrink-0">
+                <div className="relative w-40 h-40 shrink-0 mx-auto sm:mx-0">
                   <PieChart width={160} height={160}>
                     <Tooltip content={<DeliveryTooltip />} />
                     <Pie
@@ -243,7 +243,7 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                 </div>
 
                 {/* Legend */}
-                <div className="flex flex-col gap-2.5 flex-1 min-w-0">
+                <div className="flex flex-col gap-2.5 w-full sm:flex-1 sm:min-w-0">
                   {deliveryData.map(entry => {
                     const pct = Math.round((entry.value / totalLoads) * 100)
                     return (
@@ -285,7 +285,7 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
           </CardHeader>
           <CardContent>
             {!hasRevenueData ? (
-              <div className="flex items-center justify-center h-[160px] text-sm text-muted-foreground">
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
                 No payment data available for the last 6 months.
               </div>
             ) : (

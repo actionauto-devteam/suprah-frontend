@@ -108,26 +108,26 @@ export default function CrmSettingsPage() {
   return (
     <div className="min-h-screen w-full bg-background">
       {/* ── Page Content ── */}
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Page header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/crm/dashboard")}
-            className="h-8 w-8 p-0 rounded-xl border border-border/40 hover:bg-muted/50"
+            className="h-9 w-9 p-0 rounded-xl border border-border/40 hover:bg-muted/50 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">Settings</h1>
+            <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
               Manage your CRM workspace
             </p>
           </div>
           <Badge
             variant="outline"
-            className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex"
+            className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex shrink-0"
           >
             {user.role}
           </Badge>
@@ -186,14 +186,14 @@ export default function CrmSettingsPage() {
             {/* User Management card */}
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               {/* Card header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
                     <Users className="h-4 w-4 text-emerald-500" />
                   </div>
-                  <div>
-                    <p className="text-sm font-bold">User Management</p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate">User Management</p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">
                       Create and manage CRM user accounts
                     </p>
                   </div>
@@ -243,7 +243,7 @@ export default function CrmSettingsPage() {
             </div>
 
             {/* Admin-only notice */}
-            <div className="rounded-2xl border border-border/30 bg-muted/1.5 px-6 py-4">
+            <div className="rounded-2xl border border-border/30 bg-muted/1.5 px-4 sm:px-6 py-4">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="h-4 w-4 text-emerald-500/60 mt-0.5 shrink-0" />
                 <div>
@@ -261,7 +261,7 @@ export default function CrmSettingsPage() {
 
             {/* Appearance card */}
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border/30">
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-xl bg-violet-500/10 flex items-center justify-center">
                     {theme === "dark" ? (
@@ -278,7 +278,7 @@ export default function CrmSettingsPage() {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-5">
+              <div className="px-4 sm:px-6 py-5">
                 <div className="flex items-center justify-between">
                   <Label
                     htmlFor="crm-dark-mode"
@@ -305,7 +305,7 @@ export default function CrmSettingsPage() {
 
             {/* Notification Sounds card */}
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
-              <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30">
+              <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-border/30">
                 <div className="h-8 w-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
                   {soundOn ? (
                     <Volume2 className="h-4 w-4 text-blue-500" />
@@ -320,7 +320,7 @@ export default function CrmSettingsPage() {
                   </p>
                 </div>
               </div>
-              <div className="px-6 py-5">
+              <div className="px-4 sm:px-6 py-5">
                 <div className="flex items-center justify-between">
                   <Label
                     htmlFor="crm-sound"

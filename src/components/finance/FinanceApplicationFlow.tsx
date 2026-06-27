@@ -931,7 +931,7 @@ function ReviewSection({
           variant="ghost"
           size="sm"
           onClick={() => setStep(stepIndex)}
-          className="h-8 rounded-full text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          className="h-8 rounded-full text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10"
         >
           Edit
         </Button>

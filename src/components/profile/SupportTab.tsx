@@ -28,23 +28,23 @@ export const SupportTab: React.FC = () => {
                 </div>
                 <CardContent className="space-y-3 p-5">
                     <div className="relative">
-                        <Button variant="outline" className="w-full justify-start opacity-60" disabled>
-                            <MessageSquare className="size-4 mr-3" />Live Chat Support
+                        <Button variant="outline" className="w-full justify-start opacity-60 pr-24 truncate" disabled>
+                            <MessageSquare className="size-4 mr-3 shrink-0" /><span className="truncate">Live Chat Support</span>
                         </Button>
-                        <Badge className="absolute top-1/2 right-3 -translate-y-1/2 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px]">Coming Soon</Badge>
+                        <Badge className="absolute top-1/2 right-3 -translate-y-1/2 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] shrink-0">Coming Soon</Badge>
                     </div>
                     <div className="relative">
-                        <Button variant="outline" className="w-full justify-start opacity-60" disabled>
-                            <FileText className="size-4 mr-3" />Knowledge Base & Guides
+                        <Button variant="outline" className="w-full justify-start opacity-60 pr-24 truncate" disabled>
+                            <FileText className="size-4 mr-3 shrink-0" /><span className="truncate">Knowledge Base & Guides</span>
                         </Button>
-                        <Badge className="absolute top-1/2 right-3 -translate-y-1/2 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px]">Coming Soon</Badge>
+                        <Badge className="absolute top-1/2 right-3 -translate-y-1/2 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] shrink-0">Coming Soon</Badge>
                     </div>
                     <Button
                         variant="outline"
-                        className="w-full justify-start"
+                        className="w-full justify-start truncate"
                         onClick={() => window.open('https://mail.google.com/mail/?view=cm&to=support@actionautoutah.com&su=Support%20Request', '_blank')}
                     >
-                        <Mail className="size-4 mr-3" />Email: support@actionautoutah.com
+                        <Mail className="size-4 mr-3 shrink-0" /><span className="truncate">Email: support@actionautoutah.com</span>
                     </Button>
                     <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
                         <div className="flex items-center gap-2 mb-1.5">

@@ -166,13 +166,13 @@ export default function PluginMarketplace() {
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-500">
       {/* Header Area */}
-      <header className="h-16 border-b flex items-center justify-between px-8 bg-card/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+      <header className="min-h-16 border-b flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-2.5 bg-card/50 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Zap className="size-4" />
           </div>
           <div>
-            <h1 className="text-lg font-extrabold tracking-tight uppercase">
+            <h1 className="text-base sm:text-lg font-extrabold tracking-tight uppercase">
               Plugins
             </h1>
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
@@ -182,30 +182,30 @@ export default function PluginMarketplace() {
         </div>
 
         {showPluginDevControls && (
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 sm:gap-6">
             <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-full border border-secondary transition-all hover:border-primary/30 group cursor-help">
-              <CreditCard className="size-3.5 text-primary group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <CreditCard className="size-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
+              <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Credits:
               </span>
-              <span className="text-xs font-black text-primary">$50.00</span>
+              <span className="text-xs font-black text-primary whitespace-nowrap">$50.00</span>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 text-xs font-bold uppercase tracking-widest border-primary/20 hover:bg-primary/5 hover:text-primary transition-all"
+              className="h-9 sm:h-8 gap-2 text-xs font-bold uppercase tracking-widest border-primary/20 hover:bg-primary/5 hover:text-primary transition-all"
             >
               <Settings className="size-3.5" />
-              Billing Logic
+              <span className="hidden sm:inline">Billing Logic</span>
             </Button>
           </div>
         )}
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar Pane */}
+        {/* Left Sidebar Pane (desktop) */}
         {showPluginMarketplaceCatalog && (
-          <aside className="w-64 border-r bg-card/30 flex flex-col shrink-0">
+          <aside className="hidden lg:flex lg:flex-col w-64 border-r bg-card/30 shrink-0">
             <div className="p-4 border-b">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -256,11 +256,55 @@ export default function PluginMarketplace() {
         )}
 
         {/* Main Content Pane */}
-        <main className="flex-1 relative bg-muted/5">
-          <ScrollArea className="h-full">
-            <div className="p-6 sm:p-8 lg:p-10 max-w-screen-2xl mx-auto">
-              <div className="mb-8 lg:mb-10 space-y-2">
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tighter uppercase">
+        <main className="flex-1 relative bg-muted/5 flex flex-col overflow-hidden">
+          {/* Filter bar (mobile/tablet) */}
+          {showPluginMarketplaceCatalog && (
+            <div className="lg:hidden border-b bg-card/30 px-4 sm:px-6 py-3 space-y-2.5 shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search tools..."
+                  className="pl-9 h-10 text-sm bg-muted/50 border-none focus-visible:ring-1 focus-visible:ring-primary/50"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={cn(
+                      "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-bold tracking-tight transition-all min-h-9",
+                      safeSelectedCategory === cat.id
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:text-primary",
+                    )}
+                  >
+                    <span className="whitespace-nowrap">{cat.name}</span>
+                    <Badge
+                      variant={
+                        safeSelectedCategory === cat.id ? "outline" : "secondary"
+                      }
+                      className={cn(
+                        "text-[9px] h-4 px-1.5 leading-none border-none font-black",
+                        safeSelectedCategory === cat.id
+                          ? "bg-white/20 text-white"
+                          : "text-muted-foreground/60",
+                      )}
+                    >
+                      {cat.count}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <ScrollArea className="flex-1">
+            <div className="p-4 sm:p-6 lg:p-8 xl:p-10 max-w-screen-2xl mx-auto">
+              <div className="mb-6 lg:mb-10 space-y-2">
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tighter uppercase">
                   {showPluginMarketplaceCatalog
                     ? "Power-Ups Library"
                     : "Installed Plugins"}
@@ -272,7 +316,7 @@ export default function PluginMarketplace() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {visiblePlugins.map((plugin) => (
                   <MarketplacePluginCard
                     key={plugin.id}

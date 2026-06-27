@@ -262,21 +262,21 @@ export function OrganizationMembersSettings() {
                 </CardContent>
             </Card> */}
 
-            <div className="flex items-center justify-between ">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h3 className="text-lg font-medium">Members</h3>
                     <p className="text-sm text-muted-foreground">
                         Manage who has access to this organization.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Sorting Dropdown */}
                     <Select value={`${sortBy}-${sortOrder}`} onValueChange={(val) => {
                         const [newSort, newOrder] = val.split("-") as [any, any]
                         setSortBy(newSort)
                         setSortOrder(newOrder)
                     }}>
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full sm:w-45 h-10 sm:h-9">
                             <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
                         <SelectContent>
@@ -293,12 +293,12 @@ export function OrganizationMembersSettings() {
                             <BulkInviteDialog />
                             <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                                 <DialogTrigger asChild>
-                                    <Button>
+                                    <Button className="h-10 sm:h-9">
                                         <UserPlus className="mr-2 h-4 w-4" />
                                         Invite Member
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
+                                <DialogContent className="w-[calc(100%-1.5rem)] sm:w-full">
                                     <DialogHeader>
                                         <DialogTitle>Invite New Member</DialogTitle>
                                         <DialogDescription>
@@ -421,14 +421,15 @@ export function OrganizationMembersSettings() {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-between py-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2">
                     <p className="text-xs text-muted-foreground">
                         Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, sortedMembers.length)} of {sortedMembers.length} members
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                         <Button
                             variant="outline"
                             size="sm"
+                            className="h-9 shrink-0"
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page === 1}
                         >
@@ -440,7 +441,7 @@ export function OrganizationMembersSettings() {
                                     key={p}
                                     variant={p === page ? "default" : "outline"}
                                     size="sm"
-                                    className="w-8 h-8 p-0"
+                                    className="w-9 h-9 p-0 shrink-0"
                                     onClick={() => setPage(p)}
                                 >
                                     {p}
@@ -450,6 +451,7 @@ export function OrganizationMembersSettings() {
                         <Button
                             variant="outline"
                             size="sm"
+                            className="h-9 shrink-0"
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page === totalPages}
                         >

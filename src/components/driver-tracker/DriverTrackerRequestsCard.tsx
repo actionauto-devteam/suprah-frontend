@@ -92,11 +92,11 @@ export function DriverTrackerRequestsCard({
           : null;
 
         return (
-          <div key={key} className="p-4 hover:bg-accent/30 transition-colors">
-            <div className="flex items-start justify-between gap-4">
+          <div key={key} className="p-3 sm:p-4 hover:bg-accent/30 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-bold">{req.driverName}</p>
                     {req.equipment?.truckMake && (
                       <span className="text-[10px] text-muted-foreground">
@@ -104,7 +104,7 @@ export function DriverTrackerRequestsCard({
                       </span>
                     )}
                     {req.equipment?.trailerType && (
-                      <Badge className="text-[9px] px-1.5 py-0 bg-purple-500/10 text-purple-600 border-purple-200 h-5">
+                      <Badge className="text-[9px] px-1.5 py-0 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 h-5">
                         {trailerLabel(req.equipment.trailerType)}
                       </Badge>
                     )}
@@ -114,7 +114,7 @@ export function DriverTrackerRequestsCard({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px]">
+                <div className="flex items-center gap-2 text-[11px] flex-wrap">
                   <Badge variant="outline" className="text-[10px] font-semibold shrink-0">
                     {req.trackingNumber || (req.loadId || req.shipmentId || "").slice(-8)}
                   </Badge>
@@ -128,19 +128,19 @@ export function DriverTrackerRequestsCard({
 
                 <div className="flex flex-wrap gap-1.5">
                   {trailerMatch !== null && (
-                    <Badge className={`text-[9px] px-1.5 py-0 h-5 gap-0.5 ${trailerMatch ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-red-500/10 text-red-600 border-red-200"}`}>
+                    <Badge className={`text-[9px] px-1.5 py-0 h-5 gap-0.5 ${trailerMatch ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30"}`}>
                       {trailerMatch ? <CheckCircle2 className="size-2.5" /> : <XCircle className="size-2.5" />}
                       Trailer Match
                     </Badge>
                   )}
                   {capacityMatch !== null && (
-                    <Badge className={`text-[9px] px-1.5 py-0 h-5 gap-0.5 ${capacityMatch ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-red-500/10 text-red-600 border-red-200"}`}>
+                    <Badge className={`text-[9px] px-1.5 py-0 h-5 gap-0.5 ${capacityMatch ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30"}`}>
                       {capacityMatch ? <CheckCircle2 className="size-2.5" /> : <XCircle className="size-2.5" />}
                       Capacity
                     </Badge>
                   )}
                   {req.equipment?.isComplianceExpired && (
-                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-red-500/10 text-red-600 border-red-200">
+                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
                       <AlertTriangle className="size-2.5" />Compliance Expired
                     </Badge>
                   )}
@@ -150,7 +150,7 @@ export function DriverTrackerRequestsCard({
                     </Badge>
                   )}
                   {req.carrierPayAmount != null && req.carrierPayAmount > 0 && (
-                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-200">
+                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
                       <DollarSign className="size-2.5" />{req.carrierPayAmount.toLocaleString()}
                     </Badge>
                   )}
@@ -160,7 +160,7 @@ export function DriverTrackerRequestsCard({
               <div className="flex items-center gap-2 shrink-0">
                 <Button
                   size="sm"
-                  className="h-8 px-3 text-xs font-bold gap-1.5"
+                  className="h-10 sm:h-8 px-3 text-xs font-bold gap-1.5 flex-1 sm:flex-initial"
                   onClick={() => onApprove(req.loadId!, req.driverId)}
                   disabled={isApproving || isRejecting}
                 >
@@ -170,7 +170,7 @@ export function DriverTrackerRequestsCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 px-3 text-xs font-bold gap-1.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                  className="h-10 sm:h-8 px-3 text-xs font-bold gap-1.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-500/10 dark:hover:text-red-400 dark:hover:border-red-500/30 flex-1 sm:flex-initial"
                   onClick={() => onReject(req.loadId!, req.driverId)}
                   disabled={isApproving || isRejecting}
                 >

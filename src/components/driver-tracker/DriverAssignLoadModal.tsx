@@ -87,19 +87,19 @@ export function DriverAssignLoadModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-xl"
+        className="sm:max-w-xl w-[calc(100%-1.5rem)] sm:w-full"
         overlayClassName="bg-black/72 backdrop-blur-[4px]"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold flex items-center gap-2">
-            <Package className="size-4 text-primary" />
-            Assign Load — {driver?.driver?.name || "Driver"}
+          <DialogTitle className="text-base font-bold flex items-center gap-2 pr-6">
+            <Package className="size-4 text-primary shrink-0" />
+            <span className="truncate">Assign Load — {driver?.driver?.name || "Driver"}</span>
           </DialogTitle>
           <p className="text-[11px] text-muted-foreground/60 font-medium">
             Select an available load to assign to this driver
           </p>
           <div className="flex items-center gap-3 mt-2">
-            <Avatar className="size-10 border-2 border-background shadow-sm">
+            <Avatar className="size-10 border-2 border-background shadow-sm shrink-0">
               {driver?.driver?.avatar && (
                 <AvatarImage src={driver.driver.avatar} />
               )}
@@ -108,7 +108,7 @@ export function DriverAssignLoadModal({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">
+              <p className="text-sm font-bold truncate">
                 {driver?.driver?.name || "Unknown"}
               </p>
               <div className="flex flex-wrap gap-1 mt-0.5">
@@ -118,13 +118,13 @@ export function DriverAssignLoadModal({
                   </Badge>
                 )}
                 {eq?.trailerType && (
-                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 border-purple-200 gap-0.5">
+                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 gap-0.5">
                     <Truck className="size-2.5" />
                     {trailerLabel(eq.trailerType)}
                   </Badge>
                 )}
                 {eq?.maxVehicleCapacity != null && (
-                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                  <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30">
                     Cap: {eq.maxVehicleCapacity}
                   </Badge>
                 )}
@@ -143,11 +143,11 @@ export function DriverAssignLoadModal({
             value={loadSearch}
             onChange={(e) => setLoadSearch(e.target.value)}
             placeholder="Search loads by tracking #, origin, or destination..."
-            className="h-9 pl-9 text-xs rounded-lg border-border/40"
+            className="h-10 sm:h-9 pl-9 text-base sm:text-xs rounded-lg border-border/40"
           />
         </div>
 
-        <div className="space-y-4 max-h-96 overflow-y-auto modal-scrollbar [scrollbar-gutter:stable] pr-2">
+        <div className="space-y-4 max-h-[50vh] sm:max-h-96 overflow-y-auto modal-scrollbar [scrollbar-gutter:stable] pr-2">
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <Loader2 className="size-6 text-primary animate-spin" />
@@ -179,15 +179,15 @@ export function DriverAssignLoadModal({
             return (
               <div
                 key={load._id}
-                className="rounded-xl border border-border/40 p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
+                className="rounded-xl border border-border/40 p-3 sm:p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     <div className="size-10 rounded-xl bg-primary/5 flex items-center justify-center shrink-0">
                       <Package className="size-5 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-sm font-bold text-foreground">
+                      <p className="text-sm font-bold text-foreground truncate">
                         {load.trackingNumber || load._id}
                       </p>
                       {(load.origin || load.destination) && (
@@ -206,17 +206,17 @@ export function DriverAssignLoadModal({
                       )}
                       <div className="flex flex-wrap gap-1 mt-1">
                         {load.trailerTypeRequired && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 border-purple-200 gap-0.5">
+                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 gap-0.5">
                             <Truck className="size-2.5" />{trailerLabel(load.trailerTypeRequired)}
                           </Badge>
                         )}
                         {load.vehicleCount != null && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 border-indigo-200">
+                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30">
                             {load.vehicleCount} vehicle{load.vehicleCount !== 1 ? "s" : ""}
                           </Badge>
                         )}
                         {load.carrierPayAmount != null && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-emerald-500/10 text-emerald-600 border-emerald-200">
+                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
                             ${load.carrierPayAmount.toLocaleString()}
                           </Badge>
                         )}
@@ -225,7 +225,7 @@ export function DriverAssignLoadModal({
                   </div>
                   <Button
                     size="sm"
-                    className="h-8 px-3 text-xs font-bold shrink-0 shadow-sm"
+                    className="h-10 sm:h-8 px-3 text-xs font-bold shrink-0 shadow-sm w-full sm:w-auto"
                     onClick={() => handleAssign(load)}
                     disabled={assigning !== null}
                   >
@@ -238,10 +238,10 @@ export function DriverAssignLoadModal({
                 </div>
 
                 {(trailerMatch !== null || capacityMatch !== null) && (
-                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/20">
+                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/20 flex-wrap">
                     {trailerMatch !== null && (
                       <span
-                        className={`flex items-center gap-1.5 text-xs font-semibold ${trailerMatch ? "text-emerald-600" : "text-red-500"}`}
+                        className={`flex items-center gap-1.5 text-xs font-semibold ${trailerMatch ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}
                       >
                         {trailerMatch ? (
                           <CheckCircle2 className="size-3.5" />
@@ -253,7 +253,7 @@ export function DriverAssignLoadModal({
                     )}
                     {capacityMatch !== null && (
                       <span
-                        className={`flex items-center gap-1.5 text-xs font-semibold ${capacityMatch ? "text-emerald-600" : "text-red-500"}`}
+                        className={`flex items-center gap-1.5 text-xs font-semibold ${capacityMatch ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}
                       >
                         {capacityMatch ? (
                           <CheckCircle2 className="size-3.5" />

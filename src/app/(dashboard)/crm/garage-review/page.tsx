@@ -349,9 +349,9 @@ function TransferTab({ token }: { token: string }) {
                 </div>
                 <div className="text-right shrink-0">
                   {t.status === "already_in_garage" ? (
-                    <Badge className="text-[9px] h-5 px-2 rounded-full bg-amber-100 text-amber-600 border-0">Refreshed</Badge>
+                    <Badge className="text-[9px] h-5 px-2 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400 border-0">Refreshed</Badge>
                   ) : (
-                    <Badge className="text-[9px] h-5 px-2 rounded-full bg-emerald-100 text-emerald-600 border-0">Transferred</Badge>
+                    <Badge className="text-[9px] h-5 px-2 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 border-0">Transferred</Badge>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1">{new Date(t.createdAt).toLocaleDateString()}</p>
                 </div>

@@ -208,7 +208,7 @@ export default function CrmProfilePage() {
         const av = p?.avatar || p?.avatarUrl;
         if (av) setMainAvatar(av);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Debounced search
@@ -474,9 +474,8 @@ export default function CrmProfilePage() {
                         setSearchResults([]);
                         setActiveTab("profile");
                       }}
-                      className={`w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left ${
-                        i < searchResults.length - 1 ? "border-b border-border/20" : ""
-                      }`}
+                      className={`w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left ${i < searchResults.length - 1 ? "border-b border-border/20" : ""
+                        }`}
                     >
                       <Avatar className="h-8 w-8 ring-1 ring-border/30 shrink-0">
                         <AvatarImage src={u.avatar} />
@@ -542,11 +541,10 @@ export default function CrmProfilePage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 disabled={tab === "activity" && !isOwnProfile}
-                className={`px-1 mr-6 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  activeTab === tab
+                className={`px-1 mr-6 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${activeTab === tab
                     ? "border-primary text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 {tab === "profile" ? "User Profile" : "Activity Log"}
               </button>
@@ -577,7 +575,7 @@ export default function CrmProfilePage() {
 
                       {/* Name + meta */}
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold leading-tight tracking-tight break-words">
+                        <h2 className="text-lg font-bold leading-tight tracking-tight wrap-break-word">
                           {user.fullName}
                         </h2>
                         <p className="text-xs text-muted-foreground/70 mt-0.5">
@@ -652,11 +650,10 @@ export default function CrmProfilePage() {
                           <span className="text-sm text-muted-foreground">Status</span>
                         </div>
                         <span
-                          className={`inline-flex items-center w-fit text-xs px-2.5 py-0.5 rounded-full font-medium ${
-                            viewedIsActive
+                          className={`inline-flex items-center w-fit text-xs px-2.5 py-0.5 rounded-full font-medium ${viewedIsActive
                               ? "bg-primary/15 text-primary"
                               : "bg-destructive/15 text-destructive"
-                          }`}
+                            }`}
                         >
                           {viewedIsActive ? "Active" : "Inactive"}
                         </span>
@@ -732,7 +729,7 @@ export default function CrmProfilePage() {
               {avatarError && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 w-full">
                   <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-xs text-destructive leading-snug break-words min-w-0">{avatarError}</p>
+                  <p className="text-xs text-destructive leading-snug wrap-break-word min-w-0">{avatarError}</p>
                 </div>
               )}
             </div>
@@ -824,7 +821,7 @@ function InfoRow({
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
       <span
-        className={`text-sm font-medium text-left sm:text-right w-full sm:w-auto sm:max-w-[62%] break-words ${capitalize ? "capitalize" : ""}`}
+        className={`text-sm font-medium text-left sm:text-right w-full sm:w-auto sm:max-w-[62%] wrap-break-word ${capitalize ? "capitalize" : ""}`}
       >
         {value}
       </span>
@@ -948,8 +945,8 @@ function ActivityLogSection({
           apiClient.get("/api/profile/activities?limit=200"),
           crmToken
             ? apiClient.get("/api/crm/time-logs", {
-                headers: { Authorization: `Bearer ${crmToken}` },
-              })
+              headers: { Authorization: `Bearer ${crmToken}` },
+            })
             : Promise.resolve(null),
         ]);
 
@@ -1126,10 +1123,10 @@ function ActivityLogSection({
     selectedMonth === "all"
       ? items
       : items.filter((item) => {
-          const d = new Date(item.timestamp);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          return key === selectedMonth;
-        });
+        const d = new Date(item.timestamp);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return key === selectedMonth;
+      });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);

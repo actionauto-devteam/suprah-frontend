@@ -764,51 +764,51 @@ export default function DriverTrackerPage() {
     {
       label: "Total Drivers",
       value: drivers.length,
-      icon: <Users className="size-7 text-primary" />,
+      icon: <Users className="size-6 sm:size-7 text-primary" />,
       description: "All tracked drivers",
     },
     {
       label: "Active Now",
       value: activeDrivers.length,
-      icon: <Radio className="size-7 text-emerald-600 dark:text-emerald-400" />,
+      icon: <Radio className="size-6 sm:size-7 text-emerald-600 dark:text-emerald-400" />,
       description: "Currently sharing GPS",
-      color: "text-emerald-500",
+      color: "text-emerald-500 dark:text-emerald-400",
     },
     {
       label: "On Route",
       value: drivers.filter((d) => d.status === "on-route").length,
-      icon: <Truck className="size-7 text-amber-600 dark:text-amber-400" />,
+      icon: <Truck className="size-6 sm:size-7 text-amber-600 dark:text-amber-400" />,
       description: "Delivering loads",
-      color: "text-amber-500",
+      color: "text-amber-500 dark:text-amber-400",
     },
     {
       label: "Loads Assigned",
       value: totalLoads,
-      icon: <Package className="size-7 text-blue-600 dark:text-blue-400" />,
+      icon: <Package className="size-6 sm:size-7 text-blue-600 dark:text-blue-400" />,
       description: "Active shipments",
-      color: "text-blue-500",
+      color: "text-blue-500 dark:text-blue-400",
     },
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 container mx-auto min-h-screen">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <nav className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground mb-2">
+    <div className="p-3 xs:p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 container mx-auto min-h-screen overflow-x-hidden">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <nav className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground mb-2 overflow-x-auto no-scrollbar whitespace-nowrap">
             <Link href="/" className="hover:text-foreground transition-colors">
               Dashboard
             </Link>
-            <ChevronRight className="size-3" />
+            <ChevronRight className="size-3 shrink-0" />
             <Link
               href="/transportation"
               className="hover:text-foreground transition-colors"
             >
               Transportation
             </Link>
-            <ChevronRight className="size-3" />
+            <ChevronRight className="size-3 shrink-0" />
             <span className="text-foreground font-bold">Driver Tracker</span>
           </nav>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
+          <h1 className="text-xl xs:text-2xl md:text-3xl font-black tracking-tight text-foreground">
             Driver Tracker
           </h1>
           <p className="text-xs text-muted-foreground/60 font-medium mt-1">
@@ -816,16 +816,16 @@ export default function DriverTrackerPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-            <Clock className="size-3" />
+        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
+          <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <Clock className="size-3 shrink-0" />
             {currentTime.toLocaleDateString("en-US", {
               weekday: "short",
               month: "short",
               day: "numeric",
               timeZone: "America/Denver",
             })}
-            <span className="text-primary/60 font-black">
+            <span className="text-primary/60 font-black whitespace-nowrap">
               {currentTime.toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -834,7 +834,7 @@ export default function DriverTrackerPage() {
               })}{" "}
               MST
             </span>
-            <span className="text-muted-foreground/40 font-medium normal-case">
+            <span className="hidden xs:inline text-muted-foreground/40 font-medium normal-case whitespace-nowrap">
               (
               {currentTime.toLocaleTimeString("en-US", {
                 hour: "2-digit",
@@ -845,7 +845,7 @@ export default function DriverTrackerPage() {
           </span>
           {loadRequests.length > 0 && (
             <Badge
-              className="bg-amber-500/10 text-amber-600 border-amber-200 text-[10px] font-bold gap-1 cursor-pointer"
+              className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 text-[10px] font-bold gap-1 cursor-pointer shrink-0"
               onClick={() => setLoadsTab("requests")}
             >
               <Bell className="size-3" />
@@ -856,29 +856,29 @@ export default function DriverTrackerPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {kpis.map((kpi) => (
           <Card
             key={kpi.label}
             className="p-0 border-border/50 shadow-sm hover:shadow-md transition-all duration-200 group relative overflow-hidden"
           >
-            <div className="absolute top-3 right-3 p-1.5 rounded-lg bg-muted/40 dark:bg-muted/30 opacity-100 transition-opacity">
+            <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 rounded-lg bg-muted/40 dark:bg-muted/30 opacity-100 transition-opacity">
               {kpi.icon}
             </div>
-            <CardContent className="p-4">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 pr-7">
                 {kpi.label}
               </p>
               {isLoading ? (
-                <Skeleton className="h-7 w-14 mb-1" />
+                <Skeleton className="h-6 sm:h-7 w-14 mb-1" />
               ) : (
                 <h3
-                  className={`text-2xl font-black tracking-tighter ${kpi.color || "text-foreground"}`}
+                  className={`text-xl sm:text-2xl font-black tracking-tighter ${kpi.color || "text-foreground"}`}
                 >
                   {kpi.value}
                 </h3>
               )}
-              <p className="text-[10px] text-muted-foreground/60 font-medium mt-0.5">
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground/60 font-medium mt-0.5">
                 {kpi.description}
               </p>
             </CardContent>
@@ -902,7 +902,7 @@ export default function DriverTrackerPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-3 sm:gap-4">
         <DriverTrackerMap
           mapboxToken={normalizedToken}
           mapRef={mapRef}
@@ -939,9 +939,9 @@ export default function DriverTrackerPage() {
       </div>
 
       <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden">
-        <CardHeader className="py-3 px-5 border-b border-border/30 space-y-3">
-          <CardTitle className="text-base font-black flex items-center gap-2">
-            <LayoutGrid className="size-4.5 text-primary" />
+        <CardHeader className="py-3 px-3 sm:px-5 border-b border-border/30 space-y-3">
+          <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2">
+            <LayoutGrid className="size-4.5 text-primary shrink-0" />
             Load Management
           </CardTitle>
           <div className="flex gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
@@ -950,40 +950,40 @@ export default function DriverTrackerPage() {
                 {
                   key: "assigned",
                   label: "Assigned",
-                  icon: <Package className="size-3 text-emerald-400" />,
+                  icon: <Package className="size-3 text-emerald-500 dark:text-emerald-400 shrink-0" />,
                   count: driversWithLoads.length,
                   activeClass: "bg-emerald-500/20 border-emerald-500/40",
-                  badgeClass: "bg-emerald-500/20 text-emerald-400",
+                  badgeClass: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
                 },
                 {
                   key: "available",
                   label: "Available",
-                  icon: <Truck className="size-3 text-blue-400" />,
+                  icon: <Truck className="size-3 text-blue-500 dark:text-blue-400 shrink-0" />,
                   count: availableLoads.length,
                   activeClass: "bg-blue-500/20 border-blue-500/40",
-                  badgeClass: "bg-blue-500/20 text-blue-400",
+                  badgeClass: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
                 },
                 {
                   key: "requests",
                   label: "Requests",
-                  icon: <Bell className="size-3 text-amber-400" />,
+                  icon: <Bell className="size-3 text-amber-500 dark:text-amber-400 shrink-0" />,
                   count: loadRequests.length,
                   activeClass: "bg-amber-500/20 border-amber-500/40",
-                  badgeClass: "bg-amber-500/20 text-amber-400",
+                  badgeClass: "bg-amber-500/20 text-amber-600 dark:text-amber-400",
                 },
               ] as const
             ).map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setLoadsTab(tab.key)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md flex-1 transition-all ${loadsTab === tab.key
+                className={`flex items-center justify-center gap-1.5 px-1.5 sm:px-2.5 py-2 sm:py-1.5 rounded-md flex-1 min-h-9 transition-all ${loadsTab === tab.key
                     ? `${tab.activeClass} border shadow-sm`
                     : "border border-transparent hover:bg-muted/50"
                   }`}
               >
                 {tab.icon}
                 <span
-                  className={`text-[11px] font-bold flex-1 text-left ${loadsTab === tab.key
+                  className={`text-[11px] font-bold flex-1 text-center sm:text-left truncate ${loadsTab === tab.key
                       ? "text-foreground"
                       : "text-muted-foreground"
                     }`}
@@ -991,7 +991,7 @@ export default function DriverTrackerPage() {
                   {tab.label}
                 </span>
                 <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${loadsTab === tab.key
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${loadsTab === tab.key
                       ? tab.badgeClass
                       : "bg-muted/50 text-muted-foreground/60"
                     }`}

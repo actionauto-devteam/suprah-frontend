@@ -598,7 +598,7 @@ export default function TeamEngagementPage() {
   return (
     <div className="min-h-screen w-full bg-background">
       {/* ── Page Content ── */}
-      <main className="w-full max-w-450 mx-auto px-3 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-5 sm:py-8 xl:py-10 space-y-5 sm:space-y-6 xl:space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Page header */}
         <div className="flex items-center gap-3 sm:gap-4">
           <Button
@@ -623,71 +623,43 @@ export default function TeamEngagementPage() {
           </Badge>
         </div>
 
-        {/* ─── Mobile nav — compact horizontal pills, replaces the desktop sidebar card ─── */}
-        <div
-          className="flex items-center gap-2 overflow-x-auto pb-0.5 lg:hidden"
-          style={{ scrollbarWidth: "none" } as React.CSSProperties}
-        >
-          <button
-            onClick={() => router.push("/crm/settings")}
-            className="shrink-0 flex items-center gap-1.5 rounded-full border border-border/40 bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/60 transition-colors"
-          >
-            <Users className="h-3.5 w-3.5" />
-            User Management
-          </button>
-          <button
-            onClick={() => router.push("/crm/settings/integrations")}
-            className="shrink-0 flex items-center gap-1.5 rounded-full border border-border/40 bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/60 transition-colors"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            Lead Integrations
-          </button>
-          <button
-            onClick={() => router.push("/crm/hr")}
-            className="shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-600"
-          >
-            <HeartHandshake className="h-3.5 w-3.5" />
-            Team Engagement
-          </button>
-        </div>
-
-        {/* Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8">
-          {/* ─── Sidebar nav (desktop only) ─── */}
-          <div className="hidden lg:block lg:col-span-3 xl:col-span-3">
+        {/* Layout: sidebar + content */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* ─── Sidebar nav ─── */}
+          <div className="lg:col-span-3">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border/30">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
                   Navigation
                 </p>
               </div>
-              <div className="p-2 xl:p-3 space-y-1">
+              <div className="p-2 space-y-1">
                 <button
                   onClick={() => router.push("/crm/settings")}
-                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 xl:px-4 h-9 xl:h-10 text-xs xl:text-sm font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Users className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
+                    <Users className="h-3.5 w-3.5" />
                     User Management
                   </div>
                   <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                 </button>
                 <button
                   onClick={() => router.push("/crm/settings/integrations")}
-                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 xl:px-4 h-9 xl:h-10 text-xs xl:text-sm font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Lock className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
+                    <Lock className="h-3.5 w-3.5" />
                     Lead Integrations
                   </div>
                   <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                 </button>
                 <button
                   onClick={() => router.push("/crm/hr")}
-                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 xl:px-4 h-9 xl:h-10 text-xs xl:text-sm font-semibold bg-emerald-500/10 text-emerald-600"
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold bg-emerald-500/10 text-emerald-600"
                 >
                   <div className="flex items-center gap-2.5">
-                    <HeartHandshake className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
+                    <HeartHandshake className="h-3.5 w-3.5" />
                     Team Engagement
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -700,7 +672,7 @@ export default function TeamEngagementPage() {
           </div>
 
           {/* ─── Main panel ─── */}
-          <div className="lg:col-span-9 space-y-4 xl:space-y-6">
+          <div className="lg:col-span-9 space-y-4">
 
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               {/* Card header */}

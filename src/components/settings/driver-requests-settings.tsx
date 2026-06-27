@@ -95,7 +95,7 @@ export function DriverRequestsSettings() {
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
   return (
-    <div className="space-y-4 rounded-xl border border-border/70 bg-gradient-to-b from-background to-muted/20 p-3 sm:p-4 shadow-xs">
+    <div className="space-y-4 rounded-xl border border-border/70 bg-linear-to-b from-background to-muted/20 p-3 sm:p-4 shadow-xs">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -116,21 +116,19 @@ export function DriverRequestsSettings() {
         <div className="flex gap-1 bg-muted/70 rounded-lg p-0.5 shrink-0 border border-border/50">
           <button
             onClick={() => setFilter("pending")}
-            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-              filter === "pending"
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${filter === "pending"
                 ? "bg-background shadow-sm font-medium text-foreground"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Pending
           </button>
           <button
             onClick={() => setFilter("all")}
-            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-              filter === "all"
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${filter === "all"
                 ? "bg-background shadow-sm font-medium text-foreground"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             All
           </button>
@@ -162,7 +160,7 @@ export function DriverRequestsSettings() {
             return (
               <div
                 key={request._id}
-                className="flex items-center justify-between p-3 rounded-lg border border-border/70 gap-3 bg-card/75 hover:bg-card transition-colors"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-border/70 gap-3 bg-card/75 hover:bg-card transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar className="h-9 w-9 shrink-0">
@@ -188,7 +186,7 @@ export function DriverRequestsSettings() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                   <Badge variant="outline" className={config.className}>
                     {config.label}
                   </Badge>
@@ -197,7 +195,7 @@ export function DriverRequestsSettings() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="h-9 sm:h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => handleReject(request._id)}
                         disabled={isActioning}
                       >
@@ -210,7 +208,7 @@ export function DriverRequestsSettings() {
                       </Button>
                       <Button
                         size="sm"
-                        className="h-7 text-xs"
+                        className="h-9 sm:h-7 text-xs"
                         onClick={() => handleApprove(request._id)}
                         disabled={isActioning}
                       >

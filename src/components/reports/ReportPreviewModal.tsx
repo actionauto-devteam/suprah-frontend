@@ -160,8 +160,8 @@ function DriverPreview({ loads }: { loads: Load[] }) {
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-y-auto max-h-85">
-              <Table>
+            <div className="overflow-y-auto overflow-x-auto max-h-85">
+              <Table className="min-w-175 md:min-w-0">
                 <TableHeader>
                   <TableRow className="bg-muted/60 hover:bg-muted/60">
                     <TableHead className="text-xs font-semibold w-40">
@@ -456,34 +456,34 @@ export function ReportPreviewModal({
     >
       <DialogContent
         showCloseButton={false}
-        className="w-[96vw] max-w-300 p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col rounded-2xl"
+        className="w-[96vw] max-w-300 p-0 gap-0 overflow-hidden max-h-[92dvh] flex flex-col rounded-2xl"
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border shrink-0">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">
+          <div className="flex items-start gap-3 min-w-0">
             <div
-              className={`size-10 rounded-lg flex items-center justify-center border ${isDriver
+              className={`size-10 rounded-lg flex items-center justify-center border shrink-0 ${isDriver
                 ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
                 : "bg-violet-50 dark:bg-violet-950/50 border-violet-200 dark:border-violet-800"
                 }`}
             >
               <FileText className={`size-4.5 ${accentColor}`} />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground leading-tight">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-foreground leading-tight truncate">
                 {title}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 {monthLabel}
                 <span className="mx-1.5 opacity-40">·</span>
                 Preview before download
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto sm:mt-0.5">
             <Button
               size="sm"
-              className="gap-1.5 text-xs font-medium"
+              className="gap-1.5 text-xs font-medium h-9"
               onClick={onDownload}
               disabled={isDownloading}
             >
@@ -492,7 +492,8 @@ export function ReportPreviewModal({
               ) : (
                 <Download className="size-3.5" />
               )}
-              Download PDF
+              <span className="hidden xs:inline">Download PDF</span>
+              <span className="xs:hidden">Download</span>
             </Button>
             <Button
               type="button"
@@ -500,14 +501,14 @@ export function ReportPreviewModal({
               size="icon"
               aria-label="Close report preview"
               onClick={onClose}
-              className="size-8 text-muted-foreground hover:text-foreground"
+              className="size-9 text-muted-foreground hover:text-foreground"
             >
               <X className="size-4" />
             </Button>
           </div>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5 flex-1">
+        <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
           {isDriver
             ? <DriverPreview loads={loads} />
             : <BillingPreview payments={payments} payouts={payouts} />
