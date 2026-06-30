@@ -119,7 +119,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
         {/* Cardholder */}
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[6.5px] uppercase tracking-[0.2em] text-white/38 mb-0.5">Cardholder</p>
+            <p className="text-[6.5px] uppercase tracking-[0.2em] text-white/60 mb-0.5">Cardholder</p>
             <p className="text-[10.5px] font-bold tracking-widest uppercase text-white leading-none truncate max-w-32.5">
               {memberName}
             </p>
@@ -128,8 +128,8 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[6.5px] uppercase tracking-[0.2em] text-white/38 mb-0.5">Since</p>
-            <p className="font-mono text-white/65 text-[9px] font-semibold">{sinceYear}</p>
+            <p className="text-[6.5px] uppercase tracking-[0.2em] text-white/60 mb-0.5">Since</p>
+            <p className="font-mono text-white/80 text-[9px] font-semibold">{sinceYear}</p>
           </div>
         </div>
 
@@ -148,8 +148,8 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             JS
           </div>
           <div className="min-w-0">
-            <p className="text-[8.5px] font-bold text-white/82 leading-none">Justin Soha</p>
-            <p className="text-[7px] text-white/42 leading-snug mt-0.5 truncate">
+            <p className="text-[8.5px] font-bold text-white/90 leading-none">Justin Soha</p>
+            <p className="text-[7px] text-white/60 leading-snug mt-0.5 truncate">
               VP of Operations &amp; Market Ops Manager · Lube Management Corp, Utah
             </p>
           </div>

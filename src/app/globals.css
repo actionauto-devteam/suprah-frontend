@@ -224,6 +224,7 @@ body.app-fullscreen .main-content {
 
   html {
     touch-action: manipulation;
+    background-color: var(--background);
   }
 
   body {

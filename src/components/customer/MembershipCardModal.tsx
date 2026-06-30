@@ -59,7 +59,9 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white/60 [&>button]:top-3 [&>button]:left-3 [&>button]:right-auto [&>button]:z-50">
+      <DialogContent
+        overlayClassName="bg-black/70 backdrop-blur-[4px]"
+        className="w-[calc(100vw-2rem)] max-w-sm p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white/80 [&>button]:top-3 [&>button]:left-3 [&>button]:right-auto [&>button]:z-50">
 
         <div
           className="relative overflow-hidden rounded-2xl text-white select-none"
@@ -145,7 +147,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
               </div>
 
               {lifetimePts > 0 && (
-                <span className="text-[9px] font-semibold text-white/50 ml-auto">
+                <span className="text-[9px] font-semibold text-white/70 ml-auto">
                   {lifetimePts.toLocaleString()} pts
                 </span>
               )}
@@ -153,7 +155,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
             <div className="flex items-end justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/40 mb-1">Cardholder</p>
+                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/60 mb-1">Cardholder</p>
                 <p className="text-sm font-bold tracking-[0.12em] uppercase text-white leading-none truncate max-w-40">
                   {memberName}
                 </p>
@@ -162,8 +164,8 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/40 mb-1">Since</p>
-                <p className="font-mono text-white/70 text-xs font-semibold">{sinceYear}</p>
+                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/60 mb-1">Since</p>
+                <p className="font-mono text-white/85 text-xs font-semibold">{sinceYear}</p>
               </div>
             </div>
 
@@ -171,8 +173,8 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
               className="rounded-xl px-3 py-2"
               style={{ background: "rgba(255,255,255,0.04)", borderTop: "1px solid rgba(255,255,255,0.07)" }}
             >
-              <p className="text-[10px] font-bold text-white/85 leading-none">Justin Soha</p>
-              <p className="text-[8px] text-white/45 leading-snug mt-0.5">
+              <p className="text-[10px] font-bold text-white/90 leading-none">Justin Soha</p>
+              <p className="text-[8px] text-white/65 leading-snug mt-0.5">
                 VP of Operations &amp; Market Ops Manager · Lube Management Corp, Utah
               </p>
             </div>

@@ -988,10 +988,10 @@ function Bubble({
                   <FileText className="h-4 w-4" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold truncate" style={{ color: isOwn ? 'rgba(255,255,255,0.9)' : 'var(--text-primary)' }}>{att.originalName}</p>
-                  <p className="mt-0.5 opacity-50 ss4-mono" style={{ fontSize: 10 }}>{fmtSize(att.size)}</p>
+                  <p className="text-xs font-semibold truncate" style={{ color: isOwn ? 'rgba(255,255,255,0.92)' : 'var(--text-primary)' }}>{att.originalName}</p>
+                  <p className="mt-0.5 ss4-mono" style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)' }}>{fmtSize(att.size)}</p>
                 </div>
-                <Download className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                <Download className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)' }} />
               </a>
             ))}
           </div>
@@ -1451,7 +1451,7 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
           : <div className="flex items-center justify-center" style={{ height: 60, background: 'var(--accent-muted)' }}><FileText className="h-6 w-6" style={{ color: 'var(--accent)' }} /></div>}
       <div className="px-1.5 py-1">
         <p className="truncate" style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600 }}>{file.name}</p>
-        <p className="ss4-mono" style={{ fontSize: 8, color: 'var(--text-disabled)' }}>{fmtSize(file.size)}</p>
+        <p className="ss4-mono" style={{ fontSize: 8, color: 'var(--text-secondary)' }}>{fmtSize(file.size)}</p>
       </div>
       <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}><X className="h-2.5 w-2.5" style={{ color: '#fff' }} /></button>
     </div>
@@ -4142,8 +4142,8 @@ export default function SupraSpacePage() {
                             {fileMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((a, i) => (
                               <a key={`${m._id}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">
                                 <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
-                                <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtSize(a.size)}</p></div>
-                                <Download className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+                                <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{fmtSize(a.size)}</p></div>
+                                <Download className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                               </a>
                             )))}
                           </div>

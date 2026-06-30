@@ -26,6 +26,8 @@ const SOURCES: { value: ReviewSource; label: string }[] = [
   { value: "other", label: "Other" },
 ]
 
+const todayInputDate = () => new Date().toISOString().slice(0, 10)
+
 export function AddReviewModal({ open, onOpenChange, onSubmit, isSubmitting, initial }: AddReviewModalProps) {
   const [source, setSource] = React.useState<ReviewSource>("google")
   const [reviewerName, setReviewerName] = React.useState("")
@@ -42,7 +44,7 @@ export function AddReviewModal({ open, onOpenChange, onSubmit, isSubmitting, ini
     setRating(initial?.rating || 5)
     setReviewText(initial?.reviewText || "")
     setReviewUrl(initial?.reviewUrl || "")
-    setReviewDate(initial?.reviewDate ? initial.reviewDate.slice(0, 10) : "")
+    setReviewDate(initial?.reviewDate ? initial.reviewDate.slice(0, 10) : todayInputDate())
     setResponse(initial?.response || "")
   }, [open, initial])
 
@@ -84,7 +86,7 @@ export function AddReviewModal({ open, onOpenChange, onSubmit, isSubmitting, ini
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-300">
                   {SOURCES.map((s) => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                   ))}
@@ -116,11 +118,13 @@ export function AddReviewModal({ open, onOpenChange, onSubmit, isSubmitting, ini
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Review date</Label>
-              <Input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} />
+              <Input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} max={todayInputDate()} />
+              <p className="text-[11px] text-muted-foreground">Defaults to today — change only for backdated or imported reviews.</p>
             </div>
             <div className="space-y-1.5">
               <Label>Link (optional)</Label>
               <Input value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} placeholder="https://…" />
+              <p className="text-[11px] text-muted-foreground">Paste the original review URL so the source icon opens it.</p>
             </div>
           </div>
 

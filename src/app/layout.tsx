@@ -71,7 +71,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.add('light')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,
+            __html: `(function(){var DARK_BG='oklch(0.15 0.02 269.18)';var LIGHT_BG='oklch(0.99 0 0)';var root=document.documentElement;try{var t=localStorage.getItem('theme');var isLight=t==='light';root.classList.add(isLight?'light':'dark');root.style.backgroundColor=isLight?LIGHT_BG:DARK_BG;root.style.colorScheme=isLight?'light':'dark'}catch(e){root.classList.add('dark');root.style.backgroundColor=DARK_BG;root.style.colorScheme='dark'}})()`,
           }}
         />
       </head>

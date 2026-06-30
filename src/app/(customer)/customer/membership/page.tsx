@@ -76,7 +76,7 @@ function Odometer({ value }: { value: number }) {
     <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar max-w-full">
       {digits.map((d, i) =>
         d === "," ? (
-          <span key={i} className="px-0.5 text-xl font-black text-white/40 sm:text-2xl lg:text-3xl">,</span>
+          <span key={i} className="px-0.5 text-xl font-black text-white/70 sm:text-2xl lg:text-3xl">,</span>
         ) : (
           <span
             key={i}
@@ -189,7 +189,7 @@ export default function MembershipPage() {
         className="relative overflow-hidden rounded-3xl p-5 shadow-xl sm:p-7"
         style={{ background: `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1] ?? primary} ${grad.length > 2 ? "55%" : "100%"}${grad[2] ? `, ${grad[2]} 100%` : ""})` }}
       >
-        <div className="absolute inset-0 bg-black/35" />
+        <div className="absolute inset-0 bg-black/45" />
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.07]"
           style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "14px 14px" }}
@@ -216,9 +216,9 @@ export default function MembershipPage() {
             </div>
 
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/55">Drive Points</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/75">Drive Points</p>
               <div className="mt-1.5"><Odometer value={lifetime} /></div>
-              <p className="mt-2 max-w-md text-sm font-medium text-white/75">
+              <p className="mt-2 max-w-md text-sm font-medium text-white/90">
                 {tier && tier.discountPercent > 0
                   ? `${firstName}, you're saving ${tier.discountPercent}% on every vehicle and part in the shop.`
                   : `Welcome aboard, ${firstName}. Earn points to unlock member pricing.`}
@@ -227,12 +227,12 @@ export default function MembershipPage() {
           </div>
 
           {/* Progress gauge */}
-          <div className="w-full max-w-sm rounded-2xl bg-black/25 p-4 ring-1 ring-white/10 backdrop-blur lg:w-80">
-            <div className="flex items-center justify-between text-xs font-semibold text-white/80">
+          <div className="w-full max-w-sm rounded-2xl bg-black/40 p-4 ring-1 ring-white/15 backdrop-blur lg:w-80">
+            <div className="flex items-center justify-between text-xs font-semibold text-white/90">
               <span>Member since {sinceYear}</span>
               <span className="tabular-nums">{progress}%</span>
             </div>
-            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/15">
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/20">
               <div
                 className="h-full rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all duration-1000"
                 style={{ width: `${progress}%` }}
@@ -240,17 +240,17 @@ export default function MembershipPage() {
             </div>
             <div className="mt-3 flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-white/50">Current</p>
+                <p className="text-[10px] uppercase tracking-wide text-white/70">Current</p>
                 <p className="text-sm font-bold text-white">{tier?.name}</p>
               </div>
-              <ChevronRight className="h-4 w-4 text-white/40" />
+              <ChevronRight className="h-4 w-4 text-white/60" />
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wide text-white/50">{nextTier ? "Next" : "Status"}</p>
+                <p className="text-[10px] uppercase tracking-wide text-white/70">{nextTier ? "Next" : "Status"}</p>
                 <p className="text-sm font-bold text-white">{nextTier?.name ?? "Maxed Out"}</p>
               </div>
             </div>
             {nextTier && (
-              <p className="mt-2 rounded-lg bg-white/10 px-2.5 py-1.5 text-center text-[11px] font-semibold text-white">
+              <p className="mt-2 rounded-lg bg-white/15 px-2.5 py-1.5 text-center text-[11px] font-semibold text-white">
                 {membership?.pointsToNextTier?.toLocaleString()} pts to {nextTier.name} · unlocks {nextTier.discountPercent}% pricing
               </p>
             )}
@@ -297,7 +297,7 @@ export default function MembershipPage() {
                       ? "border-transparent shadow-lg"
                       : unlocked
                         ? "border-border bg-muted/30"
-                        : "border-dashed border-border opacity-70",
+                        : "border-dashed border-muted-foreground/40 bg-muted/10",
                   )}
                   style={isCurrent ? { background: `linear-gradient(160deg, ${grad[0]}, ${grad[1] ?? primary})` } : undefined}
                 >
@@ -386,7 +386,7 @@ export default function MembershipPage() {
                         ) : has ? (
                           <Check className="h-4 w-4 shrink-0 text-primary" strokeWidth={3} />
                         ) : (
-                          <span className="text-sm text-muted-foreground/40 shrink-0">—</span>
+                          <span className="text-sm text-muted-foreground shrink-0">—</span>
                         )}
                       </div>
                     );
@@ -434,7 +434,7 @@ export default function MembershipPage() {
                               ) : ti >= ri ? (
                                 <Check className="mx-auto h-4 w-4 text-primary" strokeWidth={3} />
                               ) : (
-                                <span className="text-base text-muted-foreground/30">—</span>
+                                <span className="text-base text-muted-foreground">—</span>
                               )}
                             </td>
                           ))}
@@ -475,7 +475,7 @@ export default function MembershipPage() {
           ) : !history?.transactions?.length ? (
             <div className="rounded-[14px] border border-dashed border-border py-16 text-center">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Gauge className="h-6 w-6 text-muted-foreground/40" />
+                <Gauge className="h-6 w-6 text-muted-foreground" />
               </div>
               <p className="text-sm font-semibold text-foreground">No points on the board yet</p>
               <p className="mt-1 text-xs text-muted-foreground">Book a service visit or shop parts to start earning.</p>

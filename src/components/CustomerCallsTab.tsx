@@ -276,6 +276,7 @@ export function CustomerCallsTab() {
   const {
     data: conversations = [],
     isLoading: loadingConvs,
+    isFetching: fetchingConvs,
     refetch: refetchConvs,
   } = useQuery({
     queryKey: ["call-conversations", debSearch],
@@ -290,6 +291,15 @@ export function CustomerCallsTab() {
     refetchInterval: 15_000,
     staleTime: 10_000,
   });
+
+  const handleRefresh = async () => {
+    try {
+      await refetchConvs({ throwOnError: true });
+      showNotice("info", "Calls list refreshed.");
+    } catch {
+      showNotice("error", "Failed to refresh. Please try again.");
+    }
+  };
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unreadCount || 0), 0);
   const activeConv = conversations.find((c) => c._id === activeId) || null;
@@ -441,7 +451,19 @@ export function CustomerCallsTab() {
   const callLive = activeStatus === "in_progress";
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden border border-border bg-background">
+    <div className="relative flex h-full min-h-0 overflow-hidden border border-border bg-background">
+      {notice && (
+        <div
+          className={cn(
+            "absolute top-3 right-3 z-10 rounded-xl border px-3 py-2 text-[11px] font-medium shadow-sm",
+            notice.kind === "error"
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : "border-border bg-card text-muted-foreground"
+          )}
+        >
+          {notice.text}
+        </div>
+      )}
       {/* ── Left: request list ── */}
       <div
         className={cn(
@@ -462,8 +484,14 @@ export function CustomerCallsTab() {
                 </span>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => refetchConvs()} className="h-9 w-9 p-0 rounded-xl hover:bg-chart-4/10 hover:text-chart-4">
-              <RefreshCw className="h-3.5 w-3.5" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={fetchingConvs}
+              className="h-9 w-9 p-0 rounded-xl hover:bg-chart-4/10 hover:text-chart-4 disabled:opacity-100"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", fetchingConvs && "animate-spin")} />
             </Button>
           </div>
           <div className="relative">
@@ -645,16 +673,6 @@ export function CustomerCallsTab() {
 
             {/* Predefined status sender (one-way) */}
             <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border space-y-2">
-              {notice && (
-                <p
-                  className={cn(
-                    "text-[11px] px-1",
-                    notice.kind === "error" ? "text-destructive" : "text-muted-foreground"
-                  )}
-                >
-                  {notice.text}
-                </p>
-              )}
               <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 font-mono">
                 Send a status update
               </p>

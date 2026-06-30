@@ -143,6 +143,7 @@ export default function ServiceNetworkPage() {
   const [isGeocoding, setIsGeocoding] = React.useState(false)
   const [geocodedCount, setGeocodedCount] = React.useState(0)
   const [mapNotice, setMapNotice] = React.useState<string | null>(null)
+  const [isLocating, setIsLocating] = React.useState(false)
   const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(null)
   const [mobileTab, setMobileTab] = React.useState<'list' | 'map'>('list')
   const [cardOpen, setCardOpen] = React.useState(false)
@@ -338,24 +339,55 @@ export default function ServiceNetworkPage() {
   // 6. Handlers
   // -------------------------------------------------------------------------
   const handleLocateMe = () => {
-    if (!navigator.geolocation) { alert("Geolocation is not supported."); return }
+    if (!navigator.geolocation) {
+      setMapNotice("Geolocation is not supported on this browser.")
+      return
+    }
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setMapNotice("Location requires a secure (HTTPS) connection.")
+      return
+    }
+
+    setIsLocating(true)
     setMapNotice("Locating…")
-    navigator.geolocation.getCurrentPosition(pos => {
-      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-      setUserCoords(coords)
-      setMapNotice(null)
 
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.flyTo({ center: [coords.lng, coords.lat], zoom: 12, duration: 2000 })
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setIsLocating(false)
+        const { latitude, longitude } = pos.coords
+        if (typeof latitude !== "number" || typeof longitude !== "number") {
+          setMapNotice("Could not determine your location. Please try again.")
+          return
+        }
 
-        if (userMarkerRef.current) userMarkerRef.current.remove()
-        const el = document.createElement('div')
-        el.className = 'w-4 h-4 rounded-full bg-blue-500 border-[3px] border-white shadow-[0_0_10px_rgba(59,130,246,0.8)]'
-        userMarkerRef.current = new mapboxgl.Marker({ element: el })
-          .setLngLat([coords.lng, coords.lat])
-          .addTo(mapInstanceRef.current)
-      }
-    }, () => setMapNotice("Failed to get location."))
+        const coords = { lat: latitude, lng: longitude }
+        setUserCoords(coords)
+        setMapNotice(null)
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo({ center: [coords.lng, coords.lat], zoom: 12, duration: 2000 })
+
+          if (userMarkerRef.current) userMarkerRef.current.remove()
+          const el = document.createElement('div')
+          el.className = 'w-4 h-4 rounded-full bg-blue-500 border-[3px] border-white shadow-[0_0_10px_rgba(59,130,246,0.8)]'
+          userMarkerRef.current = new mapboxgl.Marker({ element: el })
+            .setLngLat([coords.lng, coords.lat])
+            .addTo(mapInstanceRef.current)
+        }
+      },
+      err => {
+        setIsLocating(false)
+        const message = err.code === err.PERMISSION_DENIED
+          ? "Location access denied. Enable location permission for this site in your browser settings."
+          : err.code === err.POSITION_UNAVAILABLE
+            ? "Your location is currently unavailable. Check your device's GPS/location settings and try again."
+            : err.code === err.TIMEOUT
+              ? "Locating timed out. Check your connection and try again."
+              : "Failed to get location. Please try again."
+        setMapNotice(message)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    )
   }
 
   const flyToLocation = (loc: any) => {
@@ -402,9 +434,9 @@ export default function ServiceNetworkPage() {
                 className="pl-9 h-10 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
               />
             </div>
-            <Button onClick={handleLocateMe} variant="outline" className="shrink-0 h-10 bg-white dark:bg-zinc-900 px-3">
-              <Crosshair className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Locate Me</span>
+            <Button onClick={handleLocateMe} disabled={isLocating} variant="outline" className="shrink-0 h-10 bg-white dark:bg-zinc-900 px-3">
+              <Crosshair className={`w-4 h-4 sm:mr-2 ${isLocating ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isLocating ? 'Locating…' : 'Locate Me'}</span>
             </Button>
           </div>
         </div>

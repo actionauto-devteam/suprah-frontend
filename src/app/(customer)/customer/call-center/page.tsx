@@ -13,6 +13,10 @@ import {
   PhoneOff,
   Headset,
   Check,
+  Mic,
+  Wifi,
+  ListChecks,
+  ChevronDown,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
@@ -295,6 +299,166 @@ function CallActionButton({
   );
 }
 
+// ─── Quick tips (idle-state guidance) ─────────────────────────────────────────
+
+const CALL_TIPS = [
+  {
+    icon: Mic,
+    title: "Check mic & camera",
+    description: "Make sure your device's mic and camera are enabled before you connect.",
+  },
+  {
+    icon: Wifi,
+    title: "Find a stable connection",
+    description: "A steady Wi-Fi or data connection keeps your call smooth and clear.",
+  },
+  {
+    icon: ListChecks,
+    title: "Have your questions ready",
+    description: "Jot down what you'd like to cover so the team can help you faster.",
+  },
+];
+
+function CallQuickTips() {
+  return (
+    <div className="grid flex-1 grid-cols-1 content-start gap-3 sm:grid-cols-3">
+      {CALL_TIPS.map((tip) => (
+        <div
+          key={tip.title}
+          className="flex flex-col gap-2 rounded-xl border border-border/50 bg-muted/30 p-3.5"
+        >
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+            <tip.icon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p className="text-xs font-semibold">{tip.title}</p>
+          <p className="text-[11px] leading-snug text-muted-foreground">{tip.description}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Idle empty-state guidance ─────────────────────────────────────────────────
+
+const HOW_IT_WORKS = [
+  { icon: PhoneCall, label: "Request", description: "Choose voice or video, then tap the call button." },
+  { icon: Clock, label: "Wait for Agent", description: "Our team is notified and starts preparing." },
+  { icon: Video, label: "Join Call", description: "Tap Join the moment we're ready to connect." },
+];
+
+function HowItWorks() {
+  return (
+    <div className="flex items-stretch gap-2 sm:gap-4">
+      {HOW_IT_WORKS.map((step, i) => (
+        <React.Fragment key={step.label}>
+          <div className="flex flex-1 flex-col items-center gap-2 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <step.icon className="h-5 w-5" />
+            </div>
+            <p className="text-xs font-semibold">{step.label}</p>
+            <p className="text-[11px] leading-snug text-muted-foreground">{step.description}</p>
+          </div>
+          {i < HOW_IT_WORKS.length - 1 && (
+            <div className="mt-5 h-px w-6 shrink-0 self-start bg-border sm:w-10" />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function CallAvailabilityBadge() {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1">
+        <Clock className="h-3 w-3" /> Typical wait: 2–5 min
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/8 px-2.5 py-1 text-emerald-600 dark:text-emerald-400">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        </span>
+        Agents online now
+      </span>
+    </div>
+  );
+}
+
+function CallEmptyStateIllustration() {
+  return (
+    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center">
+      <span className="absolute h-20 w-20 rounded-full bg-emerald-500/10" />
+      <span className="absolute h-14 w-14 rounded-full bg-emerald-500/15" />
+      <Headset className="relative h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+    </div>
+  );
+}
+
+function CallIntro() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <CallEmptyStateIllustration />
+        <div className="max-w-sm">
+          <h2 className="text-base font-bold">Talk to our team in seconds</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Request a voice or video call and a support agent will join you live — no scheduling needed.
+          </p>
+        </div>
+        <CallAvailabilityBadge />
+      </div>
+      <HowItWorks />
+    </div>
+  );
+}
+
+const CALL_FAQS = [
+  {
+    q: "What's the difference between voice and video?",
+    a: "Voice calls connect with audio only. Video calls add a live camera feed so the agent can see you too.",
+  },
+  {
+    q: "How long will I wait?",
+    a: "Most requests are picked up within 2–5 minutes, depending on how many agents are available.",
+  },
+  {
+    q: "Can I switch between voice and video?",
+    a: "Yes, switch the toggle any time before you send your request.",
+  },
+  {
+    q: "What happens if I miss my agent?",
+    a: "Your status will show as Ended. Just tap Request again to start a new call.",
+  },
+];
+
+function CallFAQ() {
+  const [open, setOpen] = React.useState<number | null>(null);
+  return (
+    <div className="flex flex-col gap-1.5">
+      {CALL_FAQS.map((item, i) => (
+        <div key={item.q} className="rounded-xl border border-border/50 bg-muted/20">
+          <button
+            type="button"
+            onClick={() => setOpen((p) => (p === i ? null : i))}
+            className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left"
+          >
+            <span className="text-xs font-medium">{item.q}</span>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                open === i && "rotate-180",
+              )}
+            />
+          </button>
+          {open === i && (
+            <p className="px-3.5 pb-3 text-[11px] leading-snug text-muted-foreground">{item.a}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CustomerCallCenterPage() {
@@ -532,8 +696,8 @@ export default function CustomerCallCenterPage() {
       ) : (
         <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_360px] gap-3">
           {/* Left: status + mode + call action */}
-          <div className="flex flex-col gap-5 rounded-2xl border border-border/50 bg-card p-5 sm:p-6">
-            <CallStatusStepper status={status} />
+          <div className="flex flex-col gap-5 overflow-y-auto rounded-2xl border border-border/50 bg-card p-5 sm:p-6">
+            {status === "idle" ? <CallIntro /> : <CallStatusStepper status={status} />}
 
             <CallModeToggle mode={mode} onChange={setMode} disabled={!canRequest} />
 
@@ -548,7 +712,7 @@ export default function CustomerCallCenterPage() {
               </p>
             )}
 
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4">
+            <div className="flex flex-col items-center gap-3 py-4">
               <CallActionButton
                 mode={mode}
                 canRequest={canRequest}
@@ -575,6 +739,17 @@ export default function CustomerCallCenterPage() {
             <p className="text-[11px] text-center text-muted-foreground/70">
               Updates from our team appear automatically. To talk, use the call itself.
             </p>
+
+            {!canJoin && <CallQuickTips />}
+
+            {status === "idle" && (
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  FAQs
+                </p>
+                <CallFAQ />
+              </div>
+            )}
           </div>
 
           {/* Right: activity / updates feed */}

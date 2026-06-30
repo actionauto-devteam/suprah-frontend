@@ -378,8 +378,8 @@ export const SS4_CSS = `
   .ss4-theme-btn:hover { color: var(--text-primary); border-color: var(--border-3); }
 
   /* ── File attachment ────────────────────────────────── */
-  .ss4-file-own { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; }
-  .ss4-file-other { background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 10px; }
+  .ss4-file-own { background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; }
+  .ss4-file-other { background: var(--surface-3); border: 1px solid var(--border-3); border-radius: 10px; box-shadow: var(--shadow-sm); }
 
   /* ── Unread badge ───────────────────────────────────── */
   .ss4-badge {

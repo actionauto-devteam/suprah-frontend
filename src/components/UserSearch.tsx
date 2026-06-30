@@ -25,6 +25,7 @@ interface UserSearchProps {
   placeholder?: string
   multiple?: boolean
   excludeCurrentUser?: boolean
+  knownUsers?: User[]
 }
 
 export function UserSearch({
@@ -33,7 +34,8 @@ export function UserSearch({
   label = "Select Users",
   placeholder = "Search users by name or email...",
   multiple = true,
-  excludeCurrentUser = true
+  excludeCurrentUser = true,
+  knownUsers = []
 }: UserSearchProps) {
   const [open, setOpen] = React.useState(false)
   const [users, setUsers] = React.useState<User[]>([])
@@ -104,7 +106,16 @@ export function UserSearch({
     return () => clearTimeout(timer)
   }, [searchQuery, fetchUsers])
 
-  const selectedUserObjects = users.filter(u => selectedUsers.includes(u._id))
+  // senior dev: merge search results with known users (e.g. auto-populated current user)
+  // so selected badges render even before they appear in a search result
+  const allKnownUsers = React.useMemo(() => {
+    const byId = new Map<string, User>()
+    knownUsers.forEach(u => byId.set(u._id, u))
+    users.forEach(u => byId.set(u._id, u))
+    return Array.from(byId.values())
+  }, [knownUsers, users])
+
+  const selectedUserObjects = allKnownUsers.filter(u => selectedUsers.includes(u._id))
 
   const handleSelect = (userId: string) => {
     if (multiple) {

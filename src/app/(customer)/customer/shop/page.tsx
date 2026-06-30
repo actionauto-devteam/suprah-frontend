@@ -757,7 +757,7 @@ function ShopVehiclesContent() {
 export default function ShopVehiclesPage() {
   return (
     <React.Suspense fallback={
-      <div className="flex items-center justify-center p-12">
+      <div className="flex items-center justify-center p-12 bg-background">
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     }>

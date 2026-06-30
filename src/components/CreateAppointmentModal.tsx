@@ -22,6 +22,7 @@ import { TimePicker } from "@/components/ui/time-picker"
 import { VehiclePickerModal } from "@/components/VehiclePickerModal"
 import type { Vehicle } from "@/types/inventory"
 import { cn } from "@/lib/utils"
+import { useUser } from "@/providers/AuthProvider"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ export function CreateAppointmentModal({
   const [isSubmitting,    setIsSubmitting]    = React.useState(false)
   const [error,           setError]           = React.useState<string | null>(null)
   const [pickerModalOpen, setPickerModalOpen] = React.useState(false)  // senior dev: inline vehicle picker
+  const { user: currentUser } = useUser()
 
   const [formData, setFormData] = React.useState({
     title:            "",
@@ -227,6 +229,22 @@ export function CreateAppointmentModal({
       setSelectedVehicles([])
     }
   }, [open, readDraft])
+
+  // senior dev: auto-populate the current user as a default internal participant
+  const autoPopulatedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!open) { autoPopulatedRef.current = false; return }
+    if (autoPopulatedRef.current) return
+    if (draftLoadedRef.current) { autoPopulatedRef.current = true; return }
+    if (!currentUser?.id) return
+    autoPopulatedRef.current = true
+    setFormData((prev) =>
+      prev.participants.includes(currentUser.id)
+        ? prev
+        : { ...prev, participants: [...prev.participants, currentUser.id] }
+    )
+  }, [open, currentUser?.id])
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -558,6 +576,13 @@ export function CreateAppointmentModal({
                     label="Internal Participants (Registered Users)"
                     placeholder="Search and select participants…"
                     multiple
+                    knownUsers={currentUser ? [{
+                      _id:      currentUser.id,
+                      name:     currentUser.fullName,
+                      fullName: currentUser.fullName,
+                      email:    currentUser.primaryEmailAddress?.emailAddress || "",
+                      avatar:   currentUser.imageUrl,
+                    }] : []}
                   />
                   <GuestEmailInput
                     emails={formData.guestEmails}

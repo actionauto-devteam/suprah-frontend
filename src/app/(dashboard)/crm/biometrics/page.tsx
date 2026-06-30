@@ -287,10 +287,10 @@ export default function BiometricSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-12">
+    <div className="min-h-full bg-background pb-12">
       {/* ── Header ── */}
       <div className="border-b border-border/40 bg-card/50">
-        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-3">
+        <div className="max-w-5xl mx-auto px-4 py-5 flex items-center gap-3">
           <button
             onClick={() => router.push("/crm/dashboard")}
             className="h-9 w-9 rounded-xl border border-border/50 flex items-center justify-center hover:bg-muted/50 transition-colors"
@@ -311,7 +311,7 @@ export default function BiometricSettingsPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 pt-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
         {/* ── WebAuthn Support Banner ── */}
         {!supported && (
           <div className="flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
@@ -323,15 +323,16 @@ export default function BiometricSettingsPage() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 Your browser or device doesn&apos;t support platform biometrics (Touch ID, Face ID,
                 Windows Hello). You can still manage SSH keys below.
-              </p>1
+              </p>
             </div>
           </div>
         )}
 
         {/* ════════════════════════════════════════════════════════════════════ */}
-        {/*  BIOMETRIC CREDENTIALS                                             */}
+        {/*  BIOMETRIC CREDENTIALS + SSH KEYS                                   */}
         {/* ════════════════════════════════════════════════════════════════════ */}
-        <section className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section className="rounded-2xl border border-border/50 bg-card overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Fingerprint className="h-4 w-4 text-emerald-600" />
@@ -408,7 +409,7 @@ export default function BiometricSettingsPage() {
 
           {/* Credential list */}
           {credentials.length === 0 ? (
-            <div className="px-5 py-8 text-center">
+            <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 text-center">
               <Fingerprint className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
               <p className="text-xs text-muted-foreground/40">
                 No biometric credentials enrolled yet.
@@ -486,7 +487,7 @@ export default function BiometricSettingsPage() {
         {/* ════════════════════════════════════════════════════════════════════ */}
         {/*  SSH KEYS                                                          */}
         {/* ════════════════════════════════════════════════════════════════════ */}
-        <section className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+        <section className="rounded-2xl border border-border/50 bg-card overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Terminal className="h-4 w-4 text-emerald-600" />
@@ -573,7 +574,7 @@ export default function BiometricSettingsPage() {
 
           {/* SSH key list */}
           {sshKeys.length === 0 ? (
-            <div className="px-5 py-8 text-center">
+            <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 text-center">
               <Terminal className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
               <p className="text-xs text-muted-foreground/40">No SSH keys added yet.</p>
             </div>
@@ -625,6 +626,7 @@ export default function BiometricSettingsPage() {
             </div>
           )}
         </section>
+        </div>
 
         {/* ── Security Tips ── */}
         <div className="rounded-2xl border border-border/30 bg-card/50 px-5 py-4 space-y-2">

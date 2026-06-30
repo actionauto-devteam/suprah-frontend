@@ -4,7 +4,7 @@ import * as React from "react"
 import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Copy, Share2, Wallet, ArrowUpRight, TrendingUp, Users, CheckCircle2, Loader2 } from "lucide-react"
+import { Copy, Share2, Wallet, ArrowUpRight, TrendingUp, Users, CheckCircle2, Loader2, Receipt, Lightbulb } from "lucide-react"
 import { useWalletDashboard, useRequestWithdrawal } from "@/hooks/api/useWallet"
 import { toast } from "sonner"
 import {
@@ -229,16 +229,30 @@ export default function ReferAndEarnPage() {
                         </Card>
                     </div>
 
-                    <Card className="flex-1 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-border/40 bg-white dark:bg-zinc-950 shadow-sm flex flex-col h-100 sm:h-125">
+                    <Card className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-border/40 bg-white dark:bg-zinc-950 shadow-sm flex flex-col ${transactions.length > 0 ? "flex-1 h-100 sm:h-125" : ""}`}>
                         <h3 className="font-bold text-base sm:text-lg mb-4 sm:mb-6 flex justify-between items-center">
                             Ledger History
                         </h3>
 
-                        <div className="space-y-4 sm:space-y-5 flex-1 overflow-y-auto pr-2 scrollbar-thin">
-                            {transactions.length === 0 ? (
-                                <div className="text-center text-muted-foreground pt-10">No transactions yet.</div>
-                            ) : (
-                                transactions.map((t) => (
+                        {transactions.length === 0 ? (
+                            <div className="flex flex-col items-center text-center gap-3">
+                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                                    <Receipt className="w-6 h-6 text-primary" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-sm text-foreground">No transactions yet</p>
+                                    <p className="text-xs text-muted-foreground mt-1 max-w-56">Your earnings and withdrawals will show up here once a friend buys using your code.</p>
+                                </div>
+                                <div className="w-full mt-2 rounded-xl bg-primary/5 border border-primary/10 p-3.5 text-left flex items-start gap-2.5">
+                                    <Lightbulb className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                    <p className="text-xs text-muted-foreground">
+                                        <span className="font-semibold text-foreground">Tip:</span> Share your code above with friends shopping for a car — you earn <span className="font-semibold text-primary">$100</span> the moment they buy.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 sm:space-y-5 flex-1 overflow-y-auto pr-2 scrollbar-thin">
+                                {transactions.map((t) => (
                                     <div key={t._id} className="flex justify-between items-center gap-2">
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${t.type === 'deposit' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
@@ -258,16 +272,14 @@ export default function ReferAndEarnPage() {
                                             <p className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                ))
-                            )}
+                                ))}
 
-                            {transactions.length > 0 && (
                                 <div className="py-8 text-center border-t border-dashed border-zinc-200 dark:border-zinc-800 mt-4">
                                     <CheckCircle2 className="w-8 h-8 text-zinc-300 dark:text-zinc-700 mx-auto mb-2" />
                                     <p className="text-sm text-zinc-400 font-medium tracking-wide">End of recent history</p>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </Card>
                 </div>
             </div>

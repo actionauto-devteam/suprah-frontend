@@ -19,19 +19,26 @@ export interface DealershipReview {
   updatedAt: string
 }
 
+export type ReviewSort = 'newest' | 'oldest' | 'rating_desc' | 'rating_asc'
+
 export interface ReviewsSummary {
   averageRating: number
   totalVisible: number
+  totalReviews: number
+  bySource: Record<ReviewSource, number>
 }
 
 interface UseReviewsOptions {
   page?: number
   limit?: number
   source?: ReviewSource | 'all'
+  rating?: number | 'all'
+  search?: string
+  sort?: ReviewSort
 }
 
 export const useReviews = (options: UseReviewsOptions = {}) => {
-  const { page = 1, limit = 24, source = 'all' } = options
+  const { page = 1, limit = 24, source = 'all', rating = 'all', search = '', sort = 'newest' } = options
   const { getToken } = useAuth()
   const queryClient = useQueryClient()
 
@@ -41,13 +48,16 @@ export const useReviews = (options: UseReviewsOptions = {}) => {
   }
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['dealership-reviews', page, limit, source],
+    queryKey: ['dealership-reviews', page, limit, source, rating, search, sort],
     queryFn: async () => {
       const headers = await getAuthHeaders()
       const params = new URLSearchParams()
       params.append('page', page.toString())
       params.append('limit', limit.toString())
+      params.append('sort', sort)
       if (source !== 'all') params.append('source', source)
+      if (rating !== 'all') params.append('rating', rating.toString())
+      if (search.trim()) params.append('search', search.trim())
 
       const response = await apiClient.get(`/api/crm/reviews?${params.toString()}`, headers)
       return response.data?.data as {
@@ -92,7 +102,12 @@ export const useReviews = (options: UseReviewsOptions = {}) => {
     reviews: data?.reviews || [],
     total: data?.total || 0,
     pages: data?.pages || 1,
-    summary: data?.summary || { averageRating: 0, totalVisible: 0 },
+    summary: data?.summary || {
+      averageRating: 0,
+      totalVisible: 0,
+      totalReviews: 0,
+      bySource: { google: 0, yelp: 0, facebook: 0, other: 0 },
+    },
     isLoading,
     refetch,
     createReview: createMutation.mutateAsync,

@@ -23,8 +23,9 @@ export function CinematicPane() {
                 />
             </motion.div>
 
-            <div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/55 to-transparent pointer-events-none" />
-            <div className="absolute inset-x-0 bottom-0 hidden h-20 bg-linear-to-t from-black/60 to-transparent pointer-events-none md:block" />
+            <div className="absolute inset-0 bg-black/15 pointer-events-none" />
+            <div className="absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/70 to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 hidden h-28 bg-linear-to-t from-black/75 to-transparent pointer-events-none md:block" />
 
             <div
                 className="absolute left-4 z-10 flex items-center gap-2 md:left-7"
@@ -35,18 +36,18 @@ export function CinematicPane() {
                     alt="Suprah.ai"
                     width={160}
                     height={80}
-                    className="h-8 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)] sm:h-9 md:h-11"
+                    className="h-8 w-auto object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] sm:h-9 md:h-11"
                     priority
                 />
             </div>
 
-            <div className="absolute bottom-4 left-4 z-10 hidden items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75 md:flex md:left-7">
+            <div className="absolute bottom-4 left-4 z-10 hidden items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.85)] md:flex md:left-7">
                 <span>Inventory</span>
-                <span className="h-1 w-1 rounded-full bg-white/40" />
+                <span className="h-1 w-1 rounded-full bg-white/60" />
                 <span>Deals</span>
-                <span className="h-1 w-1 rounded-full bg-white/40" />
+                <span className="h-1 w-1 rounded-full bg-white/60" />
                 <span>Reports</span>
-                <span className="h-1 w-1 rounded-full bg-white/40" />
+                <span className="h-1 w-1 rounded-full bg-white/60" />
                 <span>Team</span>
             </div>
         </div>

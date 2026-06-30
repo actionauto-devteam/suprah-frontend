@@ -636,7 +636,7 @@ export function NotificationPage() {
             </Card>
 
             <Card className="hidden xl:flex flex-col border-border/50 bg-card/90 shadow-sm shadow-black/5 sticky top-6 animate-fade-in-up [animation-delay:300ms]">
-              <CardHeader className="border-b border-border/50 pb-4">
+              <CardHeader className="border-b border-border/50 py-4">
                 <CardTitle className="text-sm uppercase tracking-[0.16em]">Summary</CardTitle>
                 <CardDescription>
                   A quick read on inbox balance and category mix.

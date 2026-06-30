@@ -367,9 +367,18 @@ function TransferTab({ token }: { token: string }) {
 // ─── Shared presentational helpers ───────────────────────────────────────────
 
 function Thumb({ image, fallback }: { image: string | null; fallback: React.ReactNode }) {
+  const src = image ? resolveImageUrl(image) || image : null;
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => setFailed(false), [src]);
+
   return (
     <div className="h-10 w-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
-      {image ? <img src={resolveImageUrl(image) || image} alt="" className="h-full w-full object-cover" /> : fallback}
+      {src && !failed ? (
+        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        fallback
+      )}
     </div>
   );
 }

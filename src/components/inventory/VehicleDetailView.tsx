@@ -632,9 +632,9 @@ export function VehicleDetailView({
 
   const options = vehicle.options
     ? vehicle.options
-        .split(/[,\n;]+/)
-        .map((o) => o.trim())
-        .filter(Boolean)
+      .split(/[,\n;]+/)
+      .map((o) => o.trim())
+      .filter(Boolean)
     : [];
 
   const statusColor =
@@ -889,7 +889,7 @@ export function VehicleDetailView({
                     <Car className="h-3.5 w-3.5" /> Description
                   </h3>
                   {vehicle.comments &&
-                  cleanDescription(vehicle.comments, vehicle) ? (
+                    cleanDescription(vehicle.comments, vehicle) ? (
                     <ExpandableText text={vehicle.comments} vehicle={vehicle} />
                   ) : (
                     <p className="text-sm leading-relaxed text-muted-foreground">

@@ -117,7 +117,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
   return (
     <div className="w-full space-y-6 sm:space-y-7">
       <div className="space-y-2.5 sm:space-y-3">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 sm:text-base">
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 sm:text-base">
           Action Auto Utah
         </p>
         <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl md:text-5xl">

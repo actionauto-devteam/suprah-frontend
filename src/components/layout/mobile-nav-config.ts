@@ -14,6 +14,7 @@ import {
     Wallet,
     Bell,
     User,
+    MessageSquare,
 } from "lucide-react";
 import type { BottomNavItem } from "@/components/layout/MobileBottomNav";
 
@@ -22,7 +23,7 @@ export const dealershipNav: BottomNavItem[] = [
     { label: "Inventory", href: "/inventory", icon: Car },
     { label: "CRM", href: "/crm", icon: Users, isCenter: true },
     { label: "Pulse", href: "/team-pulse", icon: Activity },
-    { label: "Billing", href: "/billing", icon: CreditCard },
+    { label: "SupraSpace", href: "/crm/supra-space", icon: MessageSquare },
 ];
 
 export const adminNav: BottomNavItem[] = [
