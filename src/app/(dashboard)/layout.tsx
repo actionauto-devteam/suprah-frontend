@@ -67,11 +67,19 @@ function DashboardLayoutContent({
   const pathname = usePathname();
   const { isImpersonating } = adminStore.useStore();
   const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
+  const isSupraSpaceRoute =
+    pathname === "/crm/supra-space" || pathname.startsWith("/crm/supra-space/");
   // The CRM login gate (/crm exactly) has no session yet, so there's no nav
   // chrome to show. Every other /crm/* page — including Supra Space and
-  // Conversations — gets the shared CrmHeader.
+  // Conversations — gets the shared CrmHeader. Supra Space owns its own
+  // full-screen header, so the shared CRM header stays hidden there.
   const isStandaloneCrmShell = pathname === "/crm";
-  const showCrmHeader = isCrmRoute && !isStandaloneCrmShell;
+  const showCrmHeader = isCrmRoute && !isStandaloneCrmShell && !isSupraSpaceRoute;
+  const showCrmMessenger =
+    pathname === "/crm/dashboard" ||
+    pathname === "/crm/conversations" ||
+    pathname === "/crm/feeds" ||
+    pathname === "/crm/hr";
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
 
@@ -182,7 +190,7 @@ function DashboardLayoutContent({
     <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
       <AppSidebar />
       <SidebarInset className={cn(isCrmRoute && "min-h-0 overflow-hidden")}>
-        {showCrmHeader && <CrmHeader />}
+        {showCrmHeader && <CrmHeader showMessenger={showCrmMessenger} />}
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
             <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">

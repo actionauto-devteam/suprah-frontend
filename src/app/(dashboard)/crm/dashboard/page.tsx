@@ -502,7 +502,9 @@ export default function CrmDashboardPage() {
   const [trayChecking, setTrayChecking] = React.useState(false);
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false);
   const [serverIsShiftFromToday, setServerIsShiftFromToday] = React.useState(false);
-  const [locallyResumedShift, setLocallyResumedShift] = React.useState(false);
+  const [locallyResumedShift, setLocallyResumedShift] = React.useState(
+    () => sessionStorage.getItem('crm_resumed_shift') === 'true'
+  );
   const [serverShiftStartedAt, setServerShiftStartedAt] = React.useState<string | null>(null);
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0);
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(
@@ -773,6 +775,7 @@ export default function CrmDashboardPage() {
         setBreakAccumulatedMs(0);
         setResumeOriginalClockIn(null);
         setLocallyResumedShift(false);
+        sessionStorage.removeItem('crm_resumed_shift');
       }
       setClockMsg(
         `${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`,
@@ -800,6 +803,7 @@ export default function CrmDashboardPage() {
       // so treat this as a successful state-sync rather than a hard error.
       if (type === "time-in" && /already clocked in/i.test(msg)) {
         setLocallyResumedShift(true);
+        sessionStorage.setItem('crm_resumed_shift', 'true');
         setClockMsg(`Resumed your open shift at ${fmt(new Date())}`);
         await refreshShiftState();
         setTimeout(() => fetchActivityState(), 2500);
@@ -953,7 +957,11 @@ export default function CrmDashboardPage() {
   // Shift. We only fold it in when the server confirms the shift is from today
   // (serverIsShiftFromToday) or the user explicitly resumed it this session
   // (locallyResumedShift).
-  const hasClockedIn = !!timeIn || (serverIsOnShift && (serverIsShiftFromToday || locallyResumedShift));
+  // activityStartAt is non-null when the tray is actively tracking (fresh heartbeat
+  // delivered currentIntervalStartAt). Treating this as "clocked in" covers the case
+  // where the user resumes tracking from the tray on a cross-day open shift — without
+  // it the dashboard would stay "OFF CLOCK" until the user also clicks Resume here.
+  const hasClockedIn = !!timeIn || (serverIsOnShift && (serverIsShiftFromToday || locallyResumedShift || activityStartAt !== null));
   const hasClockedOut = !!timeOut;
   const isActive = hasClockedIn && !hasClockedOut;
   const isComplete = hasClockedOut;

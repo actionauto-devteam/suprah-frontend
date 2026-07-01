@@ -13,7 +13,8 @@ import {
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
-  MoreHorizontal, Copy, GripVertical, Link2,
+  MoreHorizontal, Copy, GripVertical, Link2, Star, MailOpen, Share2,
+  Bell, VolumeX, EyeOff,
   Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Type, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
@@ -39,7 +40,7 @@ import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
-const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 40 * 1024 * 1024;
+const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'quote' | 'code';
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
@@ -199,6 +200,18 @@ if (typeof document !== 'undefined') {
     .ss4-voice-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:14px; }
     @media (max-width:767px) {
       .ss4 input, .ss4 textarea { font-size: 16px !important; }
+      .ss4-msg-column { max-width:min(82%,22rem); }
+      .ss4-msg-bubble { font-size:15px !important; line-height:1.55 !important; }
+      .ss4-msg-sender { font-size:13px !important; }
+      .ss4-date-chip { font-size:12px; }
+      .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; }
+      .ss4-composer-placeholder { font-size:16px !important; top:1px; }
+      .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
+      .ss4-conv-name { font-size:16px !important; line-height:1.25 !important; }
+      .ss4-conv-preview { font-size:14.5px !important; line-height:1.35 !important; }
+      .ss4-conv-time { font-size:12.5px !important; }
+      .ss4-section-label { font-size:11px; letter-spacing:.08em; }
+      .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
     }
   `;
 }
@@ -291,29 +304,118 @@ function clipboardHtmlToPlainText(html: string): string {
     .trimEnd();
 }
 
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Detects whether pasted HTML actually carries semantic formatting worth preserving
+// (vs. plain divs/spans from a generic web page, which we'd rather flatten to plain text).
+function hasRichFormatting(html: string): boolean {
+  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html);
+}
+
+// Converts source HTML (from another app's clipboard) into the editor's own internal
+// HTML dialect: real <strong>/<em>/<u>/<s> tags for inline formatting (matches what the
+// toolbar buttons produce), but literal "\u2022 "/"> " prefixes for lists/quotes (matches how
+// this editor represents those \u2014 see applyFormat/handleFormattedLineBreak). All text is
+// escaped, and only this fixed tag allow-list is ever emitted, so no attributes or scripts
+// from the source survive.
+function clipboardHtmlToEditorHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  const walk = (node: Node, listMarker?: string): string => {
+    if (node.nodeType === Node.TEXT_NODE) return escapeHtmlText(node.textContent || '');
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style') return '';
+    if (tag === 'br') return '<br>';
+    if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
+
+    const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
+
+    switch (tag) {
+      case 'strong': case 'b': return `<strong>${childHtml()}</strong>`;
+      case 'em': case 'i': return `<em>${childHtml()}</em>`;
+      case 'u': return `<u>${childHtml()}</u>`;
+      case 's': case 'strike': case 'del': return `<s>${childHtml()}</s>`;
+      case 'code': return '`' + childHtml().replace(/<[^>]*>/g, '') + '`';
+      case 'li': return `${listMarker || '\u2022 '}${childHtml()}<br>`;
+      case 'ul': return Array.from(el.children).map(li => walk(li, '\u2022 ')).join('');
+      case 'ol': {
+        let i = 1;
+        return Array.from(el.children).map(li => walk(li, `${i++}. `)).join('');
+      }
+      case 'blockquote': return `&gt; ${childHtml()}<br>`;
+      case 'div': case 'p': case 'section': case 'article':
+      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
+        return `${childHtml()}<br>`;
+      default: return childHtml();
+    }
+  };
+
+  return Array.from(doc.body.childNodes)
+    .map(n => walk(n))
+    .join('')
+    .replace(/(<br>)+$/g, '')
+    .replace(/^(<br>)+/g, '');
+}
+
+// Detects markdown-style syntax in plain pasted text (e.g. copied from ChatGPT as
+// text/plain only) \u2014 **bold**, _italic_/*italic*, __underline__, ~~strike~~, "* " / "- "
+// bullets, "1. " numbered lists, "> " quotes.
+function hasMarkdownSyntax(text: string): boolean {
+  return /\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S/m.test(text);
+}
+
+// Converts markdown syntax in plain text into the editor's internal HTML dialect
+// (same tag/marker conventions as clipboardHtmlToEditorHtml above).
+function markdownTextToEditorHtml(text: string): string {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const htmlLines = lines.map(line => {
+    let marker = '';
+    let rest = line;
+    const bulletMatch = line.match(/^\s*[-*+]\s+(.+)$/);
+    const numberedMatch = !bulletMatch && line.match(/^\s*(\d+)\.\s+(.+)$/);
+    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.+)$/);
+    if (bulletMatch) { marker = '\u2022 '; rest = bulletMatch[1]; }
+    else if (numberedMatch) { marker = `${numberedMatch[1]}. `; rest = numberedMatch[2]; }
+    else if (quoteMatch) { marker = '&gt; '; rest = quoteMatch[1]; }
+
+    const escaped = escapeHtmlText(rest)
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+
+    return marker + escaped;
+  });
+  return htmlLines.join('<br>');
+}
+
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   const MDPattern = /(\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
   const result: React.ReactNode[] = [];
-  content.split('\n').forEach((line, li) => {
-    if (li > 0) result.push(<br key={`br${li}`} />);
-    const bulletMatch = line.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
-    const displayLine = bulletMatch ? `${bulletMatch[1]}• ${bulletMatch[2]}` : line;
-    displayLine.split(MDPattern).forEach((part, i) => {
+
+  const renderInline = (text: string, li: number, target: React.ReactNode[]) => {
+    text.split(MDPattern).forEach((part, i) => {
       const k = `${li}-${i}`;
       if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-        return result.push(<strong key={k}>{part.slice(2, -2)}</strong>);
+        return target.push(<strong key={k}>{part.slice(2, -2)}</strong>);
       if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
-        return result.push(<s key={k}>{part.slice(2, -2)}</s>);
+        return target.push(<s key={k}>{part.slice(2, -2)}</s>);
       if (part.startsWith('__') && part.endsWith('__') && part.length > 4)
-        return result.push(<u key={k}>{part.slice(2, -2)}</u>);
+        return target.push(<u key={k}>{part.slice(2, -2)}</u>);
       if (part.startsWith('_') && part.endsWith('_') && !part.startsWith('__') && part.length > 2)
-        return result.push(<em key={k}>{part.slice(1, -1)}</em>);
+        return target.push(<em key={k}>{part.slice(1, -1)}</em>);
       if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
-        return result.push(<code key={k} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{part.slice(1, -1)}</code>);
+        return target.push(<code key={k} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{part.slice(1, -1)}</code>);
       if (/^https?:\/\//i.test(part)) {
         const trailing = part.match(/[),.!?]+$/)?.[0] || '';
         const href = trailing ? part.slice(0, -trailing.length) : part;
-        return result.push(
+        return target.push(
           <React.Fragment key={k}>
             <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>
             {trailing}
@@ -321,13 +423,39 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         );
       }
       if (/^@/.test(part))
-        return result.push(isOwn
+        return target.push(isOwn
           ? <span key={k} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{part}</span>
           : <span key={k} className="font-bold" style={{ color: 'var(--accent-text)' }}>{part}</span>
         );
-      result.push(part);
+      target.push(part);
     });
+  };
+
+  // Collapse inline markers whose closing delimiter landed on the next line alone
+  const normalized = content
+    .replace(/\*\*([^*\n]*)\n\*\*/g, '**$1**')
+    .replace(/~~([^~\n]*)\n~~/g, '~~$1~~')
+    .replace(/__([^_\n]*)\n__/g, '__$1__')
+    .replace(/`([^`\n]*)\n`/g, '`$1`');
+
+  normalized.split('\n').forEach((line, li) => {
+    if (li > 0) result.push(<br key={`br${li}`} />);
+    const bulletMatch = line.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
+    if (bulletMatch) {
+      // Render bullet lines in an indented block with hanging indent so the text
+      // aligns under itself when it wraps, not under the bullet character.
+      const bulletNodes: React.ReactNode[] = [];
+      renderInline(`• ${bulletMatch[2]}`, li, bulletNodes);
+      result.push(
+        <span key={`bul-${li}`} style={{ display: 'inline-block', paddingLeft: '1.1em', textIndent: '-0.8em' }}>
+          {bulletNodes}
+        </span>
+      );
+    } else {
+      renderInline(line, li, result);
+    }
   });
+
   return result;
 }
 function getErrorMessage(error: unknown, fallback: string) {
@@ -706,7 +834,7 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, members = [], hideTime = false, onEditSave,
+  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, members = [], hideTime = false, onEditSave, onForward,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -721,6 +849,7 @@ function Bubble({
   members?: Array<{ _id: string; fullName: string; avatar?: string }>;
   hideTime?: boolean;
   onEditSave?: (id: string, content: string) => Promise<void>;
+  onForward?: (m: SSMessage) => void;
 }) {
   const [hov, setHov] = React.useState(false);
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
@@ -733,9 +862,40 @@ function Bubble({
   const [editMode, setEditMode] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState('');
   const [editSaving, setEditSaving] = React.useState(false);
+  const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLTextAreaElement>(null);
+  const [moreActionsOpen, setMoreActionsOpen_] = React.useState(false);
+  const moreActionsOpenRef = React.useRef(false);
+  const moreActionsRef = React.useRef<HTMLDivElement>(null);
+  const setMoreActionsOpen = (v: boolean) => { moreActionsOpenRef.current = v; setMoreActionsOpen_(v); };
+  const [actionsBelow, setActionsBelow] = React.useState(false);
+  const [dropdownFixedPos, setDropdownFixedPos] = React.useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null);
+  const dropdownPortalRef = React.useRef<HTMLDivElement>(null);
+  const bubbleRowRef = React.useRef<HTMLDivElement>(null);
+  const columnRef = React.useRef<HTMLDivElement>(null);
+  const bubbleRef = React.useRef<HTMLDivElement>(null);
+  const [actionBarPos, setActionBarPos] = React.useState<{ top: number; left: number } | null>(null);
 
-  const enterEdit = () => { setEditDraft(message.content); setEditMode(true); setHov(false); };
+  React.useEffect(() => {
+    if (!moreActionsOpen) return;
+    const h = (e: MouseEvent) => {
+      const insideBtn = moreActionsRef.current?.contains(e.target as Node);
+      const insidePortal = dropdownPortalRef.current?.contains(e.target as Node);
+      if (!insideBtn && !insidePortal) {
+        setMoreActionsOpen(false); setDropdownFixedPos(null);
+      }
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [moreActionsOpen]);
+
+  const enterEdit = () => {
+    const width = bubbleRef.current?.getBoundingClientRect().width;
+    setEditWidth(width ? Math.max(width, 220) : null);
+    setEditDraft(message.content);
+    setEditMode(true);
+    setHov(false);
+  };
   const copyMessageText = async () => {
     const text = message.content?.trim();
     if (!text) return;
@@ -746,12 +906,12 @@ function Bubble({
       toast.error('Could not copy message');
     }
   };
-  const cancelEdit = () => { setEditMode(false); setEditDraft(''); };
+  const cancelEdit = () => { setEditMode(false); setEditDraft(''); setEditWidth(null); };
   const saveEdit = async () => {
     const trimmed = editDraft.trim();
     if (!trimmed || trimmed === message.content || !onEditSave) return;
     setEditSaving(true);
-    try { await onEditSave(message._id, trimmed); setEditMode(false); } finally { setEditSaving(false); }
+    try { await onEditSave(message._id, trimmed); setEditMode(false); setEditWidth(null); } finally { setEditSaving(false); }
   };
 
   const openPicker = (pos: { top: number; left?: number; right?: number }) => {
@@ -763,7 +923,7 @@ function Bubble({
     setPickerPos(null);
   };
   const scheduleHide = () => {
-    hideTimer.current = setTimeout(() => { if (!pickerPosRef.current) setHov(false); }, 180);
+    hideTimer.current = setTimeout(() => { if (!pickerPosRef.current && !moreActionsOpenRef.current) setHov(false); }, 180);
   };
   const cancelHide = () => {
     if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
@@ -795,6 +955,8 @@ function Bubble({
     if (!hov) return;
     const h = (e: MouseEvent) => {
       if (pickerPosRef.current) return;
+      if (moreActionsOpenRef.current) return;
+      if (dropdownPortalRef.current?.contains(e.target as Node)) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setHov(false);
       }
@@ -816,8 +978,21 @@ function Bubble({
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
 
   return (
-    <div className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
-      onMouseEnter={() => { cancelHide(); setHov(true); }} onMouseLeave={scheduleHide}
+    <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
+      onMouseEnter={() => {
+        cancelHide();
+        if (bubbleRef.current) {
+          const rect = bubbleRef.current.getBoundingClientRect();
+          const below = rect.top < 120;
+          setActionsBelow(below);
+          const BAR_W = 175, PAD = 8;
+          const barLeft = isOwn
+            ? Math.min(window.innerWidth - BAR_W - PAD, rect.left, rect.right - BAR_W)
+            : Math.max(PAD, rect.left, rect.right - BAR_W);
+          setActionBarPos({ top: below ? rect.bottom + 4 : rect.top - 36, left: barLeft });
+        }
+        setHov(true);
+      }} onMouseLeave={scheduleHide}
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}>
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
@@ -827,10 +1002,10 @@ function Bubble({
         </div>
       ) : <div className="w-7 sm:w-8 shrink-0" />}
 
-      <div className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
+      <div ref={columnRef} className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
         {showAvatar && !isOwn && (
           <div className="flex items-center gap-1.5 px-1">
-            <span className="font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</span>
+            <span className="ss4-msg-sender font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</span>
             {isPinned && <span className="px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 9, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>📌 Pinned</span>}
           </div>
         )}
@@ -842,9 +1017,12 @@ function Bubble({
           </div>
         )}
 
-        <div className="relative w-fit">
+        <div ref={bubbleRef} className="relative w-fit">
           {message.content && (editMode ? (
-            <div className={cn('ss4-msg-bubble px-3 py-2.5', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')} style={{ minWidth: 200 }}>
+            <div
+              className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
+              style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 220, maxWidth: '100%' }}
+            >
               <textarea
                 ref={editAreaRef}
                 value={editDraft}
@@ -855,15 +1033,15 @@ function Bubble({
                 }}
                 autoFocus
                 rows={Math.max(1, editDraft.split('\n').length)}
-                className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed"
-                style={{ color: 'inherit', minWidth: 180 }}
+                className="w-full bg-transparent resize-none outline-none text-[inherit] leading-[inherit]"
+                style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
               />
-              <div className="flex items-center gap-2 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <span style={{ fontSize: 9, opacity: 0.45 }}>Enter to save · Esc to cancel</span>
+              <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}>
+                <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>Enter to save · Esc to cancel</span>
                 <div className="flex-1" />
-                <button onClick={cancelEdit} className="h-5 px-2 rounded text-[10px] font-medium" style={{ background: 'rgba(255,255,255,0.1)', color: 'inherit' }}>Cancel</button>
+                <button onClick={cancelEdit} className="h-7 px-3 rounded-lg text-xs font-medium" style={{ background: 'rgba(255,255,255,0.14)', color: 'inherit' }}>Cancel</button>
                 <button onClick={saveEdit} disabled={editSaving || !editDraft.trim() || editDraft.trim() === message.content}
-                  className="h-5 px-2 rounded text-[10px] font-semibold text-white disabled:opacity-40"
+                  className="h-7 px-3 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
                   style={{ background: 'var(--positive,#34c97d)' }}>
                   {editSaving ? '...' : 'Update'}
                 </button>
@@ -875,9 +1053,9 @@ function Bubble({
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
           ))}
-          {hov && !disableActions && !editMode && (
-            <div ref={menuRef} className={cn('absolute -top-8 z-20 flex items-center rounded-xl', isOwn ? 'right-0' : 'left-0')}
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }}
+          {hov && !disableActions && !editMode && actionBarPos && createPortal(
+            <div ref={menuRef}
+              style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: '#1e1f22', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)', minWidth: 'max-content' }}
               onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
               {SS4_REACTIONS.slice(0, 3).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
@@ -885,48 +1063,15 @@ function Bubble({
                   {emoji}
                 </button>
               ))}
-              <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-2)' }} />
+              <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }} />
               <button onClick={() => onReply(message)} className="ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
-              {message.content && (
-                <button onClick={copyMessageText} className="ss4-icon-btn h-7 w-7" title="Copy message">
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-              )}
-              {onPin && (
-                <button onClick={() => onPin(message._id)} className="ss4-icon-btn h-7 w-7" title={isPinned ? 'Unpin' : 'Pin'}
-                  style={{ color: isPinned ? 'var(--accent)' : undefined }}>
-                  <Pin className="h-3.5 w-3.5" />
-                </button>
-              )}
-              {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
-                <button
-                  onClick={async () => {
-                    const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
-                    if (!att) return;
-                    try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
-                    catch { toast.error('Could not copy image'); }
-                  }}
-                  className="ss4-icon-btn h-7 w-7" title="Copy image">
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-              )}
-              {isOwn && onEditSave && message.type === 'text' && (
-                <button onClick={enterEdit} className="ss4-icon-btn h-7 w-7" title="Edit">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              )}
-              {isOwn && (
-                <button onClick={() => onDelete(message._id)} className="ss4-icon-btn h-7 w-7 hover:text-(--danger)" title="Delete">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
               <div className="relative">
                 <button
                   onClick={(e) => {
                     const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     const pos = {
                       top: btn.top - 348,
-                      ...(isOwn ? { right: window.innerWidth - btn.right } : { left: btn.left }),
+                      ...(isOwn ? { right: Math.max(8, window.innerWidth - btn.right) } : { left: btn.left }),
                     };
                     pickerPosRef.current ? closePicker() : openPicker(pos);
                   }}
@@ -937,6 +1082,131 @@ function Bubble({
                   <SmilePlus className="h-3.5 w-3.5" />
                 </button>
               </div>
+              {/* More actions */}
+              <div className="relative" ref={moreActionsRef}>
+                <button
+                  onClick={() => {
+                    if (!moreActionsOpen && moreActionsRef.current) {
+                      const rect = moreActionsRef.current.getBoundingClientRect();
+                      const openDown = rect.top < 320;
+                      setDropdownFixedPos({
+                        ...(openDown
+                          ? { top: rect.bottom }
+                          : { bottom: window.innerHeight - rect.top }),
+                        ...(isOwn
+                          ? { right: window.innerWidth - rect.right }
+                          : { left: rect.left }),
+                      });
+                    } else if (moreActionsOpen) {
+                      setDropdownFixedPos(null);
+                    }
+                    setMoreActionsOpen(!moreActionsOpen);
+                  }}
+                  className="ss4-icon-btn h-7 w-7"
+                  title="More actions"
+                  style={{ color: moreActionsOpen ? 'var(--accent)' : undefined }}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+                {moreActionsOpen && dropdownFixedPos && createPortal(
+                  <div
+                    ref={dropdownPortalRef}
+                    className="rounded-xl overflow-hidden"
+                    style={{
+                      position: 'fixed',
+                      zIndex: 9999,
+                      ...dropdownFixedPos,
+                      minWidth: 228,
+                      background: 'var(--surface-3, #1a1b1e)',
+                      border: '1px solid var(--border-2)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+                    }}
+                  >
+                    <div className="py-1">
+                      {/* Forward message */}
+                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                        onClick={() => { onForward?.(message); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                        <Share2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Forward message</span>
+                      </button>
+                      {/* Mark as unread */}
+                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                        onClick={() => { toast.info('Mark as unread coming soon'); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                        <MailOpen className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Mark as unread</span>
+                      </button>
+                      {/* Star */}
+                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                        onClick={() => { toast.info('Star coming soon'); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                        <Star className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Star</span>
+                      </button>
+                      <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
+                      {/* Pin / Unpin */}
+                      {onPin && (
+                        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                          onClick={() => { onPin(message._id); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                          <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
+                        </button>
+                      )}
+                      {/* Copy message */}
+                      {message.content && (
+                        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                          onClick={() => { copyMessageText(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                          <Copy className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy message</span>
+                        </button>
+                      )}
+                      {/* Copy message link */}
+                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                        onClick={() => {
+                          const url = `${window.location.href.split('#')[0]}#ss4-msg-${message._id}`;
+                          navigator.clipboard.writeText(url)
+                            .then(() => toast.success('Message link copied'))
+                            .catch(() => toast.error('Could not copy link'));
+                          setMoreActionsOpen(false); setDropdownFixedPos(null);
+                        }}>
+                        <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy message link</span>
+                      </button>
+                      {/* Copy image */}
+                      {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
+                        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                          onClick={async () => {
+                            const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
+                            if (!att) return;
+                            try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
+                            catch { toast.error('Could not copy image'); }
+                            setMoreActionsOpen(false); setDropdownFixedPos(null);
+                          }}>
+                          <ImageIcon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy image</span>
+                        </button>
+                      )}
+                      {/* Edit / Delete — own messages only */}
+                      {isOwn && (
+                        <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
+                      )}
+                      {isOwn && onEditSave && message.type === 'text' && (
+                        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                          onClick={() => { enterEdit(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                          <Pencil className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Edit message</span>
+                        </button>
+                      )}
+                      {isOwn && (
+                        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
+                          onClick={() => { onDelete(message._id); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
+                          <Trash2 className="h-4 w-4 shrink-0" style={{ color: '#f87171' }} />
+                          <span style={{ fontSize: 13, color: '#f87171' }}>Delete message</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>,
+                  document.body
+                )}
+              </div>
               {pickerPos && (
                 <EmojiReactionPicker
                   position={pickerPos}
@@ -944,7 +1214,8 @@ function Bubble({
                   onClose={closePicker}
                 />
               )}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
 
@@ -968,12 +1239,26 @@ function Bubble({
 
         {message.type !== 'voice' && message.attachments.length > 0 && (
           <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
-            {message.attachments.filter(a => a.mimeType.startsWith('image/')).map((att, i) => (
-              <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName })}
-                className="block text-left rounded-xl overflow-hidden cursor-zoom-in" style={{ maxWidth: 260 }}>
-                <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="rounded-xl object-cover hover:opacity-90 transition-opacity" style={{ maxHeight: 200, maxWidth: 260, display: 'block' }} />
-              </button>
-            ))}
+            {(() => {
+              const images = message.attachments.filter(a => a.mimeType.startsWith('image/'));
+              if (images.length === 0) return null;
+              if (images.length === 1) return (
+                <button onClick={() => onOpenMedia?.({ src: images[0].url, type: 'image', name: images[0].originalName })}
+                  className="block text-left rounded-xl overflow-hidden cursor-zoom-in" style={{ maxWidth: 260 }}>
+                  <img src={images[0].thumbnailUrl || images[0].url} alt={images[0].originalName} className="rounded-xl object-cover hover:opacity-90 transition-opacity" style={{ maxHeight: 200, maxWidth: 260, display: 'block' }} />
+                </button>
+              );
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 3, maxWidth: 280 }}>
+                  {images.map((att, i) => (
+                    <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName })}
+                      className="block text-left rounded-xl overflow-hidden cursor-zoom-in" style={{ aspectRatio: '1/1' }}>
+                      <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-cover hover:opacity-90 transition-opacity rounded-xl" style={{ display: 'block' }} />
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             {message.attachments.filter(isVideoAttachment).map((att, i) => (
               <div key={`video-${i}`} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
                 <video controls preload="metadata" className="block w-full rounded-xl" style={{ maxHeight: 220 }}>
@@ -1317,16 +1602,31 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
 function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image' | 'video'; name: string; onClose: () => void }) {
   const [downloading, setDownloading] = React.useState(false);
   const [zoom, setZoom] = React.useState(1);
+  const [offset, setOffset] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
+  const hasDraggedRef = React.useRef(false);
+
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
+
   React.useEffect(() => {
     setZoom(1);
+    setOffset({ x: 0, y: 0 });
+    dragRef.current = null;
     pinchRef.current = null;
   }, [src]);
+
+  const applyZoom = (next: number) => {
+    const clamped = clampLightboxZoom(next);
+    if (clamped <= 1) setOffset({ x: 0, y: 0 });
+    setZoom(clamped);
+  };
+  const zoomBy = (delta: number) => applyZoom(zoom + delta);
 
   const handleDownload = async () => {
     if (downloading) return;
@@ -1340,98 +1640,163 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
       setDownloading(false);
     }
   };
-  const zoomBy = (delta: number) => setZoom(current => clampLightboxZoom(current + delta));
+
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (type !== 'image') return;
     e.preventDefault();
-    zoomBy(e.deltaY < 0 ? 0.18 : -0.18);
+    applyZoom(zoom + (e.deltaY < 0 ? 0.2 : -0.2));
   };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    hasDraggedRef.current = false;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
+    setIsDragging(true);
+  };
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    hasDraggedRef.current = true;
+    setOffset({
+      x: dragRef.current.ox + (e.clientX - dragRef.current.startX),
+      y: dragRef.current.oy + (e.clientY - dragRef.current.startY),
+    });
+  };
+  const handleMouseUp = () => {
+    dragRef.current = null;
+    setIsDragging(false);
+  };
+
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (type !== 'image' || e.touches.length !== 2) return;
-    pinchRef.current = { distance: touchDistance(e.touches), zoom };
+    if (type !== 'image') return;
+    if (e.touches.length === 2) {
+      pinchRef.current = { distance: touchDistance(e.touches), zoom };
+    } else if (e.touches.length === 1 && zoom > 1) {
+      dragRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, ox: offset.x, oy: offset.y };
+    }
   };
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (type !== 'image' || e.touches.length !== 2 || !pinchRef.current) return;
+    if (type !== 'image') return;
     e.preventDefault();
-    const nextDistance = touchDistance(e.touches);
-    if (!nextDistance || !pinchRef.current.distance) return;
-    setZoom(clampLightboxZoom(pinchRef.current.zoom * (nextDistance / pinchRef.current.distance)));
+    if (e.touches.length === 2 && pinchRef.current) {
+      const d = touchDistance(e.touches);
+      if (!d || !pinchRef.current.distance) return;
+      applyZoom(pinchRef.current.zoom * (d / pinchRef.current.distance));
+    } else if (e.touches.length === 1 && dragRef.current) {
+      setOffset({
+        x: dragRef.current.ox + (e.touches[0].clientX - dragRef.current.startX),
+        y: dragRef.current.oy + (e.touches[0].clientY - dragRef.current.startY),
+      });
+    }
   };
   const handleTouchEnd = () => {
     pinchRef.current = null;
+    dragRef.current = null;
   };
 
   return (
-    <div className="ss4-overlay fixed inset-0 z-200 flex flex-col items-center justify-center p-4" onClick={onClose}>
-      <div className="relative flex flex-col items-center gap-3 max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between w-full px-1">
-          <p className="font-medium truncate" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{name}</p>
-          <div className="flex items-center gap-2">
-            {type === 'image' && (
-              <div className="hidden sm:flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => zoomBy(-0.25)}
-                  disabled={zoom <= 1}
-                  className="ss4-pill-btn h-7 w-7 flex items-center justify-center disabled:opacity-45"
-                  title="Zoom out"
-                >
-                  <ZoomOut className="h-3 w-3" />
-                </button>
-                <span className="ss4-pill-btn h-7 px-2 flex items-center justify-center tabular-nums" style={{ fontSize: 10, minWidth: 44 }}>
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => zoomBy(0.25)}
-                  disabled={zoom >= 4}
-                  className="ss4-pill-btn h-7 w-7 flex items-center justify-center disabled:opacity-45"
-                  title="Zoom in"
-                >
-                  <ZoomIn className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={downloading}
-              className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 disabled:opacity-60"
-              style={{ fontSize: 11 }}
-            >
-              {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-              Download
-            </button>
-            <button onClick={onClose} className="ss4-icon-btn h-8 w-8" style={{ background: 'rgba(255,255,255,0.1)' }}><X className="h-4 w-4" style={{ color: '#fff' }} /></button>
-          </div>
-        </div>
-        {type === 'image'
-          ? (
-            <div
-              className="max-h-[80vh] max-w-full overflow-auto rounded-xl"
-              onWheel={handleWheel}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onTouchCancel={handleTouchEnd}
-              style={{ touchAction: zoom > 1 ? 'none' : 'pinch-zoom' }}
-            >
-              <img
-                src={src}
-                alt={name}
-                className="rounded-xl max-h-[80vh] max-w-full object-contain transition-transform duration-100 ease-out"
-                style={{
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
-                  transform: `scale(${zoom})`,
-                  transformOrigin: 'center center',
-                  cursor: zoom > 1 ? 'zoom-out' : 'zoom-in',
-                }}
-                draggable={false}
-              />
+    <div
+      className="fixed inset-0 z-200 flex flex-col"
+      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)' }}
+      onClick={onClose}
+    >
+      {/* Top bar */}
+      <div
+        className="flex items-center justify-between px-4 shrink-0"
+        style={{ height: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <p className="font-medium truncate" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', maxWidth: '55%' }}>{name}</p>
+        <div className="flex items-center gap-2">
+          {type === 'image' && (
+            <div className="hidden sm:flex items-center gap-1">
+              <button type="button" onClick={() => zoomBy(-0.25)} disabled={zoom <= 1}
+                className="ss4-pill-btn h-7 w-7 flex items-center justify-center disabled:opacity-40" title="Zoom out">
+                <ZoomOut className="h-3 w-3" />
+              </button>
+              <span className="ss4-pill-btn h-7 px-2 flex items-center justify-center tabular-nums" style={{ fontSize: 10, minWidth: 46 }}>
+                {Math.round(zoom * 100)}%
+              </span>
+              <button type="button" onClick={() => zoomBy(0.25)} disabled={zoom >= 4}
+                className="ss4-pill-btn h-7 w-7 flex items-center justify-center disabled:opacity-40" title="Zoom in">
+                <ZoomIn className="h-3 w-3" />
+              </button>
             </div>
-          )
-          : <video src={src} controls autoPlay className="rounded-xl max-h-[80vh] max-w-full" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }} />}
+          )}
+          <button type="button" onClick={handleDownload} disabled={downloading}
+            className="ss4-pill-btn flex items-center gap-1.5 px-3 h-7 disabled:opacity-60" style={{ fontSize: 11 }}>
+            {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            Download
+          </button>
+          <button onClick={onClose} className="ss4-icon-btn h-8 w-8" style={{ background: 'rgba(255,255,255,0.1)' }}>
+            <X className="h-4 w-4" style={{ color: '#fff' }} />
+          </button>
+        </div>
       </div>
+
+      {/* Media area — overflow hidden, no scrollbars, drag-to-pan */}
+      <div
+        className="flex-1 flex items-center justify-center overflow-hidden"
+        style={{
+          cursor: type !== 'image' ? 'default' : zoom > 1 ? 'move' : 'zoom-in',
+          touchAction: 'none',
+          userSelect: 'none',
+        }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onClick={(e) => {
+          if (hasDraggedRef.current) {
+            hasDraggedRef.current = false;
+            e.stopPropagation();
+          }
+        }}
+      >
+        {type === 'image' ? (
+          <img
+            src={src}
+            alt={name}
+            draggable={false}
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: 12,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+              pointerEvents: 'auto',
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              transformOrigin: 'center center',
+              transition: isDragging ? 'none' : 'transform 0.12s ease-out',
+              willChange: 'transform',
+            }}
+          />
+        ) : (
+          <video
+            src={src}
+            controls
+            autoPlay
+            className="rounded-xl"
+            style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
+            onClick={e => e.stopPropagation()}
+          />
+        )}
+      </div>
+
+      {/* Hint text when zoomed in */}
+      {type === 'image' && zoom > 1 && (
+        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: '3px 12px' }}>
+            Drag to pan · Scroll to zoom · Esc to close
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1674,6 +2039,169 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
   );
 }
 
+// ─── Forward Message Modal ────────────────────────────────────────────────────
+function ForwardMessageModal({ users, message, token, onClose }: {
+  users: CrmUser[]; message: SSMessage; token: string; onClose: () => void;
+}) {
+  const [q, setQ] = React.useState('');
+  const [selected, setSelected] = React.useState<CrmUser[]>([]);
+  const [sending, setSending] = React.useState(false);
+
+  const filtered = users.filter(u => {
+    if (selected.some(s => s._id === u._id)) return false;
+    const lq = q.toLowerCase();
+    return u.fullName.toLowerCase().includes(lq) || u.username.toLowerCase().includes(lq);
+  });
+
+  const addUser = (u: CrmUser) => { setSelected(p => [...p, u]); setQ(''); };
+  const removeUser = (id: string) => setSelected(p => p.filter(s => s._id !== id));
+
+  const handleForward = async () => {
+    if (!selected.length || sending) return;
+    setSending(true);
+    let ok = 0;
+    for (const user of selected) {
+      try {
+        const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: user._id }, { headers: { Authorization: `Bearer ${token}` } });
+        const convId = r.data?.data?._id;
+        if (convId && message.content) {
+          await apiClient.post(`/api/supraspace/conversations/${convId}/messages`, { content: message.content }, { headers: { Authorization: `Bearer ${token}` } });
+        }
+        ok++;
+      } catch { /* skip failed individual */ }
+    }
+    setSending(false);
+    if (ok > 0) toast.success(ok === 1 ? 'Message forwarded.' : `Message forwarded to ${ok} people.`);
+    else toast.error('Could not forward the message.');
+    onClose();
+  };
+
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="ss4-modal w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2">
+            <Share2 className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+            <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Forward message</h2>
+          </div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          {selected.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              {selected.map(u => (
+                <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
+                  <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))} style={{ fontSize: 8, fontWeight: 700 }}>
+                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
+                  <button onClick={() => removeUser(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="relative">
+            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search people…" className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
+          </div>
+          <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
+            {filtered.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{q ? 'No people found' : 'All users selected'}</p>}
+            {filtered.map(u => (
+              <button key={u._id} onClick={() => addUser(u)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left hover:bg-(--bg-hover)">
+                <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))}>
+                  {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span style={{ fontSize: 11, fontWeight: 700 }}>{ini(u.fullName)}</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+                  <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          {selected.length > 0 && (
+            <button onClick={handleForward} disabled={sending} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: sending ? 0.6 : 1 }}>
+              <Share2 className="h-3.5 w-3.5" />
+              {sending ? 'Forwarding…' : `Forward to ${selected.length} ${selected.length === 1 ? 'person' : 'people'}`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Notification Settings Modal ─────────────────────────────────────────────
+function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
+  conv: SSConversation;
+  convName: string;
+  prefs: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
+  onSave: (p: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => void;
+  onClose: () => void;
+}) {
+  const [type, setType] = React.useState<'all' | 'main' | 'foryou' | 'none'>(prefs.type);
+  const [muted, setMuted] = React.useState(prefs.muted);
+  const isDM = conv.type === 'direct';
+
+  const options = isDM
+    ? [
+        { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
+        { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
+        { value: 'none' as const, label: 'None', desc: 'No notifications' },
+      ]
+    : [
+        { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
+        { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
+        { value: 'foryou' as const, label: 'For you', desc: 'Only @mentions and replies to threads you follow' },
+        { value: 'none' as const, label: 'None', desc: 'No notifications' },
+      ];
+
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#2a2b2f', borderRadius: 12, width: '100%', maxWidth: 480, padding: '24px 24px 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e3e5e8', marginBottom: 4 }}>{convName}</h2>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>Notifications</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {options.map(opt => (
+            <label key={opt.value} onClick={() => setType(opt.value)} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '10px 0', cursor: 'pointer' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${type === opt.value ? '#5865f2' : 'rgba(255,255,255,0.3)'}`, background: type === opt.value ? '#5865f2' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+                {type === opt.value && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
+              </div>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#e3e5e8', lineHeight: 1.3 }}>{opt.label}</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4, marginTop: 2 }}>{opt.desc}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '8px 0 14px' }} />
+
+        <label onClick={() => setMuted(m => !m)} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, cursor: 'pointer' }}>
+          <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${muted ? '#5865f2' : 'rgba(255,255,255,0.3)'}`, background: muted ? '#5865f2' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+            {muted && <CheckIcon className="h-2.5 w-2.5 text-white" />}
+          </div>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#e3e5e8', lineHeight: 1.3 }}>Mute conversation</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4, marginTop: 2 }}>Muted conversations are italicized and appear at the bottom of your conversation list, and will not appear in Home</p>
+          </div>
+        </label>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+          <button onClick={onClose} style={{ padding: '8px 20px', borderRadius: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={() => { onSave({ type, muted }); onClose(); }} style={{ padding: '8px 20px', borderRadius: 8, background: '#5865f2', border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Active Users Modal ───────────────────────────────────────────────────────
 function ActiveUsersModal({ users, presence, uid, onClose }: {
   users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void;
@@ -1817,6 +2345,8 @@ export default function SupraSpacePage() {
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = React.useState(false);
+  const dragCounterRef = React.useRef(0);
   const [pendingMeeting, setPendingMeeting] = React.useState<PendingMeetingDraft | null>(null);
   const [pendingGif, setPendingGif] = React.useState<{ url: string; width?: number; height?: number; title?: string } | null>(null);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -1845,6 +2375,10 @@ export default function SupraSpacePage() {
   const [localSpaceOrder, setLocalSpaceOrder] = React.useState<string[]>([]);
   const [deleteSpaceConfirm, setDeleteSpaceConfirm] = React.useState<string | null>(null);
   const [allUsers, setAllUsers] = React.useState<CrmUser[]>([]);
+  const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
+  const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
+  const [notifPrefs, setNotifPrefs] = React.useState<Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>>({});
+  const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
   const [q, setQ] = React.useState('');
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -1999,6 +2533,21 @@ export default function SupraSpacePage() {
   // ── Calling (NEW) ──
   const call = useCall(socket, token, uid);
   const [activeMeeting, setActiveMeeting] = React.useState<CallSession | null>(null);
+  const [callRecording, setCallRecording] = React.useState<{ isRecording: boolean; startedAt: string | null } | null>(null);
+
+  React.useEffect(() => {
+    if (!socket) return;
+    const onStarted = (data: { meetingId: string; recordingStartedAt: string }) => {
+      setCallRecording({ isRecording: true, startedAt: data.recordingStartedAt });
+    };
+    const onStopped = () => setCallRecording(null);
+    socket.on('call:recording-started', onStarted);
+    socket.on('call:recording-stopped', onStopped);
+    return () => {
+      socket.off('call:recording-started', onStarted);
+      socket.off('call:recording-stopped', onStopped);
+    };
+  }, [socket]);
   const me = React.useMemo(() => allUsers.find(u => u._id === uid), [allUsers, uid]);
 
   const handleStartCall = React.useCallback(async (conv: SSConversation) => {
@@ -2118,6 +2667,7 @@ export default function SupraSpacePage() {
     forceScrollToBottomRef.current = conversationId;
     setShowInfo(false);
     setActiveId(conversationId);
+    setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
 
     const hasCachedMessages = conversationId in msgsRef.current;
     const status = msgFetchStateRef.current[conversationId] || 'idle';
@@ -2743,6 +3293,31 @@ export default function SupraSpacePage() {
   };
   const removePendingFile = (i: number) => setPendingFiles(prev => prev.filter((_, idx) => idx !== i));
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files') || !activeId) return;
+    e.preventDefault();
+    dragCounterRef.current++;
+    if (dragCounterRef.current === 1) setIsDraggingOver(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDraggingOver(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files') || !activeId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDraggingOver(false);
+    if (!activeId) return;
+    const { files } = e.dataTransfer;
+    if (files.length > 0) handleUpload(files);
+  };
+
   React.useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -3099,7 +3674,7 @@ export default function SupraSpacePage() {
       case 'underline': document.execCommand('underline', false); break;
       case 'strike':    document.execCommand('strikethrough', false); break;
       case 'list':
-        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '• ' + (selectedText || 'item'));
+        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '• ' + (selectedText || ''));
         break;
       case 'quote':
         document.execCommand('insertText', false, (selectedText ? '\n' : '') + '> ' + (selectedText || 'quote'));
@@ -3291,7 +3866,10 @@ export default function SupraSpacePage() {
     const cAvatar = getConvAvatar(conv, uid);
     const pinned = isPinnedConv(conv);
     const archived = isArchivedConv(conv);
-    const isUnread = !isAct && conv.lastMessage && uid && !conv.lastMessage.readBy?.includes(uid) && conv.lastMessage.sender?._id !== uid;
+    const isMuted = notifPrefs[conv._id]?.muted ?? false;
+    const isUnread = manualUnread.has(conv._id) || (!isAct && !!conv.lastMessage && !!uid
+      && !conv.lastMessage.readBy?.includes(uid)
+      && conv.lastMessage.sender?._id !== uid);
     // Use messages cache as fallback when lastMessage is null or deleted
     const cachedConvMsgs = msgs[conv._id];
     const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
@@ -3306,6 +3884,7 @@ export default function SupraSpacePage() {
                 : effectiveLastMsg.content || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
+    const [ddOpen, setDdOpen] = React.useState(false);
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
     return (
@@ -3340,49 +3919,97 @@ export default function SupraSpacePage() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
-            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold')} style={{ fontSize: 14 }}>{cName}</p>
-            {!rowHov && <span className="shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
+            {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
+            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 14 }}>{cName}</p>
+            {!rowHov && <span className="ss4-conv-time shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
           </div>
           <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 13, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
-          <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov ? 1 : 0 }}>
-            <DropdownMenu>
+          <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov || ddOpen ? 1 : 0 }}>
+            <DropdownMenu onOpenChange={setDdOpen}>
               <DropdownMenuTrigger asChild>
-                <button onClick={e => e.stopPropagation()} className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)" style={{ color: 'var(--text-tertiary)' }}>
+                <button onClick={e => e.stopPropagation()} className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)" style={{ color: 'var(--text-secondary)' }}>
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="bottom" align="end" className="min-w-42 rounded-xl p-1" onClick={e => e.stopPropagation()}
-                style={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
-                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => togglePinConv(conv)}>
-                  {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />} {pinned ? 'Unpin' : 'Pin'}
+              <DropdownMenuContent side="bottom" align="end" className="min-w-52 rounded-xl p-1" onClick={e => e.stopPropagation()}
+                style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
+                  onClick={() => {
+                    if (isUnread) {
+                      markRead(conv._id);
+                      setManualUnread(p => { const n = new Set(p); n.delete(conv._id); return n; });
+                    } else {
+                      setManualUnread(p => new Set([...p, conv._id]));
+                    }
+                  }}>
+                  <MailOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                  {isUnread ? 'Mark as read' : 'Mark as unread'}
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => toggleArchiveConv(conv)}>
-                  {archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />} {archived ? 'Unarchive' : 'Archive'}
+                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => togglePinConv(conv)}>
+                  {pinned ? <PinOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+                  {pinned ? 'Unpin' : 'Pin'}
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => { handleStartCall(conv); openConversation(conv._id); }}>
-                  <Phone className="h-3.5 w-3.5" /> Call
+                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
+                  onClick={() => setNotifPrefs(p => ({ ...p, [conv._id]: { type: p[conv._id]?.type ?? 'all', muted: !isMuted } }))}>
+                  <VolumeX className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                  {isMuted ? 'Unmute' : 'Mute'}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => setNotifModalConv(conv)}>
+                  <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                  <span className="flex flex-col">
+                    <span style={{ fontSize: 13, lineHeight: 1.3 }}>Notifications</span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.3 }}>{(() => { const t = notifPrefs[conv._id]?.type; return t === 'foryou' ? 'For you' : t === 'none' ? 'None' : t === 'main' ? 'Main conversations' : 'All'; })()}</span>
+                  </span>
                 </DropdownMenuItem>
                 {conv.type === 'group' && ctxSpaces.length > 0 && (
                   <>
-                    <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '2px 4px' }} />
                     {(conv as any).spaceId && (
-                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => handleMoveToSpace(conv._id, null)}>
-                        <LogOut className="h-3.5 w-3.5" /> Remove from Space
+                      <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, null)}>
+                        <ArrowLeft className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Remove from Space
                       </DropdownMenuItem>
                     )}
                     {ctxSpaces.map(sp => (sp._id !== (conv as any).spaceId) && (
-                      <DropdownMenuItem key={sp._id} className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
-                        <Sparkles className="h-3.5 w-3.5" /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
+                      <DropdownMenuItem key={sp._id} className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
+                        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
                       </DropdownMenuItem>
                     ))}
                   </>
                 )}
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '2px 4px' }} />
-                <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
-                  <Trash2 className="h-3.5 w-3.5" /> Delete conversation
-                </DropdownMenuItem>
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 4px' }} />
+                {conv.type === 'direct' && (
+                  <>
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
+                      <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toggleArchiveConv(conv)}>
+                      {archived ? <ArchiveRestore className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <EyeOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+                      {archived ? 'Unhide conversation' : 'Hide conversation'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
+                      <Trash2 className="h-3.5 w-3.5 shrink-0" /> Delete conversation
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {conv.type === 'group' && (
+                  <>
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#fb923c' }}
+                      onClick={async () => {
+                        try {
+                          await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [uid] }, { headers: { Authorization: `Bearer ${token}` } });
+                          setConvos(p => p.filter(c => c._id !== conv._id));
+                          if (activeConv?._id === conv._id) { setActiveId(null); setShowInfo(false); }
+                          toast.success('You left the conversation.');
+                        } catch { toast.error('Could not leave the conversation.'); }
+                      }}>
+                      <LogOut className="h-3.5 w-3.5 shrink-0" /> Leave
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
+                      <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -3651,8 +4278,24 @@ export default function SupraSpacePage() {
           </aside>
 
           {/* Chat */}
-          <main className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')} style={themeStyle}>
-            <div className="flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
+          <main
+            className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')}
+            style={themeStyle}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <div className="relative flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
+              {isDraggingOver && activeId && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+                  <div className="flex flex-col items-center gap-3 px-8 py-6 rounded-2xl" style={{ background: 'var(--bg-elevated)', border: '2px dashed var(--accent)', textAlign: 'center', maxWidth: 300 }}>
+                    <Paperclip className="h-9 w-9" style={{ color: 'var(--accent)' }} />
+                    <p className="font-bold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Drop to attach</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Files will be added to your message</p>
+                  </div>
+                </div>
+              )}
               {!activeId && (
                 <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
                   <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
@@ -3760,7 +4403,7 @@ export default function SupraSpacePage() {
                         <React.Fragment key={msg._id}>
                           {showDate && <DateSep date={msg.createdAt} />}
                           <div id={`ss4-msg-${msg._id}`}>
-                            <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} />
+                            <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} />
                           </div>
                           {pinEvents.find(e => e.msgId === msg._id) && (() => {
                             const ev = pinEvents.find(e => e.msgId === msg._id)!;
@@ -3791,7 +4434,7 @@ export default function SupraSpacePage() {
                   </div>
 
                   {/* Input */}
-                  <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
+                  <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
@@ -3911,7 +4554,7 @@ export default function SupraSpacePage() {
                         )}
                         <div className="flex items-end gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
                           <div className="relative flex-1 min-w-0">
-                            {!input && <span className="absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
+                            {!input && <span className="ss4-composer-placeholder absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
                             <div
                               ref={textareaRef}
                               contentEditable
@@ -3937,10 +4580,31 @@ export default function SupraSpacePage() {
                                 const items = e.clipboardData?.items;
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
+
+                                // If the source provides semantic HTML formatting (bold, italic,
+                                // lists, etc.), convert it into the editor's own tag dialect and
+                                // insert as rich HTML so formatting is preserved.
+                                if (html && hasRichFormatting(html)) {
+                                  e.preventDefault();
+                                  document.execCommand('insertHTML', false, clipboardHtmlToEditorHtml(html));
+                                  requestAnimationFrame(() => {
+                                    const el = textareaRef.current;
+                                    if (el) setInput(el.innerText.replace(/\n$/, ''));
+                                  });
+                                  return;
+                                }
+
+                                // If only plain text is available but it contains markdown syntax
+                                // (e.g. copied from ChatGPT), convert markers to editor formatting
+                                // so **bold** stays bold, "* item" becomes a bullet, etc.
                                 const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
                                 if (richText) {
                                   e.preventDefault();
-                                  document.execCommand('insertText', false, richText);
+                                  if (hasMarkdownSyntax(richText)) {
+                                    document.execCommand('insertHTML', false, markdownTextToEditorHtml(richText));
+                                  } else {
+                                    document.execCommand('insertText', false, richText);
+                                  }
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
                                     if (el) setInput(el.innerText.replace(/\n$/, ''));
@@ -3956,7 +4620,7 @@ export default function SupraSpacePage() {
                                 }
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
-                              className="text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
+                              className="ss4-composer-editor text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
                               style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none' }}
                             />
                           </div>
@@ -4207,6 +4871,11 @@ export default function SupraSpacePage() {
             displayName={me?.fullName || 'User'}
             email={me?.email}
             avatarUrl={me?.avatar}
+            currentUserId={uid}
+            token={token}
+            conversationMembers={activeConv ? safeMembers(activeConv) : []}
+            callRecording={callRecording}
+            onRecordingChange={setCallRecording}
             onClose={handleLeaveCall}
           />
         )}
@@ -4225,6 +4894,18 @@ export default function SupraSpacePage() {
         )}
         {summarizeOpen && activeId && (
           <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
+        )}
+        {forwardMsg && (
+          <ForwardMessageModal message={forwardMsg} users={allUsers.filter(u => u._id !== uid)} token={token} onClose={() => setForwardMsg(null)} />
+        )}
+        {notifModalConv && (
+          <NotificationSettingsModal
+            conv={notifModalConv}
+            convName={getConvName(notifModalConv, uid)}
+            prefs={notifPrefs[notifModalConv._id] ?? { type: 'all', muted: false }}
+            onSave={p => setNotifPrefs(prev => ({ ...prev, [notifModalConv._id]: p }))}
+            onClose={() => setNotifModalConv(null)}
+          />
         )}
 
         {/* Member mini-card */}
