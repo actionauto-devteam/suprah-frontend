@@ -458,7 +458,7 @@ export default function ScreenshotGalleryPage() {
                   <Clock className="h-3.5 w-3.5 text-emerald-600" />
                 </div>
                 <p className="text-2xl font-black tracking-tight leading-none text-emerald-700 dark:text-emerald-300">
-                  {fmtWorkTime(Math.max(0, totalSecondsFromParam - Math.floor(breakTotalMs / 1000)))}
+                  {fmtWorkTime(totalSecondsFromParam)}
                 </p>
                 <p className="text-[10px] text-muted-foreground/40 leading-none">Total for the day</p>
               </div>

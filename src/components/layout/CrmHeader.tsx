@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { apiClient } from '@/lib/api-client';
 import { useCrmUser } from '@/hooks/useCrmUser';
 import { CrmNotificationBell } from '@/components/notifications';
+import { MessengerDropdown } from '@/components/supraspace/MessengerDropdown';
 
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000;
 const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS);
@@ -73,7 +74,11 @@ function LiveClock() {
   );
 }
 
-export function CrmHeader() {
+type CrmHeaderProps = {
+  showMessenger?: boolean;
+};
+
+export function CrmHeader({ showMessenger = false }: CrmHeaderProps) {
   const router = useRouter();
   const { user, token } = useCrmUser();
 
@@ -111,6 +116,8 @@ export function CrmHeader() {
           <LiveClock />
 
           <CrmNotificationBell />
+
+          {showMessenger && <MessengerDropdown />}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
