@@ -24,6 +24,24 @@ import { resolveImageUrl, cn } from "@/lib/utils";
 
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
+// Set to false in production to silence per-image console logging.
+const DEBUG_IMAGES = false;
+
+/**
+ * Normalize a raw image value into a usable <img> src.
+ * - Full http(s) URLs (e.g. DealersCloud CDN links) are passed through UNTOUCHED.
+ *   This is important: resolveImageUrl() is meant for our own R2/relative paths,
+ *   and must never rewrite an already-complete external URL.
+ * - Everything else is handed to resolveImageUrl() as before.
+ */
+function normalizeImageSrc(raw?: string): string | undefined {
+  if (!raw || typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed; // already a full URL
+  return resolveImageUrl(trimmed)?.trim() || undefined;
+}
+
 function getMemberPricing(vehicle: Vehicle) {
   const price = vehicle.price || 0;
   const memberPrice = vehicle.memberPrice ?? price;
@@ -109,21 +127,62 @@ function VehicleImage({
   onToggleCompare,
   canCompareMore,
 }: VehicleImageProps) {
-  const imgCandidates = React.useMemo(() => {
-    const raw = [vehicle.image, ...(vehicle.images || [])]
-      .map((s) => resolveImageUrl(s)?.trim())
-      .filter((s): s is string => Boolean(s));
-    return Array.from(new Set([...raw, CARD_FALLBACK]));
-  }, [vehicle.image, vehicle.images]);
+  // Build the list of REAL image candidates (no fallback yet). The fallback is
+  // only appended when there are zero real images, so a car with photos never
+  // shows the generic placeholder.
+  const { realCandidates, hasRealImage } = React.useMemo(() => {
+    const rawFields = [vehicle.image, ...(vehicle.images || [])];
+    const resolved = rawFields.map((s) => normalizeImageSrc(s));
+    const valid = resolved.filter((s): s is string => Boolean(s));
+    const deduped = Array.from(new Set(valid));
+
+    if (DEBUG_IMAGES) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[VehicleImage] ${vehicle.year} ${vehicle.make} ${vehicle.model} (id: ${vehicle.id})`,
+        {
+          "raw vehicle.image": vehicle.image,
+          "raw vehicle.images": vehicle.images,
+          "normalized output": resolved,
+          "real candidates": deduped,
+        },
+      );
+    }
+
+    return { realCandidates: deduped, hasRealImage: deduped.length > 0 };
+  }, [vehicle.id, vehicle.year, vehicle.make, vehicle.model, vehicle.image, vehicle.images]);
+
+  // Full candidate list = real images, then the generic fallback ONLY if there
+  // were real images to try (so a broken CDN link still degrades to the
+  // placeholder). If there are zero real images, we go straight to the
+  // "no image" empty state below rather than showing the stock cover.
+  const candidates = React.useMemo(
+    () => (hasRealImage ? [...realCandidates, CARD_FALLBACK] : []),
+    [realCandidates, hasRealImage],
+  );
 
   const [imgIdx, setImgIdx] = React.useState(0);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
-  const activeSrc = imgCandidates[imgIdx] || CARD_FALLBACK;
+
+  // Reset when the candidate set changes (e.g. list re-renders with new vehicle)
+  React.useEffect(() => {
+    setImgIdx(0);
+    setImgLoaded(false);
+    setImgError(false);
+  }, [vehicle.id]);
+
+  const activeSrc = candidates[imgIdx];
   const StatusIcon = statusCfg?.icon ?? Clock;
 
   const handleImgError = () => {
-    if (imgIdx < imgCandidates.length - 1) {
+    if (DEBUG_IMAGES) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[VehicleImage] FAILED to load "${activeSrc}" for ${vehicle.year} ${vehicle.make} ${vehicle.model} (id: ${vehicle.id}).`,
+      );
+    }
+    if (imgIdx < candidates.length - 1) {
       setImgIdx((p) => p + 1);
       setImgLoaded(false);
     } else {
@@ -131,6 +190,12 @@ function VehicleImage({
       setImgLoaded(true);
     }
   };
+
+  const handleImgLoad = () => setImgLoaded(true);
+
+  // "No image" empty state: shown when a car has zero real photos, OR when every
+  // real photo AND the fallback failed to load.
+  const showEmptyState = !hasRealImage || imgError || !activeSrc;
 
   return (
     <div
@@ -140,12 +205,13 @@ function VehicleImage({
         className,
       )}
     >
-      {!imgLoaded && (
+      {!showEmptyState && !imgLoaded && (
         <div className="absolute inset-0 z-10 flex animate-pulse items-center justify-center bg-muted dark:bg-zinc-800">
           <TruckIcon className="h-8 w-8 text-muted-foreground/15" />
         </div>
       )}
-      {!imgError ? (
+
+      {!showEmptyState ? (
         <img
           key={`${vehicle.id}-${imgIdx}`}
           src={activeSrc}
@@ -153,8 +219,7 @@ function VehicleImage({
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
-          onLoad={() => setImgLoaded(true)}
+          onLoad={handleImgLoad}
           onError={handleImgError}
           className={cn(
             "absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/img:scale-105",
@@ -164,7 +229,9 @@ function VehicleImage({
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted dark:bg-zinc-800">
           <TruckIcon className="h-8 w-8 text-muted-foreground/20" />
-          <span className="text-[10px] font-medium text-muted-foreground/40 tracking-wide">No image</span>
+          <span className="text-[10px] font-medium text-muted-foreground/40 tracking-wide">
+            No image
+          </span>
         </div>
       )}
 
@@ -332,7 +399,7 @@ export function CarInventoryCard({
                   ${price.toLocaleString()}
                 </span>
                 <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-                  {tierName} −{discountPct}%
+                  {tierName} -{discountPct}%
                 </span>
               </div>
               <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
@@ -462,7 +529,7 @@ export function CarInventoryCard({
                   ${memberPrice.toLocaleString()}
                 </span>
                 <span className="text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-                  {tierName} −{discountPct}%
+                  {tierName} -{discountPct}%
                 </span>
               </div>
               <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
