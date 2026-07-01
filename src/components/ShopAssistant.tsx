@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * ShopAssistant.tsx
- *
- * Suprah Autrix — AI vehicle recommendation assistant, embedded in the
- * Customer Shop Vehicle module.
- *
- * Renders as either a floating launcher (`mode="float"`) or an inline panel
- * (`mode="inline"`). It pairs a conversational chat with structured, in-stock
- * recommendation cards (real prices/specs/match scores from the inventory),
- * quick-action chips, and a live preference summary.
- */
-
 import * as React from "react";
 import {
   MessageCircle,
@@ -528,7 +516,6 @@ export default function ShopAssistant({
             style={{ "--tw-mobile-bottom": mobileBottom } as React.CSSProperties}
             className="fixed bottom-(--tw-mobile-bottom) md:bottom-6 right-4 sm:right-6 z-45 flex h-12 sm:h-14 items-center gap-2 sm:gap-2.5 rounded-full bg-emerald-600 px-4 sm:px-5 text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl"
           >
-            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="text-xs sm:text-sm font-semibold">Find my car</span>
           </button>
         )}

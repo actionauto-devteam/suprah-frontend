@@ -1,244 +1,155 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { apiClient } from "@/lib/api-client";
-import { useAuth } from "@/providers/AuthProvider";
-
-/**
- * useShopAssistant
- *
- * Conversation + recommendation state for the Suprah Autrix shop assistant.
- * Auth follows the same pattern as CustomerConcernChat: a fresh token from
- * useAuth().getToken() on every request, never localStorage for the token.
- *
- * A client `sessionId` is kept as a graceful fallback; when the customer is
- * signed in the server keys the session by the customer id regardless.
- */
-
-export interface ShopPreferences {
-  vehicleTypes: string[];
-  brands: string[];
-  fuelTypes: string[];
-  usage: string[];
-  features: string[];
-  budgetMin?: number | null;
-  budgetMax?: number | null;
-  passengers?: number | null;
-  yearMin?: number | null;
-  maxMileage?: number | null;
-}
+import * as React from 'react';
 
 export interface Recommendation {
   id: string;
-  vin: string;
   name: string;
-  year: number;
-  make: string;
-  model: string;
-  trim: string;
-  price: number;
-  priceLabel: string;
-  mileage: number;
-  bodyStyle: string;
-  fuelType: string;
-  transmission: string;
-  driveTrain: string;
-  exteriorColor: string;
   image: string;
-  location: string;
-  specs: string[];
+  priceLabel: string;
+  bodyStyle?: string;
   matchScore: number;
+  specs: any[];
+  mileage?: number;
+  fuelType?: string;
+  transmission?: string;
+  location?: string;
   matchReasons: string[];
   tradeoffs: string[];
 }
 
 export interface ShopMessage {
   id: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
-  recommendations?: Recommendation[];
   pending?: boolean;
+  recommendations?: Recommendation[];
 }
 
-const SESSION_KEY = "supra_shop_session_id";
-
-function getSessionId(): string {
-  if (typeof window === "undefined") return "";
-  let id = window.localStorage.getItem(SESSION_KEY);
-  if (!id) {
-    id =
-      (window.crypto?.randomUUID?.() as string) ||
-      `s_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    window.localStorage.setItem(SESSION_KEY, id);
-  }
-  return id;
+export interface ShopPreferences {
+  vehicleTypes: string[];
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  brands: string[];
+  fuelTypes: string[];
+  passengers?: number | null;
+  usage: string[];
 }
 
 const EMPTY_PREFS: ShopPreferences = {
   vehicleTypes: [],
-  brands: [],
-  fuelTypes: [],
-  usage: [],
-  features: [],
   budgetMin: null,
   budgetMax: null,
+  brands: [],
+  fuelTypes: [],
   passengers: null,
-  yearMin: null,
-  maxMileage: null,
+  usage: [],
 };
 
-export function useShopAssistant() {
-  const { getToken } = useAuth();
+const SESSION_KEY = 'shop_assistant_session_id';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api/shop-assistant';
 
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
+
+export function useShopAssistant() {
+  const [sessionId, setSessionId] = React.useState<string>('');
   const [messages, setMessages] = React.useState<ShopMessage[]>([]);
   const [preferences, setPreferences] = React.useState<ShopPreferences>(EMPTY_PREFS);
-  const [recommendations, setRecommendations] = React.useState<Recommendation[]>([]);
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
-  const [isExact, setIsExact] = React.useState(true);
   const [sending, setSending] = React.useState(false);
   const [loadingSession, setLoadingSession] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  const sessionIdRef = React.useRef<string>("");
-
-  const authHeaders = React.useCallback(async () => {
-    const token = await getToken();
-    return { Authorization: `Bearer ${token}` };
-  }, [getToken]);
-
-  // Restore session on mount.
+  // Hydrate on mount
   React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingSession(true);
-      sessionIdRef.current = getSessionId();
-      try {
-        const headers = await authHeaders();
-        const r = await apiClient.get("/api/customer-shop-ai/session", {
-          headers,
-          params: { sessionId: sessionIdRef.current },
-        });
-        if (cancelled) return;
-        const data = r.data?.data;
-        if (data) {
-          if (data.sessionId) sessionIdRef.current = data.sessionId;
-          setPreferences({ ...EMPTY_PREFS, ...(data.preferences || {}) });
-          setSuggestions(data.suggestions || []);
-          const restored: ShopMessage[] = (data.messages || []).map(
-            (m: any, i: number) => ({
-              id: m._id || `restored_${i}`,
-              role: m.role,
-              content: m.content,
-              recommendations: m.recommendations || undefined,
-            })
-          );
-          setMessages(restored);
-          // Surface the most recent recommendation set, if any.
-          const lastWithRecs = [...restored]
-            .reverse()
-            .find((m) => m.recommendations?.length);
-          if (lastWithRecs?.recommendations)
-            setRecommendations(lastWithRecs.recommendations);
-        }
-      } catch {
-        // Non-fatal: start fresh.
-      } finally {
-        if (!cancelled) setLoadingSession(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [authHeaders]);
+    const id = getOrCreateSessionId();
+    setSessionId(id);
+    if (!id) { setLoadingSession(false); return; }
+
+    fetch(`${API_BASE}/session`, { headers: { 'x-shop-session-id': id } })
+      .then((r) => r.json())
+      .then((r) => {
+        const data = r.data;
+        setMessages(
+          (data.messages || []).map((m: any) => ({
+            id: m._id || crypto.randomUUID(),
+            role: m.role,
+            content: m.content,
+            recommendations: m.recommendations,
+          }))
+        );
+        setPreferences(data.preferences || EMPTY_PREFS);
+      })
+      .catch(() => setError('Could not load your previous conversation.'))
+      .finally(() => setLoadingSession(false));
+  }, []);
 
   const sendMessage = React.useCallback(
     async (text: string) => {
-      const content = text.trim();
-      if (!content || sending) return;
-
+      if (!sessionId) return;
       setError(null);
-      const userMsg: ShopMessage = {
-        id: `u_${Date.now()}`,
-        role: "user",
-        content,
-      };
-      const pendingId = `a_${Date.now()}`;
-      setMessages((p) => [
-        ...p,
-        userMsg,
-        { id: pendingId, role: "assistant", content: "", pending: true },
-      ]);
+      const userMsg: ShopMessage = { id: crypto.randomUUID(), role: 'user', content: text };
+      const pendingMsg: ShopMessage = { id: crypto.randomUUID(), role: 'assistant', content: '', pending: true };
+      setMessages((prev) => [...prev, userMsg, pendingMsg]);
       setSending(true);
 
       try {
-        const headers = await authHeaders();
-        const r = await apiClient.post(
-          "/api/customer-shop-ai/chat",
-          { message: content, sessionId: sessionIdRef.current },
-          { headers }
-        );
-        const data = r.data?.data;
-        if (data?.sessionId) sessionIdRef.current = data.sessionId;
+        const res = await fetch(`${API_BASE}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-shop-session-id': sessionId },
+          body: JSON.stringify({ message: text, sessionId }),
+        });
+        if (!res.ok) throw new Error('Request failed');
+        const { data } = await res.json();
 
-        const recs: Recommendation[] = data?.recommendations || [];
-        setPreferences({ ...EMPTY_PREFS, ...(data?.preferences || {}) });
-        setSuggestions(data?.suggestions || []);
-        setIsExact(data?.isExact !== false);
-        if (recs.length) setRecommendations(recs);
-
-        setMessages((p) =>
-          p.map((m) =>
-            m.id === pendingId
-              ? {
-                  ...m,
-                  pending: false,
-                  content: data?.reply || "…",
-                  recommendations: recs.length ? recs : undefined,
-                }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingMsg.id
+              ? { ...m, content: data.message, recommendations: data.recommendations, pending: false }
               : m
           )
         );
-      } catch (e: any) {
-        setMessages((p) => p.filter((m) => m.id !== pendingId));
-        setError(
-          e?.response?.data?.message ||
-            "Something went wrong reaching the assistant. Please try again."
+        setPreferences(data.preferences || EMPTY_PREFS);
+        setSuggestions(data.suggestions || []);
+      } catch (err) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingMsg.id
+              ? { ...m, content: "Sorry, I couldn't process that — please try again.", pending: false }
+              : m
+          )
         );
+        setError('Something went wrong. Please try again.');
       } finally {
         setSending(false);
       }
     },
-    [authHeaders, sending]
+    [sessionId]
   );
 
   const resetSession = React.useCallback(async () => {
+    if (!sessionId) return;
     try {
-      const headers = await authHeaders();
-      await apiClient.post(
-        "/api/customer-shop-ai/reset",
-        { sessionId: sessionIdRef.current },
-        { headers }
-      );
+      await fetch(`${API_BASE}/session`, {
+        method: 'DELETE',
+        headers: { 'x-shop-session-id': sessionId },
+      });
     } catch {
-      /* ignore */
+      // non-fatal
     }
     setMessages([]);
     setPreferences(EMPTY_PREFS);
-    setRecommendations([]);
     setSuggestions([]);
     setError(null);
-  }, [authHeaders]);
+  }, [sessionId]);
 
-  return {
-    messages,
-    preferences,
-    recommendations,
-    suggestions,
-    isExact,
-    sending,
-    loadingSession,
-    error,
-    sendMessage,
-    resetSession,
-  };
+  return { messages, preferences, suggestions, sending, loadingSession, error, sendMessage, resetSession };
 }
