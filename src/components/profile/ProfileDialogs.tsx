@@ -17,13 +17,21 @@ import {
     CheckCircle2,
     Check,
     Loader2,
-    CircleDot
+    CircleDot,
+    Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OnlineStatus } from '@/types/user';
 import { onlineStatusOptions } from './profile-constants';
 
 const MAX_CUSTOM_STATUS_LENGTH = 100;
+
+const STATUS_EXPIRY_OPTIONS = [
+    { label: "Don't clear", value: 0 },
+    { label: '30 min', value: 30 },
+    { label: '1 hour', value: 60 },
+    { label: '4 hours', value: 240 },
+] as const;
 
 interface ProfileDialogsProps {
     showDeleteDialog: boolean;
@@ -51,6 +59,8 @@ interface ProfileDialogsProps {
     handleCustomStatusChange: (text: string) => void;
     customStatusError: string | null;
     handleUpdateOnlineStatus: () => void;
+    statusExpiresIn: number;
+    setStatusExpiresIn: (minutes: number) => void;
 }
 
 export const ProfileDialogs: React.FC<ProfileDialogsProps> = ({
@@ -79,6 +89,8 @@ export const ProfileDialogs: React.FC<ProfileDialogsProps> = ({
     handleCustomStatusChange,
     customStatusError,
     handleUpdateOnlineStatus,
+    statusExpiresIn,
+    setStatusExpiresIn,
 }) => {
     return (
         <>
@@ -222,32 +234,70 @@ export const ProfileDialogs: React.FC<ProfileDialogsProps> = ({
                         <DialogTitle className="flex items-center gap-2">
                             <CircleDot className="size-5 text-emerald-600" />Set Your Status
                         </DialogTitle>
-                        <DialogDescription>Let others know your availability</DialogDescription>
+                        <DialogDescription>
+                            Let others know your availability. Stays exactly as you set it — on every
+                            device — until you change it.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label>Online Status</Label>
                             <div className="grid grid-cols-2 gap-2">
-                                {onlineStatusOptions.map((option) => (
-                                    <button
-                                        key={option.value}
-                                        onClick={() => setOnlineStatus(option.value)}
-                                        className={cn(
-                                            "flex flex-col items-start gap-1 p-3 rounded-lg border-2 transition-all",
-                                            onlineStatus === option.value
-                                                ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950 shadow-md"
-                                                : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm"
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <div className={cn("w-3 h-3 rounded-full", option.color)} />
-                                            <span className="text-sm font-medium">{option.label}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 text-left">{option.description}</p>
-                                    </button>
-                                ))}
+                                {onlineStatusOptions.map((option) => {
+                                    const Icon = option.icon;
+                                    const selected = onlineStatus === option.value;
+                                    return (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => setOnlineStatus(option.value)}
+                                            className={cn(
+                                                "flex items-start gap-2.5 p-3 rounded-xl border-2 text-left transition-all",
+                                                selected
+                                                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-md ring-1 ring-emerald-500/20"
+                                                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm"
+                                            )}
+                                        >
+                                            <div className="flex items-center justify-center size-8 rounded-lg shrink-0 bg-black/5 dark:bg-white/10">
+                                                <Icon className={cn("size-4", option.color.replace('bg-', 'text-'))} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm font-semibold">{option.label}</span>
+                                                    {selected && <Check className="size-3.5 text-emerald-600 shrink-0" />}
+                                                </div>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 text-left leading-snug">{option.description}</p>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
+
+                        {onlineStatus !== 'online' && (
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-1.5">
+                                    <Clock className="size-3.5 text-muted-foreground" />
+                                    Clear this status after
+                                </Label>
+                                <div className="grid grid-cols-4 gap-1.5">
+                                    {STATUS_EXPIRY_OPTIONS.map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setStatusExpiresIn(opt.value)}
+                                            className={cn(
+                                                "py-1.5 rounded-lg text-xs font-semibold border transition-all",
+                                                statusExpiresIn === opt.value
+                                                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
+                                                    : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
+                                            )}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label htmlFor="customStatus">Custom Status Message</Label>
                             <Input

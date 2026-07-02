@@ -70,6 +70,7 @@ export const ProfileView: React.FC = () => {
   const [customStatusError, setCustomStatusError] = useState<string | null>(
     null,
   );
+  const [statusExpiresIn, setStatusExpiresIn] = useState<number>(0);
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
@@ -333,13 +334,18 @@ export const ProfileView: React.FC = () => {
       const token = await getToken();
       await apiClient.patch(
         "/api/profile/online-status",
-        { status: onlineStatus, customStatus },
+        {
+          status: onlineStatus,
+          customStatus,
+          expiresIn: statusExpiresIn > 0 ? statusExpiresIn : undefined,
+        },
         {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
       toast.success("Status updated");
       setShowStatusDialog(false);
+      setStatusExpiresIn(0);
       setProfile((prev) =>
         prev ? { ...prev, onlineStatus, customStatus } : prev,
       );
@@ -531,6 +537,8 @@ export const ProfileView: React.FC = () => {
         handleCustomStatusChange={handleCustomStatusChange}
         customStatusError={customStatusError}
         handleUpdateOnlineStatus={handleUpdateOnlineStatus}
+        statusExpiresIn={statusExpiresIn}
+        setStatusExpiresIn={setStatusExpiresIn}
       />
     </div>
   );

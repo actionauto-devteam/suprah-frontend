@@ -561,6 +561,8 @@ export const DriverProfileView: React.FC = () => {
         handleCustomStatusChange={handleCustomStatusChange}
         customStatusError={customStatusError}
         handleUpdateOnlineStatus={handleUpdateDriverStatus}
+        statusExpiresIn={0}
+        setStatusExpiresIn={() => {}}
       />
 
       <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>

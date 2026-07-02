@@ -3,11 +3,11 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Activity,
   CalendarDays,
   Check,
   ChevronDown,
   LayoutGrid,
+  Navigation,
   Radio,
   StickyNote,
   Users,
@@ -35,25 +35,22 @@ import {
 } from "@/hooks/useTeamPulse";
 import { useTeamPulseSocket } from "@/hooks/useTeamPulseSocket";
 import { useUser } from "@/providers/AuthProvider";
-import { setManualStatus } from "@/hooks/usePresence";
 import { onlineStatusOptions } from "@/components/profile/profile-constants";
 import { isSameDay } from "date-fns";
 
 import { TeamOverview } from "./_components/TeamOverview";
 import { TeamList } from "./_components/TeamList";
 import { TeamCalendar } from "./_components/TeamCalendar";
-import { SchedulesTab } from "./_components/SchedulesTab";
 import { TeamBoard } from "./_components/TeamBoard";
 import { ActivityMonitorTab } from "./_components/ActivityMonitorTab";
+import { LocatorErrorBoundary } from "./_components/locator/LocatorErrorBoundary";
 import { MemberProfileSheet } from "./_components/MemberProfileSheet";
-import { S } from "./_components/team-pulse-constants";
 
 type TabId =
   | "overview"
   | "team"
   | "activity"
   | "calendar"
-  | "schedules"
   | "board";
 
 const EXPIRY_OPTIONS = [
@@ -68,7 +65,7 @@ function minutesUntilEndOfDay() {
   return differenceInMinutes(endOfDay(new Date()), new Date());
 }
 
-const VALID_TAB_IDS: TabId[] = ["overview", "team", "activity", "calendar", "schedules", "board"];
+const VALID_TAB_IDS: TabId[] = ["overview", "team", "activity", "calendar", "board"];
 
 export default function TeamPulsePage() {
   const { user } = useUser();
@@ -144,9 +141,6 @@ export default function TeamPulsePage() {
     setMyCustomStatus(draftCustom);
     setPopoverOpen(false);
 
-    const isManual = ["away", "busy", "do_not_disturb"].includes(draftStatus);
-    setManualStatus(isManual ? draftStatus : null);
-
     try {
       await updateStatus.mutateAsync({
         status: draftStatus,
@@ -192,12 +186,11 @@ export default function TeamPulsePage() {
     { id: "team", Icon: Users, label: "Team", count: members.length },
     {
       id: "activity",
-      Icon: Activity,
-      label: "Activity",
+      Icon: Navigation,
+      label: "Locator",
       count: activeCount > 0 ? activeCount : undefined,
     },
     { id: "calendar", Icon: CalendarDays, label: "Calendar" },
-    { id: "schedules", Icon: Clock, label: "Schedules" },
     { id: "board", Icon: StickyNote, label: "Board" },
   ];
 
@@ -294,36 +287,36 @@ export default function TeamPulsePage() {
                   </div>
 
                   <div className="px-1.5 space-y-0.5 pb-1">
-                    {onlineStatusOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() =>
-                          setDraftStatus(opt.value as OnlineStatus)
-                        }
-                        className={cn(
-                          "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all",
-                          draftStatus === opt.value
-                            ? "bg-primary/8 text-foreground"
-                            : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <span
+                    {onlineStatusOptions.map((opt) => {
+                      const Icon = opt.icon;
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() =>
+                            setDraftStatus(opt.value as OnlineStatus)
+                          }
                           className={cn(
-                            "size-2.5 rounded-full shrink-0",
-                            opt.color,
+                            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all",
+                            draftStatus === opt.value
+                              ? "bg-primary/8 text-foreground"
+                              : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
                           )}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold">{opt.label}</p>
-                          <p className="text-[10px] text-muted-foreground/60 truncate">
-                            {opt.description}
-                          </p>
-                        </div>
-                        {draftStatus === opt.value && (
-                          <Check className="size-3.5 text-primary shrink-0" />
-                        )}
-                      </button>
-                    ))}
+                        >
+                          <div className="flex items-center justify-center size-6 rounded-md shrink-0 bg-black/5 dark:bg-white/10">
+                            <Icon className={cn("size-3", opt.color.replace("bg-", "text-"))} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold">{opt.label}</p>
+                            <p className="text-[10px] text-muted-foreground/60 truncate">
+                              {opt.description}
+                            </p>
+                          </div>
+                          {draftStatus === opt.value && (
+                            <Check className="size-3.5 text-primary shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div className="border-t border-border/40 px-3 pt-2.5 pb-1.5 space-y-2">
@@ -454,8 +447,8 @@ export default function TeamPulsePage() {
                       },
                       {
                         id: "activity" as TabId,
-                        Icon: Activity,
-                        label: "Live Activity",
+                        Icon: Navigation,
+                        label: "Locator",
                         desc: `${onlineCount} online now`,
                         accentCls: "bg-green-500",
                         borderCls:
@@ -473,16 +466,6 @@ export default function TeamPulsePage() {
                         borderCls:
                           "border-border/40 hover:border-amber-300/50 dark:hover:border-amber-700/40",
                         iconCls: "text-amber-600 dark:text-amber-400",
-                      },
-                      {
-                        id: "schedules" as TabId,
-                        Icon: Clock,
-                        label: "Schedules",
-                        desc: "Weekly shifts",
-                        accentCls: "bg-violet-500",
-                        borderCls:
-                          "border-border/40 hover:border-violet-300/50 dark:hover:border-violet-700/40",
-                        iconCls: "text-violet-600 dark:text-violet-400",
                       },
                       {
                         id: "board" as TabId,
@@ -553,20 +536,13 @@ export default function TeamPulsePage() {
             )}
 
             {tab === "activity" && (
-              <ActivityMonitorTab members={members} myUserId={myUserId} />
+              <LocatorErrorBoundary>
+                <ActivityMonitorTab members={members} myUserId={myUserId} isAdmin={isAdmin} />
+              </LocatorErrorBoundary>
             )}
 
             {tab === "calendar" && (
               <TeamCalendar
-                members={members}
-                userName={user?.fullName}
-                isAdmin={isAdmin}
-                myUserId={myUserId}
-              />
-            )}
-
-            {tab === "schedules" && (
-              <SchedulesTab
                 members={members}
                 userName={user?.fullName}
                 isAdmin={isAdmin}

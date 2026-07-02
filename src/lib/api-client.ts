@@ -547,6 +547,114 @@ class ApiClient {
     return this.patch("/api/profile/online-status", data, config);
   }
 
+  async setEmploymentLocationType(
+    userId: string,
+    employmentLocationType: "onsite" | "remote",
+    config?: AxiosRequestConfig
+  ) {
+    return this.patch(`/api/team-pulse/members/${userId}/employment-location`, { employmentLocationType }, config);
+  }
+
+  // ── Locator Methods ──────────────────────────────────────────────────────
+
+  async getMyLocatorStatus(config?: AxiosRequestConfig) {
+    return this.get("/api/locator/my-status", config);
+  }
+
+  async setLocationConsent(
+    data: { granted: boolean; deviceHint?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.post("/api/locator/consent", data, config);
+  }
+
+  async pingLocation(
+    data: {
+      lat: number; lng: number; heading?: number; speedMph?: number; accuracyM?: number;
+      batteryLevel?: number; isCharging?: boolean; connectivity?: "online" | "offline";
+    },
+    config?: AxiosRequestConfig
+  ) {
+    return this.post("/api/locator/ping", data, config);
+  }
+
+  async pauseLocationSharing(data: { reason?: "manual" | "break" }, config?: AxiosRequestConfig) {
+    return this.post("/api/locator/pause", data, config);
+  }
+
+  async resumeLocationSharing(config?: AxiosRequestConfig) {
+    return this.post("/api/locator/resume", {}, config);
+  }
+
+  async getActiveEmployeeLocations(config?: AxiosRequestConfig) {
+    return this.get("/api/locator/active", config);
+  }
+
+  async getPlaces(config?: AxiosRequestConfig) {
+    return this.get("/api/locator/places", config);
+  }
+
+  async createPlace(
+    data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.post("/api/locator/places", data, config);
+  }
+
+  async updatePlace(id: string, data: Record<string, any>, config?: AxiosRequestConfig) {
+    return this.patch(`/api/locator/places/${id}`, data, config);
+  }
+
+  async deletePlace(id: string, config?: AxiosRequestConfig) {
+    return this.delete(`/api/locator/places/${id}`, config);
+  }
+
+  async manualCheckIn(placeId: string, config?: AxiosRequestConfig) {
+    return this.post(`/api/locator/places/${placeId}/check-in`, {}, config);
+  }
+
+  async getLocationHistory(
+    userId: string,
+    params: { from?: string; to?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.get(`/api/locator/history/${userId}`, { ...config, params });
+  }
+
+  async getTimeAtPlaceReport(
+    params: { from?: string; to?: string; userId?: string; placeId?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.get("/api/locator/reports/time-at-place", { ...config, params });
+  }
+
+  async getDrivingSessions(
+    params: { userId?: string; from?: string; to?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.get("/api/locator/driving-sessions", { ...config, params });
+  }
+
+  async getDrivingSessionDetail(id: string, config?: AxiosRequestConfig) {
+    return this.get(`/api/locator/driving-sessions/${id}`, config);
+  }
+
+  async respondToIncident(id: string, confirmed: boolean, config?: AxiosRequestConfig) {
+    return this.post(`/api/locator/driving-sessions/${id}/incident-response`, { confirmed }, config);
+  }
+
+  async triggerSos(data: { lat: number; lng: number }, config?: AxiosRequestConfig) {
+    return this.post("/api/locator/sos", data, config);
+  }
+
+  async resolveSos(id: string, data: { status: "resolved" | "false_alarm"; note?: string }, config?: AxiosRequestConfig) {
+    return this.post(`/api/locator/sos/${id}/resolve`, data, config);
+  }
+
+  async getActiveSosAlerts(config?: AxiosRequestConfig) {
+    return this.get("/api/locator/sos/active", config);
+  }
+
   // ── Onboarding Methods ───────────────────────────────────────────────────
 
   /**

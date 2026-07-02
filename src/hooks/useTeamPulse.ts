@@ -31,6 +31,12 @@ export interface TeamMember {
         startedAt?: string;
     };
     statusExpiresAt?: string | null;
+    employmentLocationType?: 'onsite' | 'remote';
+    locationConsent?: {
+        granted: boolean;
+        grantedAt?: string;
+        deviceHint?: string;
+    };
 }
 
 export interface Absence {

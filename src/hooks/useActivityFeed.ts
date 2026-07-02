@@ -7,7 +7,12 @@ import { toast } from 'sonner';
 
 export type ActivityEventType =
   | 'online' | 'offline' | 'away' | 'busy' | 'idle' | 'do_not_disturb'
-  | 'break_start' | 'break_end' | 'custom_status';
+  | 'break_start' | 'break_end' | 'custom_status'
+  | 'geofence_enter' | 'geofence_exit'
+  | 'sos_triggered' | 'sos_resolved'
+  | 'driving_session_start' | 'driving_session_end'
+  | 'possible_incident'
+  | 'location_sharing_started' | 'location_sharing_paused' | 'location_sharing_resumed' | 'location_sharing_stopped';
 
 export interface ActivityEvent {
   _id: string;

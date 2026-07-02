@@ -19,7 +19,13 @@ import {
     UserPlus,
     DollarSign,
     Users,
-    Award
+    Award,
+    Circle,
+    Moon,
+    Coffee,
+    MinusCircle,
+    BellOff,
+    EyeOff,
 } from 'lucide-react';
 import React from 'react';
 
@@ -91,13 +97,19 @@ export const containsCurseWord = (text: string): boolean => {
 };
 
 // Online status options
-export const onlineStatusOptions: { value: OnlineStatus; label: string; color: string; description: string }[] = [
-    { value: 'online', label: 'Online', color: 'bg-green-500', description: 'Available' },
-    { value: 'idle', label: 'Idle', color: 'bg-amber-500', description: 'Away from keyboard' },
-    { value: 'away', label: 'Away', color: 'bg-yellow-500', description: 'Stepped away' },
-    { value: 'busy', label: 'Busy', color: 'bg-red-500', description: 'Do not interrupt' },
-    { value: 'do_not_disturb', label: 'DND', color: 'bg-purple-500', description: 'No notifications' },
-    { value: 'offline', label: 'Invisible', color: 'bg-gray-500', description: 'Appear offline' },
+export const onlineStatusOptions: {
+    value: OnlineStatus;
+    label: string;
+    color: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+}[] = [
+    { value: 'online', label: 'Online', color: 'bg-green-500', description: 'Available', icon: Circle },
+    { value: 'idle', label: 'Idle', color: 'bg-amber-500', description: 'Away from keyboard', icon: Moon },
+    { value: 'away', label: 'Away', color: 'bg-yellow-500', description: 'Stepped away', icon: Coffee },
+    { value: 'busy', label: 'Busy', color: 'bg-red-500', description: 'Do not interrupt', icon: MinusCircle },
+    { value: 'do_not_disturb', label: 'DND', color: 'bg-purple-500', description: 'No notifications', icon: BellOff },
+    { value: 'offline', label: 'Invisible', color: 'bg-gray-500', description: 'Appear offline', icon: EyeOff },
 ];
 
 // Activity type icons

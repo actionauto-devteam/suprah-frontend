@@ -5,127 +5,48 @@ import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 
 const HEARTBEAT_MS = 30_000;
-const IDLE_TIMEOUT_MS = 3 * 60 * 1000;
-const AWAY_TIMEOUT_MS = 8 * 60 * 1000;
 
-const MANUAL_STATUS_KEY = "suprah_manual_status";
-const MANUAL_STATUSES = ["away", "busy", "do_not_disturb"];
-
-export function setManualStatus(status: string | null) {
-  if (typeof window === "undefined") return;
-  if (status === null) {
-    localStorage.removeItem(MANUAL_STATUS_KEY);
-  } else if (MANUAL_STATUSES.includes(status)) {
-    localStorage.setItem(MANUAL_STATUS_KEY, status);
-  } else {
-    localStorage.removeItem(MANUAL_STATUS_KEY);
-  }
-}
-
-export function getManualStatus(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(MANUAL_STATUS_KEY);
-}
-
-type PresenceStatus = "online" | "idle" | "away" | "busy" | "offline" | "do_not_disturb";
-
+/**
+ * Presence is entirely server-derived (see PATCH /api/profile/heartbeat): this hook's only
+ * job is to tell the server whether there's been real user interaction (mouse/keyboard/touch)
+ * since the last heartbeat. The server decides online vs. away (30 min of no interaction across
+ * ANY of the user's devices) and never touches a manually-chosen status. This keeps status in
+ * sync across every device/tab a user has open — no per-device local flag to fall out of sync.
+ */
 export function usePresence() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
-  const autoStatusRef = useRef<"online" | "idle" | "away">("online");
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const awayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isInitialized = useRef(false);
+  const hasInteracted = useRef(true); // mounting/loading the app counts as activity
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
 
-    async function callStatus(status: PresenceStatus) {
+    async function beat() {
+      const isActive = hasInteracted.current;
+      hasInteracted.current = false;
       try {
         const token = await getToken();
         await apiClient.patch(
-          "/api/profile/online-status",
-          { status },
-          { headers: { Authorization: `Bearer ${token}` } }
+          "/api/profile/heartbeat",
+          { isActive },
+          { headers: { Authorization: `Bearer ${token}` } },
         );
       } catch {
-        // silent
+        // silent — next heartbeat will retry
       }
-    }
-
-    async function beat() {
-      try {
-        const token = await getToken();
-        const res = await apiClient.patch("/api/profile/heartbeat", {}, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const returned = res?.data?.data?.onlineStatus;
-        if (returned === 'online') {
-          const manual = getManualStatus();
-          if (!manual) {
-            autoStatusRef.current = "online";
-          }
-        }
-      } catch {
-        // silent
-      }
-    }
-
-    function clearTimers() {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (awayTimerRef.current) clearTimeout(awayTimerRef.current);
-    }
-
-    function scheduleInactivity() {
-      clearTimers();
-
-      idleTimerRef.current = setTimeout(() => {
-        const manual = getManualStatus();
-        if (manual) return;
-        if (autoStatusRef.current === "online") {
-          autoStatusRef.current = "idle";
-          callStatus("idle");
-        }
-
-        awayTimerRef.current = setTimeout(() => {
-          const manual2 = getManualStatus();
-          if (manual2) return;
-          autoStatusRef.current = "away";
-          callStatus("away");
-        }, AWAY_TIMEOUT_MS - IDLE_TIMEOUT_MS);
-      }, IDLE_TIMEOUT_MS);
     }
 
     function onActivity() {
-      const wasInactive = autoStatusRef.current === "idle" || autoStatusRef.current === "away";
-      if (wasInactive) {
-        const manual = getManualStatus();
-        if (!manual) {
-          autoStatusRef.current = "online";
-          callStatus("online");
-        }
-      }
-      scheduleInactivity();
+      hasInteracted.current = true;
     }
 
     function onVisibility() {
       if (!document.hidden) {
+        hasInteracted.current = true;
         beat();
-        onActivity();
       }
     }
 
-    if (!isInitialized.current) {
-      isInitialized.current = true;
-      const savedManual = getManualStatus();
-      if (savedManual) {
-        callStatus(savedManual as PresenceStatus);
-      } else {
-        callStatus("online");
-      }
-      beat();
-    }
-
-    scheduleInactivity();
+    beat();
     const interval = setInterval(beat, HEARTBEAT_MS);
 
     const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"] as const;
@@ -133,7 +54,6 @@ export function usePresence() {
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      clearTimers();
       clearInterval(interval);
       events.forEach((e) => document.removeEventListener(e, onActivity));
       document.removeEventListener("visibilitychange", onVisibility);

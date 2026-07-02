@@ -1033,7 +1033,7 @@ function Bubble({
                 }}
                 autoFocus
                 rows={Math.max(1, editDraft.split('\n').length)}
-                className="w-full bg-transparent resize-none outline-none text-[inherit] leading-[inherit]"
+                className="w-full bg-transparent resize-none outline-none text-inherit leading-[inherit]"
                 style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
               />
               <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}>
@@ -1545,21 +1545,21 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
               chanList.length === 0
                 ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center', padding: '16px 0' }}>No unassigned channels</p>
                 : chanList.map(c => {
-                    const active = selConvs.includes(c._id);
-                    return (
-                      <button key={c._id} onClick={() => toggleConv(c._id)}
-                        className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                        style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
-                        <div className="h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden ss4-ava-purple">
-                          {c.emoji ? <span style={{ fontSize: 16 }}>{c.emoji}</span> : c.avatar ? <img src={c.avatar} alt="" className="w-full h-full object-cover" /> : <Hash className="h-4 w-4" style={{ color: '#fff' }} />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.name || 'Untitled'}</p>
-                        </div>
-                        {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
-                      </button>
-                    );
-                  })
+                  const active = selConvs.includes(c._id);
+                  return (
+                    <button key={c._id} onClick={() => toggleConv(c._id)}
+                      className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
+                      style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                      <div className="h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden ss4-ava-purple">
+                        {c.emoji ? <span style={{ fontSize: 16 }}>{c.emoji}</span> : c.avatar ? <img src={c.avatar} alt="" className="w-full h-full object-cover" /> : <Hash className="h-4 w-4" style={{ color: '#fff' }} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.name || 'Untitled'}</p>
+                      </div>
+                      {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                    </button>
+                  );
+                })
             ) : (
               list.map(u => {
                 const active = sel.includes(u._id);
@@ -2146,16 +2146,16 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
 
   const options = isDM
     ? [
-        { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
-        { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
-        { value: 'none' as const, label: 'None', desc: 'No notifications' },
-      ]
+      { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
+      { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
+      { value: 'none' as const, label: 'None', desc: 'No notifications' },
+    ]
     : [
-        { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
-        { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
-        { value: 'foryou' as const, label: 'For you', desc: 'Only @mentions and replies to threads you follow' },
-        { value: 'none' as const, label: 'None', desc: 'No notifications' },
-      ];
+      { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
+      { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
+      { value: 'foryou' as const, label: 'For you', desc: 'Only @mentions and replies to threads you follow' },
+      { value: 'none' as const, label: 'None', desc: 'No notifications' },
+    ];
 
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -3669,10 +3669,10 @@ export default function SupraSpacePage() {
     const sel = window.getSelection();
     const selectedText = sel?.toString() || '';
     switch (type) {
-      case 'bold':      document.execCommand('bold', false); break;
-      case 'italic':    document.execCommand('italic', false); break;
+      case 'bold': document.execCommand('bold', false); break;
+      case 'italic': document.execCommand('italic', false); break;
       case 'underline': document.execCommand('underline', false); break;
-      case 'strike':    document.execCommand('strikethrough', false); break;
+      case 'strike': document.execCommand('strikethrough', false); break;
       case 'list':
         document.execCommand('insertText', false, (selectedText ? '\n' : '') + '• ' + (selectedText || ''));
         break;
