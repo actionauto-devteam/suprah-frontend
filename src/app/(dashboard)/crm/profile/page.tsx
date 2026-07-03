@@ -48,6 +48,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { getSocket, initializeSocket } from "@/lib/socket.client";
 import { useAuth } from "@/providers/AuthProvider";
+import { deptLabel } from "@/lib/departments";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,9 @@ interface CrmUser {
   isActive?: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  personalInfo?: {
+    department?: string;
+  };
   todayTimeLogs?: TimeLog[];
 }
 
@@ -423,6 +427,7 @@ export default function CrmProfilePage() {
   const user = viewedUser;
   const resolvedAvatar = isOwnProfile && mainAvatar ? mainAvatar : user?.avatar;
   const editPreviewSrc = editAvatarPreview ?? (mainAvatar || currentUser?.avatar);
+  const department = user?.personalInfo?.department;
 
   return (
     <div className="h-[calc(100dvh-5rem)] flex flex-col bg-background overflow-hidden">
@@ -659,6 +664,9 @@ export default function CrmProfilePage() {
                         </span>
                       </div>
                       <InfoRow icon={Building2} label="Role" value={user.role} capitalize />
+                      {department && (
+                        <InfoRow icon={Building2} label="Department" value={deptLabel(department)} />
+                      )}
                       {user.lastLoginAt && (
                         <InfoRow icon={Clock} label="Last Login" value={formatDate(user.lastLoginAt)} />
                       )}

@@ -28,6 +28,7 @@ import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupra
 import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
+import { DEPARTMENTS, deptLabel } from '@/lib/departments';
 import { JitsiMeet } from './JitsiMeet';
 // ── NEW: calling ──
 import { useCall, CallSession } from '@/hooks/useCall';
@@ -47,6 +48,15 @@ const SS4_VIDEO_EXTENSIONS = new Set([
 ]);
 const SS4_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '🎉'];
 const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
+const SS4_TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
+const SS4_MORE_TEXT_COLORS = [
+  '#ffffff', '#f3f4f6', '#94a3b8', '#64748b', '#111827',
+  '#ef4444', '#f87171', '#fb7185', '#f97316', '#fb923c',
+  '#f59e0b', '#facc15', '#84cc16', '#22c55e', '#34d399',
+  '#14b8a6', '#06b6d4', '#38bdf8', '#3b82f6', '#60a5fa',
+  '#6366f1', '#818cf8', '#8b5cf6', '#a78bfa', '#d946ef',
+  '#f472b6', '#ec4899', '#be185d',
+];
 
 
 const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: string | null }[] = [
@@ -136,6 +146,13 @@ if (typeof document !== 'undefined') {
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
+    .ss4-composer-main { display:flex; flex-direction:column; }
+    .ss4-composer-pill { display:flex; align-items:flex-end; gap:8px; min-width:0; cursor:text; }
+    .ss4-composer-pill .ss4-composer-editor { display:block; flex:1 1 0%; min-width:0; width:auto; max-width:100%; overflow-x:hidden; overflow-wrap:anywhere; word-break:break-word; -webkit-user-select:text; user-select:text; }
+    .ss4-composer-editor { cursor:text; }
+    .ss4-composer-pill button { cursor:pointer; }
+    .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:none; }
+    .ss4-desktop-toolbar { display:flex; }
     .ss4-send-btn { background:var(--accent); color:#fff; border-radius:10px; transition:all .15s ease; box-shadow:0 2px 8px rgba(91,124,246,0.3); }
     .ss4-send-btn:hover:not(:disabled) { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 16px rgba(91,124,246,0.4); }
     .ss4-send-btn:disabled { background:var(--surface-2); box-shadow:none; cursor:not-allowed; }
@@ -206,12 +223,31 @@ if (typeof document !== 'undefined') {
       .ss4-date-chip { font-size:12px; }
       .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; }
       .ss4-composer-placeholder { font-size:16px !important; top:1px; }
+      .ss4-input-wrap { border:0; background:transparent; box-shadow:none; }
+      .ss4-input-wrap:focus-within { box-shadow:none; }
+      .ss4-mobile-composer-shell { display:flex; align-items:center; gap:10px; padding:4px 0; }
+      .ss4-mobile-round-action { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--bubble-other-bg); color:var(--text-primary); display:flex; align-items:center; justify-content:center; }
+      .ss4-composer-main { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:end; gap:8px; width:100%; max-width:100%; min-width:0; padding:4px 0; }
+      .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:flex; align-items:center; justify-content:center; }
+      .ss4-mobile-leading { position:relative; }
+      .ss4-mobile-trailing { gap:6px; min-width:0; color:var(--text-primary); }
+      .ss4-composer-pill { min-height:44px; width:100%; max-width:100%; align-items:center; border-radius:999px; padding:8px 8px 8px 16px; background:var(--bubble-other-bg); min-width:0; overflow:hidden; }
+      .ss4-composer-pill .ss4-composer-placeholder { left:16px; top:50%; transform:translateY(-50%); }
+      .ss4-composer-pill .ss4-composer-editor { flex:1 1 0%; min-width:0; min-height:24px; max-height:88px; padding:0 !important; }
+      .ss4-mobile-emoji { flex:0 0 32px; width:32px; min-width:32px; }
+      .ss4-mobile-emoji-panel { position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 76px); z-index:90; max-height:min(360px,calc(100dvh - 180px)); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-lg); }
+      .ss4-mobile-emoji-panel .EmojiPickerReact { width:100% !important; max-width:100% !important; border-radius:14px !important; }
+      .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
+      .ss4-desktop-toolbar { display:none; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
       .ss4-conv-name { font-size:16px !important; line-height:1.25 !important; }
       .ss4-conv-preview { font-size:14.5px !important; line-height:1.35 !important; }
       .ss4-conv-time { font-size:12.5px !important; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
       .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
+    }
+    @media (min-width:768px) {
+      .ss4-mobile-composer-shell { display:none; }
     }
   `;
 }
@@ -256,28 +292,61 @@ function getJwtType(token: string | null): string | null {
   }
 }
 
+function cssColorToHex(color: string | null | undefined): string | null {
+  if (!color) return null;
+  const raw = color.trim();
+  const hex = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+  if (hex) return hex.length === 3 ? `#${hex.split('').map(c => c + c).join('')}`.toLowerCase() : `#${hex}`.toLowerCase();
+  const rgb = raw.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (!rgb) return null;
+  return `#${[rgb[1], rgb[2], rgb[3]].map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function getActiveSelectionColor(root: HTMLElement): string {
+  const commandColor = cssColorToHex(String(document.queryCommandValue('foreColor') || ''));
+  if (commandColor && SS4_MORE_TEXT_COLORS.includes(commandColor)) return commandColor;
+
+  const selection = window.getSelection();
+  const node = selection?.anchorNode;
+  const element = node?.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node?.parentElement;
+  if (element && root.contains(element)) {
+    const computedColor = cssColorToHex(window.getComputedStyle(element).color);
+    if (computedColor && SS4_MORE_TEXT_COLORS.includes(computedColor)) return computedColor;
+  }
+
+  return '#ffffff';
+}
+
 function htmlToMarkdown(el: HTMLElement): string {
-  const html = el.innerHTML.replace(
-    /<img\b[^>]*(?:alt|aria-label|title)=["']([^"']+)["'][^>]*>/gi,
-    (_match, label) => label,
-  );
-  return html
-    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
-    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
-    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '_$1_')
-    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '_$1_')
-    .replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '__$1__')
-    .replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '~~$1~~')
-    .replace(/<strike[^>]*>([\s\S]*?)<\/strike>/gi, '~~$1~~')
-    .replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, '~~$1~~')
-    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, (_m, inner) => '`' + inner.replace(/<[^>]*>/g, '') + '`')
-    .replace(/<div[^>]*>/gi, '\n').replace(/<\/div>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_m, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+
+    let inner = Array.from(element.childNodes).map(walk).join('');
+    if (tag === 'strong' || tag === 'b') inner = `**${inner}**`;
+    else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
+    else if (tag === 'u') inner = `__${inner}__`;
+    else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
+    else if (tag === 'code') inner = '`' + inner.replace(/`/g, '') + '`';
+
+    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
+    if (tag === 'div' || tag === 'p') inner = `\n${inner}`;
+    return inner;
+  };
+
+  const rootColor = cssColorToHex(el.style.color);
+  let markdown = Array.from(el.childNodes).map(walk).join('')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
+  if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
+  return markdown;
 }
 
 function clipboardHtmlToPlainText(html: string): string {
@@ -304,6 +373,23 @@ function clipboardHtmlToPlainText(html: string): string {
     .trimEnd();
 }
 
+const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
+function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
+  if (!plainText || !html) return false;
+  const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  if (!tokens.length) return false;
+  const htmlText = clipboardHtmlToPlainText(html).toUpperCase();
+  return tokens.some(token => !htmlText.includes(token));
+}
+
+function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {
+  if (!plainText.trim() || !editorHtml.trim()) return false;
+  const plainBreaks = (plainText.replace(/\r\n/g, '\n').match(/\n/g) || []).length;
+  if (plainBreaks < 2) return false;
+  const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length;
+  return plainBreaks > htmlBreaks + 1;
+}
+
 function escapeHtmlText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -311,7 +397,9 @@ function escapeHtmlText(s: string): string {
 // Detects whether pasted HTML actually carries semantic formatting worth preserving
 // (vs. plain divs/spans from a generic web page, which we'd rather flatten to plain text).
 function hasRichFormatting(html: string): boolean {
-  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html);
+  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
+    || /<font\b[^>]*color\s*=/i.test(html)
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
 // Converts source HTML (from another app's clipboard) into the editor's own internal
@@ -334,13 +422,17 @@ function clipboardHtmlToEditorHtml(html: string): string {
     if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
 
     const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
+    const elColor = cssColorToHex(el.style?.color || el.getAttribute('color') || '');
+    const wrapColor = (inner: string): string =>
+      elColor && inner.trim() ? `<span style="color:${elColor}">${inner}</span>` : inner;
 
     switch (tag) {
-      case 'strong': case 'b': return `<strong>${childHtml()}</strong>`;
-      case 'em': case 'i': return `<em>${childHtml()}</em>`;
-      case 'u': return `<u>${childHtml()}</u>`;
-      case 's': case 'strike': case 'del': return `<s>${childHtml()}</s>`;
+      case 'strong': case 'b': return wrapColor(`<strong>${childHtml()}</strong>`);
+      case 'em': case 'i': return wrapColor(`<em>${childHtml()}</em>`);
+      case 'u': return wrapColor(`<u>${childHtml()}</u>`);
+      case 's': case 'strike': case 'del': return wrapColor(`<s>${childHtml()}</s>`);
       case 'code': return '`' + childHtml().replace(/<[^>]*>/g, '') + '`';
+      case 'font': return wrapColor(childHtml());
       case 'li': return `${listMarker || '\u2022 '}${childHtml()}<br>`;
       case 'ul': return Array.from(el.children).map(li => walk(li, '\u2022 ')).join('');
       case 'ol': {
@@ -351,7 +443,19 @@ function clipboardHtmlToEditorHtml(html: string): string {
       case 'div': case 'p': case 'section': case 'article':
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
         return `${childHtml()}<br>`;
-      default: return childHtml();
+      default: {
+        const inner = childHtml();
+        if (!inner) return inner;
+        const fw = el.style?.fontWeight;
+        const fi = el.style?.fontStyle;
+        const td = el.style?.textDecoration;
+        let result = inner;
+        if (fw === 'bold' || Number(fw) >= 700) result = `<strong>${result}</strong>`;
+        if (fi === 'italic') result = `<em>${result}</em>`;
+        if (td?.includes('underline')) result = `<u>${result}</u>`;
+        if (td?.includes('line-through')) result = `<s>${result}</s>`;
+        return wrapColor(result);
+      }
     }
   };
 
@@ -366,13 +470,13 @@ function clipboardHtmlToEditorHtml(html: string): string {
 // text/plain only) \u2014 **bold**, _italic_/*italic*, __underline__, ~~strike~~, "* " / "- "
 // bullets, "1. " numbered lists, "> " quotes.
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S/m.test(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
 }
 
 // Converts markdown syntax in plain text into the editor's internal HTML dialect
 // (same tag/marker conventions as clipboardHtmlToEditorHtml above).
 function markdownTextToEditorHtml(text: string): string {
-  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const lines = normalizeMessageMarkdownText(text).replace(/\r\n/g, '\n').split('\n');
   const htmlLines = lines.map(line => {
     let marker = '';
     let rest = line;
@@ -383,33 +487,204 @@ function markdownTextToEditorHtml(text: string): string {
     else if (numberedMatch) { marker = `${numberedMatch[1]}. `; rest = numberedMatch[2]; }
     else if (quoteMatch) { marker = '&gt; '; rest = quoteMatch[1]; }
 
-    const escaped = escapeHtmlText(rest)
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+    const applyInlineMarkdown = (s: string): string =>
+      escapeHtmlText(s)
+        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+        .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
 
-    return marker + escaped;
+    // Process {color:#hex}...{/color} tags into editor <span style="color:"> elements
+    const colorTagRe = /\{color:(#[0-9a-fA-F]{6})\}([\s\S]*?)\{\/color\}/g;
+    let result = '';
+    let lastIdx = 0;
+    let m: RegExpExecArray | null;
+    while ((m = colorTagRe.exec(rest)) !== null) {
+      result += applyInlineMarkdown(rest.slice(lastIdx, m.index));
+      result += `<span style="color:${m[1]}">${applyInlineMarkdown(m[2])}</span>`;
+      lastIdx = m.index + m[0].length;
+    }
+    result += applyInlineMarkdown(rest.slice(lastIdx));
+
+    return marker + result;
   });
   return htmlLines.join('<br>');
 }
 
+function normalizeMultilineMarkdownBlocks(text: string): string {
+  return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
+    inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+  );
+}
+
+const STRUCTURED_LEAD_LABEL_PATTERN = '(?:Age|Lead|Original Cost|Retail Price|Maxoffer|Profit)';
+
+function normalizeCopiedMarkdownArtifacts(text: string): string {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const cleaned: string[] = [];
+  let pendingColor: string | null = null;
+  let pendingBold = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const colorStart = trimmed.match(/^\{color:(#[0-9a-fA-F]{6})\}\s*(?:\*\*)?$/);
+    if (colorStart) {
+      pendingColor = colorStart[1];
+      pendingBold = /\*\*$/.test(trimmed);
+      continue;
+    }
+
+    if (pendingColor) {
+      const colorEnd = line.match(/^(.*?)\s*(?:\*\*)?\s*\{\/color\}\s*$/);
+      const content = (colorEnd?.[1] ?? line).replace(/\*\*/g, '').trimEnd();
+      if (content) {
+        const colored = `{color:${pendingColor}}${content}{/color}`;
+        cleaned.push(pendingBold ? `**${colored}**` : colored);
+      }
+      if (colorEnd) pendingColor = null;
+      if (colorEnd) pendingBold = false;
+      continue;
+    }
+
+    if (/^(?:\*\*|__|~~)$/.test(trimmed)) {
+      pendingBold = trimmed === '**';
+      continue;
+    }
+
+    if (pendingBold) {
+      if (!trimmed) continue;
+      const content = line.replace(/\*\*/g, '').trimEnd();
+      if (content) cleaned.push(`**${content}**`);
+      pendingBold = false;
+      continue;
+    }
+
+    if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) {
+      const content = line.replace(/\*\*\s*$/, '').trimEnd();
+      cleaned.push(new RegExp(`^\\s*${STRUCTURED_LEAD_LABEL_PATTERN}:`).test(content) ? `**${content}**` : content);
+      continue;
+    }
+
+    cleaned.push(line);
+  }
+
+  return cleaned
+    .join('\n')
+    .split('\n')
+    .map(line => {
+      if (!line.trim()) return line;
+      const hasValidBold = /\*\*[^*\n]+\*\*/.test(line);
+      if (hasValidBold) return line.replace(/\*{4,}/g, '**');
+      return line.replace(/\*\*/g, '');
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeStructuredLeadLayout(text: string): string {
+  const labelMatches = text.match(new RegExp(`\\b${STRUCTURED_LEAD_LABEL_PATTERN}:`, 'g')) || [];
+  if (labelMatches.length < 3) return text;
+  const decoratedLabel = `(?:\\*\\*)?(?:\\{color:#[0-9a-fA-F]{6}\\})?${STRUCTURED_LEAD_LABEL_PATTERN}:`;
+
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(new RegExp(`([^\\n])((?:\\*\\*|__|~~|\`|\\{/color\\})+)(?=${STRUCTURED_LEAD_LABEL_PATTERN}:)`, 'g'), '$1$2\n')
+    .replace(new RegExp(`(?<!\\n\\*)([^\\n}])(?=${STRUCTURED_LEAD_LABEL_PATTERN}:)`, 'g'), '$1\n')
+    .replace(new RegExp(`\\n\\s*\\n+(?=${decoratedLabel})`, 'g'), '\n')
+    .replace(/\n\s*\n+/g, '\n')
+    .replace(new RegExp(`\\n(?=(?:\\*\\*)?(?:\\{color:#[0-9a-fA-F]{6}\\})?(?:Maxoffer|Profit):)`, 'g'), '\n\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeFinalMessageMarkup(text: string): string {
+  return text
+    .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*(?:\*\*)?\s*\n+\s*([^\n{}]+?)\s*(?:\*\*)?\s*\{\/color\}/g, '{color:$1}$2{/color}')
+    .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([^{}\n]+?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
+    .split('\n')
+    .map(line => {
+      if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return '';
+      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) {
+        return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
+      }
+      return line;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeMessageMarkdownText(text: string): string {
+  let normalized = text.replace(/\r\n/g, '\n');
+  // Split multiline bold/etc. spans BEFORE the artifacts cleaner runs so it
+  // doesn't strip orphaned ** delimiters from pasted multiline content.
+  normalized = normalizeMultilineMarkdownBlocks(normalized);
+  for (let i = 0; i < 3; i += 1) {
+    normalized = normalizeCopiedMarkdownArtifacts(normalized);
+    normalized = normalizeStructuredLeadLayout(normalized);
+    normalized = normalizeMultilineMarkdownBlocks(normalized);
+    normalized = normalizeCopiedMarkdownArtifacts(normalized);
+    normalized = normalizeStructuredLeadLayout(normalized);
+  }
+  return normalizeFinalMessageMarkup(normalizeStructuredLeadLayout(normalized)).replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
-  const MDPattern = /(\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
+  const MDPattern = /(\{color:#[0-9a-fA-F]{6}\}[\s\S]*?\{\/color\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
   const result: React.ReactNode[] = [];
 
   const renderInline = (text: string, li: number, target: React.ReactNode[]) => {
+    if (text.startsWith('**') && text.endsWith('**') && text.length > 4) {
+      const children: React.ReactNode[] = [];
+      renderInline(text.slice(2, -2), li, children);
+      target.push(<strong key={`${li}-strong-wrap-${target.length}`}>{children}</strong>);
+      return;
+    }
+    if (text.startsWith('~~') && text.endsWith('~~') && text.length > 4) {
+      const children: React.ReactNode[] = [];
+      renderInline(text.slice(2, -2), li, children);
+      target.push(<s key={`${li}-strike-wrap-${target.length}`}>{children}</s>);
+      return;
+    }
+    if (text.startsWith('__') && text.endsWith('__') && text.length > 4) {
+      const children: React.ReactNode[] = [];
+      renderInline(text.slice(2, -2), li, children);
+      target.push(<u key={`${li}-underline-wrap-${target.length}`}>{children}</u>);
+      return;
+    }
+    if (text.startsWith('_') && text.endsWith('_') && !text.startsWith('__') && text.length > 2) {
+      const children: React.ReactNode[] = [];
+      renderInline(text.slice(1, -1), li, children);
+      target.push(<em key={`${li}-em-wrap-${target.length}`}>{children}</em>);
+      return;
+    }
     text.split(MDPattern).forEach((part, i) => {
       const k = `${li}-${i}`;
-      if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-        return target.push(<strong key={k}>{part.slice(2, -2)}</strong>);
-      if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
-        return target.push(<s key={k}>{part.slice(2, -2)}</s>);
-      if (part.startsWith('__') && part.endsWith('__') && part.length > 4)
-        return target.push(<u key={k}>{part.slice(2, -2)}</u>);
-      if (part.startsWith('_') && part.endsWith('_') && !part.startsWith('__') && part.length > 2)
-        return target.push(<em key={k}>{part.slice(1, -1)}</em>);
+      const colorMatch = part.match(/^\{color:(#[0-9a-fA-F]{6})\}([\s\S]*)\{\/color\}$/);
+      if (colorMatch) {
+        const children: React.ReactNode[] = [];
+        renderInline(colorMatch[2], li, children);
+        return target.push(<span key={k} style={{ color: colorMatch[1] }}>{children}</span>);
+      }
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        const children: React.ReactNode[] = [];
+        renderInline(part.slice(2, -2), li, children);
+        return target.push(<strong key={k}>{children}</strong>);
+      }
+      if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4) {
+        const children: React.ReactNode[] = [];
+        renderInline(part.slice(2, -2), li, children);
+        return target.push(<s key={k}>{children}</s>);
+      }
+      if (part.startsWith('__') && part.endsWith('__') && part.length > 4) {
+        const children: React.ReactNode[] = [];
+        renderInline(part.slice(2, -2), li, children);
+        return target.push(<u key={k}>{children}</u>);
+      }
+      if (part.startsWith('_') && part.endsWith('_') && !part.startsWith('__') && part.length > 2) {
+        const children: React.ReactNode[] = [];
+        renderInline(part.slice(1, -1), li, children);
+        return target.push(<em key={k}>{children}</em>);
+      }
       if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
         return target.push(<code key={k} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{part.slice(1, -1)}</code>);
       if (/^https?:\/\//i.test(part)) {
@@ -432,15 +707,19 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
   };
 
   // Collapse inline markers whose closing delimiter landed on the next line alone
-  const normalized = content
+  const normalized = normalizeMessageMarkdownText(content)
     .replace(/\*\*([^*\n]*)\n\*\*/g, '**$1**')
     .replace(/~~([^~\n]*)\n~~/g, '~~$1~~')
     .replace(/__([^_\n]*)\n__/g, '__$1__')
     .replace(/`([^`\n]*)\n`/g, '`$1`');
 
   normalized.split('\n').forEach((line, li) => {
+    if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return;
+    const renderLine = /\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)
+      ? `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`
+      : line;
     if (li > 0) result.push(<br key={`br${li}`} />);
-    const bulletMatch = line.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
+    const bulletMatch = renderLine.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
     if (bulletMatch) {
       // Render bullet lines in an indented block with hanging indent so the text
       // aligns under itself when it wraps, not under the bullet character.
@@ -452,7 +731,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         </span>
       );
     } else {
-      renderInline(line, li, result);
+      renderInline(renderLine, li, result);
     }
   });
 
@@ -1188,7 +1467,7 @@ function Bubble({
                       {isOwn && (
                         <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
                       )}
-                      {isOwn && onEditSave && message.type === 'text' && (
+                      {isOwn && onEditSave && !!message.content?.trim() && !['voice', 'poll', 'event'].includes(message.type) && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { enterEdit(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
                           <Pencil className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
@@ -1400,6 +1679,12 @@ function Bubble({
                   {isPinned ? 'Unpin message' : 'Pin message'}
                 </button>
               )}
+              {isOwn && onEditSave && !!message.content?.trim() && !['voice', 'poll', 'event'].includes(message.type) && (
+                <button onClick={() => { setMobileMenu(false); enterEdit(); }}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                  <Pencil className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Edit message
+                </button>
+              )}
               {isOwn && (
                 <button onClick={() => { onDelete(message._id); setMobileMenu(false); }}
                   className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--danger,#f87171)' }}>
@@ -1479,9 +1764,8 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
 }
 
 // ─── New Conversation Modal ───────────────────────────────────────────────────
-function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
+function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
   users: CrmUser[];
-  channels: Array<{ _id: string; name?: string; avatar?: string; emoji?: string | null }>;
   theme: 'dark' | 'light';
   onClose: () => void; onStartDM: (id: string) => void;
   onCreateGroup: (name: string, ids: string[], emoji?: string) => void;
@@ -1492,13 +1776,20 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
   const [q, setQ] = React.useState('');
   const [groupName, setGroupName] = React.useState('');
   const [groupEmoji, setGroupEmoji] = React.useState('');
-  const [spaceEmoji, setSpaceEmoji] = React.useState('');
   const [sel, setSel] = React.useState<string[]>([]);
-  const [selConvs, setSelConvs] = React.useState<string[]>([]);
   const list = users.filter(u => u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
-  const chanList = channels.filter(c => (c.name || '').toLowerCase().includes(q.toLowerCase()));
   const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const toggleConv = (id: string) => setSelConvs(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const selectedUsers = users.filter(u => sel.includes(u._id));
+  const autoGroupName = selectedUsers.length > 0
+    ? `${selectedUsers.slice(0, 3).map(u => u.fullName.split(' ')[0] || u.fullName).join(', ')}${selectedUsers.length > 3 ? ` +${selectedUsers.length - 3}` : ''}`
+    : 'New Group';
+  const startSmartMessage = () => {
+    if (sel.length === 1) {
+      onStartDM(sel[0]);
+      return;
+    }
+    if (sel.length > 1) onCreateGroup(autoGroupName, sel);
+  };
   const TABS: { key: 'dm' | 'group' | 'space'; label: string }[] = [
     { key: 'dm', label: 'Direct Message' },
     { key: 'group', label: 'Channel' },
@@ -1529,57 +1820,59 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
             </div>
           )}
           {tab === 'space' && (
-            <div className="flex gap-2">
-              <input value={spaceEmoji} onChange={e => setSpaceEmoji(e.target.value)} placeholder="✨" className="w-12 h-9 rounded-lg px-2 text-center ss4-search-input" style={{ fontFamily: 'Geist, sans-serif', fontSize: 18 }} maxLength={2} />
-              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Space name..." className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+            <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Space name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+          )}
+          {tab === 'dm' && selectedUsers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              {selectedUsers.map(u => (
+                <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
+                  <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))} style={{ fontSize: 8, fontWeight: 700 }}>
+                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
+                  <button onClick={() => toggle(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }} title={`Remove ${u.fullName}`}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
             </div>
           )}
-          <div className="relative">
-            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-            <input value={q} onChange={e => setQ(e.target.value)}
-              placeholder={tab === 'space' ? 'Search channels...' : 'Search people...'}
-              className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
-          </div>
-          <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
-            {tab === 'space' ? (
-              chanList.length === 0
-                ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center', padding: '16px 0' }}>No unassigned channels</p>
-                : chanList.map(c => {
-                    const active = selConvs.includes(c._id);
-                    return (
-                      <button key={c._id} onClick={() => toggleConv(c._id)}
-                        className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                        style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
-                        <div className="h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden ss4-ava-purple">
-                          {c.emoji ? <span style={{ fontSize: 16 }}>{c.emoji}</span> : c.avatar ? <img src={c.avatar} alt="" className="w-full h-full object-cover" /> : <Hash className="h-4 w-4" style={{ color: '#fff' }} />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.name || 'Untitled'}</p>
-                        </div>
-                        {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
-                      </button>
-                    );
-                  })
-            ) : (
-              list.map(u => {
-                const active = sel.includes(u._id);
-                return (
-                  <button key={u._id} onClick={() => tab === 'dm' ? onStartDM(u._id) : toggle(u._id)}
-                    className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                    style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
-                    <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                      {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-                      <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
-                    </div>
-                    {tab === 'group' && active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
-                  </button>
-                );
-              })
-            )}
-          </div>
+          {tab !== 'space' && (
+            <>
+              <div className="relative">
+                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+                <input value={q} onChange={e => setQ(e.target.value)}
+                  placeholder="Search people..."
+                  className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+              </div>
+              <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
+                {list.map(u => {
+                  const active = sel.includes(u._id);
+                  return (
+                    <button key={u._id} onClick={() => toggle(u._id)}
+                      className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
+                      style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                      <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
+                        {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+                        <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
+                      </div>
+                      {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          {tab === 'dm' && sel.length > 0 && (
+            <button onClick={startSmartMessage}
+              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
+              {sel.length === 1 ? <MessageSquare className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+              {sel.length === 1 ? 'Send Message' : `Send Message · Create Channel (${sel.length})`}
+            </button>
+          )}
           {tab === 'group' && sel.length > 0 && (
             <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel, groupEmoji || undefined)} disabled={!groupName.trim()}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
@@ -1587,9 +1880,9 @@ function NewConvModal({ users, channels, theme, onClose, onStartDM, onCreateGrou
             </button>
           )}
           {tab === 'space' && (
-            <button onClick={() => groupName.trim() && onCreateSpace(groupName, selConvs, spaceEmoji || undefined)} disabled={!groupName.trim()}
+            <button onClick={() => groupName.trim() && onCreateSpace(groupName, [], undefined)} disabled={!groupName.trim()}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
-              <Sparkles className="h-3.5 w-3.5" /> Create Space{selConvs.length > 0 ? ` · ${selConvs.length} ${selConvs.length === 1 ? 'channel' : 'channels'}` : ''}
+              <Sparkles className="h-3.5 w-3.5" /> Create Space
             </button>
           )}
         </div>
@@ -1935,9 +2228,43 @@ function EventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: 
   );
 }
 
-function MeetingModal({ onClose, onCreate }: { onClose: () => void; onCreate: (m: PendingMeetingDraft) => void }) {
+function MeetingModal({
+  onClose,
+  onCreate,
+  onCreateLink,
+  canAddToMessage,
+}: {
+  onClose: () => void;
+  onCreate: (m: PendingMeetingDraft) => void;
+  onCreateLink: (m: PendingMeetingDraft) => Promise<string>;
+  canAddToMessage: boolean;
+}) {
   const [title, setTitle] = React.useState('Video meeting');
   const [scheduledAt, setScheduledAt] = React.useState('');
+  const [generatedLink, setGeneratedLink] = React.useState('');
+  const [creatingLink, setCreatingLink] = React.useState(false);
+  const meetingDraft = React.useMemo(
+    () => ({ title: title.trim() || 'Video meeting', scheduledAt }),
+    [title, scheduledAt]
+  );
+  const handleCreateLink = async () => {
+    setCreatingLink(true);
+    try {
+      const link = await onCreateLink(meetingDraft);
+      setGeneratedLink(link);
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+  const handleCopyLink = async () => {
+    if (!generatedLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      toast.success('Meeting link copied');
+    } catch {
+      toast.error('Could not copy meeting link');
+    }
+  };
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden">
@@ -1949,8 +2276,139 @@ function MeetingModal({ onClose, onCreate }: { onClose: () => void; onCreate: (m
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
           <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Date and time (optional)</label>
           <input value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} type="datetime-local" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
-          <button onClick={() => onCreate({ title: title.trim() || 'Video meeting', scheduledAt })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
-            <Video className="h-3.5 w-3.5" /> Add to Message
+          {generatedLink && (
+            <div className="rounded-xl p-2.5 space-y-2" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-1)' }}>
+              <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Meeting link</label>
+              <div className="flex items-center gap-2">
+                <input readOnly value={generatedLink} className="min-w-0 flex-1 h-9 rounded-lg px-3 text-xs ss4-search-input" />
+                <button onClick={handleCopyLink} className="ss4-icon-btn h-9 w-9 shrink-0" title="Copy meeting link">
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          {canAddToMessage && (
+            <button onClick={() => onCreate(meetingDraft)} className="w-full h-9 rounded-lg ss4-pill-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
+              <Video className="h-3.5 w-3.5" /> Add to Message
+            </button>
+          )}
+          <button disabled={creatingLink} onClick={handleCreateLink} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: creatingLink ? 0.7 : 1 }}>
+            {creatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+            {creatingLink ? 'Creating link...' : 'Create Link'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeetingJoinInfoModal({
+  link,
+  onClose,
+}: {
+  link: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = React.useState(false);
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      toast.success('Meeting link copied');
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error('Could not copy meeting link');
+    }
+  };
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ss4-modal w-full max-w-sm overflow-hidden">
+        <div className="flex items-start justify-between gap-3 px-5 py-4">
+          <div>
+            <h2 className="ss4-display font-bold" style={{ fontSize: 22, color: 'var(--text-primary)' }}>Here&apos;s your joining info</h2>
+            <p className="mt-3 leading-relaxed" style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+              Send this to people you want to meet with. Be sure to save it so you can use it later.
+            </p>
+          </div>
+          <button onClick={onClose} className="ss4-icon-btn h-8 w-8 shrink-0" title="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-5 pb-5">
+          <div className="rounded-2xl p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-1)' }}>
+            <div className="flex items-center gap-3">
+              <span className="min-w-0 flex-1 truncate ss4-mono" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{link}</span>
+              <button onClick={copyLink} className="ss4-icon-btn h-10 w-10 shrink-0" title="Copy link">
+                {copied ? <CheckIcon className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+            <button onClick={copyLink} className="mt-4 h-9 px-3 rounded-lg ss4-pill-btn font-semibold flex items-center gap-2" style={{ fontSize: 13 }}>
+              <Link2 className="h-4 w-4" /> {copied ? 'Copied' : 'Copy meeting link'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScheduleMeetingModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (data: { title: string; description: string; scheduledAt: string; endTime: string; department: string }) => Promise<void>;
+}) {
+  const [title, setTitle] = React.useState('Video meeting');
+  const [description, setDescription] = React.useState('');
+  const [scheduledAt, setScheduledAt] = React.useState('');
+  const [endTime, setEndTime] = React.useState('');
+  const [department, setDepartment] = React.useState('all');
+  const [saving, setSaving] = React.useState(false);
+  const valid = title.trim() && scheduledAt;
+  const submit = async () => {
+    if (!valid || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit({ title: title.trim(), description: description.trim(), scheduledAt, endTime, department });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div className="ss4-modal w-full max-w-md overflow-hidden rounded-t-2xl sm:rounded-2xl">
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2">
+            <CalendarPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+            <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Schedule in Suprah Calendar</h2>
+          </div>
+          <button onClick={onClose} className="ss4-icon-btn h-8 w-8" title="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" className="w-full h-10 rounded-lg px-3 text-sm ss4-search-input" />
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Agenda or notes (optional)" rows={3} className="w-full rounded-lg px-3 py-2 text-sm ss4-search-input resize-none" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Date and time</label>
+              <input value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} type="datetime-local" className="mt-1 w-full h-10 rounded-lg px-3 text-sm ss4-search-input" />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ends (optional)</label>
+              <input value={endTime} onChange={e => setEndTime(e.target.value)} type="datetime-local" className="mt-1 w-full h-10 rounded-lg px-3 text-sm ss4-search-input" />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Notify department</label>
+            <select value={department} onChange={e => setDepartment(e.target.value)} className="mt-1 w-full h-10 rounded-lg px-3 text-sm ss4-search-input">
+              <option value="all">All departments</option>
+              {DEPARTMENTS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+            </select>
+            <p className="mt-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              {department === 'all' ? 'Everyone in CRM will be added to the calendar event.' : `${deptLabel(department)} members will be added and notified.`}
+            </p>
+          </div>
+          <button disabled={!valid || saving} onClick={submit} className="w-full h-10 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: valid && !saving ? 1 : 0.5 }}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
+            {saving ? 'Scheduling...' : 'Schedule meeting'}
           </button>
         </div>
       </div>
@@ -2349,6 +2807,10 @@ export default function SupraSpacePage() {
   const dragCounterRef = React.useRef(0);
   const [pendingMeeting, setPendingMeeting] = React.useState<PendingMeetingDraft | null>(null);
   const [pendingGif, setPendingGif] = React.useState<{ url: string; width?: number; height?: number; title?: string } | null>(null);
+  const [scheduleOpen, setScheduleOpen] = React.useState(false);
+  const [customScheduleAt, setCustomScheduleAt] = React.useState('');
+  const sendLongPressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendLongPressTriggeredRef = React.useRef(false);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' | 'space' }>({ open: false, tab: 'dm' });
@@ -2377,7 +2839,6 @@ export default function SupraSpacePage() {
   const [allUsers, setAllUsers] = React.useState<CrmUser[]>([]);
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
-  const [notifPrefs, setNotifPrefs] = React.useState<Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>>({});
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
   const [q, setQ] = React.useState('');
 
@@ -2393,6 +2854,9 @@ export default function SupraSpacePage() {
     quote: false,
     code: false,
   });
+  const [activeTextColor, setActiveTextColor] = React.useState('#ffffff');
+  const [textPalette, setTextPalette] = React.useState(SS4_TEXT_COLORS);
+  const [textColorPickerOpen, setTextColorPickerOpen] = React.useState(false);
   const autrixRef = React.useRef<HTMLDivElement>(null);
 
   const [showInfo, setShowInfo] = React.useState(false);
@@ -2404,6 +2868,7 @@ export default function SupraSpacePage() {
   const [gcEmojiInput, setGcEmojiInput] = React.useState('');
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const emojiRef = React.useRef<HTMLDivElement>(null);
+  const mobileEmojiRef = React.useRef<HTMLDivElement>(null);
   const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string } | null>(null);
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
@@ -2414,11 +2879,16 @@ export default function SupraSpacePage() {
   const [pollOpen, setPollOpen] = React.useState(false);
   const [eventOpen, setEventOpen] = React.useState(false);
   const [meetingOpen, setMeetingOpen] = React.useState(false);
+  const [meetingMenuOpen, setMeetingMenuOpen] = React.useState(false);
+  const [meetingLinkInfo, setMeetingLinkInfo] = React.useState<string | null>(null);
+  const [meetingActionLoading, setMeetingActionLoading] = React.useState<'later' | 'instant' | null>(null);
+  const [scheduleMeetingOpen, setScheduleMeetingOpen] = React.useState(false);
   const [gifOpen, setGifOpen] = React.useState(false);
   const [activeUsersOpen, setActiveUsersOpen] = React.useState(false);
   const [summarizeOpen, setSummarizeOpen] = React.useState(false);
   const [createMenuOpen, setCreateMenuOpen] = React.useState(false);
   const createMenuRef = React.useRef<HTMLDivElement>(null);
+  const meetingMenuRef = React.useRef<HTMLDivElement>(null);
   const gifRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
@@ -2444,6 +2914,8 @@ export default function SupraSpacePage() {
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLDivElement>(null);
+  const composerCaretOffsetRef = React.useRef<number | null>(null);
+  const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -2454,7 +2926,7 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
-  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
@@ -2533,6 +3005,8 @@ export default function SupraSpacePage() {
   // ── Calling (NEW) ──
   const call = useCall(socket, token, uid);
   const [activeMeeting, setActiveMeeting] = React.useState<CallSession | null>(null);
+  const activeMeetingRef = React.useRef<CallSession | null>(null);
+  React.useEffect(() => { activeMeetingRef.current = activeMeeting; }, [activeMeeting]);
   const [callRecording, setCallRecording] = React.useState<{ isRecording: boolean; startedAt: string | null } | null>(null);
 
   React.useEffect(() => {
@@ -2969,6 +3443,13 @@ export default function SupraSpacePage() {
     };
 
     const onEdited = ({ conversationId, messageId, content }: any) => patchMsg(conversationId, messageId, { content, isEdited: true });
+    const onCallEnded = ({ conversationId, meetingId }: { conversationId?: string; meetingId?: string }) => {
+      const m = activeMeetingRef.current;
+      if (!m) return;
+      if (m.call?.meetingId === meetingId || m.call?.conversationId === conversationId) {
+        setActiveMeeting(null);
+      }
+    };
     socket.on('message:new', onMsg);
     socket.on('message:deleted', onDel);
     socket.on('message:edited', onEdited);
@@ -2983,6 +3464,7 @@ export default function SupraSpacePage() {
     socket.on('message:event', onEvent);
     socket.on('meeting:join-requested', onMeetingJoinRequested);
     socket.on('meeting:admission-updated', onMeetingAdmissionUpdated);
+    socket.on('call:ended', onCallEnded);
     const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       setMsgs((prev) => {
         const convMsgs = prev[conversationId];
@@ -3013,6 +3495,7 @@ export default function SupraSpacePage() {
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('meeting:join-requested', onMeetingJoinRequested);
       socket.off('meeting:admission-updated', onMeetingAdmissionUpdated);
+      socket.off('call:ended', onCallEnded);
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
     };
@@ -3188,14 +3671,19 @@ export default function SupraSpacePage() {
     const make = (ref: React.RefObject<HTMLDivElement | null>, close: () => void) => (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
     const hs: Array<[boolean, (e: MouseEvent) => void]> = [
       [autrixOpen, make(autrixRef, () => setAutrixOpen(false))],
-      [emojiOpen, make(emojiRef, () => setEmojiOpen(false))],
+      [emojiOpen, (e: MouseEvent) => {
+        const target = e.target as Node;
+        if (emojiRef.current?.contains(target) || mobileEmojiRef.current?.contains(target)) return;
+        setEmojiOpen(false);
+      }],
       [createMenuOpen, make(createMenuRef, () => setCreateMenuOpen(false))],
+      [meetingMenuOpen, make(meetingMenuRef, () => setMeetingMenuOpen(false))],
       [gifOpen, make(gifRef, () => setGifOpen(false))],
     ];
     const active = hs.filter(([on]) => on).map(([, h]) => h);
     active.forEach(h => document.addEventListener('mousedown', h));
     return () => active.forEach(h => document.removeEventListener('mousedown', h));
-  }, [autrixOpen, emojiOpen, createMenuOpen, gifOpen]);
+  }, [autrixOpen, emojiOpen, createMenuOpen, meetingMenuOpen, gifOpen]);
 
   React.useEffect(() => {
     if (!memberCard) return;
@@ -3214,7 +3702,7 @@ export default function SupraSpacePage() {
     return () => clearTimeout(t);
   }, [q, token]);
 
-  const handleSend = async () => {
+  const handleSend = async (scheduledAt?: string) => {
     if (!activeId || sending) return;
     const hasText = Boolean(input.trim());
     const hasPendingFiles = pendingFiles.length > 0;
@@ -3222,8 +3710,13 @@ export default function SupraSpacePage() {
     const hasPendingGif = !!pendingGif;
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     const conversationId = activeId;
-    const content = textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim();
+    const content = normalizeMessageMarkdownText(textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim());
     const replyMessageId = replyTo?._id;
+    const isScheduledSend = Boolean(scheduledAt);
+    if (isScheduledSend && (hasPendingFiles || hasPendingMeeting)) {
+      showUploadNotice('error', 'Schedule send currently supports text and GIF messages only.');
+      return;
+    }
     setSending(true);
     sendTypingStop(conversationId);
     try {
@@ -3261,15 +3754,17 @@ export default function SupraSpacePage() {
       } else if (hasPendingGif) {
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
-          { content, gif: pendingGif, replyTo: replyMessageId },
+          { content, gif: pendingGif, replyTo: replyMessageId, scheduledAt },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
+        if (r.status === 202) toast.success('Message scheduled');
+        else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
         setPendingGif(null); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
       } else {
         setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
-        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/messages`, { content, replyTo: replyMessageId }, { headers: { Authorization: `Bearer ${token}` } });
-        if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
+        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/messages`, { content, replyTo: replyMessageId, scheduledAt }, { headers: { Authorization: `Bearer ${token}` } });
+        if (r.status === 202) toast.success('Message scheduled');
+        else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
       }
     } catch (error) {
       if (hasPendingFiles) showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
@@ -3278,6 +3773,52 @@ export default function SupraSpacePage() {
       else setInput(content);
     } finally { setSending(false); setUploading(false); }
   };
+
+  const canScheduleSend = Boolean(input.trim() || pendingGif) && pendingFiles.length === 0 && !pendingMeeting && !sending;
+  const scheduleOptions = React.useMemo(() => {
+    const now = new Date();
+    const today8 = new Date(now); today8.setHours(8, 0, 0, 0);
+    const today1 = new Date(now); today1.setHours(13, 0, 0, 0);
+    const nextMonday = new Date(now);
+    const daysUntilMonday = (8 - nextMonday.getDay()) % 7 || 7;
+    nextMonday.setDate(nextMonday.getDate() + daysUntilMonday);
+    nextMonday.setHours(8, 0, 0, 0);
+    return [
+      today8 > now ? { label: 'Today at 8:00 AM', at: today8 } : null,
+      today1 > now ? { label: 'Today at 1:00 PM', at: today1 } : null,
+      { label: 'Next Monday at 8:00 AM', at: nextMonday },
+    ].filter(Boolean) as Array<{ label: string; at: Date }>;
+  }, [scheduleOpen]);
+
+  const openScheduleSheet = React.useCallback(() => {
+    if (!canScheduleSend) return;
+    setScheduleOpen(true);
+  }, [canScheduleSend]);
+
+  const startSendPress = React.useCallback(() => {
+    sendLongPressTriggeredRef.current = false;
+    if (sendLongPressRef.current) clearTimeout(sendLongPressRef.current);
+    sendLongPressRef.current = setTimeout(() => {
+      sendLongPressTriggeredRef.current = true;
+      openScheduleSheet();
+    }, 520);
+  }, [openScheduleSheet]);
+
+  const finishSendPress = React.useCallback(() => {
+    if (sendLongPressRef.current) {
+      clearTimeout(sendLongPressRef.current);
+      sendLongPressRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => () => {
+    if (sendLongPressRef.current) clearTimeout(sendLongPressRef.current);
+  }, []);
+
+  const scheduleSendFor = React.useCallback((date: Date) => {
+    setScheduleOpen(false);
+    handleSend(date.toISOString());
+  }, [handleSend]);
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || !activeId) return;
@@ -3347,6 +3888,7 @@ export default function SupraSpacePage() {
       quote: line.trimStart().startsWith('> '),
       code: beforeCursor.split('`').length % 2 === 0,
     });
+    setActiveTextColor(getActiveSelectionColor(el));
   }, []);
 
   React.useEffect(() => {
@@ -3356,12 +3898,120 @@ export default function SupraSpacePage() {
 
   const getCaretOffset = (el: HTMLElement): number => {
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return 0;
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) {
+      return el.innerText.replace(/\n$/, '').length;
+    }
     const range = sel.getRangeAt(0).cloneRange();
     range.selectNodeContents(el);
     range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
     return range.toString().length;
   };
+
+  const rangeFromTextOffset = React.useCallback((el: HTMLElement, offset: number) => {
+    const range = document.createRange();
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let remaining = Math.max(0, offset);
+    let node = walker.nextNode();
+
+    while (node) {
+      const textLength = node.textContent?.length ?? 0;
+      if (remaining <= textLength) {
+        range.setStart(node, remaining);
+        range.collapse(true);
+        return range;
+      }
+      remaining -= textLength;
+      node = walker.nextNode();
+    }
+
+    range.selectNodeContents(el);
+    range.collapse(false);
+    return range;
+  }, []);
+
+  const saveComposerSelection = React.useCallback(() => {
+    const el = textareaRef.current;
+    const selection = window.getSelection();
+    if (!el) return;
+    if (!selection || selection.rangeCount === 0) {
+      composerCaretOffsetRef.current = el.innerText.replace(/\n$/, '').length;
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (el.contains(range.startContainer) && el.contains(range.endContainer)) {
+      composerCaretOffsetRef.current = getCaretOffset(el);
+      composerSelectionRangeRef.current = range.cloneRange();
+    }
+  }, []);
+
+  const restoreComposerSelection = React.useCallback(() => {
+    const el = textareaRef.current;
+    const selection = window.getSelection();
+    const range = composerSelectionRangeRef.current;
+    if (!el || !selection || !range) return false;
+    if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return false;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  }, []);
+
+  const focusComposerAtSavedCaret = React.useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    const text = el.innerText.replace(/\n$/, '');
+    const offset = Math.max(0, Math.min(composerCaretOffsetRef.current ?? text.length, text.length));
+    el.focus();
+
+    requestAnimationFrame(() => {
+      const range = rangeFromTextOffset(el, offset);
+      const selection = window.getSelection();
+      if (!selection) return;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      composerCaretOffsetRef.current = offset;
+    });
+  }, [rangeFromTextOffset]);
+
+  const insertComposerText = React.useCallback((text: string, options?: { preferEndOnZero?: boolean }) => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    const currentText = el.innerText.replace(/\n$/, '');
+    const fallbackOffset = currentText.length;
+    const savedOffset = composerCaretOffsetRef.current;
+    let safeOffset = Math.max(0, Math.min(savedOffset ?? fallbackOffset, currentText.length));
+    if (options?.preferEndOnZero && safeOffset === 0 && currentText.length > 0) {
+      safeOffset = currentText.length;
+    }
+    const nextText = `${currentText.slice(0, safeOffset)}${text}${currentText.slice(safeOffset)}`;
+    const nextOffset = safeOffset + text.length;
+
+    el.textContent = nextText;
+    el.focus();
+
+    const range = rangeFromTextOffset(el, nextOffset);
+    range.collapse(true);
+
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    composerCaretOffsetRef.current = nextOffset;
+    setInput(nextText);
+    refreshActiveFormats();
+  }, [rangeFromTextOffset, refreshActiveFormats]);
+
+  const prepareMobileEmojiPicker = React.useCallback(() => {
+    saveComposerSelection();
+    const currentText = textareaRef.current?.innerText.replace(/\n$/, '') || input;
+    if (currentText.length > 0 && (composerCaretOffsetRef.current == null || composerCaretOffsetRef.current <= 0)) {
+      composerCaretOffsetRef.current = currentText.length;
+    }
+    setEmojiOpen(v => !v);
+  }, [input, saveComposerSelection]);
 
   const setEditableTextAndCaret = React.useCallback((text: string, caretOffset: number) => {
     const el = textareaRef.current;
@@ -3392,6 +4042,8 @@ export default function SupraSpacePage() {
     const val = el.innerText.replace(/\n$/, '');
     setInput(val);
     const cursor = getCaretOffset(el);
+    saveComposerSelection();
+    composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
     if (mentionAnchor >= 0) {
       if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
         setMentionQuery(null); setMentionAnchor(-1);
@@ -3497,6 +4149,80 @@ export default function SupraSpacePage() {
     setPendingMeeting({ title: meeting.title || 'Video meeting', scheduledAt: meeting.scheduledAt || '' });
     setMeetingOpen(false);
     setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+  const createStandaloneMeeting = async (meeting: PendingMeetingDraft) => {
+    const r = await apiClient.post('/api/calls/meeting', {
+      title: meeting.title || 'Video meeting',
+      scheduledAt: meeting.scheduledAt || undefined,
+    }, { headers: { Authorization: `Bearer ${token}` } });
+    const meetingLink = r.data?.data?.meetingLink;
+    const meetingId = r.data?.data?.call?.meetingId;
+    if (!meetingLink || !meetingId) throw new Error('Meeting link was not returned');
+    return { meetingLink, meetingId };
+  };
+  const createMeetingLink = async (meeting: PendingMeetingDraft) => {
+    try {
+      const { meetingLink } = await createStandaloneMeeting(meeting);
+      try {
+        await navigator.clipboard.writeText(meetingLink);
+        toast.success('Meeting link created and copied');
+      } catch {
+        toast.success('Meeting link created');
+      }
+      return meetingLink;
+    } catch (e) {
+      showUploadNotice('error', getErrorMessage(e, 'Failed to create meeting link.'));
+      throw e;
+    }
+  };
+  const handleCreateMeetingForLater = async () => {
+    setMeetingMenuOpen(false);
+    setMeetingActionLoading('later');
+    try {
+      const { meetingLink } = await createStandaloneMeeting({ title: 'Video meeting', scheduledAt: '' });
+      setMeetingLinkInfo(meetingLink);
+      try {
+        await navigator.clipboard.writeText(meetingLink);
+        toast.success('Meeting link created and copied');
+      } catch {
+        toast.success('Meeting link created');
+      }
+    } catch (e) {
+      showUploadNotice('error', getErrorMessage(e, 'Failed to create meeting link.'));
+    } finally {
+      setMeetingActionLoading(null);
+    }
+  };
+  const handleStartInstantMeeting = async () => {
+    setMeetingMenuOpen(false);
+    setMeetingActionLoading('instant');
+    try {
+      const { meetingId } = await createStandaloneMeeting({ title: 'Instant meeting', scheduledAt: '' });
+      setActiveMeeting(await call.joinCall(meetingId));
+    } catch (e) {
+      showUploadNotice('error', getErrorMessage(e, 'Failed to start instant meeting.'));
+    } finally {
+      setMeetingActionLoading(null);
+    }
+  };
+  const handleScheduleSuprahMeeting = async (data: { title: string; description: string; scheduledAt: string; endTime: string; department: string }) => {
+    try {
+      const r = await apiClient.post('/api/calls/meeting/schedule', {
+        title: data.title,
+        description: data.description || undefined,
+        scheduledAt: data.scheduledAt,
+        endTime: data.endTime || undefined,
+        department: data.department,
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      const meetingLink = r.data?.data?.meetingLink;
+      const participantCount = r.data?.data?.participantCount;
+      setScheduleMeetingOpen(false);
+      if (meetingLink) setMeetingLinkInfo(meetingLink);
+      toast.success(`Meeting scheduled${participantCount ? ` for ${participantCount} participant${participantCount === 1 ? '' : 's'}` : ''}`);
+    } catch (e) {
+      showUploadNotice('error', getErrorMessage(e, 'Failed to schedule meeting.'));
+      throw e;
+    }
   };
 
   const handleEdit = async (msgId: string, content: string) => {
@@ -3692,6 +4418,43 @@ export default function SupraSpacePage() {
     setInput(el.innerText.replace(/\n$/, ''));
     requestAnimationFrame(refreshActiveFormats);
   }, [refreshActiveFormats]);
+
+  const applyTextColor = React.useCallback((color: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    restoreComposerSelection();
+    document.execCommand('foreColor', false, color);
+    setActiveTextColor(color);
+    setInput(el.innerText.replace(/\n$/, ''));
+    saveComposerSelection();
+    requestAnimationFrame(refreshActiveFormats);
+  }, [refreshActiveFormats, restoreComposerSelection, saveComposerSelection]);
+
+  const handleColorBeforeInput = React.useCallback((e: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = e.nativeEvent as InputEvent;
+    if (activeTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
+    e.preventDefault();
+    document.execCommand('insertHTML', false, `<span style="color:${activeTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
+    const el = e.currentTarget;
+    requestAnimationFrame(() => {
+      setInput(el.innerText.replace(/\n$/, ''));
+      saveComposerSelection();
+      refreshActiveFormats();
+    });
+  }, [activeTextColor, refreshActiveFormats, saveComposerSelection]);
+
+  const chooseExpandedTextColor = React.useCallback((color: string) => {
+    setTextPalette(prev => {
+      if (prev.includes(color)) return prev;
+      const replaceIndex = prev.includes(activeTextColor) ? prev.indexOf(activeTextColor) : prev.length - 1;
+      const next = [...prev];
+      next[replaceIndex] = color;
+      return next;
+    });
+    applyTextColor(color);
+    setTextColorPickerOpen(false);
+  }, [activeTextColor, applyTextColor]);
 
   const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
     'h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)',
@@ -4108,12 +4871,36 @@ export default function SupraSpacePage() {
                       <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
                         <Sparkles className="h-3.5 w-3.5" /> New Space
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => activeId ? setMeetingOpen(true) : toast('Open a conversation first')}>
-                        <Video className="h-3.5 w-3.5" /> New Meeting
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <button onClick={() => setShowModal({ open: true, tab: 'group' })} className="ss4-pill-btn h-7 w-7 flex items-center justify-center" title="New channel"><Hash className="h-3.5 w-3.5" /></button>
+                  <div ref={meetingMenuRef} className="relative">
+                    <button
+                      onClick={() => setMeetingMenuOpen(v => !v)}
+                      className="ss4-video-btn h-7 px-2.5 flex items-center gap-1.5"
+                      title="New meeting"
+                      disabled={!!meetingActionLoading}
+                      style={{ opacity: meetingActionLoading ? 0.7 : 1 }}
+                    >
+                      {meetingActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
+                      <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
+                    </button>
+                    {meetingMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 z-50 w-[236px] max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                        <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                          <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                          Create a meeting link for later
+                        </button>
+                        <button onClick={handleStartInstantMeeting} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                          <Plus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                          Start an instant meeting
+                        </button>
+                        <button onClick={() => { setMeetingMenuOpen(false); setScheduleMeetingOpen(true); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                          <CalendarPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                          Schedule in Suprah Calendar
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="relative">
@@ -4539,6 +5326,68 @@ export default function SupraSpacePage() {
                               <Code2 className="h-3.5 w-3.5" style={formatIconStyle('code')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
+                            <div className="relative flex items-center gap-1 px-1" title="Text color">
+                              <button
+                                type="button"
+                                onMouseDown={e => { e.preventDefault(); saveComposerSelection(); setTextColorPickerOpen(v => !v); }}
+                                className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)"
+                                title="More text colors"
+                                aria-expanded={textColorPickerOpen}
+                              >
+                                <Palette className="h-3.5 w-3.5 shrink-0" style={{ color: textColorPickerOpen ? 'var(--accent-text)' : 'var(--text-secondary)' }} />
+                              </button>
+                              {textPalette.map(color => (
+                                <button
+                                  key={color}
+                                  onMouseDown={e => { e.preventDefault(); saveComposerSelection(); applyTextColor(color); }}
+                                  className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110"
+                                  style={{
+                                    background: color,
+                                    borderColor: activeTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'var(--border-3)' : 'rgba(255,255,255,0.2)',
+                                    boxShadow: activeTextColor === color ? '0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent)' : undefined,
+                                  }}
+                                  aria-pressed={activeTextColor === color}
+                                  title={`Text color ${color}`}
+                                >
+                                  {activeTextColor === color && (
+                                    <CheckIcon
+                                      className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2"
+                                      style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
+                                    />
+                                  )}
+                                </button>
+                              ))}
+                              {textColorPickerOpen && (
+                                <div
+                                  className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl"
+                                  style={{ background: 'var(--surface-3,#18181c)', border: '1px solid var(--border-2)', width: 210, maxHeight: 156 }}
+                                >
+                                  {SS4_MORE_TEXT_COLORS.map(color => (
+                                    <button
+                                      key={color}
+                                      type="button"
+                                      onMouseDown={e => { e.preventDefault(); saveComposerSelection(); chooseExpandedTextColor(color); }}
+                                      className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
+                                      style={{
+                                        background: color,
+                                        borderColor: activeTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'var(--border-3)' : 'rgba(255,255,255,0.22)',
+                                        boxShadow: activeTextColor === color ? '0 0 0 2px var(--surface-3,#18181c), 0 0 0 4px var(--accent)' : undefined,
+                                      }}
+                                      aria-pressed={activeTextColor === color}
+                                      title={`Use ${color}`}
+                                    >
+                                      {activeTextColor === color && (
+                                        <CheckIcon
+                                          className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2"
+                                          style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
+                                        />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
                             <button
                               onMouseDown={e => { e.preventDefault(); handleAutrix('improve'); }}
                               disabled={autrixLoading || !input.trim()}
@@ -4552,17 +5401,31 @@ export default function SupraSpacePage() {
                             </button>
                           </div>
                         )}
-                        <div className="flex items-end gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
-                          <div className="relative flex-1 min-w-0">
+                        <div className="ss4-composer-main px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
+                          <div className="ss4-mobile-leading">
+                            <button onClick={() => fileRef.current?.click()} className="ss4-mobile-round-action" title="Add">
+                              <Plus className="h-6 w-6" />
+                            </button>
+                          </div>
+                          <div
+                            className="ss4-composer-pill relative flex-1 min-w-0"
+                            onClick={e => {
+                              const target = e.target as HTMLElement;
+                              if (target.closest('button') || target.closest('.ss4-composer-editor')) return;
+                              focusComposerAtSavedCaret();
+                            }}
+                          >
                             {!input && <span className="ss4-composer-placeholder absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
                             <div
                               ref={textareaRef}
                               contentEditable
                               suppressContentEditableWarning
+                              onBeforeInput={handleColorBeforeInput}
                               onInput={handleTyping}
-                              onFocus={refreshActiveFormats}
-                              onMouseUp={refreshActiveFormats}
-                              onKeyUp={refreshActiveFormats}
+                              onFocus={() => { saveComposerSelection(); refreshActiveFormats(); }}
+                              onMouseDown={e => e.stopPropagation()}
+                              onMouseUp={() => { saveComposerSelection(); refreshActiveFormats(); }}
+                              onKeyUp={() => { saveComposerSelection(); refreshActiveFormats(); }}
                               onKeyDown={e => {
                                 if (mentionQuery !== null && mentionOptions.length > 0) {
                                   if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
@@ -4584,9 +5447,11 @@ export default function SupraSpacePage() {
                                 // If the source provides semantic HTML formatting (bold, italic,
                                 // lists, etc.), convert it into the editor's own tag dialect and
                                 // insert as rich HTML so formatting is preserved.
-                                if (html && hasRichFormatting(html)) {
+                                const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
+                                if (html && hasRichFormatting(html) && !shouldUsePlainText) {
                                   e.preventDefault();
-                                  document.execCommand('insertHTML', false, clipboardHtmlToEditorHtml(html));
+                                  const editorHtml = clipboardHtmlToEditorHtml(html);
+                                  document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
                                     if (el) setInput(el.innerText.replace(/\n$/, ''));
@@ -4621,11 +5486,54 @@ export default function SupraSpacePage() {
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                               className="ss4-composer-editor text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
-                              style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', color: 'var(--text-primary)', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none' }}
+                              style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', maxWidth: '100%', overflowX: 'hidden', outline: 'none' }}
                             />
+                            <div ref={mobileEmojiRef} className="relative ss4-mobile-emoji">
+                              <button
+                                onPointerDown={e => { e.preventDefault(); prepareMobileEmojiPicker(); }}
+                                onClick={e => { if (e.detail === 0) prepareMobileEmojiPicker(); }}
+                                className="ss4-icon-btn h-8 w-8"
+                                title="Emoji"
+                              >
+                                <Smile className="h-5 w-5" />
+                              </button>
+                              {emojiOpen && (
+                                <div
+                                  className="ss4-mobile-emoji-panel"
+                                  onPointerDown={e => e.stopPropagation()}
+                                >
+                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { insertComposerText(d.emoji, { preferEndOnZero: true }); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width="100%" height={340} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="ss4-mobile-trailing">
+                            {input.trim() || pendingGif ? (
+                              <button
+                                onPointerDown={() => startSendPress()}
+                                onPointerUp={finishSendPress}
+                                onPointerCancel={finishSendPress}
+                                onPointerLeave={finishSendPress}
+                                onContextMenu={e => e.preventDefault()}
+                                onClick={() => {
+                                  if (sendLongPressTriggeredRef.current) return;
+                                  handleSend();
+                                }}
+                                disabled={sending}
+                                className="ss4-mobile-send"
+                                title="Send"
+                              >
+                                {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                              </button>
+                            ) : (
+                              <>
+                                <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-10 w-10" title="Image"><ImageIcon className="h-6 w-6" /></button>
+                                <button onClick={startRecording} className="ss4-icon-btn h-10 w-10" title="Voice message"><Mic className="h-6 w-6" /></button>
+                              </>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
+                        <div className="ss4-desktop-toolbar items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
@@ -4635,10 +5543,20 @@ export default function SupraSpacePage() {
                               {gifOpen && <GifPicker onPick={selectGif} onClose={() => setGifOpen(false)} />}
                             </div>
                             <div ref={emojiRef} className="relative">
-                              <button onClick={() => setEmojiOpen(v => !v)} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Emoji"><Smile className="h-4 w-4" /></button>
+                              <button
+                                onPointerDown={e => { e.preventDefault(); saveComposerSelection(); setEmojiOpen(v => !v); }}
+                                onClick={e => { if (e.detail === 0) setEmojiOpen(v => !v); }}
+                                className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8"
+                                title="Emoji"
+                              >
+                                <Smile className="h-4 w-4" />
+                              </button>
                               {emojiOpen && (
-                                <div className="absolute bottom-full left-0 mb-2 z-50">
-                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { const el = textareaRef.current; if (el) { el.focus(); document.execCommand('insertText', false, d.emoji); setInput(el.innerText.replace(/\n$/, '')); } setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
+                                <div
+                                  className="absolute bottom-full left-0 mb-2 z-50"
+                                  onPointerDown={e => e.stopPropagation()}
+                                >
+                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { insertComposerText(d.emoji); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width={300} height={380} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
                                 </div>
                               )}
                             </div>
@@ -4675,7 +5593,7 @@ export default function SupraSpacePage() {
                               <Type className="h-4 w-4" />
                             </button>
                           </div>
-                          <button onClick={handleSend} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
+                          <button onClick={() => handleSend()} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           </button>
                         </div>
@@ -4684,6 +5602,61 @@ export default function SupraSpacePage() {
 
                     {uploadNotice && (
                       <p className="px-1" style={{ fontSize: 11, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</p>
+                    )}
+                    {scheduleOpen && (
+                      <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 md:items-center" onClick={() => setScheduleOpen(false)}>
+                        <div
+                          className="w-full max-w-md rounded-t-3xl border px-0 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-2xl md:rounded-2xl"
+                          style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-2)' }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="mx-auto mb-5 h-1 w-12 rounded-full" style={{ background: 'var(--text-secondary)' }} />
+                          <div className="px-6 pb-5">
+                            <h3 className="font-bold" style={{ color: 'var(--text-primary)', fontSize: 16 }}>Schedule send</h3>
+                          </div>
+                          <div className="border-t" style={{ borderColor: 'var(--border-1)' }}>
+                            {scheduleOptions.map(option => (
+                              <button
+                                key={option.label}
+                                onClick={() => scheduleSendFor(option.at)}
+                                className="block w-full px-6 py-4 text-left transition-colors hover:bg-(--bg-hover)"
+                                style={{ color: 'var(--text-primary)', fontSize: 16 }}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="border-t px-6 py-4 space-y-3" style={{ borderColor: 'var(--border-1)' }}>
+                            <label className="flex items-center gap-3 font-semibold" style={{ color: 'var(--text-primary)', fontSize: 15 }}>
+                              <CalendarPlus className="h-5 w-5" />
+                              Pick a custom time
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="datetime-local"
+                                value={customScheduleAt}
+                                onChange={e => setCustomScheduleAt(e.target.value)}
+                                className="min-w-0 flex-1 rounded-lg border px-3 py-2"
+                                style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)', fontSize: 16 }}
+                              />
+                              <button
+                                onClick={() => {
+                                  const date = new Date(customScheduleAt);
+                                  if (!customScheduleAt || Number.isNaN(date.getTime()) || date.getTime() <= Date.now() + 30_000) {
+                                    toast.error('Pick a future time');
+                                    return;
+                                  }
+                                  scheduleSendFor(date);
+                                }}
+                                className="ss4-send-btn px-4 font-semibold"
+                                style={{ borderRadius: 10, fontSize: 13 }}
+                              >
+                                Set
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </>
@@ -4854,7 +5827,7 @@ export default function SupraSpacePage() {
 
         {/* ── Modals ── */}
         {showModal.open && (
-          <NewConvModal users={allUsers.filter(u => u._id !== uid)} channels={channelList} theme={theme} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
+          <NewConvModal users={allUsers.filter(u => u._id !== uid)} theme={theme} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
         )}
 
         {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
@@ -4888,7 +5861,20 @@ export default function SupraSpacePage() {
         )}
         {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
         {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
-        {meetingOpen && <MeetingModal onClose={() => setMeetingOpen(false)} onCreate={createMeeting} />}
+        {meetingOpen && (
+          <MeetingModal
+            onClose={() => setMeetingOpen(false)}
+            onCreate={createMeeting}
+            onCreateLink={createMeetingLink}
+            canAddToMessage={!!activeId}
+          />
+        )}
+        {meetingLinkInfo && (
+          <MeetingJoinInfoModal link={meetingLinkInfo} onClose={() => setMeetingLinkInfo(null)} />
+        )}
+        {scheduleMeetingOpen && (
+          <ScheduleMeetingModal onClose={() => setScheduleMeetingOpen(false)} onSubmit={handleScheduleSuprahMeeting} />
+        )}
         {activeUsersOpen && (
           <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} />
         )}

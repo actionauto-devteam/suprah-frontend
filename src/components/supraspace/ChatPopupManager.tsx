@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -11,7 +11,7 @@ import {
   useSupraSpaceMessenger,
   SSConv,
 } from '@/context/SupraSpaceMessengerContext';
-import { SSMessage } from '@/hooks/useSupraSpaceSocket';
+import { SSAttachment, SSMessage } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { toast } from 'sonner';
 
@@ -21,6 +21,17 @@ const POPUP_GAP   = 8;
 const POPUP_RIGHT = 16;
 const POPUP_H     = 520;
 const HEADER_H    = 48;
+const MAX_VISIBLE_POPUPS = 3;
+const TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
+const MORE_TEXT_COLORS = [
+  '#ffffff', '#f3f4f6', '#94a3b8', '#64748b', '#111827',
+  '#ef4444', '#f87171', '#fb7185', '#f97316', '#fb923c',
+  '#f59e0b', '#facc15', '#84cc16', '#22c55e', '#34d399',
+  '#14b8a6', '#06b6d4', '#38bdf8', '#3b82f6', '#60a5fa',
+  '#6366f1', '#818cf8', '#8b5cf6', '#a78bfa', '#d946ef',
+  '#f472b6', '#ec4899', '#be185d',
+];
+type PendingPopupAttachment = { file: File; previewUrl: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ['#5b7cf6','#34c97d','#f0a855','#e05b8a','#5bbdf6','#a05bf6','#f65b5b','#5bf6c8'];
@@ -65,24 +76,155 @@ function initials(name: string): string {
 function msgTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+function isEmojiOnlyText(text?: string | null): boolean {
+  const value = (text || '').trim();
+  if (!value) return false;
+  return value.length <= 16 && /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D\s]+$/u.test(value);
+}
+const clampPreviewZoom = (value: number) => Math.min(4, Math.max(1, Number(value.toFixed(2))));
 const MEDIA_LABELS: Record<string, string> = {
   image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
   file: '📎 File', poll: '📊 Poll', event: '📅 Event',
 };
 // Renders message content with markdown formatting (bold, italic, underline, strike, code, bullets, quotes, links, @mentions)
-const MD_SPLIT = /(\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
+const MD_SPLIT = /(\{color:#[0-9a-fA-F]{6}\}[\s\S]*?\{\/color\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
+
+function normalizeMultilineMarkdownBlocks(text: string): string {
+  return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
+    inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+  );
+}
+
+const STRUCTURED_LEAD_LABEL_PATTERN = '(?:Age|Lead|Original Cost|Retail Price|Maxoffer|Profit)';
+
+function normalizeCopiedMarkdownArtifacts(text: string): string {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const cleaned: string[] = [];
+  let pendingColor: string | null = null;
+  let pendingBold = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const colorStart = trimmed.match(/^\{color:(#[0-9a-fA-F]{6})\}\s*(?:\*\*)?$/);
+    if (colorStart) {
+      pendingColor = colorStart[1];
+      pendingBold = /\*\*$/.test(trimmed);
+      continue;
+    }
+
+    if (pendingColor) {
+      const colorEnd = line.match(/^(.*?)\s*(?:\*\*)?\s*\{\/color\}\s*$/);
+      const content = (colorEnd?.[1] ?? line).replace(/\*\*/g, '').trimEnd();
+      if (content) {
+        const colored = `{color:${pendingColor}}${content}{/color}`;
+        cleaned.push(pendingBold ? `**${colored}**` : colored);
+      }
+      if (colorEnd) pendingColor = null;
+      if (colorEnd) pendingBold = false;
+      continue;
+    }
+
+    if (/^(?:\*\*|__|~~)$/.test(trimmed)) {
+      pendingBold = trimmed === '**';
+      continue;
+    }
+
+    if (pendingBold) {
+      if (!trimmed) continue;
+      const content = line.replace(/\*\*/g, '').trimEnd();
+      if (content) cleaned.push(`**${content}**`);
+      pendingBold = false;
+      continue;
+    }
+
+    if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) {
+      const content = line.replace(/\*\*\s*$/, '').trimEnd();
+      cleaned.push(new RegExp(`^\\s*${STRUCTURED_LEAD_LABEL_PATTERN}:`).test(content) ? `**${content}**` : content);
+      continue;
+    }
+
+    cleaned.push(line);
+  }
+
+  return cleaned
+    .join('\n')
+    .split('\n')
+    .map(line => {
+      if (!line.trim()) return line;
+      const hasValidBold = /\*\*[^*\n]+\*\*/.test(line);
+      if (hasValidBold) return line.replace(/\*{4,}/g, '**');
+      return line.replace(/\*\*/g, '');
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeStructuredLeadLayout(text: string): string {
+  const labelMatches = text.match(new RegExp(`\\b${STRUCTURED_LEAD_LABEL_PATTERN}:`, 'g')) || [];
+  if (labelMatches.length < 3) return text;
+  const decoratedLabel = `(?:\\*\\*)?(?:\\{color:#[0-9a-fA-F]{6}\\})?${STRUCTURED_LEAD_LABEL_PATTERN}:`;
+
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(new RegExp(`([^\\n])((?:\\*\\*|__|~~|\`|\\{/color\\})+)(?=${STRUCTURED_LEAD_LABEL_PATTERN}:)`, 'g'), '$1$2\n')
+    .replace(new RegExp(`(?<!\\n\\*)([^\\n}])(?=${STRUCTURED_LEAD_LABEL_PATTERN}:)`, 'g'), '$1\n')
+    .replace(new RegExp(`\\n\\s*\\n+(?=${decoratedLabel})`, 'g'), '\n')
+    .replace(/\n\s*\n+/g, '\n')
+    .replace(new RegExp(`\\n(?=(?:\\*\\*)?(?:\\{color:#[0-9a-fA-F]{6}\\})?(?:Maxoffer|Profit):)`, 'g'), '\n\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeFinalMessageMarkup(text: string): string {
+  return text
+    .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*(?:\*\*)?\s*\n+\s*([^\n{}]+?)\s*(?:\*\*)?\s*\{\/color\}/g, '{color:$1}$2{/color}')
+    .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([^{}\n]+?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
+    .split('\n')
+    .map(line => {
+      if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return '';
+      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) {
+        return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
+      }
+      return line;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeMessageMarkdownText(text: string): string {
+  let normalized = text.replace(/\r\n/g, '\n');
+  normalized = normalizeMultilineMarkdownBlocks(normalized);
+  for (let i = 0; i < 3; i += 1) {
+    normalized = normalizeCopiedMarkdownArtifacts(normalized);
+    normalized = normalizeStructuredLeadLayout(normalized);
+    normalized = normalizeMultilineMarkdownBlocks(normalized);
+    normalized = normalizeCopiedMarkdownArtifacts(normalized);
+    normalized = normalizeStructuredLeadLayout(normalized);
+  }
+  return normalizeFinalMessageMarkup(normalizeStructuredLeadLayout(normalized)).replace(/\n{3,}/g, '\n\n').trim();
+}
 
 function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.ReactNode[] {
+  if (text.startsWith('**') && text.endsWith('**') && text.length > 4)
+    return [<strong key={`${keyPrefix}-strong-wrap`}>{renderInlineMd(text.slice(2, -2), isOwn, `${keyPrefix}-strong-wrap`)}</strong>];
+  if (text.startsWith('~~') && text.endsWith('~~') && text.length > 4)
+    return [<s key={`${keyPrefix}-strike-wrap`}>{renderInlineMd(text.slice(2, -2), isOwn, `${keyPrefix}-strike-wrap`)}</s>];
+  if (text.startsWith('__') && text.endsWith('__') && text.length > 4)
+    return [<u key={`${keyPrefix}-underline-wrap`}>{renderInlineMd(text.slice(2, -2), isOwn, `${keyPrefix}-underline-wrap`)}</u>];
+  if (text.startsWith('_') && text.endsWith('_') && text.length > 2)
+    return [<em key={`${keyPrefix}-em-wrap`}>{renderInlineMd(text.slice(1, -1), isOwn, `${keyPrefix}-em-wrap`)}</em>];
+
   return text.split(MD_SPLIT).map((part, i) => {
     const k = `${keyPrefix}-${i}`;
+    const colorMatch = part.match(/^\{color:(#[0-9a-fA-F]{6})\}([\s\S]*)\{\/color\}$/);
+    if (colorMatch) return <span key={k} style={{ color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-      return <strong key={k}>{part.slice(2, -2)}</strong>;
+      return <strong key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-strong`)}</strong>;
     if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
-      return <s key={k}>{part.slice(2, -2)}</s>;
+      return <s key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-strike`)}</s>;
     if (part.startsWith('__') && part.endsWith('__') && part.length > 4)
-      return <u key={k}>{part.slice(2, -2)}</u>;
+      return <u key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-underline`)}</u>;
     if (part.startsWith('_') && part.endsWith('_') && part.length > 2)
-      return <em key={k}>{part.slice(1, -1)}</em>;
+      return <em key={k}>{renderInlineMd(part.slice(1, -1), isOwn, `${k}-em`)}</em>;
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
       return <code key={k} style={{ fontFamily: 'monospace', fontSize: '0.9em', background: isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', borderRadius: 3, padding: '0 3px' }}>{part.slice(1, -1)}</code>;
     if (/^https?:\/\//.test(part))
@@ -98,7 +240,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   if (label) return label;
   const raw = msg.content ?? '';
   // Collapse inline markers whose closing delimiter landed on the next line alone
-  const text = raw
+  const text = normalizeMessageMarkdownText(raw)
     .replace(/\*\*([^*\n]*)\n\*\*/g, '**$1**')
     .replace(/~~([^~\n]*)\n~~/g, '~~$1~~')
     .replace(/__([^_\n]*)\n__/g, '__$1__')
@@ -106,6 +248,10 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   const lines = text.split('\n');
   const nodes: React.ReactNode[] = [];
   lines.forEach((line, li) => {
+    if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return;
+    const renderLine = /\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)
+      ? `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`
+      : line;
     if (li > 0) nodes.push(<br key={`br-${li}`} />);
     if (line.startsWith('• ') || line.startsWith('• ')) {
       nodes.push(
@@ -113,21 +259,21 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
           {'• '}{renderInlineMd(line.slice(2), isOwn, `l-${li}`)}
         </span>
       );
-    } else if (/^\d+\.\s/.test(line)) {
-      const m = line.match(/^(\d+\.\s)(.*)/);
+    } else if (/^\d+\.\s/.test(renderLine)) {
+      const m = renderLine.match(/^(\d+\.\s)(.*)/);
       nodes.push(
         <span key={`l-${li}`} style={{ display: 'block', paddingLeft: 12 }}>
           {m![1]}{renderInlineMd(m![2], isOwn, `l-${li}`)}
         </span>
       );
-    } else if (line.startsWith('> ')) {
+    } else if (renderLine.startsWith('> ')) {
       nodes.push(
         <span key={`l-${li}`} style={{ display: 'block', borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, opacity: 0.8 }}>
-          {renderInlineMd(line.slice(2), isOwn, `l-${li}`)}
+          {renderInlineMd(renderLine.slice(2), isOwn, `l-${li}`)}
         </span>
       );
     } else {
-      nodes.push(...renderInlineMd(line, isOwn, `l-${li}`));
+      nodes.push(...renderInlineMd(renderLine, isOwn, `l-${li}`));
     }
   });
   return <>{nodes}</>;
@@ -136,7 +282,9 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
 // ─── Paste helpers (mirror of SupraSpace, adapted for plain <input>) ─────────
 
 function hasRichFormatting(html: string): boolean {
-  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html);
+  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
+    || /<font\b[^>]*color\s*=/i.test(html)
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
 function clipboardHtmlToPlainText(html: string): string {
@@ -160,8 +308,25 @@ function clipboardHtmlToPlainText(html: string): string {
     .trimEnd();
 }
 
+const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
+function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
+  if (!plainText || !html) return false;
+  const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  if (!tokens.length) return false;
+  const htmlText = clipboardHtmlToPlainText(html).toUpperCase();
+  return tokens.some(token => !htmlText.includes(token));
+}
+
+function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {
+  if (!plainText.trim() || !editorHtml.trim()) return false;
+  const plainBreaks = (plainText.replace(/\r\n/g, '\n').match(/\n/g) || []).length;
+  if (plainBreaks < 2) return false;
+  const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length;
+  return plainBreaks > htmlBreaks + 1;
+}
+
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S/m.test(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
 }
 
 function escapeHtmlText(s: string): string {
@@ -169,25 +334,45 @@ function escapeHtmlText(s: string): string {
 }
 
 // Converts the contentEditable div's innerHTML to markdown for sending
+function cssColorToHex(color: string | null | undefined): string | null {
+  if (!color) return null;
+  const raw = color.trim();
+  const hex = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+  if (hex) return hex.length === 3 ? `#${hex.split('').map(c => c + c).join('')}`.toLowerCase() : `#${hex}`.toLowerCase();
+  const rgb = raw.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (!rgb) return null;
+  return `#${[rgb[1], rgb[2], rgb[3]].map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('')}`;
+}
+
 function htmlToMarkdown(el: HTMLElement): string {
-  const html = el.innerHTML;
-  return html
-    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
-    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
-    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '_$1_')
-    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '_$1_')
-    .replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '__$1__')
-    .replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '~~$1~~')
-    .replace(/<strike[^>]*>([\s\S]*?)<\/strike>/gi, '~~$1~~')
-    .replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, '~~$1~~')
-    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, (_m, inner) => '`' + inner.replace(/<[^>]*>/g, '') + '`')
-    .replace(/<div[^>]*>/gi, '\n').replace(/<\/div>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_m, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+
+    let inner = Array.from(element.childNodes).map(walk).join('');
+    if (tag === 'strong' || tag === 'b') inner = `**${inner}**`;
+    else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
+    else if (tag === 'u') inner = `__${inner}__`;
+    else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
+    else if (tag === 'code') inner = '`' + inner.replace(/`/g, '') + '`';
+
+    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
+    if (tag === 'div' || tag === 'p') inner = `\n${inner}`;
+    return inner;
+  };
+
+  const rootColor = cssColorToHex(el.style.color);
+  let markdown = Array.from(el.childNodes).map(walk).join('')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
+  if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
+  return markdown;
 }
 
 // Converts source HTML (from another app's clipboard) into the editor's HTML dialect
@@ -202,12 +387,17 @@ function clipboardHtmlToEditorHtml(html: string): string {
     if (tag === 'br') return '<br>';
     if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
     const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
+    const elColor = cssColorToHex(el.style?.color || el.getAttribute('color') || '');
+    const wrapColor = (inner: string): string =>
+      elColor && inner.trim() ? `<span style="color:${elColor}">${inner}</span>` : inner;
+
     switch (tag) {
-      case 'strong': case 'b': return `<strong>${childHtml()}</strong>`;
-      case 'em': case 'i': return `<em>${childHtml()}</em>`;
-      case 'u': return `<u>${childHtml()}</u>`;
-      case 's': case 'strike': case 'del': return `<s>${childHtml()}</s>`;
+      case 'strong': case 'b': return wrapColor(`<strong>${childHtml()}</strong>`);
+      case 'em': case 'i': return wrapColor(`<em>${childHtml()}</em>`);
+      case 'u': return wrapColor(`<u>${childHtml()}</u>`);
+      case 's': case 'strike': case 'del': return wrapColor(`<s>${childHtml()}</s>`);
       case 'code': return '`' + childHtml().replace(/<[^>]*>/g, '') + '`';
+      case 'font': return wrapColor(childHtml());
       case 'li': return `• ${childHtml()}<br>`;
       case 'ul': return Array.from(el.children).map(li => walk(li)).join('');
       case 'ol': { let i = 1; return Array.from(el.children).map(() => '').join('') || Array.from(el.children).map(li => { const s = walk(li); return s.replace('• ', `${i++}. `); }).join(''); }
@@ -215,7 +405,19 @@ function clipboardHtmlToEditorHtml(html: string): string {
       case 'div': case 'p': case 'section': case 'article':
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
         return `${childHtml()}<br>`;
-      default: return childHtml();
+      default: {
+        const inner = childHtml();
+        if (!inner) return inner;
+        const fw = el.style?.fontWeight;
+        const fi = el.style?.fontStyle;
+        const td = el.style?.textDecoration;
+        let result = inner;
+        if (fw === 'bold' || Number(fw) >= 700) result = `<strong>${result}</strong>`;
+        if (fi === 'italic') result = `<em>${result}</em>`;
+        if (td?.includes('underline')) result = `<u>${result}</u>`;
+        if (td?.includes('line-through')) result = `<s>${result}</s>`;
+        return wrapColor(result);
+      }
     }
   };
   return Array.from(doc.body.childNodes)
@@ -226,7 +428,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
 }
 
 function markdownTextToEditorHtml(text: string): string {
-  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const lines = normalizeMessageMarkdownText(text).replace(/\r\n/g, '\n').split('\n');
   const htmlLines = lines.map(line => {
     let marker = '';
     let rest = line;
@@ -236,13 +438,27 @@ function markdownTextToEditorHtml(text: string): string {
     if (bulletMatch) { marker = '• '; rest = bulletMatch[1]; }
     else if (numberedMatch) { marker = `${numberedMatch[1]}. `; rest = numberedMatch[2]; }
     else if (quoteMatch) { marker = '&gt; '; rest = quoteMatch[1]; }
-    const escaped = escapeHtmlText(rest)
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
-    return marker + escaped;
+
+    const applyInlineMarkdown = (s: string): string =>
+      escapeHtmlText(s)
+        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+        .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+
+    const colorTagRe = /\{color:(#[0-9a-fA-F]{6})\}([\s\S]*?)\{\/color\}/g;
+    let result = '';
+    let lastIdx = 0;
+    let m: RegExpExecArray | null;
+    while ((m = colorTagRe.exec(rest)) !== null) {
+      result += applyInlineMarkdown(rest.slice(lastIdx, m.index));
+      result += `<span style="color:${m[1]}">${applyInlineMarkdown(m[2])}</span>`;
+      lastIdx = m.index + m[0].length;
+    }
+    result += applyInlineMarkdown(rest.slice(lastIdx));
+
+    return marker + result;
   });
   return htmlLines.join('<br>');
 }
@@ -502,10 +718,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [fetchError, setFetchError] = React.useState(false);
   const [input,    setInput]    = React.useState('');
   const [sending,  setSending]  = React.useState(false);
+  const [draggingAttachment, setDraggingAttachment] = React.useState(false);
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
   const [replyTo,  setReplyTo]  = React.useState<SSMessage | null>(null);
   const bottomRef  = React.useRef<HTMLDivElement>(null);
   const inputRef   = React.useRef<HTMLDivElement>(null);
   const headerRef  = React.useRef<HTMLDivElement>(null);
+  const dragDepthRef = React.useRef(0);
+  const pendingAttachmentsRef = React.useRef<PendingPopupAttachment[]>([]);
 
   // Chat settings dropdown
   const [chatSettingsOpen, setChatSettingsOpen] = React.useState(false);
@@ -530,7 +750,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 
   // Hover action bar (portal-based to escape overflow)
   const [hovMsg, setHovMsg] = React.useState<string | null>(null);
-  const [barPos, setBarPos] = React.useState<{ top: number; left: number } | null>(null);
+  const [barPos, setBarPos] = React.useState<{ top: number; left: number; isOwn: boolean } | null>(null);
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isOverBar  = React.useRef(false);
 
@@ -582,24 +802,56 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   // Full emoji picker
   const [emojiPickerMsg, setEmojiPickerMsg] = React.useState<string | null>(null);
   const [emojiPickerPos, setEmojiPickerPos] = React.useState<{ top: number; left?: number; right?: number } | null>(null);
+  const [textColorOpen, setTextColorOpen] = React.useState(false);
+  const [selectedTextColor, setSelectedTextColor] = React.useState('#ffffff');
+  const [textPalette, setTextPalette] = React.useState(TEXT_COLORS);
+  const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string } | null>(null);
+  const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
 
   // Reaction tooltip
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    setMediaPreviewZoom(1);
+  }, [mediaPreview?.src]);
+
+  React.useEffect(() => {
+    if (!mediaPreview) return;
+    const handlePreviewKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMediaPreview(null);
+    };
+    document.addEventListener('keydown', handlePreviewKeydown);
+    return () => document.removeEventListener('keydown', handlePreviewKeydown);
+  }, [mediaPreview]);
+
+  const applyMediaPreviewZoom = React.useCallback((nextZoom: number) => {
+    setMediaPreviewZoom(clampPreviewZoom(nextZoom));
+  }, []);
+
   // ── Hover handlers ──
-  const pendingMsgRef = React.useRef<{ id: string; top: number; left: number } | null>(null);
+  const pendingMsgRef = React.useRef<{ id: string; top: number; left: number; isOwn: boolean } | null>(null);
 
   const handleMsgEnter = (e: React.MouseEvent<HTMLDivElement>, msgId: string, isOwn: boolean) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     isOverBar.current = false;
-    const bubbleEl = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.rounded-2xl');
+    const bubbleEl =
+      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-popup-bubble-id]')
+      || (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.rounded-2xl');
     const rect = (bubbleEl ?? e.currentTarget).getBoundingClientRect();
-    const BAR_W = 108, PAD = 8;
-    const barTop = Math.max(PAD, Math.min(rect.top + rect.height / 2 - 18, window.innerHeight - 44));
-    const barLeft = isOwn
-      ? Math.max(PAD, rect.left - BAR_W - 4)
-      : Math.min(window.innerWidth - BAR_W - PAD, rect.right + 4);
-    const pos = { top: barTop, left: barLeft };
+    const popupRect = (e.currentTarget.closest('[data-chat-popup-shell="true"]') as HTMLElement | null)?.getBoundingClientRect();
+    const BAR_W = 92;
+    const BAR_H = 32;
+    const PAD = 6;
+    const minLeft = (popupRect?.left ?? 0) + PAD;
+    const maxLeft = Math.max(minLeft, (popupRect?.right ?? window.innerWidth) - BAR_W - PAD);
+    const minTop = (popupRect?.top ?? 0) + HEADER_H + PAD;
+    const maxTop = Math.max(minTop, (popupRect?.bottom ?? window.innerHeight) - BAR_H - PAD);
+    const barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
+    const preferredLeft = isOwn ? rect.left - BAR_W - 6 : rect.right + 6;
+    const closeFallbackLeft = isOwn ? rect.left + 8 : rect.right - BAR_W - 8;
+    const rawLeft = preferredLeft < minLeft || preferredLeft > maxLeft ? closeFallbackLeft : preferredLeft;
+    const barLeft = Math.max(minLeft, Math.min(rawLeft, maxLeft));
+    const pos = { top: barTop, left: barLeft, isOwn };
     if (hovMsg && hovMsg !== msgId) {
       // Bar is already visible for another message — delay switch so user can
       // reach the current bar without it jumping away from them.
@@ -665,6 +917,94 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     if (msg) setReplyTo(msg);
     clearBar();
     setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const stageFiles = React.useCallback((files: FileList | File[] | null) => {
+    const selected = Array.from(files || []);
+    if (!selected.length) return;
+    setPendingAttachments(prev => [
+      ...prev,
+      ...selected.map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+    setDraggingAttachment(false);
+    dragDepthRef.current = 0;
+    setTimeout(() => inputRef.current?.focus(), 40);
+  }, []);
+
+  const removePendingAttachment = React.useCallback((index: number) => {
+    setPendingAttachments(prev => {
+      const item = prev[index];
+      if (item) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
+
+  React.useEffect(() => { pendingAttachmentsRef.current = pendingAttachments; }, [pendingAttachments]);
+  React.useEffect(() => () => {
+    pendingAttachmentsRef.current.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  }, []);
+
+  const sendPendingAttachments = React.useCallback(async (caption: string) => {
+    if (!pendingAttachments.length || !crmToken || sending) return false;
+    setSending(true);
+    try {
+      const fd = new FormData();
+      pendingAttachments.forEach(item => fd.append('files', item.file));
+      if (replyTo?._id) fd.append('replyTo', replyTo._id);
+      if (caption.trim()) fd.append('content', caption.trim());
+      const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/upload`, fd, {
+        headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' },
+      });
+      const sent: SSMessage = r.data?.data;
+      if (sent) {
+        setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+        setReplyTo(null);
+        setPendingAttachments(prev => {
+          prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+          return [];
+        });
+        setInput('');
+        if (inputRef.current) inputRef.current.innerHTML = '';
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
+      }
+      return true;
+    } catch {
+      toast.error('Could not upload attachment.');
+      return false;
+    } finally {
+      setSending(false);
+      setDraggingAttachment(false);
+      dragDepthRef.current = 0;
+    }
+  }, [conv._id, crmToken, pendingAttachments, replyTo?._id, sending]);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDraggingAttachment(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDraggingAttachment(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDraggingAttachment(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.files?.length) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setDraggingAttachment(false);
+    stageFiles(e.dataTransfer.files);
   };
 
   const handleSendThumbsUp = async () => {
@@ -866,7 +1206,11 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, [isMinimized]);
 
   const handleSend = async () => {
-    const text = inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim();
+    const text = normalizeMessageMarkdownText(inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim());
+    if (pendingAttachments.length > 0) {
+      await sendPendingAttachments(text);
+      return;
+    }
     if (!text || sending || !crmToken) return;
     const currentReplyTo = replyTo;
     setInput('');
@@ -881,6 +1225,27 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
     } catch { /* ignored */ } finally { setSending(false); }
   };
+
+  const applyTextColor = (color: string) => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    document.execCommand('foreColor', false, color);
+    setSelectedTextColor(color);
+    setInput(el.innerText.replace(/\n$/, ''));
+  };
+
+  const chooseExpandedTextColor = React.useCallback((color: string) => {
+    setTextPalette(prev => {
+      if (prev.includes(color)) return prev;
+      const replaceIndex = prev.includes(selectedTextColor) ? prev.indexOf(selectedTextColor) : prev.length - 1;
+      const next = [...prev];
+      next[replaceIndex] = color;
+      return next;
+    });
+    applyTextColor(color);
+    setTextColorOpen(false);
+  }, [selectedTextColor]);
 
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -900,6 +1265,16 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
     }
   };
+
+  const handleColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = e.nativeEvent as InputEvent;
+    if (selectedTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
+    e.preventDefault();
+    document.execCommand('insertHTML', false, `<span style="color:${selectedTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
+    const el = e.currentTarget;
+    requestAnimationFrame(() => setInput(el.innerText.replace(/\n$/, '')));
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (mentionQuery !== null && mentionOptions.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
@@ -914,9 +1289,23 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     <>
       {/* ── Popup container — no overflow-hidden so portals render correctly ── */}
       <div
+        data-chat-popup-shell="true"
         className="fixed bottom-0 z-50 flex flex-col shadow-2xl rounded-t-xl border border-border/60 bg-card"
         style={{ width: POPUP_W, right: rightPx, height: isMinimized ? HEADER_H : POPUP_H, transition: 'height 0.2s ease' }}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
+        {draggingAttachment && !isMinimized && (
+          <div className="absolute inset-2 z-[60] flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400/80 bg-blue-500/15 backdrop-blur-sm pointer-events-none">
+            <div className="rounded-xl bg-background/90 px-4 py-3 text-center shadow-xl">
+              <ImageIcon className="mx-auto mb-2 h-6 w-6 text-blue-500" />
+              <p className="text-sm font-bold text-foreground">Drop files to send</p>
+              <p className="text-xs text-muted-foreground">Images will preview in this chat</p>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div
           ref={headerRef}
@@ -989,6 +1378,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     && new Date(nextVisible.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
                   );
                   const seenMembers = msgSeenByMembers[msg._id] || [];
+                  const imageAttachments = (msg.attachments || []).filter((a: SSAttachment) => a.mimeType?.startsWith('image/'));
+                  const imageOnly = imageAttachments.length > 0 && !msg.content?.trim();
+                  const emojiOnly = imageAttachments.length === 0 && msg.type === 'text' && isEmojiOnlyText(msg.content);
+                  const bareMessage = imageOnly || emojiOnly;
                   return (
                     <div key={msg._id}
                       className={cn('flex gap-1.5', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end')}
@@ -1010,7 +1403,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                           )}
                         </div>
                       )}
-                      <div className="max-w-[62%] min-w-0 flex flex-col" style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                      <div className={cn('min-w-0 flex flex-col', imageOnly ? 'max-w-[78%]' : 'max-w-[62%]')} style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
                       {showName && !isOwn && (
                         <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
                           {msg.sender?.fullName}
@@ -1039,8 +1432,9 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                           </div>
                         ) : (
                         <div className={cn(
-                          'px-3 py-1.5 rounded-2xl text-[15px] leading-relaxed min-w-0',
-                          isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm'
+                          'text-[15px] leading-relaxed min-w-0',
+                          bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-1.5 rounded-2xl',
+                          !bareMessage && (isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
                         )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere' }}>
                           {/* Reply preview */}
                           {msg.replyTo && (
@@ -1054,20 +1448,52 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                               </div>
                             </div>
                           )}
-                          {(msg.attachments || [])
-                            .filter((a: any) => a.mimeType?.startsWith('image/'))
-                            .map((a: any, i: number) => (
-                              <img key={i} src={resolveImageUrl(a.url)} alt="photo"
-                                className="rounded-lg max-w-full block" style={{ maxHeight: 160 }} />
-                            ))}
+                          {imageAttachments.length > 0 && (
+                            <div className={cn(
+                              imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
+                              imageAttachments.length === 2 && 'grid-cols-2',
+                              imageAttachments.length >= 3 && 'grid-cols-2'
+                            )} style={imageAttachments.length > 1 ? { width: 190 } : undefined}>
+                              {imageAttachments.map((a: SSAttachment, i: number) => {
+                                const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
+                                const fullSrc = resolveImageUrl(a.url) || a.url;
+                                return (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
+                                    className={cn(
+                                      'block overflow-hidden border border-white/10 bg-black/20',
+                                      imageAttachments.length === 1 ? 'rounded-2xl' : 'aspect-square',
+                                      imageAttachments.length > 1 && 'h-24'
+                                    )}
+                                    style={imageAttachments.length === 1 ? { maxHeight: 180, maxWidth: 220, minWidth: 100 } : undefined}
+                                    title="Preview image"
+                                  >
+                                    <img
+                                      src={src}
+                                      alt={a.originalName || 'photo'}
+                                      className={cn(
+                                        imageAttachments.length === 1
+                                          ? 'block max-h-[180px] w-full object-contain'
+                                          : 'h-full w-full object-cover'
+                                      )}
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                           {msg.type !== 'image'
-                            ? renderContent(msg, isOwn)
+                            ? emojiOnly
+                              ? <span className="block text-[32px] leading-none">{msg.content}</span>
+                              : renderContent(msg, isOwn)
                             : msg.content ? <span>{msg.content}</span> : null}
                           {(msg as any).isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
                           {!hideTime && (
                             <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
-                              <span className={cn('text-[11px]', isOwn ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
-                              {isOwn && seenMembers.length === 0 && <Check className="h-2.5 w-2.5 text-white/50" />}
+                              <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
+                              {isOwn && seenMembers.length === 0 && <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} />}
                             </div>
                           )}
                         </div>
@@ -1174,19 +1600,43 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 </div>
               )}
               {/* ── FB Messenger-style bottom toolbar ── */}
-              <div className="flex items-center gap-1 px-2 py-1.5">
+              {pendingAttachments.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto border-b border-border/40 px-3 py-2">
+                  {pendingAttachments.map((item, index) => {
+                    const isImage = item.file.type.startsWith('image/');
+                    return (
+                      <div key={`${item.file.name}-${index}`} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
+                        {isImage ? (
+                          <button
+                            type="button"
+                            onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name })}
+                            className="block h-full w-full"
+                            title="Preview image"
+                          >
+                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] font-semibold text-muted-foreground">
+                            {item.file.name}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removePendingAttachment(index)}
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white"
+                          title="Remove attachment"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex min-w-0 items-center gap-1 overflow-hidden px-2 py-1.5">
                 {/* Left icon buttons */}
-                <input ref={fileRef} type="file" multiple hidden onChange={e => {
-                  const files = e.target.files;
-                  if (!files?.length || !crmToken) return;
-                  const fd = new FormData();
-                  Array.from(files).forEach(f => fd.append('files', f));
-                  apiClient.post(`/api/supraspace/conversations/${conv._id}/upload`, fd, {
-                    headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' },
-                  }).then(r => { const m = r.data?.data; if (m) setMessages(prev => prev.find(x => x._id === m._id) ? prev : [...prev, m]); }).catch(() => {});
-                  e.target.value = '';
-                }} />
-                <button title="More" onClick={() => fileRef.current?.click()}
+                <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
+                <button title="More" onClick={() => { if (fileRef.current) { fileRef.current.accept = ''; fileRef.current.click(); } }}
                   className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors">
                   <Plus className="h-5 w-5" />
                 </button>
@@ -1198,9 +1648,67 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   className="shrink-0 h-8 px-1.5 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors font-extrabold text-[11px] tracking-tight">
                   GIF
                 </button>
+                <div className="relative shrink-0">
+                  <button title="More text colors" onClick={() => setTextColorOpen(v => !v)}
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors">
+                    <Palette className="h-4 w-4" />
+                  </button>
+                  {textColorOpen && (
+                    <div
+                      className="absolute bottom-full left-0 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl border bg-card p-2 shadow-xl z-50"
+                      style={{ borderColor: 'rgba(255,255,255,0.12)', width: 210, maxHeight: 156 }}
+                    >
+                      {MORE_TEXT_COLORS.map(color => (
+                        <button
+                          key={color}
+                          onMouseDown={e => { e.preventDefault(); chooseExpandedTextColor(color); }}
+                          className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
+                          style={{
+                            background: color,
+                            borderColor: selectedTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)',
+                            boxShadow: selectedTextColor === color ? '0 0 0 2px hsl(var(--card)), 0 0 0 4px #60a5fa' : undefined,
+                          }}
+                          aria-pressed={selectedTextColor === color}
+                          title={`Text color ${color}`}
+                        >
+                          {selectedTextColor === color && (
+                            <Check
+                              className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2"
+                              style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
+                            />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="hidden">
+                  {textPalette.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      onMouseDown={e => { e.preventDefault(); applyTextColor(color); }}
+                      className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110"
+                      style={{
+                        background: color,
+                        borderColor: selectedTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)',
+                        boxShadow: selectedTextColor === color ? '0 0 0 2px hsl(var(--card)), 0 0 0 4px #60a5fa' : undefined,
+                      }}
+                      aria-pressed={selectedTextColor === color}
+                      title={`Text color ${color}`}
+                    >
+                      {selectedTextColor === color && (
+                        <Check
+                          className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2"
+                          style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
 
                 {/* Text input */}
-                <div className="relative flex-1 min-w-0 flex items-center bg-muted/60 rounded-full px-3" style={{ minHeight: 34 }}>
+                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-full px-3" style={{ minHeight: 34 }}>
                   {!input && (
                     <span className="absolute left-3 text-[15px] text-muted-foreground/55 pointer-events-none select-none">Aa</span>
                   )}
@@ -1208,14 +1716,17 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     ref={inputRef}
                     contentEditable
                     suppressContentEditableWarning
+                    onBeforeInput={handleColorBeforeInput}
                     onInput={handleTyping}
                     onKeyDown={handleKeyDown}
                     onPaste={e => {
                       const text = e.clipboardData?.getData('text/plain') || '';
                       const html = e.clipboardData?.getData('text/html') || '';
-                      if (html && hasRichFormatting(html)) {
+                      const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
+                      if (html && hasRichFormatting(html) && !shouldUsePlainText) {
                         e.preventDefault();
-                        document.execCommand('insertHTML', false, clipboardHtmlToEditorHtml(html));
+                        const editorHtml = clipboardHtmlToEditorHtml(html);
+                        document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
                         requestAnimationFrame(() => { const el = inputRef.current; if (el) setInput(el.innerText.replace(/\n$/, '')); });
                         return;
                       }
@@ -1231,13 +1742,13 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                       }
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
-                    className="w-full outline-none"
-                    style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.4' }}
+                    className="w-full min-w-0 max-w-full overflow-x-hidden outline-none"
+                    style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4' }}
                   />
                 </div>
 
                 {/* Right buttons */}
-                {input.trim() ? (
+                {input.trim() || pendingAttachments.length > 0 ? (
                   <button title="Send" onClick={handleSend} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors disabled:opacity-40">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1257,7 +1768,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {/* ── Fixed action bar portal (FB Messenger style: 3 buttons) ── */}
       {barPos && hovMsg && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed z-[9998] flex items-center gap-0.5 px-0.5 py-0.5"
+          className={cn('fixed z-[9998] flex items-center gap-0.5 px-0.5 py-0.5', barPos.isOwn && 'flex-row-reverse')}
           style={{
             top: barPos.top,
             left: barPos.left,
@@ -1305,7 +1816,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 const top = btn.bottom + 4 + ddH > window.innerHeight - 8
                   ? btn.top - ddH - 4
                   : btn.bottom + 4;
-                const left = Math.min(btn.left, window.innerWidth - 208 - 8);
+                const left = Math.max(8, Math.min(btn.left, window.innerWidth - 208 - 8));
                 moreMenuMsgIdRef.current = hovMsg;
                 setMoreMenuMsgId(hovMsg); setMoreMenuPos({ top, left });
               }
@@ -1429,7 +1940,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 {isOwnMsg && (
                   <>
                     <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
-                    {msg?.type === 'text' && !msg?.isDeleted && (
+                    {!!msg?.content?.trim() && !msg?.isDeleted && !['voice', 'poll', 'event'].includes(msg.type) && (
                       <button className={row} onClick={() => { startEdit(moreMenuMsgId); close(); }}>
                         <Pencil className="h-4 w-4 shrink-0" style={ic} />
                         <span style={{ fontSize: 13, color: '#e8e8ea' }}>Edit message</span>
@@ -1481,6 +1992,63 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       )}
 
       {/* ── Chat settings dropdown ── */}
+      {mediaPreview && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[10020] flex items-center justify-center overflow-hidden bg-black/90 p-4"
+          onClick={() => setMediaPreview(null)}
+          onWheel={e => {
+            e.preventDefault();
+            applyMediaPreviewZoom(mediaPreviewZoom + (e.deltaY < 0 ? 0.2 : -0.2));
+          }}
+        >
+          <div
+            className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-white shadow-2xl backdrop-blur"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => applyMediaPreviewZoom(mediaPreviewZoom - 0.25)}
+              disabled={mediaPreviewZoom <= 1}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+              title="Zoom out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </button>
+            <span className="min-w-12 text-center text-xs font-semibold tabular-nums">
+              {Math.round(mediaPreviewZoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => applyMediaPreviewZoom(mediaPreviewZoom + 0.25)}
+              disabled={mediaPreviewZoom >= 4}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+              title="Zoom in"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
+          </div>
+          <button
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+            onClick={() => setMediaPreview(null)}
+            title="Close preview"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={mediaPreview.src}
+            alt={mediaPreview.name}
+            draggable={false}
+            className="max-h-[86vh] max-w-[92vw] rounded-xl object-contain shadow-2xl transition-transform duration-150"
+            style={{
+              transform: `scale(${mediaPreviewZoom})`,
+              cursor: mediaPreviewZoom > 1 ? 'zoom-out' : 'zoom-in',
+            }}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>,
+        document.body
+      )}
+
       {chatSettingsOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={settingsRef}
@@ -1557,9 +2125,115 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   );
 }
 
+function ChatOverflowDock({
+  hiddenConvs,
+  crmUserId,
+  onOpen,
+  onClose,
+}: {
+  hiddenConvs: SSConv[];
+  crmUserId: string | null;
+  onOpen: (convId: string) => void;
+  onClose: (convId: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const dockRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const hiddenCount = hiddenConvs.length;
+  const rightPx = POPUP_RIGHT + MAX_VISIBLE_POPUPS * (POPUP_W + POPUP_GAP);
+  const dockRight = `min(${rightPx}px, calc(100vw - 56px))`;
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!dockRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  if (hiddenCount === 0) return null;
+
+  return (
+    <>
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed z-[52] w-72 overflow-hidden rounded-2xl border bg-card shadow-2xl"
+          style={{ borderColor: 'rgba(255,255,255,0.12)', right: dockRight, bottom: 64 }}
+        >
+          <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">
+            <span className="text-xs font-bold text-foreground">Hidden chats</span>
+            <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-bold text-blue-400">+{hiddenCount}</span>
+          </div>
+          <div className="max-h-72 overflow-y-auto p-1.5">
+            {hiddenConvs.map((conv) => {
+              const name = getDisplayName(conv, crmUserId);
+              const avatar = getAvatarSrc(conv, crmUserId);
+              const preview = conv.lastMessage?.isDeleted
+                ? 'Message deleted'
+                : conv.lastMessage?.content || (conv.lastMessage ? 'Attachment' : 'No messages yet');
+              return (
+                <div
+                  key={conv._id}
+                  className="group flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-white/5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => { onOpen(conv._id); setOpen(false); }}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    title={`Open ${name}`}
+                  >
+                    <Avatar className="h-8 w-8 shrink-0">
+                      {avatar && <AvatarImage src={resolveImageUrl(avatar)} />}
+                      <AvatarFallback className="text-[10px] font-semibold bg-blue-500 text-white">{initials(name)}</AvatarFallback>
+                    </Avatar>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold text-foreground">{name}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">{preview}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onClose(conv._id)}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-white/10 hover:text-foreground group-hover:opacity-100"
+                    title="Close hidden chat"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+      <div
+        ref={dockRef}
+        className="fixed bottom-3 z-[51]"
+        style={{ right: dockRight }}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="relative flex h-12 w-12 items-center justify-center rounded-full border bg-blue-600 text-white shadow-2xl transition-transform hover:scale-105"
+          style={{ borderColor: 'rgba(255,255,255,0.18)' }}
+          title={`${hiddenCount} hidden chat${hiddenCount === 1 ? '' : 's'}`}
+        >
+          <MessageCircle className="h-5 w-5" />
+          <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white ring-2 ring-background">
+            +{hiddenCount}
+          </span>
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─── Manager ──────────────────────────────────────────────────────────────────
 export function ChatPopupManager() {
-  const { conversations, openChats, minimizedChats, closeChatPopup, toggleMinimize } = useSupraSpaceMessenger();
+  const { conversations, openChats, minimizedChats, crmUserId, openChatPopup, closeChatPopup, toggleMinimize } = useSupraSpaceMessenger();
   const pathname = usePathname();
   const [isMobile, setIsMobile] = React.useState(false);
 
@@ -1574,9 +2248,15 @@ export function ChatPopupManager() {
   if (pathname === '/crm/supra-space') return null;
   if (isMobile) return null;
 
+  const visibleChatIds = openChats.slice(0, MAX_VISIBLE_POPUPS);
+  const hiddenChatIds = openChats.slice(MAX_VISIBLE_POPUPS);
+  const hiddenConvs = hiddenChatIds
+    .map((convId) => conversations.find((c) => c._id === convId))
+    .filter((conv): conv is SSConv => Boolean(conv));
+
   return (
     <>
-      {openChats.map((convId, index) => {
+      {visibleChatIds.map((convId, index) => {
         const conv = conversations.find((c) => c._id === convId);
         if (!conv) return null;
         return (
@@ -1590,6 +2270,12 @@ export function ChatPopupManager() {
           />
         );
       })}
+      <ChatOverflowDock
+        hiddenConvs={hiddenConvs}
+        crmUserId={crmUserId}
+        onOpen={openChatPopup}
+        onClose={closeChatPopup}
+      />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { JitsiMeet } from '../supra-space/JitsiMeet';
 import type { CallSession } from '@/hooks/useCall';
 import { apiClient } from '@/lib/api-client';
 import { AutrixPanel } from './AutrixPanel';
+import { Check, Copy, Link2, Share2 } from 'lucide-react';
 
 interface ConvMember {
   _id: string;
@@ -53,8 +54,12 @@ export function CallExperience({
   const [toggling, setToggling] = React.useState<string | null>(null);
   const [recLoading, setRecLoading] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0);
+  const [linkCopied, setLinkCopied] = React.useState(false);
 
   const meetingId: string = session.call?.meetingId ?? '';
+  const meetingLink: string = session.call?.meetingLink || (
+    typeof window !== 'undefined' && meetingId ? `${window.location.origin}/crm/supra-space?meeting=${encodeURIComponent(meetingId)}` : ''
+  );
   const moderatorUserId: string = String(session.call?.moderatorUserId ?? '');
   const isHost = currentUserId === moderatorUserId;
   const canRecord = isHost || grantedIds.includes(currentUserId);
@@ -126,6 +131,28 @@ export function CallExperience({
   };
 
   const otherMembers = conversationMembers.filter((m) => m._id !== currentUserId && m._id !== moderatorUserId);
+  const copyMeetingLink = async () => {
+    if (!meetingLink) return;
+    try {
+      await navigator.clipboard.writeText(meetingLink);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1600);
+    } catch {
+      /* best-effort */
+    }
+  };
+  const shareMeetingLink = async () => {
+    if (!meetingLink) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: callTitle, text: 'Join my Suprah meeting', url: meetingLink });
+      } else {
+        await copyMeetingLink();
+      }
+    } catch {
+      /* user cancelled or browser denied */
+    }
+  };
 
   if (!ready) {
     return (
@@ -195,6 +222,74 @@ export function CallExperience({
       )}
 
       {/* REC badge — visible to ALL participants when recording is active */}
+      {meetingLink && (
+        <div style={{
+          position: 'fixed',
+          top: 14,
+          left: 16,
+          zIndex: 210,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          maxWidth: 'min(440px, calc(100vw - 96px))',
+          background: 'rgba(10,10,10,0.82)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          borderRadius: 999,
+          padding: '6px 8px 6px 12px',
+          backdropFilter: 'blur(14px)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
+        }}>
+          <Link2 size={15} color="#93c5fd" style={{ flexShrink: 0 }} />
+          <span style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: 'rgba(255,255,255,0.82)',
+            fontSize: 12,
+            fontWeight: 600,
+          }}>{meetingLink}</span>
+          <button
+            onClick={copyMeetingLink}
+            title="Copy meeting link"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: linkCopied ? 'rgba(34,197,94,0.22)' : 'rgba(255,255,255,0.08)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            {linkCopied ? <Check size={15} /> : <Copy size={15} />}
+          </button>
+          <button
+            onClick={shareMeetingLink}
+            title="Share meeting link"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.08)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <Share2 size={15} />
+          </button>
+        </div>
+      )}
+
       {isRecording && (
         <div style={{
           position: 'fixed',

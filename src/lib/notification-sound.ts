@@ -149,11 +149,16 @@ export async function showNotificationViaSW(
   if (typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
 
-  // Try SW-based notification first (proper PWA path)
+  // Try SW-based notification first (proper PWA path).
+  // navigator.serviceWorker.ready is far more reliable than getRegistration('/')
+  // because it always resolves to the *active* registration regardless of scope.
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.getRegistration('/');
-      if (reg?.active) {
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('sw-timeout')), 3000)),
+      ]) as ServiceWorkerRegistration;
+      if (reg) {
         await reg.showNotification(title, {
           body: options.body,
           tag: options.tag,
