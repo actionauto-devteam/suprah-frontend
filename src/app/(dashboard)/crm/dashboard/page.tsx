@@ -1330,7 +1330,7 @@ export default function CrmDashboardPage() {
                     <div className="grid grid-cols-2 gap-2">
                       {isPausedOnShift ? (
                         <Button
-                          onClick={() => handleClock("time-in")}
+                          onClick={() => { setActivityStartAt(Date.now()); handleClock("time-in"); }}
                           disabled={isClocking}
                           className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 transition-all duration-200 hover:bg-emerald-500/20 dark:text-emerald-400"
                         >

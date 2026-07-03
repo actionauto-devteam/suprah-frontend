@@ -32,7 +32,8 @@ interface CreateUserForm {
 
   hireDate: string;
   birthday: string;
-  gender: string;
+  gender: string;
+
 }
 
 interface FormErrors {
@@ -42,7 +43,8 @@ interface FormErrors {
   role?: string;
   hireDate?: string;
 
-  birthday?: string;
+  birthday?: string;
+
 }
 
 interface CreateUserModalProps {
@@ -81,7 +83,8 @@ function validate(form: CreateUserForm): FormErrors {
 
   if (!form.birthday) {
     errors.birthday = "Birthday is required.";
-  }
+  }
+
 
   return errors;
 }
@@ -109,7 +112,8 @@ export function CreateUserModal({
 
     hireDate: "",
     birthday: "",
-    gender: "",
+    gender: "",
+
   });
 
   // Fetch next employee ID whenever modal opens
@@ -142,7 +146,8 @@ export function CreateUserModal({
       hireDate: "",
       birthday: "",
       gender: "",
-    });
+    });
+
     setErrors({});
     setShowPassword(false);
     setEmployeeId("");
@@ -214,7 +219,8 @@ export function CreateUserModal({
           hireDate: form.hireDate || undefined,
           birthday: form.birthday || undefined,
 
-          gender: form.gender || undefined,
+          gender: form.gender || undefined,
+
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -391,7 +397,8 @@ export function CreateUserModal({
               <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
                 Hire Date <span className="text-red-500">*</span>
               </Label>
-              <Input
+              <Input
+
                 type="date"
                 value={form.hireDate}
                 onChange={(e) => {
@@ -400,7 +407,8 @@ export function CreateUserModal({
                   if (errors.hireDate)
                     setErrors((p) => ({ ...p, hireDate: undefined }));
                 }}
-                className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 ${errors.hireDate ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
+                className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 ${errors.hireDate ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
+
               />
               {errors.hireDate && (
                 <p className="text-[11px] text-red-500">{errors.hireDate}</p>
@@ -445,7 +453,8 @@ export function CreateUserModal({
               </SelectContent>
             </Select>
           </div>
-
+
+
           {/* Role hint */}
           {form.role && (
             <div

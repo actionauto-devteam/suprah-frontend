@@ -55,6 +55,8 @@ export interface SSSpace {
 
 // ─── Context shape ─────────────────────────────────────────────────────────────
 
+export type NotifPref = { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
+
 interface MessengerCtxValue {
   conversations: SSConv[];
   spaces: SSSpace[];
@@ -68,6 +70,8 @@ interface MessengerCtxValue {
   minimizedChats: Set<string>;
   socket: Socket | null;
   myAvatar: string | undefined;
+  notifPrefs: Record<string, NotifPref>;
+  setNotifPrefs: React.Dispatch<React.SetStateAction<Record<string, NotifPref>>>;
   openChatPopup: (convId: string) => void;
   closeChatPopup: (convId: string) => void;
   toggleMinimize: (convId: string) => void;
@@ -101,8 +105,6 @@ function sortByLastMessage(convs: SSConv[]): SSConv[] {
   );
 }
 
-const MAX_OPEN = 3;
-
 // ─── Provider ──────────────────────────────────────────────────────────────────
 
 export function SupraSpaceMessengerProvider({ children }: { children: React.ReactNode }) {
@@ -119,6 +121,31 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
   const [minimizedChats, setMinimizedChats] = React.useState<Set<string>>(new Set());
   const [myAvatar, setMyAvatar]           = React.useState<string | undefined>(undefined);
+  const [myFullName, setMyFullName]       = React.useState('');
+  const [notifPrefs, setNotifPrefs]       = React.useState<Record<string, NotifPref>>({});
+
+  // Refs so socket handlers always see current values (stale-closure safety)
+  const notifPrefsRef  = React.useRef<Record<string, NotifPref>>({});
+  const myFullNameRef  = React.useRef('');
+  React.useEffect(() => { notifPrefsRef.current = notifPrefs; }, [notifPrefs]);
+  React.useEffect(() => { myFullNameRef.current = myFullName; }, [myFullName]);
+
+  // Load persisted prefs when we know who the user is
+  React.useEffect(() => {
+    if (!crmUserId) return;
+    try {
+      const saved = localStorage.getItem(`ss4_notif_prefs_${crmUserId}`);
+      if (saved) setNotifPrefs(JSON.parse(saved));
+    } catch {}
+  }, [crmUserId]);
+
+  // Persist whenever prefs change
+  React.useEffect(() => {
+    if (!crmUserId) return;
+    try {
+      localStorage.setItem(`ss4_notif_prefs_${crmUserId}`, JSON.stringify(notifPrefs));
+    } catch {}
+  }, [notifPrefs, crmUserId]);
 
   // Keep ref in sync so socket handlers can read current conversations
   React.useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -144,7 +171,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   React.useEffect(() => {
     if (!crmToken) return;
     apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${crmToken}` } })
-      .then(r => { const d = r.data?.data || r.data; if (d?.avatar) setMyAvatar(d.avatar); })
+      .then(r => { const d = r.data?.data || r.data; if (d?.avatar) setMyAvatar(d.avatar); if (d?.fullName) setMyFullName(d.fullName); })
       .catch(() => {});
   }, [crmToken]);
 
@@ -192,11 +219,16 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   React.useEffect(() => { fetchConversations(); }, [fetchConversations]);
   React.useEffect(() => { fetchSpaces(); }, [fetchSpaces]);
 
-  // Re-fetch on window focus
+  // Re-fetch on window focus AND on page visibility (covers PWA foreground transitions).
   React.useEffect(() => {
     const onFocus = () => { fetchConversations(); fetchSpaces(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') { fetchConversations(); fetchSpaces(); } };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchConversations, fetchSpaces]);
 
   // ── Socket connection ─────────────────────────────────────────────────────────
@@ -206,10 +238,17 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     const s = io(process.env.NEXT_PUBLIC_API_URL || '', {
       path: '/socket/supraspace',
       auth: { token: crmToken },
+      // Start with polling so the connection survives mobile network transitions;
+      // upgrade to websocket once the connection is stable.
       transports: ['polling', 'websocket'],
       upgrade: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      // Never stop retrying — mobile devices can background the app for long
+      // periods and the socket must recover automatically when they return.
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
+      // Keep the connection alive through brief network gaps (mobile switching).
+      timeout: 20000,
     });
 
     s.on('connect', () => {
@@ -232,14 +271,25 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         return sortByLastMessage(updated);
       });
       if (message.sender?._id !== crmUserId) {
-        playMessageSound();
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-          const conv = conversationsRef.current.find(c => c._id === conversationId);
-          const isGroup = conv?.type === 'group';
-          const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
-          const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
-          const body = isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
-          showNotificationViaSW(title, { body, tag: conversationId });
+        const pref: NotifPref = notifPrefsRef.current[conversationId] ?? { type: 'all', muted: false };
+        const nameParts = myFullNameRef.current.trim().split(/\s+/);
+        const mention = (nameParts.length >= 2
+          ? `@${nameParts[0]} ${nameParts[nameParts.length - 1]}`
+          : `@${nameParts[0]}`).toLowerCase();
+        const firstName = (nameParts[0] || '').toLowerCase();
+        const contentLow = (message.content || '').toLowerCase();
+        const isMentioned = contentLow.includes('@all') || contentLow.includes(mention) || (firstName && contentLow.includes(`@${firstName}`));
+        const shouldNotify = !pref.muted && pref.type !== 'none' && (pref.type !== 'foryou' || isMentioned);
+        if (shouldNotify) {
+          playMessageSound();
+          if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+            const conv = conversationsRef.current.find(c => c._id === conversationId);
+            const isGroup = conv?.type === 'group';
+            const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
+            const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
+            const body = isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
+            showNotificationViaSW(title, { body, tag: conversationId });
+          }
         }
       }
     });
@@ -291,7 +341,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       );
     });
 
+    // Reconnect immediately when the PWA/tab comes back to the foreground.
+    // On mobile the OS can suspend socket I/O while backgrounded; this ensures
+    // the socket is live again before the user sees the chat UI.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !s.connected) {
+        s.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       s.removeAllListeners();
       s.disconnect();
       setSocket(null);
@@ -314,9 +375,9 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     setOpenChats((prev) => {
       if (prev.includes(convId)) {
         setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
-        return prev;
+        return [convId, ...prev.filter((id) => id !== convId)];
       }
-      const next = [convId, ...prev].slice(0, MAX_OPEN);
+      const next = [convId, ...prev];
       return next;
     });
     setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
@@ -371,6 +432,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         minimizedChats,
         socket,
         myAvatar,
+        notifPrefs,
+        setNotifPrefs,
         openChatPopup,
         closeChatPopup,
         toggleMinimize,

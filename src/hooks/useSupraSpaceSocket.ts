@@ -105,9 +105,9 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       auth: { token },
       transports: ['polling', 'websocket'],
       upgrade: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
       timeout: 20000,
       forceNew: true,
     });
@@ -160,7 +160,15 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       }));
     });
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !socket.connected) {
+        socket.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
