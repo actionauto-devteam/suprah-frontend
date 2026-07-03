@@ -1,25 +1,57 @@
 import { defaultCache } from "@serwist/next/worker";
-import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist, setCacheNameDetails } from "serwist";
+import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from "serwist";
+import { NetworkFirst, Serwist, setCacheNameDetails } from "serwist";
 
 declare global {
   interface ServiceWorkerGlobalScope extends SerwistGlobalConfig {
     __SW_MANIFEST: (string | PrecacheEntry)[] | undefined;
   }
 }
-
 declare const self: ServiceWorkerGlobalScope & typeof globalThis;
 
 setCacheNameDetails({
   prefix: "actionauto-v2026-05-29",
 });
 
+// ---------------------------------------------------------------------------
+// FIX: @serwist/next's built-in `defaultCache` has a broken "pages" route.
+// Its matcher checks `request.headers.get("Content-Type")`, but browsers
+// never set a Content-Type header on outgoing navigation requests (they send
+// `Accept: text/html` instead). That means the route can never match, so
+// every full-page navigation (e.g. /crm/supra-leo) falls through to
+// defaultCache's generic catch-all NetworkFirst route, which has no
+// networkTimeoutSeconds and no catchHandler. If that fetch fails or gets
+// aborted and there's no cache entry yet, Serwist has nothing to return and
+// throws an uncaught "no-response" error — which is exactly what you saw.
+//
+// Fix: add a route ahead of defaultCache that correctly matches real
+// navigations via `request.mode === "navigate"`, with a network timeout so
+// it can fall back to cache instead of hanging or throwing.
+// ---------------------------------------------------------------------------
+
+const navigationFix: RuntimeCaching[] = [
+  {
+    matcher: ({ request, url: { pathname }, sameOrigin }) =>
+      request.mode === "navigate" &&
+      sameOrigin &&
+      !pathname.startsWith("/api/"),
+    handler: new NetworkFirst({
+      cacheName: "pages",
+      networkTimeoutSeconds: 10,
+    }),
+  },
+];
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  // Our fix is placed BEFORE defaultCache so it wins the match for real
+  // navigations; defaultCache's (broken) pages route becomes unreachable
+  // dead code, harmlessly, and everything else in defaultCache (fonts,
+  // images, RSC, JS/CSS chunks, API routes, etc.) is untouched.
+  runtimeCaching: [...navigationFix, ...defaultCache],
   fallbacks: {
     entries: [
       {
@@ -35,6 +67,8 @@ const serwist = new Serwist({
 serwist.addEventListeners();
 
 // --- CUSTOM WEB PUSH LISTENERS ---
+// (unchanged from your original — carried over verbatim)
+
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL || self.location.origin
 ).replace(/\/$/, "");
@@ -46,7 +80,6 @@ self.addEventListener("push", (event: any) => {
       const data = event.data.json();
 
       // 1. HANDLE SILENT SYNC (DISMISSAL)
-      // If the backend says this is a sync action to dismiss, close the notification
       if (data.isSyncAction && data.action === "dismiss") {
         event.waitUntil(
           (self as any).registration
@@ -62,9 +95,9 @@ self.addEventListener("push", (event: any) => {
       const options = {
         body: data.body,
         icon: data.icon || DEFAULT_NOTIFICATION_ICON,
-        image: data.image || undefined, // Rich hero image for marketing
+        image: data.image || undefined,
         badge: DEFAULT_NOTIFICATION_ICON,
-        tag: data.tag, // Matches the preferenceKey (inventory_update, etc.) for grouping
+        tag: data.tag,
         data: {
           url: data.data?.url || "/",
           driverRequestId: data.data?.driverRequestId,
@@ -72,7 +105,6 @@ self.addEventListener("push", (event: any) => {
         actions: data.actions || [],
         vibrate: [100, 50, 100],
       };
-
       event.waitUntil(
         (self as any).registration.showNotification(data.title, options),
       );
@@ -86,7 +118,6 @@ self.addEventListener("notificationclick", (event: any) => {
   event.notification.close();
   const notificationData = event.notification?.data || {};
 
-  // Check if an action was clicked (e.g., Approve/Reject)
   if (event.action) {
     const actionInProgress = handleBackgroundAction(
       event.action,
@@ -121,17 +152,14 @@ self.addEventListener("notificationclick", (event: any) => {
 async function handleBackgroundAction(action: string, data: any) {
   console.log(`[SW] Handling action: ${action}`, data);
   const requestId = data?.driverRequestId;
-
   if (!requestId) return;
 
-  // Follow-up notification for user feedback
   await (self as any).registration.showNotification("Processing Request", {
     body: `Your request to ${action} this driver is being processed...`,
     icon: DEFAULT_NOTIFICATION_ICON,
   });
 
   try {
-    // Read token from IndexedDB
     const token = await new Promise<string | null>((resolve) => {
       const request = indexedDB.open("action-auto-auth", 1);
       request.onsuccess = () => {
@@ -154,7 +182,7 @@ async function handleBackgroundAction(action: string, data: any) {
         : `${API_BASE_URL}/api/driver-requests/${requestId}/reject`;
 
     const response = await fetch(endpoint, {
-      method: "PATCH", // backend uses PATCH for these
+      method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
