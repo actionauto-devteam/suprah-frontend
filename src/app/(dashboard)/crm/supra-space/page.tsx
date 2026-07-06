@@ -144,12 +144,12 @@ if (typeof document !== 'undefined') {
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; }
-    .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; }
+    .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-composer-main { display:flex; flex-direction:column; }
     .ss4-composer-pill { display:flex; align-items:flex-end; gap:8px; min-width:0; cursor:text; }
     .ss4-composer-pill .ss4-composer-editor { display:block; flex:1 1 0%; min-width:0; width:auto; max-width:100%; overflow-x:hidden; overflow-wrap:anywhere; word-break:break-word; -webkit-user-select:text; user-select:text; }
-    .ss4-composer-editor { cursor:text; }
+    .ss4-composer-editor { cursor:text; height:auto!important; }
     .ss4-composer-pill button { cursor:pointer; }
     .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:none; }
     .ss4-desktop-toolbar { display:flex; }
@@ -221,7 +221,7 @@ if (typeof document !== 'undefined') {
       .ss4-msg-bubble { font-size:15px !important; line-height:1.55 !important; }
       .ss4-msg-sender { font-size:13px !important; }
       .ss4-date-chip { font-size:12px; }
-      .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; }
+      .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; height:auto!important; }
       .ss4-composer-placeholder { font-size:16px !important; top:1px; }
       .ss4-input-wrap { border:0; background:transparent; box-shadow:none; }
       .ss4-input-wrap:focus-within { box-shadow:none; }
@@ -3858,13 +3858,6 @@ export default function SupraSpacePage() {
     const { files } = e.dataTransfer;
     if (files.length > 0) handleUpload(files);
   };
-
-  React.useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = `${Math.min(ta.scrollHeight, 144)}px`;
-  }, [input]);
 
   const refreshActiveFormats = React.useCallback(() => {
     const el = textareaRef.current;
