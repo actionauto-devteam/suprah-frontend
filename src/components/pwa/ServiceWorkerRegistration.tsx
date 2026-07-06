@@ -10,10 +10,35 @@ export function ServiceWorkerRegistration() {
         if (process.env.NODE_ENV === "development" && !ENABLE_SW_DEV) return;
 
         let cancelled = false;
+        let refreshing = false;
+
+        const handleControllerChange = () => {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+        };
 
         const registerServiceWorker = async () => {
             try {
-                const registration = await navigator.serviceWorker.register("/sw.js");
+                const registration = await navigator.serviceWorker.register("/sw.js", {
+                    updateViaCache: "none",
+                });
+                void registration.update();
+
+                registration.addEventListener("updatefound", () => {
+                    const nextWorker = registration.installing;
+                    if (!nextWorker) return;
+
+                    nextWorker.addEventListener("statechange", () => {
+                        if (
+                            nextWorker.state === "installed" &&
+                            navigator.serviceWorker.controller
+                        ) {
+                            handleControllerChange();
+                        }
+                    });
+                });
+
                 if (!cancelled) {
                     console.log("[SW] Registered:", registration.scope);
                 }
@@ -24,10 +49,15 @@ export function ServiceWorkerRegistration() {
             }
         };
 
+        navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
         registerServiceWorker();
 
         return () => {
             cancelled = true;
+            navigator.serviceWorker.removeEventListener(
+                "controllerchange",
+                handleControllerChange,
+            );
         };
     }, []);
 
