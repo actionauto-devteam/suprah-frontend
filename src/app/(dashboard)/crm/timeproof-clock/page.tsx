@@ -19,12 +19,12 @@ import {
   Loader2,
   Lock,
   LogOut,
+  MapPin,
   MonitorDot,
   Play,
   Radio,
   RefreshCw,
   Scissors,
-  Shield,
   ShieldAlert,
   Timer,
   Users,
@@ -33,7 +33,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
 import { initializeSocket } from "@/lib/socket.client"
-import { LiveClock } from "@/components/crm/LiveClock"
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -1005,7 +1004,6 @@ export default function TimeprofClockPage() {
             </p>
           )}
           <div className="ml-auto flex items-center gap-2">
-            <LiveClock />
             {(user.role === "admin" || user.role === "manager") && (
               <button
                 onClick={() => router.push("/crm/timeproof/users")}
@@ -1029,7 +1027,11 @@ export default function TimeprofClockPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-5 space-y-4">
+      <div className="w-full px-4 sm:px-6 py-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4 items-start">
+
+        {/* ── Left column — Time Clock ── */}
+        <div className="space-y-4 lg:sticky lg:top-[57px] lg:self-start">
 
         {/* ── Time Clock Card ── */}
         <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
@@ -1137,6 +1139,101 @@ export default function TimeprofClockPage() {
             {clockMsg && <p className="mt-2 text-center font-mono text-[11px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
           </div>
         </div>
+
+        {/* ── Share Location ── */}
+        <button
+          disabled
+          className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card px-5 py-4 opacity-60 cursor-not-allowed"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+              <MapPin className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div className="text-left">
+              <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5">Live location sync with Team Pulse</p>
+            </div>
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-full">
+            Coming Soon
+          </span>
+        </button>
+
+        {/* ── Tray App Section ── */}
+        <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
+              <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
+            </div>
+            <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
+          </div>
+
+          <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
+            {[
+              "Download and install the tray app",
+              "Launch it — it appears in your system tray",
+              "Return here and click Start Shift",
+            ].map((step, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border/30 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                  <MonitorDot className="h-3.5 w-3.5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold">Windows</p>
+                  <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
+                </div>
+              </div>
+              <a
+                href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
+              >
+                <Download className="h-3 w-3" /> Download (.exe)
+              </a>
+            </div>
+
+            <div className="rounded-xl border border-border/30 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
+                  <MonitorDot className="h-3.5 w-3.5 text-zinc-400" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold">macOS</p>
+                  <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon</p>
+                </div>
+              </div>
+              <a
+                href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[10px] font-bold transition-colors"
+              >
+                <Download className="h-3 w-3" /> Download (.dmg)
+              </a>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+              After installing on macOS, open System Settings → Privacy &amp; Security → Screen Recording and enable Action Auto Tray.
+            </p>
+          </div>
+        </div>
+
+        </div>
+        {/* ── Right column — Stats, Calendar, Payout ── */}
+        <div className="space-y-4">
 
         {/* ── Timeproof error ── */}
         {tpError && (
@@ -1322,95 +1419,11 @@ export default function TimeprofClockPage() {
           </>
         )}
 
-        {/* ── Tray App Section ── */}
-        <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
-              <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
-            </div>
-            <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
-          </div>
-
-          <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
-            {[
-              "Download and install the tray app",
-              "Launch it — it appears in your system tray",
-              "Return here and click Start Shift",
-            ].map((step, i) => (
-              <div key={i} className="flex items-start gap-2.5">
-                <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border/30 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                  <MonitorDot className="h-4 w-4 text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold">Windows</p>
-                  <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
-                </div>
-              </div>
-              <a
-                href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-2 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" /> Download (.exe)
-              </a>
-            </div>
-
-            <div className="rounded-xl border border-border/30 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
-                  <MonitorDot className="h-4 w-4 text-zinc-400" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold">macOS</p>
-                  <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon · DMG installer</p>
-                </div>
-              </div>
-              <a
-                href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-2 h-9 rounded-xl bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[11px] font-bold transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" /> Download (.dmg)
-              </a>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
-            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-              After installing on macOS, open System Settings → Privacy &amp; Security → Screen Recording and enable Action Auto Tray.
-            </p>
-          </div>
+        {/* end right column */}
         </div>
-
-        {/* ── Verified footer ── */}
-        <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-emerald-600/10 flex items-center justify-center shrink-0">
-              <Shield className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black text-emerald-800 dark:text-emerald-300">Timeproof Verified</p>
-              <p className="text-[10px] text-emerald-700/50 dark:text-emerald-400/50 mt-0.5">All timestamps are server-validated and IP-logged. Click any day to inspect individual sessions.</p>
-            </div>
-            <button onClick={copyProof}
-              className="shrink-0 h-9 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1.5 transition-colors">
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? "Copied" : "Share"}
-            </button>
-          </div>
+        {/* end grid */}
         </div>
+        {/* end page wrapper */}
 
       </div>
 

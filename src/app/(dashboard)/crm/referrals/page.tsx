@@ -20,6 +20,11 @@ import {
   Check,
   Link2,
   Users,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Search,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +38,15 @@ import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
 
 type LeadStatus = "pending" | "contacted" | "converted" | "closed";
 type CallType = "voice" | "video";
+
+interface RegisteredUser {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
 
 interface CallData {
   domain: string;
@@ -654,7 +668,7 @@ const INVITE_SHARE_PLATFORMS = [
     name: "WhatsApp",
     bg: "bg-[#25D366] hover:bg-[#1da851]",
     getUrl: (link: string) =>
-      `https://wa.me/?text=${encodeURIComponent(`You're invited! Click the link below to create your account:\n\n${link}\n\nThis link is one-time use and expires in 24 hours.`)}`,
+      `https://wa.me/?text=${encodeURIComponent(`You're invited! Click the link below to create your account:\n\n${link}\n\nThis link expires in 24 hours.`)}`,
   },
   {
     name: "Messenger",
@@ -666,7 +680,7 @@ const INVITE_SHARE_PLATFORMS = [
     name: "Viber",
     bg: "bg-[#7360F2] hover:bg-[#5d4dd4]",
     getUrl: (link: string) =>
-      `viber://forward?text=${encodeURIComponent(`You're invited! Click the link below to create your account:\n\n${link}\n\nThis link is one-time use and expires in 24 hours.`)}`,
+      `viber://forward?text=${encodeURIComponent(`You're invited! Click the link below to create your account:\n\n${link}\n\nThis link expires in 24 hours.`)}`,
   },
   {
     name: "Telegram",
@@ -678,7 +692,7 @@ const INVITE_SHARE_PLATFORMS = [
     name: "Gmail",
     bg: "bg-[#EA4335] hover:bg-[#d33829]",
     getUrl: (link: string) =>
-      `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent("You're invited!")}&body=${encodeURIComponent(`You're invited to create an account!\n\nClick the link below to get started:\n${link}\n\nThis link is one-time use and expires in 24 hours.`)}`,
+      `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent("You're invited!")}&body=${encodeURIComponent(`You're invited to create an account!\n\nClick the link below to get started:\n${link}\n\nThis link expires in 24 hours.`)}`,
   },
 ];
 
@@ -695,7 +709,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
     try {
       const res = await apiClient.post(
         "/api/crm/customer-invites/generate",
-        { count: 1 },
+        { count: 1, multiUse: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const list = res.data?.data?.invites ?? [];
@@ -740,7 +754,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
             </div>
             <div>
               <p className="text-sm font-bold text-white">Generate Invite Link</p>
-              <p className="text-xs text-zinc-400">One-time use · expires in 24 hours</p>
+              <p className="text-xs text-zinc-400">Multi-use · expires in 24 hours</p>
             </div>
           </div>
           <button
@@ -808,7 +822,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
               </div>
 
               <p className="text-xs text-zinc-400 font-medium text-center">
-                This link is one-time use and expires 24 hours from now.
+                Multiple users can use this link — it expires 24 hours from now.
               </p>
             </div>
           )}
@@ -968,6 +982,288 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
   );
 }
 
+// ─── Registered Users View (admin only) ──────────────────────────────────────
+
+type SortField = "createdAt" | "name" | "email";
+type SortOrder = "asc" | "desc";
+
+interface RegisteredUsersViewProps {
+  token: string;
+}
+
+function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
+  const [users, setUsers] = React.useState<RegisteredUser[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [sortBy, setSortBy] = React.useState<SortField>("createdAt");
+  const [sortOrder, setSortOrder] = React.useState<SortOrder>("desc");
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  const fetchUsers = React.useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        sortBy,
+        sortOrder,
+        limit: "100",
+        ...(search.trim() && { search: search.trim() }),
+      });
+      const res = await apiClient.get(
+        `/api/crm/customer-invites/customers?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUsers(res.data?.data?.customers || []);
+      setTotal(res.data?.data?.total ?? 0);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to load customer accounts.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token, sortBy, sortOrder, search]);
+
+  React.useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const handleDelete = React.useCallback(async (userId: string) => {
+    setDeletingId(userId);
+    try {
+      await apiClient.delete(
+        `/api/crm/customer-invites/customers/${userId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUsers((prev) => prev.filter((u) => u._id !== userId));
+      setTotal((t) => t - 1);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to delete account.");
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  }, [token]);
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortBy !== field) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+    return sortOrder === "asc"
+      ? <ArrowUp className="h-3 w-3 text-violet-400" />
+      : <ArrowDown className="h-3 w-3 text-violet-400" />;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <Loader2 className="h-7 w-7 text-violet-500 animate-spin" />
+        <p className="text-xs text-zinc-500">Loading customer accounts…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-sm text-zinc-500">{error}</p>
+        <button
+          onClick={() => fetchUsers(true)}
+          className="text-xs text-violet-400 hover:text-violet-300 underline"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Controls row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-9 pl-8 pr-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/60 text-xs text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-colors"
+          />
+        </div>
+
+        {/* Sort buttons */}
+        <div className="flex items-center gap-1">
+          {(["name", "email", "createdAt"] as SortField[]).map((field) => (
+            <button
+              key={field}
+              onClick={() => toggleSort(field)}
+              className={cn(
+                "inline-flex items-center gap-1 h-9 px-3 rounded-xl border text-xs font-semibold transition-colors",
+                sortBy === field
+                  ? "border-violet-500/50 bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                  : "border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600 bg-white dark:bg-zinc-900/60"
+              )}
+            >
+              {field === "createdAt" ? "Date" : field.charAt(0).toUpperCase() + field.slice(1)}
+              <SortIcon field={field} />
+            </button>
+          ))}
+        </div>
+
+        {/* Refresh + count */}
+        <div className="flex items-center gap-2 ml-auto shrink-0">
+          <p className="text-xs text-zinc-500 hidden sm:block">
+            {total} account{total !== 1 ? "s" : ""}
+          </p>
+          <button
+            onClick={() => fetchUsers(true)}
+            disabled={refreshing}
+            className="h-9 w-9 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          </button>
+        </div>
+      </div>
+
+      {users.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+            <Users className="h-6 w-6 text-violet-400" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+              {search ? "No results found" : "No customer accounts yet"}
+            </p>
+            <p className="text-xs text-zinc-500 mt-1">
+              {search
+                ? "Try a different name or email."
+                : "Customer accounts created via invite link or bulk create will appear here."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-zinc-200/70 dark:border-zinc-800/60 bg-white dark:bg-zinc-900/60 overflow-hidden">
+          {/* Table header */}
+          <div className="hidden sm:grid grid-cols-[2fr_2fr_1fr_110px_40px] gap-3 px-5 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/60 dark:bg-zinc-900/40">
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Name</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Email</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Status</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 text-right">Joined</span>
+            <span />
+          </div>
+
+          {users.map((u, i) => {
+            const date = new Date(u.createdAt).toLocaleDateString("en-US", {
+              month: "short", day: "numeric", year: "numeric",
+            });
+            const time = new Date(u.createdAt).toLocaleTimeString("en-US", {
+              hour: "2-digit", minute: "2-digit", hour12: true,
+            });
+            const initials = u.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+            const isConfirming = confirmDeleteId === u._id;
+            const isDeleting = deletingId === u._id;
+            return (
+              <div key={u._id} className={cn(i !== 0 && "border-t border-zinc-100 dark:border-zinc-800/60")}>
+                <div
+                  className={cn(
+                    "flex items-center gap-3 sm:grid sm:grid-cols-[2fr_2fr_1fr_110px_40px] sm:gap-3 px-5 py-3.5 transition-colors",
+                    !isConfirming && "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+                  )}
+                >
+                  {/* Name + avatar */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+                      <span className="text-[11px] font-black text-violet-500">{initials}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-zinc-900 dark:text-white truncate">{u.name}</span>
+                  </div>
+
+                  {/* Email */}
+                  <p className="text-xs text-zinc-500 truncate hidden sm:block">{u.email}</p>
+
+                  {/* Status */}
+                  <span className={cn(
+                    "shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border w-fit",
+                    u.isActive
+                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                      : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
+                  )}>
+                    {u.isActive ? "Active" : "Inactive"}
+                  </span>
+
+                  {/* Date */}
+                  <div className="text-right shrink-0 hidden sm:block">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400">{date}</p>
+                    <p className="text-[11px] text-zinc-500">{time}</p>
+                  </div>
+
+                  {/* Delete action */}
+                  <div className="flex justify-end shrink-0">
+                    {isDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                    ) : isConfirming ? (
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                        title="Cancel"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(u._id)}
+                        className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        title="Delete customer account"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inline confirm banner */}
+                {isConfirming && (
+                  <div className="flex items-center justify-between gap-3 px-5 py-2.5 bg-red-50/60 dark:bg-red-950/20 border-t border-red-200/50 dark:border-red-500/15">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 flex-1">
+                      Delete <strong className="text-zinc-900 dark:text-white">{u.name}</strong>? This is permanent and cannot be undone.
+                    </p>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="h-7 px-3 rounded-lg text-xs font-semibold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleDelete(u._id)}
+                        disabled={isDeleting}
+                        className="h-7 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ReferralsPage() {
@@ -979,6 +1275,8 @@ export default function ReferralsPage() {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [filter, setFilter] = React.useState<"all" | LeadStatus>("all");
+  const [viewMode, setViewMode] = React.useState<"leads" | "registered">("leads");
+  const isAdmin = userRole === "admin";
   const [convertTarget, setConvertTarget] = React.useState<ReferralLead | null>(null);
   const [callTarget, setCallTarget] = React.useState<ReferralLead | null>(null);
   const [activeCall, setActiveCall] = React.useState<CallData | null>(null);
@@ -1140,9 +1438,10 @@ export default function ReferralsPage() {
 
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
 
-          {/* Filter tabs */}
+          {/* Tab bar */}
           <div className="flex gap-1.5 flex-wrap">
-            {FILTER_TABS.map((tab) => (
+            {/* Lead filter tabs — only shown in leads view */}
+            {viewMode === "leads" && FILTER_TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setFilter(tab.key)}
@@ -1168,43 +1467,76 @@ export default function ReferralsPage() {
                 )}
               </button>
             ))}
+
+            {/* Leads tab button shown when in registered view */}
+            {viewMode === "registered" && (
+              <button
+                onClick={() => setViewMode("leads")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all duration-150 bg-white dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200"
+              >
+                Leads
+              </button>
+            )}
+
+            {/* Registered tab — admin only */}
+            {isAdmin && (
+              <button
+                onClick={() => setViewMode("registered")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all duration-150",
+                  viewMode === "registered"
+                    ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-transparent"
+                    : "bg-white dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200"
+                )}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Registered
+              </button>
+            )}
           </div>
 
-          {/* Content */}
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-3">
-              <Loader2 className="h-7 w-7 text-violet-500 animate-spin" />
-              <p className="text-xs text-zinc-500">Loading referral leads…</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                <Gift className="h-6 w-6 text-violet-400" />
+          {/* ── Registered Users View (admin only) ── */}
+          {viewMode === "registered" && token && (
+            <RegisteredUsersView token={token} />
+          )}
+
+          {/* ── Leads View ── */}
+          {viewMode === "leads" && (
+            loading ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Loader2 className="h-7 w-7 text-violet-500 animate-spin" />
+                <p className="text-xs text-zinc-500">Loading referral leads…</p>
               </div>
-              <div>
-                <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                  {filter === "all" ? "No referral leads yet" : `No ${filter} leads`}
-                </p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  {filter === "all"
-                    ? "Leads will appear here when customers use a referral link."
-                    : "Change the filter to see other leads."}
-                </p>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                  <Gift className="h-6 w-6 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                    {filter === "all" ? "No referral leads yet" : `No ${filter} leads`}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {filter === "all"
+                      ? "Leads will appear here when customers use a referral link."
+                      : "Change the filter to see other leads."}
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((lead) => (
-                <LeadCard
-                  key={lead._id}
-                  lead={lead}
-                  token={token!}
-                  onStatusChange={handleStatusChange}
-                  onOpenConvert={setConvertTarget}
-                  onOpenCall={setCallTarget}
-                />
-              ))}
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filtered.map((lead) => (
+                  <LeadCard
+                    key={lead._id}
+                    lead={lead}
+                    token={token!}
+                    onStatusChange={handleStatusChange}
+                    onOpenConvert={setConvertTarget}
+                    onOpenCall={setCallTarget}
+                  />
+                ))}
+              </div>
+            )
           )}
         </main>
       </div>

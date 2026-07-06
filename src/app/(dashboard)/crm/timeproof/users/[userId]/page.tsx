@@ -17,11 +17,13 @@ import {
   DollarSign,
   RefreshCw,
   Scissors,
+  Send,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { resolveImageUrl } from "@/lib/utils"
+import { useCrmUser } from "@/hooks/useCrmUser"
 
 /* ─────────────────────────────────────────────────────────────────────────
    Types
@@ -234,6 +236,8 @@ const MonthCalendar = ({
 export default function AdminUserTimeprofPage() {
   const { userId } = useParams<{ userId: string }>()
   const router = useRouter()
+  const { user: currentUser } = useCrmUser()
+  const isAdmin = currentUser?.role === "admin"
 
   const [data, setData] = React.useState<TimeprofData | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -255,6 +259,12 @@ export default function AdminUserTimeprofPage() {
   const [showPhp, setShowPhp] = React.useState(false)
   const [phpRate, setPhpRate] = React.useState<number | null>(null)
   const [fetchingPhp, setFetchingPhp] = React.useState(false)
+
+  /* ── Pay state ── */
+  const [isPaying, setIsPaying] = React.useState(false)
+  const [payConfirm, setPayConfirm] = React.useState(false)
+  const [payDone, setPayDone] = React.useState(false)
+  const [payError, setPayError] = React.useState("")
 
   // Payout calculator follows the calendar month navigation — no separate nav needed
   const calcMonthDate = new Date(Date.UTC(viewYear, viewMonth, 1))
@@ -472,6 +482,30 @@ export default function AdminUserTimeprofPage() {
     if (!showPhp && phpRate === null) fetchPhpRate()
     else setShowPhp((v) => !v)
   }
+
+  /* ── Reset pay state when period/rate changes ── */
+  React.useEffect(() => {
+    setPayDone(false)
+    setPayConfirm(false)
+    setPayError("")
+  }, [payoutPeriod, viewMonth, viewYear, hourlyRate])
+
+  /* ── SupraPay mock: simulates payment + email payslip (real integration pending) ── */
+  const handlePay = React.useCallback(async () => {
+    if (!data) return
+    setIsPaying(true)
+    setPayError("")
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1400))
+      setPayDone(true)
+      setPayConfirm(false)
+    } catch {
+      setPayError("Payment failed. Please try again.")
+      setPayConfirm(false)
+    } finally {
+      setIsPaying(false)
+    }
+  }, [data])
 
   /* ── Copy proof ── */
   const copyProof = () => {
@@ -791,23 +825,77 @@ export default function AdminUserTimeprofPage() {
                   <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">Released {calcPayoutDate}</span>
                 </div>
 
-                {isPayDayReached ? (
-                  <button
-                    onClick={printPayslip}
-                    disabled={rateNum <= 0}
-                    className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download Payslip (PDF)
-                  </button>
-                ) : (
-                  <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    Payslip available on {payDayLabel}
+                {/* ── Admin-only: Confirm banner ── */}
+                {isAdmin && payConfirm && !isPaying && (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50/40 dark:bg-blue-950/20 border border-blue-500/20">
+                    <p className="text-[10px] text-muted-foreground/70 flex-1 leading-snug">
+                      Send <strong className="text-blue-700 dark:text-blue-300">${payoutUSD.toFixed(2)} USD</strong> to {data.user.fullName.split(" ")[0]} via SupraPay + email payslip?
+                    </p>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => setPayConfirm(false)}
+                        className="h-7 px-2 rounded-lg text-[10px] font-semibold text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handlePay}
+                        disabled={isPaying}
+                        className="h-7 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold transition-colors disabled:opacity-50"
+                      >
+                        Confirm
+                      </button>
+                    </div>
                   </div>
                 )}
+
+                {isAdmin && payError && (
+                  <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{payError}</p>
+                )}
+
+                {/* ── Pay + Payslip buttons row ── */}
+                <div className="flex gap-2">
+                  {/* Pay button — admin only */}
+                  {isAdmin && (payDone ? (
+                    <div className="flex-1 h-10 rounded-xl border border-emerald-500/30 bg-emerald-600/8 flex items-center justify-center gap-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 select-none">
+                      <Check className="h-3.5 w-3.5" />
+                      Payment Sent
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setPayConfirm(true)}
+                      disabled={rateNum <= 0 || isPaying || payConfirm}
+                      className="flex-1 h-10 rounded-xl border border-blue-500/40 bg-blue-600/10 hover:bg-blue-600/15 text-blue-700 dark:text-blue-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isPaying
+                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        : <Send className="h-3.5 w-3.5" />
+                      }
+                      {isPaying ? "Sending…" : "Pay"}
+                    </button>
+                  ))}
+
+                  {/* Payslip button */}
+                  {isPayDayReached ? (
+                    <button
+                      onClick={printPayslip}
+                      disabled={rateNum <= 0}
+                      className="flex-1 h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Payslip (PDF)</span>
+                      <span className="sm:hidden">Payslip</span>
+                    </button>
+                  ) : (
+                    <div className="flex-1 h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
+                      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span className="hidden sm:inline">Payslip on {payDayLabel}</span>
+                      <span className="sm:hidden">Locked</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

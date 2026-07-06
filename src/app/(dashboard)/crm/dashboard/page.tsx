@@ -14,7 +14,6 @@ import {
   Headset,
   Gift,
   Star,
-  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -189,7 +188,7 @@ export default function CrmDashboardPage() {
     { icon: <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Leads", route: "/crm/leads" },
     { icon: <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Service Hub", route: "/crm/appointments/dashboard" },
     { icon: <CalendarCheck className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Appointments", route: "/crm/appointments" },
-    { icon: <Clock className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Timeproof Clock", route: "/crm/timeproof-clock" },
+
     { icon: <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Finance Line", route: "/crm/aftermarket" },
     { icon: <Car className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Garage Review", route: "/crm/garage-review" },
     { icon: <Headset className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Support Center", route: "/crm/support-center" },

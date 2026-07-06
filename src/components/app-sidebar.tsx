@@ -79,6 +79,11 @@ type SidebarNavItem = {
 const data = {
   navMain: [
     {
+      title: "Timeproof Clock",
+      url: "/crm/timeproof-clock",
+      icon: Clock,
+    },
+    {
       title: "CRM",
       url: "/crm",
       icon: Users,
@@ -112,11 +117,6 @@ const data = {
       title: "Team Engagement",
       url: "/crm/hr",
       icon: HeartHandshake,
-    },
-    {
-      title: "Timeproof Clock",
-      url: "/crm/timeproof-clock",
-      icon: Clock,
     },
     {
       title: "All Inventory",
