@@ -11,7 +11,7 @@ declare global {
 declare const self: ServiceWorkerGlobalScope & typeof globalThis;
 
 setCacheNameDetails({
-  prefix: "actionauto-v2026-05-29",
+  prefix: "actionauto-v2026-07-06",
 });
 
 const serwist = new Serwist({
