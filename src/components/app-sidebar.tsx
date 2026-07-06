@@ -9,6 +9,7 @@ import {
   Car,
   ChevronRight,
   ClipboardList,
+  Clock,
   HeartHandshake,
   LayoutDashboard,
   MessageSquare,
@@ -111,6 +112,11 @@ const data = {
       title: "Team Engagement",
       url: "/crm/hr",
       icon: HeartHandshake,
+    },
+    {
+      title: "Timeproof Clock",
+      url: "/crm/timeproof-clock",
+      icon: Clock,
     },
     {
       title: "All Inventory",

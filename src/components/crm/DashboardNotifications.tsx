@@ -981,7 +981,7 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
                       </div>
                       <div>
                         <div className="dbn-clock-title">Time to clock in</div>
-                        <div className="dbn-clock-desc">Your shift hasn't started. Use the Time Clock below.</div>
+                        <div className="dbn-clock-desc">Your shift hasn't started. Go to Timeproof Clock to begin.</div>
                       </div>
                     </div>
                   ) : (
