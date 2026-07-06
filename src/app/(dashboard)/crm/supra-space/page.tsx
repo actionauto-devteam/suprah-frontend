@@ -146,13 +146,13 @@ if (typeof document !== 'undefined') {
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
-    .ss4-composer-main { display:flex; flex-direction:column; }
+    .ss4-composer-main { display:flex!important; flex-direction:column; width:100%; max-width:100%; min-width:0; }
     .ss4-composer-pill { display:flex; align-items:flex-end; gap:8px; min-width:0; cursor:text; }
     .ss4-composer-pill .ss4-composer-editor { display:block; flex:1 1 0%; min-width:0; width:auto; max-width:100%; overflow-x:hidden; overflow-wrap:anywhere; word-break:break-word; -webkit-user-select:text; user-select:text; }
     .ss4-composer-editor { cursor:text; height:auto!important; }
     .ss4-composer-pill button { cursor:pointer; }
-    .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:none; }
-    .ss4-desktop-toolbar { display:flex; }
+    .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:none!important; }
+    .ss4-desktop-toolbar { display:flex!important; }
     .ss4-send-btn { background:var(--accent); color:#fff; border-radius:10px; transition:all .15s ease; box-shadow:0 2px 8px rgba(91,124,246,0.3); }
     .ss4-send-btn:hover:not(:disabled) { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 16px rgba(91,124,246,0.4); }
     .ss4-send-btn:disabled { background:var(--surface-2); box-shadow:none; cursor:not-allowed; }
@@ -227,8 +227,8 @@ if (typeof document !== 'undefined') {
       .ss4-input-wrap:focus-within { box-shadow:none; }
       .ss4-mobile-composer-shell { display:flex; align-items:center; gap:10px; padding:4px 0; }
       .ss4-mobile-round-action { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--bubble-other-bg); color:var(--text-primary); display:flex; align-items:center; justify-content:center; }
-      .ss4-composer-main { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:end; gap:8px; width:100%; max-width:100%; min-width:0; padding:4px 0; }
-      .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:flex; align-items:center; justify-content:center; }
+      .ss4-composer-main { display:grid!important; grid-template-columns:44px minmax(0,1fr) auto; align-items:end; gap:8px; width:100%; max-width:100%; min-width:0; padding:4px 0; }
+      .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:flex!important; align-items:center; justify-content:center; }
       .ss4-mobile-leading { position:relative; }
       .ss4-mobile-trailing { gap:6px; min-width:0; color:var(--text-primary); }
       .ss4-composer-pill { min-height:44px; width:100%; max-width:100%; align-items:center; border-radius:999px; padding:8px 8px 8px 16px; background:var(--bubble-other-bg); min-width:0; overflow:hidden; }
@@ -238,7 +238,7 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-emoji-panel { position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 76px); z-index:90; max-height:min(360px,calc(100dvh - 180px)); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-lg); }
       .ss4-mobile-emoji-panel .EmojiPickerReact { width:100% !important; max-width:100% !important; border-radius:14px !important; }
       .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
-      .ss4-desktop-toolbar { display:none; }
+      .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
       .ss4-conv-name { font-size:16px !important; line-height:1.25 !important; }
       .ss4-conv-preview { font-size:14.5px !important; line-height:1.35 !important; }
@@ -5394,8 +5394,8 @@ export default function SupraSpacePage() {
                             </button>
                           </div>
                         )}
-                        <div className="ss4-composer-main px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
-                          <div className="ss4-mobile-leading">
+                        <div className="ss4-composer-main flex flex-col max-md:grid max-md:grid-cols-[44px_minmax(0,1fr)_auto] max-md:items-end max-md:gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
+                          <div className="ss4-mobile-leading flex md:hidden">
                             <button onClick={() => fileRef.current?.click()} className="ss4-mobile-round-action" title="Add">
                               <Plus className="h-6 w-6" />
                             </button>
@@ -5481,7 +5481,7 @@ export default function SupraSpacePage() {
                               className="ss4-composer-editor text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
                               style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', maxWidth: '100%', overflowX: 'hidden', outline: 'none' }}
                             />
-                            <div ref={mobileEmojiRef} className="relative ss4-mobile-emoji">
+                            <div ref={mobileEmojiRef} className="relative ss4-mobile-emoji flex md:hidden">
                               <button
                                 onPointerDown={e => { e.preventDefault(); prepareMobileEmojiPicker(); }}
                                 onClick={e => { if (e.detail === 0) prepareMobileEmojiPicker(); }}
@@ -5500,7 +5500,7 @@ export default function SupraSpacePage() {
                               )}
                             </div>
                           </div>
-                          <div className="ss4-mobile-trailing">
+                          <div className="ss4-mobile-trailing flex md:hidden">
                             {input.trim() || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
@@ -5526,7 +5526,7 @@ export default function SupraSpacePage() {
                             )}
                           </div>
                         </div>
-                        <div className="ss4-desktop-toolbar items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
+                        <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
