@@ -35,6 +35,7 @@ export interface SSConv {
   members: SSMember[];
   lastMessage?: SSLastMessage;
   lastMessageAt?: string;
+  unreadCount?: number;
   theme?: { accent?: string | null };
   pinnedBy?: string[];
   archivedBy?: string[];
@@ -263,11 +264,16 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     // New message → update conversation lastMessage + re-sort + sound
     s.on('message:new', ({ conversationId, message }: { conversationId: string; message: SSLastMessage }) => {
       setConversations((prev) => {
-        const updated = prev.map((conv) =>
-          conv._id === conversationId
-            ? { ...conv, lastMessage: message, lastMessageAt: message.createdAt }
-            : conv
-        );
+        const updated = prev.map((conv) => {
+          if (conv._id !== conversationId) return conv;
+          const isIncomingUnread = message.sender?._id !== crmUserId && !message.readBy?.includes(crmUserId || '');
+          return {
+            ...conv,
+            lastMessage: message,
+            lastMessageAt: message.createdAt,
+            unreadCount: isIncomingUnread ? (conv.unreadCount || 0) + 1 : 0,
+          };
+        });
         return sortByLastMessage(updated);
       });
       if (message.sender?._id !== crmUserId) {
@@ -285,9 +291,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
             const conv = conversationsRef.current.find(c => c._id === conversationId);
             const isGroup = conv?.type === 'group';
+            const nextUnreadCount = (conv?.unreadCount || 0) + 1;
             const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
             const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
-            const body = isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
+            const body = nextUnreadCount >= 2 ? `${nextUnreadCount} new messages` : isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
             showNotificationViaSW(title, { body, tag: conversationId });
           }
         }
@@ -364,6 +371,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const totalUnread = React.useMemo(() => {
     if (!crmUserId) return 0;
     return conversations.filter((conv) => {
+      if ((conv.unreadCount || 0) > 0) return true;
       const msg = conv.lastMessage;
       if (!msg || msg.isDeleted) return false;
       return msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId);
@@ -406,6 +414,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           if (conv._id !== convId || !conv.lastMessage) return conv;
           return {
             ...conv,
+            unreadCount: 0,
             lastMessage: {
               ...conv.lastMessage,
               readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])],

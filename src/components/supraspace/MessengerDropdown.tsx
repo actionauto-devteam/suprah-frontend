@@ -47,14 +47,33 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diff / 86_400_000)}d`;
 }
 
+function cleanPreviewContent(content?: string | null): string {
+  if (!content) return '';
+  return content
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\{color:#[0-9a-fA-F]{6}\}/g, '')
+    .replace(/\{\/color\}/g, '')
+    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function previewText(conv: SSConv): string {
   const msg = conv.lastMessage;
+  if ((conv.unreadCount || 0) >= 2) return `${conv.unreadCount} new messages`;
   if (!msg || msg.isDeleted) return 'No messages yet';
   const icons: Record<string, string> = {
     image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
     file: '📎 File', poll: '📊 Poll', event: '📅 Event',
   };
-  return icons[msg.type] ?? msg.content ?? '';
+  return icons[msg.type] ?? cleanPreviewContent(msg.content) ?? '';
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -282,7 +301,7 @@ export function MessengerDropdown() {
             ) : (
               conversations.map((conv) => {
                 const msg = conv.lastMessage;
-                const isUnread = !!msg && !msg.isDeleted && msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId || '');
+                const isUnread = (conv.unreadCount || 0) > 0 || (!!msg && !msg.isDeleted && msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId || ''));
                 const name = getDisplayName(conv, crmUserId);
                 const avatarSrc = getAvatarSrc(conv, crmUserId);
                 return (
