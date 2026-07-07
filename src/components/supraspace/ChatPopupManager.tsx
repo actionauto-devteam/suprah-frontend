@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -191,16 +191,34 @@ function normalizeFinalMessageMarkup(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  let normalized = text.replace(/\r\n/g, '\n');
-  normalized = normalizeMultilineMarkdownBlocks(normalized);
-  for (let i = 0; i < 3; i += 1) {
-    normalized = normalizeCopiedMarkdownArtifacts(normalized);
-    normalized = normalizeStructuredLeadLayout(normalized);
-    normalized = normalizeMultilineMarkdownBlocks(normalized);
-    normalized = normalizeCopiedMarkdownArtifacts(normalized);
-    normalized = normalizeStructuredLeadLayout(normalized);
-  }
-  return normalizeFinalMessageMarkup(normalizeStructuredLeadLayout(normalized)).replace(/\n{3,}/g, '\n\n').trim();
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .trim();
+}
+
+function normalizeMessageMarkdownForDisplay(text: string): string {
+  return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(text))
+    .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
+    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
+    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
+    .replace(/\n{4,}/g, '\n\n\n');
+}
+
+function messagePreviewText(content?: string | null): string {
+  if (!content) return '';
+  return normalizeMessageMarkdownForDisplay(content)
+    .replace(/\{color:#[0-9a-fA-F]{6}\}/g, '')
+    .replace(/\{\/color\}/g, '')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.ReactNode[] {
@@ -239,19 +257,16 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   const label = MEDIA_LABELS[msg.type];
   if (label) return label;
   const raw = msg.content ?? '';
-  // Collapse inline markers whose closing delimiter landed on the next line alone
-  const text = normalizeMessageMarkdownText(raw)
-    .replace(/\*\*([^*\n]*)\n\*\*/g, '**$1**')
-    .replace(/~~([^~\n]*)\n~~/g, '~~$1~~')
-    .replace(/__([^_\n]*)\n__/g, '__$1__')
-    .replace(/`([^`\n]*)\n`/g, '`$1`');
+  const text = normalizeMessageMarkdownForDisplay(raw);
   const lines = text.split('\n');
   const nodes: React.ReactNode[] = [];
   lines.forEach((line, li) => {
     if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return;
-    const renderLine = /\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)
-      ? `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`
-      : line;
+    const renderLine = (() => {
+      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
+      if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
+      return line;
+    })();
     if (li > 0) nodes.push(<br key={`br-${li}`} />);
     if (line.startsWith('• ') || line.startsWith('• ')) {
       nodes.push(
@@ -659,7 +674,7 @@ function PinnedMessagesModal({
             pinned.map((m, idx) => {
               const dateStr = new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               const avatarLetter = (m.sender?.fullName || 'U')[0].toUpperCase();
-              const contentText = MEDIA_LABELS[m.type] || m.content || '';
+              const contentText = MEDIA_LABELS[m.type] || messagePreviewText(m.content) || '';
               return (
                 <React.Fragment key={m._id}>
                   {idx > 0 && <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />}
@@ -1024,6 +1039,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [editDraft, setEditDraft] = React.useState('');
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
+  const editAreaRef = React.useRef<HTMLDivElement>(null);
+  const [editColorOpen, setEditColorOpen] = React.useState(false);
+  const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editPalette, setEditPalette] = React.useState(TEXT_COLORS);
 
   const startEdit = (msgId: string) => {
     const msg = messages.find(m => m._id === msgId);
@@ -1034,19 +1053,75 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     setEditDraft(msg.content);
     setEditingMsgId(msgId);
     clearBar();
+    requestAnimationFrame(() => {
+      if (!editAreaRef.current) return;
+      editAreaRef.current.innerHTML = markdownTextToEditorHtml(msg.content || '');
+      editAreaRef.current.focus();
+      const range = document.createRange();
+      range.selectNodeContents(editAreaRef.current);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
   };
 
+  const syncEditDraft = React.useCallback(() => {
+    const next = editAreaRef.current ? htmlToMarkdown(editAreaRef.current).trim() : editDraft.trim();
+    setEditDraft(next);
+    return next;
+  }, [editDraft]);
+
+  const applyEditCommand = React.useCallback((command: string, value?: string) => {
+    editAreaRef.current?.focus();
+    document.execCommand(command, false, value);
+    syncEditDraft();
+  }, [syncEditDraft]);
+
+  const applyEditColor = React.useCallback((color: string) => {
+    editAreaRef.current?.focus();
+    document.execCommand('foreColor', false, color);
+    setEditTextColor(color);
+    syncEditDraft();
+  }, [syncEditDraft]);
+
+  const chooseExpandedEditColor = React.useCallback((color: string) => {
+    setEditPalette(prev => {
+      if (prev.includes(color)) return prev;
+      const replaceIndex = prev.includes(editTextColor) ? prev.indexOf(editTextColor) : prev.length - 1;
+      const next = [...prev];
+      next[replaceIndex] = color;
+      return next;
+    });
+    applyEditColor(color);
+    setEditColorOpen(false);
+  }, [applyEditColor, editTextColor]);
+
+  const handleEditColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = e.nativeEvent as InputEvent;
+    if (editTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
+    e.preventDefault();
+    document.execCommand('insertHTML', false, `<span style="color:${editTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
+    syncEditDraft();
+  };
+
+  const cancelEdit = React.useCallback(() => {
+    setEditingMsgId(null);
+    setEditWidth(null);
+    setEditColorOpen(false);
+  }, []);
+
   const saveEdit = async () => {
-    if (!editingMsgId || !editDraft.trim() || !crmToken) return;
+    if (!editingMsgId || !crmToken) return;
     const original = messages.find(m => m._id === editingMsgId)?.content;
-    if (editDraft.trim() === original) { setEditingMsgId(null); setEditWidth(null); return; }
+    const nextDraft = syncEditDraft();
+    if (!nextDraft || nextDraft === original) { cancelEdit(); return; }
     setEditSaving(true);
     try {
-      await apiClient.patch(`/api/supraspace/messages/${editingMsgId}`, { content: editDraft.trim() },
+      await apiClient.patch(`/api/supraspace/messages/${editingMsgId}`, { content: nextDraft },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
-      setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: editDraft.trim(), isEdited: true } : m));
-      setEditingMsgId(null);
-      setEditWidth(null);
+      setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: nextDraft, isEdited: true } : m));
+      cancelEdit();
     } catch {} finally { setEditSaving(false); }
   };
 
@@ -1412,19 +1487,69 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         {/* Bubble */}
                         {editingMsgId === msg._id ? (
                           <div className="px-3 py-1.5 rounded-2xl text-[15px] leading-relaxed min-w-0 bg-blue-500 text-white rounded-br-sm" style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 190, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-                            <textarea
-                              value={editDraft}
-                              onChange={e => setEditDraft(e.target.value)}
-                              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); } if (e.key === 'Escape') { setEditingMsgId(null); setEditWidth(null); } }}
-                              autoFocus
-                              rows={Math.max(1, editDraft.split('\n').length)}
-                              className="w-full bg-transparent resize-none outline-none text-[15px] leading-relaxed text-white"
-                              style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                            <div className="flex items-center gap-0.5 pb-1.5 mb-1.5 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('bold'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Bold"><Bold className="h-3.5 w-3.5" /></button>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('italic'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Italic"><Italic className="h-3.5 w-3.5" /></button>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Underline"><Underline className="h-3.5 w-3.5" /></button>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Strikethrough"><Strikethrough className="h-3.5 w-3.5" /></button>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('insertUnorderedList'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Bullet list"><List className="h-3.5 w-3.5" /></button>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('formatBlock', 'blockquote'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Quote"><TextQuote className="h-3.5 w-3.5" /></button>
+                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('fontName', 'monospace'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Inline code"><Code2 className="h-3.5 w-3.5" /></button>
+                              <div className="relative flex items-center gap-1">
+                                <button type="button" onMouseDown={e => { e.preventDefault(); setEditColorOpen(v => !v); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="More text colors">
+                                  <Palette className="h-3.5 w-3.5" />
+                                </button>
+                                {editPalette.map(color => (
+                                  <button key={color} onMouseDown={e => { e.preventDefault(); applyEditColor(color); }} className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110" style={{ background: color, borderColor: editTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)', boxShadow: editTextColor === color ? '0 0 0 2px rgba(0,0,0,0.35), 0 0 0 4px #60a5fa' : undefined }} aria-pressed={editTextColor === color} title={`Text color ${color}`}>
+                                    {editTextColor === color && <Check className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2" style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }} />}
+                                  </button>
+                                ))}
+                                {editColorOpen && (
+                                  <div className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl" style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.12)', width: 210, maxHeight: 156 }}>
+                                    {MORE_TEXT_COLORS.map(color => (
+                                      <button key={color} type="button" onMouseDown={e => { e.preventDefault(); chooseExpandedEditColor(color); }} className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110" style={{ background: color, borderColor: editTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)', boxShadow: editTextColor === color ? '0 0 0 2px #18181c, 0 0 0 4px #60a5fa' : undefined }} aria-pressed={editTextColor === color} title={`Use ${color}`}>
+                                        {editTextColor === color && <Check className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2" style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }} />}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div
+                              ref={editAreaRef}
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBeforeInput={handleEditColorBeforeInput}
+                              onInput={syncEditDraft}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                                if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); syncEditDraft(); }
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              onPaste={e => {
+                                const text = e.clipboardData?.getData('text/plain') || '';
+                                const html = e.clipboardData?.getData('text/html') || '';
+                                if (html && hasRichFormatting(html)) {
+                                  e.preventDefault();
+                                  const editorHtml = clipboardHtmlToEditorHtml(html);
+                                  document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
+                                  requestAnimationFrame(syncEditDraft);
+                                  return;
+                                }
+                                if (text) {
+                                  e.preventDefault();
+                                  const markdown = hasMarkdownSyntax(text);
+                                  document.execCommand(markdown ? 'insertHTML' : 'insertText', false, markdown ? markdownTextToEditorHtml(text) : text);
+                                  requestAnimationFrame(syncEditDraft);
+                                }
+                              }}
+                              className="min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
+                              style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: '#fff' }}
                             />
                             <div className="flex items-center gap-1.5 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
                               <span style={{ fontSize: 8, opacity: 0.5 }}>Enter · Esc</span>
                               <div className="flex-1" />
-                              <button onClick={() => { setEditingMsgId(null); setEditWidth(null); }} className="text-[11px] px-2 py-1 rounded-md" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
+                              <button onClick={cancelEdit} className="text-[11px] px-2 py-1 rounded-md" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
                               <button onClick={saveEdit} disabled={editSaving || !editDraft.trim()} className="text-[11px] px-2 py-1 rounded-md font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
                                 {editSaving ? '...' : 'Update'}
                               </button>
@@ -1444,7 +1569,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                 {(msg.replyTo as any)?.sender?.fullName || 'Reply'}
                               </div>
                               <div className={cn('truncate', isOwn ? 'text-white/60' : 'text-foreground/50')}>
-                                {(msg.replyTo as any)?.content || '📎 Attachment'}
+                                {messagePreviewText((msg.replyTo as any)?.content) || '📎 Attachment'}
                               </div>
                             </div>
                           )}
@@ -1592,7 +1717,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   <div className="w-0.5 self-stretch rounded-full bg-blue-400" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[12px] font-semibold text-blue-400">{replyTo.sender?.fullName}</div>
-                    <div className="text-[12px] text-muted-foreground truncate">{replyTo.content || '📎 Attachment'}</div>
+                    <div className="text-[12px] text-muted-foreground truncate">{messagePreviewText(replyTo.content) || '📎 Attachment'}</div>
                   </div>
                   <button onClick={() => setReplyTo(null)} className="shrink-0 text-muted-foreground hover:text-foreground p-0.5">
                     <X className="h-3 w-3" />
@@ -2171,9 +2296,12 @@ function ChatOverflowDock({
             {hiddenConvs.map((conv) => {
               const name = getDisplayName(conv, crmUserId);
               const avatar = getAvatarSrc(conv, crmUserId);
-              const preview = conv.lastMessage?.isDeleted
+              const unreadCount = conv.unreadCount || 0;
+              const preview = unreadCount >= 2
+                ? `${unreadCount} new messages`
+                : conv.lastMessage?.isDeleted
                 ? 'Message deleted'
-                : conv.lastMessage?.content || (conv.lastMessage ? 'Attachment' : 'No messages yet');
+                : messagePreviewText(conv.lastMessage?.content) || (conv.lastMessage ? 'Attachment' : 'No messages yet');
               return (
                 <div
                   key={conv._id}

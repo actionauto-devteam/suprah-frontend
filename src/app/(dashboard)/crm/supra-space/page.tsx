@@ -614,124 +614,149 @@ function normalizeFinalMessageMarkup(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  let normalized = text.replace(/\r\n/g, '\n');
-  // Split multiline bold/etc. spans BEFORE the artifacts cleaner runs so it
-  // doesn't strip orphaned ** delimiters from pasted multiline content.
-  normalized = normalizeMultilineMarkdownBlocks(normalized);
-  for (let i = 0; i < 3; i += 1) {
-    normalized = normalizeCopiedMarkdownArtifacts(normalized);
-    normalized = normalizeStructuredLeadLayout(normalized);
-    normalized = normalizeMultilineMarkdownBlocks(normalized);
-    normalized = normalizeCopiedMarkdownArtifacts(normalized);
-    normalized = normalizeStructuredLeadLayout(normalized);
-  }
-  return normalizeFinalMessageMarkup(normalizeStructuredLeadLayout(normalized)).replace(/\n{3,}/g, '\n\n').trim();
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .trim();
+}
+
+function normalizeMessageMarkdownForDisplay(text: string): string {
+  return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(text))
+    .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
+    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
+    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
+    .replace(/\n{4,}/g, '\n\n\n');
+}
+
+function messagePreviewText(content?: string | null): string {
+  if (!content) return '';
+  return normalizeMessageMarkdownForDisplay(content)
+    .replace(/\{color:#[0-9a-fA-F]{6}\}/g, '')
+    .replace(/\{\/color\}/g, '')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
-  const MDPattern = /(\{color:#[0-9a-fA-F]{6}\}[\s\S]*?\{\/color\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
   const result: React.ReactNode[] = [];
 
-  const renderInline = (text: string, li: number, target: React.ReactNode[]) => {
-    if (text.startsWith('**') && text.endsWith('**') && text.length > 4) {
-      const children: React.ReactNode[] = [];
-      renderInline(text.slice(2, -2), li, children);
-      target.push(<strong key={`${li}-strong-wrap-${target.length}`}>{children}</strong>);
-      return;
+  const renderInline = (text: string, keyPrefix: string): React.ReactNode[] => {
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+    let index = 0;
+
+    const pushPlain = (plain: string) => {
+      if (!plain) return;
+      const tokenPattern = /(https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+      let last = 0;
+      let match: RegExpExecArray | null;
+      while ((match = tokenPattern.exec(plain)) !== null) {
+        if (match.index > last) nodes.push(plain.slice(last, match.index));
+        const token = match[0];
+        const key = `${keyPrefix}-plain-${index++}`;
+        if (/^https?:\/\//i.test(token)) {
+          const trailing = token.match(/[),.!?]+$/)?.[0] || '';
+          const href = trailing ? token.slice(0, -trailing.length) : token;
+          nodes.push(
+            <React.Fragment key={key}>
+              <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>
+              {trailing}
+            </React.Fragment>
+          );
+        } else {
+          nodes.push(isOwn
+            ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{token}</span>
+            : <span key={key} className="font-bold" style={{ color: 'var(--accent-text)' }}>{token}</span>
+          );
+        }
+        last = match.index + token.length;
+      }
+      if (last < plain.length) nodes.push(plain.slice(last));
+    };
+
+    const findNextToken = (from: number) => {
+      const candidates: Array<{ start: number; end: number; type: 'color' | 'bold' | 'strike' | 'underline' | 'italic' | 'code'; color?: string }> = [];
+      const colorRe = /\{color:(#[0-9a-fA-F]{6})\}/g;
+      colorRe.lastIndex = from;
+      const colorStart = colorRe.exec(text);
+      if (colorStart) {
+        const close = text.indexOf('{/color}', colorStart.index + colorStart[0].length);
+        if (close >= 0) candidates.push({ start: colorStart.index, end: close + 8, type: 'color', color: colorStart[1] });
+      }
+      const markerDefs: Array<[string, 'bold' | 'strike' | 'underline' | 'code']> = [['**', 'bold'], ['~~', 'strike'], ['__', 'underline'], ['`', 'code']];
+      markerDefs.forEach(([marker, type]) => {
+        const start = text.indexOf(marker, from);
+        if (start < 0) return;
+        const end = text.indexOf(marker, start + marker.length);
+        if (end > start + marker.length) candidates.push({ start, end: end + marker.length, type });
+      });
+      const italicRe = /(^|[^\w*])_([^_\n]+)_(?!\w)/g;
+      italicRe.lastIndex = from;
+      const italicMatch = italicRe.exec(text);
+      if (italicMatch) {
+        const markerOffset = italicMatch[1].length;
+        candidates.push({ start: italicMatch.index + markerOffset, end: italicMatch.index + italicMatch[0].length, type: 'italic' });
+      }
+      return candidates.sort((a, b) => a.start - b.start || a.end - b.end)[0] || null;
+    };
+
+    while (cursor < text.length) {
+      const token = findNextToken(cursor);
+      if (!token) {
+        pushPlain(text.slice(cursor));
+        break;
+      }
+      if (token.start > cursor) pushPlain(text.slice(cursor, token.start));
+      const key = `${keyPrefix}-fmt-${index++}`;
+      if (token.type === 'color') {
+        const inner = text.slice(text.indexOf('}', token.start) + 1, token.end - 8);
+        nodes.push(<span key={key} style={{ color: token.color }}>{renderInline(inner, key)}</span>);
+      } else if (token.type === 'bold') {
+        nodes.push(<strong key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</strong>);
+      } else if (token.type === 'strike') {
+        nodes.push(<s key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</s>);
+      } else if (token.type === 'underline') {
+        nodes.push(<u key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</u>);
+      } else if (token.type === 'italic') {
+        nodes.push(<em key={key}>{renderInline(text.slice(token.start + 1, token.end - 1), key)}</em>);
+      } else {
+        nodes.push(<code key={key} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{text.slice(token.start + 1, token.end - 1)}</code>);
+      }
+      cursor = token.end;
     }
-    if (text.startsWith('~~') && text.endsWith('~~') && text.length > 4) {
-      const children: React.ReactNode[] = [];
-      renderInline(text.slice(2, -2), li, children);
-      target.push(<s key={`${li}-strike-wrap-${target.length}`}>{children}</s>);
-      return;
-    }
-    if (text.startsWith('__') && text.endsWith('__') && text.length > 4) {
-      const children: React.ReactNode[] = [];
-      renderInline(text.slice(2, -2), li, children);
-      target.push(<u key={`${li}-underline-wrap-${target.length}`}>{children}</u>);
-      return;
-    }
-    if (text.startsWith('_') && text.endsWith('_') && !text.startsWith('__') && text.length > 2) {
-      const children: React.ReactNode[] = [];
-      renderInline(text.slice(1, -1), li, children);
-      target.push(<em key={`${li}-em-wrap-${target.length}`}>{children}</em>);
-      return;
-    }
-    text.split(MDPattern).forEach((part, i) => {
-      const k = `${li}-${i}`;
-      const colorMatch = part.match(/^\{color:(#[0-9a-fA-F]{6})\}([\s\S]*)\{\/color\}$/);
-      if (colorMatch) {
-        const children: React.ReactNode[] = [];
-        renderInline(colorMatch[2], li, children);
-        return target.push(<span key={k} style={{ color: colorMatch[1] }}>{children}</span>);
-      }
-      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-        const children: React.ReactNode[] = [];
-        renderInline(part.slice(2, -2), li, children);
-        return target.push(<strong key={k}>{children}</strong>);
-      }
-      if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4) {
-        const children: React.ReactNode[] = [];
-        renderInline(part.slice(2, -2), li, children);
-        return target.push(<s key={k}>{children}</s>);
-      }
-      if (part.startsWith('__') && part.endsWith('__') && part.length > 4) {
-        const children: React.ReactNode[] = [];
-        renderInline(part.slice(2, -2), li, children);
-        return target.push(<u key={k}>{children}</u>);
-      }
-      if (part.startsWith('_') && part.endsWith('_') && !part.startsWith('__') && part.length > 2) {
-        const children: React.ReactNode[] = [];
-        renderInline(part.slice(1, -1), li, children);
-        return target.push(<em key={k}>{children}</em>);
-      }
-      if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
-        return target.push(<code key={k} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{part.slice(1, -1)}</code>);
-      if (/^https?:\/\//i.test(part)) {
-        const trailing = part.match(/[),.!?]+$/)?.[0] || '';
-        const href = trailing ? part.slice(0, -trailing.length) : part;
-        return target.push(
-          <React.Fragment key={k}>
-            <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>
-            {trailing}
-          </React.Fragment>
-        );
-      }
-      if (/^@/.test(part))
-        return target.push(isOwn
-          ? <span key={k} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{part}</span>
-          : <span key={k} className="font-bold" style={{ color: 'var(--accent-text)' }}>{part}</span>
-        );
-      target.push(part);
-    });
+
+    return nodes;
   };
 
-  // Collapse inline markers whose closing delimiter landed on the next line alone
-  const normalized = normalizeMessageMarkdownText(content)
-    .replace(/\*\*([^*\n]*)\n\*\*/g, '**$1**')
-    .replace(/~~([^~\n]*)\n~~/g, '~~$1~~')
-    .replace(/__([^_\n]*)\n__/g, '__$1__')
-    .replace(/`([^`\n]*)\n`/g, '`$1`');
+  const normalized = normalizeMessageMarkdownForDisplay(content);
 
   normalized.split('\n').forEach((line, li) => {
     if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return;
-    const renderLine = /\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)
-      ? `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`
-      : line;
+    const renderLine = (() => {
+      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
+      if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
+      return line;
+    })();
     if (li > 0) result.push(<br key={`br${li}`} />);
     const bulletMatch = renderLine.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
     if (bulletMatch) {
       // Render bullet lines in an indented block with hanging indent so the text
       // aligns under itself when it wraps, not under the bullet character.
-      const bulletNodes: React.ReactNode[] = [];
-      renderInline(`• ${bulletMatch[2]}`, li, bulletNodes);
+      const bulletNodes = renderInline(`• ${bulletMatch[2]}`, `bullet-${li}`);
       result.push(
         <span key={`bul-${li}`} style={{ display: 'inline-block', paddingLeft: '1.1em', textIndent: '-0.8em' }}>
           {bulletNodes}
         </span>
       );
     } else {
-      renderInline(renderLine, li, result);
+      result.push(...renderInline(renderLine, `line-${li}`));
     }
   });
 
@@ -1142,7 +1167,19 @@ function Bubble({
   const [editDraft, setEditDraft] = React.useState('');
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
-  const editAreaRef = React.useRef<HTMLTextAreaElement>(null);
+  const editAreaRef = React.useRef<HTMLDivElement>(null);
+  const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
+  const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
+  const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    list: false,
+    quote: false,
+    code: false,
+  });
   const [moreActionsOpen, setMoreActionsOpen_] = React.useState(false);
   const moreActionsOpenRef = React.useRef(false);
   const moreActionsRef = React.useRef<HTMLDivElement>(null);
@@ -1174,6 +1211,17 @@ function Bubble({
     setEditDraft(message.content);
     setEditMode(true);
     setHov(false);
+    requestAnimationFrame(() => {
+      if (!editAreaRef.current) return;
+      editAreaRef.current.innerHTML = markdownTextToEditorHtml(message.content || '');
+      editAreaRef.current.focus();
+      const range = document.createRange();
+      range.selectNodeContents(editAreaRef.current);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
   };
   const copyMessageText = async () => {
     const text = message.content?.trim();
@@ -1185,13 +1233,97 @@ function Bubble({
       toast.error('Could not copy message');
     }
   };
-  const cancelEdit = () => { setEditMode(false); setEditDraft(''); setEditWidth(null); };
+  const syncEditDraft = React.useCallback(() => {
+    const next = editAreaRef.current ? htmlToMarkdown(editAreaRef.current).trim() : '';
+    setEditDraft(next);
+    return next;
+  }, []);
+
+  const refreshEditActiveFormats = React.useCallback(() => {
+    try {
+      const root = editAreaRef.current;
+      const selection = window.getSelection();
+      const insideEdit = !!root && !!selection?.anchorNode && root.contains(selection.anchorNode);
+      if (!insideEdit) return;
+      setEditActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strike: document.queryCommandState('strikeThrough'),
+        list: document.queryCommandState('insertUnorderedList'),
+        quote: false,
+        code: false,
+      });
+      setEditTextColor(getActiveSelectionColor(root));
+    } catch {}
+  }, []);
+
+  const focusEditComposer = React.useCallback(() => {
+    editAreaRef.current?.focus();
+  }, []);
+
+  const applyEditFormat = React.useCallback((format: RichTextFormat) => {
+    focusEditComposer();
+    const commandMap: Partial<Record<RichTextFormat, string>> = {
+      bold: 'bold',
+      italic: 'italic',
+      underline: 'underline',
+      strike: 'strikeThrough',
+      list: 'insertUnorderedList',
+    };
+    const command = commandMap[format];
+    if (command) {
+      document.execCommand(command);
+    } else if (format === 'quote') {
+      document.execCommand('formatBlock', false, 'blockquote');
+    } else if (format === 'code') {
+      document.execCommand('fontName', false, 'monospace');
+    }
+    syncEditDraft();
+    requestAnimationFrame(refreshEditActiveFormats);
+  }, [focusEditComposer, refreshEditActiveFormats, syncEditDraft]);
+
+  const applyEditTextColor = React.useCallback((color: string) => {
+    focusEditComposer();
+    document.execCommand('foreColor', false, color);
+    setEditTextColor(color);
+    syncEditDraft();
+    requestAnimationFrame(refreshEditActiveFormats);
+  }, [focusEditComposer, refreshEditActiveFormats, syncEditDraft]);
+
+  const chooseExpandedEditTextColor = React.useCallback((color: string) => {
+    setEditTextPalette(prev => {
+      if (prev.includes(color)) return prev;
+      const replaceIndex = prev.includes(editTextColor) ? prev.indexOf(editTextColor) : prev.length - 1;
+      const next = [...prev];
+      next[replaceIndex] = color;
+      return next;
+    });
+    applyEditTextColor(color);
+    setEditColorPickerOpen(false);
+  }, [applyEditTextColor, editTextColor]);
+
+  const handleEditColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = e.nativeEvent as InputEvent;
+    if (editTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
+    e.preventDefault();
+    document.execCommand('insertHTML', false, `<span style="color:${editTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
+    syncEditDraft();
+  };
+
+  const cancelEdit = () => { setEditMode(false); setEditDraft(''); setEditWidth(null); setEditColorPickerOpen(false); };
   const saveEdit = async () => {
-    const trimmed = editDraft.trim();
+    const trimmed = syncEditDraft();
     if (!trimmed || trimmed === message.content || !onEditSave) return;
     setEditSaving(true);
     try { await onEditSave(message._id, trimmed); setEditMode(false); setEditWidth(null); } finally { setEditSaving(false); }
   };
+
+  const editFormatButtonClass = (format: RichTextFormat) => cn(
+    'h-7 w-7 flex items-center justify-center rounded-md transition-colors',
+    editActiveFormats[format] ? 'bg-white/15' : 'hover:bg-white/10'
+  );
+  const editFormatIconStyle = (format: RichTextFormat) => ({ color: editActiveFormats[format] ? 'var(--accent-text)' : 'currentColor' });
 
   const openPicker = (pos: { top: number; left?: number; right?: number }) => {
     pickerPosRef.current = pos;
@@ -1292,7 +1424,7 @@ function Bubble({
         {message.replyTo && (
           <div className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar">
             <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>{message.replyTo.sender?.fullName}</p>
-            <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{message.replyTo.content || '📎 Attachment'}</p>
+            <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(message.replyTo.content) || '📎 Attachment'}</p>
           </div>
         )}
 
@@ -1302,18 +1434,124 @@ function Bubble({
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
               style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 220, maxWidth: '100%' }}
             >
-              <textarea
+              <div className="flex items-center gap-0.5 pb-2 mb-2 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('bold'); }} className={editFormatButtonClass('bold')} title="Bold" aria-pressed={editActiveFormats.bold}>
+                  <Bold className="h-3.5 w-3.5" style={editFormatIconStyle('bold')} />
+                </button>
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('italic'); }} className={editFormatButtonClass('italic')} title="Italic" aria-pressed={editActiveFormats.italic}>
+                  <Italic className="h-3.5 w-3.5" style={editFormatIconStyle('italic')} />
+                </button>
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('underline'); }} className={editFormatButtonClass('underline')} title="Underline" aria-pressed={editActiveFormats.underline}>
+                  <Underline className="h-3.5 w-3.5" style={editFormatIconStyle('underline')} />
+                </button>
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('strike'); }} className={editFormatButtonClass('strike')} title="Strikethrough" aria-pressed={editActiveFormats.strike}>
+                  <Strikethrough className="h-3.5 w-3.5" style={editFormatIconStyle('strike')} />
+                </button>
+                <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('list'); }} className={editFormatButtonClass('list')} title="Bullet list" aria-pressed={editActiveFormats.list}>
+                  <List className="h-3.5 w-3.5" style={editFormatIconStyle('list')} />
+                </button>
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('quote'); }} className={editFormatButtonClass('quote')} title="Quote">
+                  <TextQuote className="h-3.5 w-3.5" style={editFormatIconStyle('quote')} />
+                </button>
+                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('code'); }} className={editFormatButtonClass('code')} title="Inline code">
+                  <Code2 className="h-3.5 w-3.5" style={editFormatIconStyle('code')} />
+                </button>
+                <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
+                <div className="relative flex items-center gap-1">
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); setEditColorPickerOpen(v => !v); }}
+                    className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-white/10"
+                    title="More text colors"
+                    aria-expanded={editColorPickerOpen}
+                  >
+                    <Palette className="h-3.5 w-3.5" style={{ color: editColorPickerOpen ? 'var(--accent-text)' : 'currentColor' }} />
+                  </button>
+                  {editTextPalette.map(color => (
+                    <button
+                      key={color}
+                      onMouseDown={e => { e.preventDefault(); applyEditTextColor(color); }}
+                      className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110"
+                      style={{
+                        background: color,
+                        borderColor: editTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)',
+                        boxShadow: editTextColor === color ? '0 0 0 2px rgba(0,0,0,0.35), 0 0 0 4px var(--accent)' : undefined,
+                      }}
+                      aria-pressed={editTextColor === color}
+                      title={`Text color ${color}`}
+                    >
+                      {editTextColor === color && (
+                        <CheckIcon
+                          className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2"
+                          style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                  {editColorPickerOpen && (
+                    <div
+                      className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl"
+                      style={{ background: 'var(--surface-3,#18181c)', border: '1px solid var(--border-2)', width: 210, maxHeight: 156 }}
+                    >
+                      {SS4_MORE_TEXT_COLORS.map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); chooseExpandedEditTextColor(color); }}
+                          className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
+                          style={{
+                            background: color,
+                            borderColor: editTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'var(--border-3)' : 'rgba(255,255,255,0.22)',
+                            boxShadow: editTextColor === color ? '0 0 0 2px var(--surface-3,#18181c), 0 0 0 4px var(--accent)' : undefined,
+                          }}
+                          aria-pressed={editTextColor === color}
+                          title={`Use ${color}`}
+                        >
+                          {editTextColor === color && (
+                            <CheckIcon
+                              className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2"
+                              style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
+                            />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div
                 ref={editAreaRef}
-                value={editDraft}
-                onChange={e => setEditDraft(e.target.value)}
+                contentEditable
+                suppressContentEditableWarning
+                onBeforeInput={handleEditColorBeforeInput}
+                onInput={() => { syncEditDraft(); refreshEditActiveFormats(); }}
+                onFocus={refreshEditActiveFormats}
+                onMouseUp={refreshEditActiveFormats}
+                onKeyUp={refreshEditActiveFormats}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                  if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); syncEditDraft(); }
                   if (e.key === 'Escape') cancelEdit();
                 }}
-                autoFocus
-                rows={Math.max(1, editDraft.split('\n').length)}
-                className="w-full bg-transparent resize-none outline-none text-inherit leading-[inherit]"
-                style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                onPaste={e => {
+                  const text = e.clipboardData?.getData('text/plain') || '';
+                  const html = e.clipboardData?.getData('text/html') || '';
+                  if (html && hasRichFormatting(html)) {
+                    e.preventDefault();
+                    const editorHtml = clipboardHtmlToEditorHtml(html);
+                    document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
+                    requestAnimationFrame(syncEditDraft);
+                    return;
+                  }
+                  if (text) {
+                    e.preventDefault();
+                    document.execCommand(hasMarkdownSyntax(text) ? 'insertHTML' : 'insertText', false, hasMarkdownSyntax(text) ? markdownTextToEditorHtml(text) : text);
+                    requestAnimationFrame(syncEditDraft);
+                  }
+                }}
+                className="ss4-copyable-text min-h-7 max-h-56 overflow-y-auto outline-none"
+                style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--accent)' }}
               />
               <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}>
                 <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>Enter to save · Esc to cancel</span>
@@ -1640,7 +1878,7 @@ function Bubble({
             {message.content && (
               <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
                 <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</p>
-                <p className="text-xs line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>{message.content}</p>
+                <p className="text-xs line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>{messagePreviewText(message.content)}</p>
               </div>
             )}
             <div className="flex justify-around px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
@@ -2996,9 +3234,18 @@ export default function SupraSpacePage() {
       return { ...p, [conversationId]: [...ex, message] };
     });
     setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
-    setConvos(p => p.map(c => c._id === conversationId ? { ...c, lastMessage: message, lastMessageAt: message.createdAt } : c)
+    setConvos(p => p.map(c => {
+      if (c._id !== conversationId) return c;
+      const isIncomingUnread = message.sender?._id !== uid && !message.readBy?.includes(uid) && conversationId !== activeIdRef.current;
+      return {
+        ...c,
+        lastMessage: message,
+        lastMessageAt: message.createdAt,
+        unreadCount: isIncomingUnread ? (c.unreadCount || 0) + 1 : 0,
+      };
+    })
       .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
-  }, []);
+  }, [uid]);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
@@ -3371,7 +3618,7 @@ export default function SupraSpacePage() {
           if (c._id !== conversationId || !c.lastMessage) return c;
           const rb = c.lastMessage.readBy || [];
           if (rb.includes(uid)) return c;
-          return { ...c, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+          return { ...c, unreadCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
         }));
       }
     };
@@ -3466,6 +3713,9 @@ export default function SupraSpacePage() {
     socket.on('meeting:admission-updated', onMeetingAdmissionUpdated);
     socket.on('call:ended', onCallEnded);
     const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      if (userId === uid) {
+        setConvos(prev => prev.map(c => c._id === conversationId ? { ...c, unreadCount: 0 } : c));
+      }
       setMsgs((prev) => {
         const convMsgs = prev[conversationId];
         if (!convMsgs) return prev;
@@ -3653,8 +3903,8 @@ export default function SupraSpacePage() {
     setConvos(prev => prev.map(c => {
       if (c._id !== activeId || !c.lastMessage) return c;
       const rb = c.lastMessage.readBy || [];
-      if (rb.includes(uid)) return c;
-      return { ...c, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+      if (rb.includes(uid)) return { ...c, unreadCount: 0 };
+      return { ...c, unreadCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
     }));
     call.refreshStatus(activeId);
   }, [activeId, token, activeMsgsMissing, fetchConversationMessages]); // eslint-disable-line
@@ -3665,7 +3915,20 @@ export default function SupraSpacePage() {
     return () => leaveConversation(activeId);
   }, [activeId, isConnected, joinConversation, leaveConversation]);
 
-  React.useEffect(() => { setPendingFiles([]); setPendingMeeting(null); setPendingGif(null); setUploadNotice(null); setShowInfo(false); }, [activeId]);
+  React.useEffect(() => {
+    setInput('');
+    setReplyTo(null);
+    setPendingFiles([]);
+    setPendingMeeting(null);
+    setPendingGif(null);
+    setUploadNotice(null);
+    setShowInfo(false);
+    setMentionQuery(null);
+    setMentionAnchor(-1);
+    setEmojiOpen(false);
+    setScheduleOpen(false);
+    if (textareaRef.current) textareaRef.current.innerHTML = '';
+  }, [activeId]);
 
   React.useEffect(() => {
     const make = (ref: React.RefObject<HTMLDivElement | null>, close: () => void) => (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
@@ -4623,7 +4886,8 @@ export default function SupraSpacePage() {
     const pinned = isPinnedConv(conv);
     const archived = isArchivedConv(conv);
     const isMuted = notifPrefs[conv._id]?.muted ?? false;
-    const isUnread = manualUnread.has(conv._id) || (!isAct && !!conv.lastMessage && !!uid
+    const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
+    const isUnread = unreadCount > 0 || manualUnread.has(conv._id) || (!isAct && !!conv.lastMessage && !!uid
       && !conv.lastMessage.readBy?.includes(uid)
       && conv.lastMessage.sender?._id !== uid);
     // Use messages cache as fallback when lastMessage is null or deleted
@@ -4631,13 +4895,14 @@ export default function SupraSpacePage() {
     const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
       ? conv.lastMessage
       : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
-    const lastPreview = !effectiveLastMsg ? 'No messages yet'
+    const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
+      : !effectiveLastMsg ? 'No messages yet'
       : effectiveLastMsg.isDeleted ? 'Message deleted'
         : effectiveLastMsg.type === 'voice' ? '🎙️ Voice message'
           : effectiveLastMsg.type === 'gif' ? 'GIF'
             : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
               : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
-                : effectiveLastMsg.content || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
+                : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const [ddOpen, setDdOpen] = React.useState(false);
@@ -4914,7 +5179,7 @@ export default function SupraSpacePage() {
                     return (
                       <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
                         <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
-                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{m.content}</span>
+                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
                       </button>
                     );
                   })}
@@ -5134,7 +5399,7 @@ export default function SupraSpacePage() {
                         <div className="min-w-0 flex-1 cursor-pointer"
                           onClick={() => document.getElementById(`ss4-msg-${latest._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
                           <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Message{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
-                          <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender?.fullName || 'Deleted User'}: {latest.content || String.fromCodePoint(128206) + ' Attachment'}</p>
+                          <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender?.fullName || 'Deleted User'}: {messagePreviewText(latest.content) || String.fromCodePoint(128206) + ' Attachment'}</p>
                         </div>
                         <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
                       </div>
@@ -5218,7 +5483,7 @@ export default function SupraSpacePage() {
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender?.fullName || 'Deleted User'}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{replyTo.content || '📎 Attachment'}</p></div>
+                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender?.fullName || 'Deleted User'}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(replyTo.content) || '📎 Attachment'}</p></div>
                         <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     )}
@@ -5786,7 +6051,7 @@ export default function SupraSpacePage() {
                             {pinnedMsgs.map(m => (
                               <button key={m._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${m._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
                                 <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
-                                <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{m.content || '📎 Attachment'}</p>
+                                <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content) || '📎 Attachment'}</p>
                               </button>
                             ))}
                           </div>

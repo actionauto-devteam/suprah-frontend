@@ -71,6 +71,7 @@ export interface SSConversation {
   theme?: SSTheme;
   lastMessage?: SSMessage;
   lastMessageAt?: string;
+  unreadCount?: number;
   createdBy: string;
   spaceId?: string | null;
 }

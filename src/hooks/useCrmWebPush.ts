@@ -3,11 +3,37 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { useCrmToken } from "@/hooks/useCrmToken";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const CRM_SUBSCRIBE_URL = "/api/crm/timeproof/push/subscribe";
 
+function decodeCrmUserId(token: string | null): string {
+  if (!token) return "unknown";
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return "unknown";
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    return JSON.parse(window.atob(padded))?.id || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function getDeviceHint() {
+  if (typeof navigator === "undefined") return "unknown";
+  const ua = navigator.userAgent || "";
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)")?.matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  if (/iPad|iPhone|iPod/i.test(ua)) return standalone ? "ios-pwa-mobile" : "ios-mobile";
+  if (/Android/i.test(ua)) return standalone ? "android-pwa-mobile" : "android-mobile";
+  if (/Mobile/i.test(ua)) return standalone ? "pwa-mobile" : "mobile";
+  return standalone ? "desktop-pwa" : "desktop";
+}
+
 export function useCrmWebPush() {
+  const crmToken = useCrmToken();
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,14 +89,15 @@ export function useCrmWebPush() {
 
       // Auto-sync existing subscription to CRM backend (once per session)
       if (subscription) {
-        const syncKey = `crm_push_sync_${subscription.endpoint}`;
+        const token = crmToken || localStorage.getItem("crm_token");
+        const crmUserId = decodeCrmUserId(token);
+        const syncKey = `crm_push_sync_${crmUserId}_${subscription.endpoint}`;
         const lastSync = sessionStorage.getItem(syncKey);
-        if (!lastSync) {
-          const token = localStorage.getItem("crm_token");
+        if (!lastSync && token) {
           apiClient
             .post(CRM_SUBSCRIBE_URL, {
               subscription,
-              deviceHint: navigator.userAgent.includes("Mobile") ? "mobile" : "desktop",
+              deviceHint: getDeviceHint(),
             }, { headers: { Authorization: `Bearer ${token}` } })
             .then(() => {
               sessionStorage.setItem(syncKey, Date.now().toString());
@@ -86,7 +113,7 @@ export function useCrmWebPush() {
       setIsLoading(false);
     }
     return null;
-  }, [getServiceWorkerRegistration]);
+  }, [crmToken, getServiceWorkerRegistration]);
 
   useEffect(() => {
     checkSubscription();
@@ -120,10 +147,14 @@ export function useCrmWebPush() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
 
-      const token = localStorage.getItem("crm_token");
+      const token = crmToken || localStorage.getItem("crm_token");
+      if (!token) {
+        toast.error("CRM session is still loading. Please try again.");
+        return;
+      }
       await apiClient.post(CRM_SUBSCRIBE_URL, {
         subscription,
-        deviceHint: navigator.userAgent.includes("Mobile") ? "mobile" : "desktop",
+        deviceHint: getDeviceHint(),
       }, { headers: { Authorization: `Bearer ${token}` } });
 
       setIsSubscribed(true);
@@ -142,10 +173,10 @@ export function useCrmWebPush() {
       const subscription = await checkSubscription();
       if (subscription) {
         await subscription.unsubscribe();
-        const token = localStorage.getItem("crm_token");
+        const token = crmToken || localStorage.getItem("crm_token");
         await apiClient.delete(CRM_SUBSCRIBE_URL, {
           data: { endpoint: subscription.endpoint },
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         setIsSubscribed(false);
         toast.info("Admin alerts disabled.");
