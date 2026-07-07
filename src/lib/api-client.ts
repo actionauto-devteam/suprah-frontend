@@ -572,6 +572,7 @@ class ApiClient {
     data: {
       lat: number; lng: number; heading?: number; speedMph?: number; accuracyM?: number;
       batteryLevel?: number; isCharging?: boolean; connectivity?: "online" | "offline";
+      deviceType?: "mobile" | "desktop"; connectionType?: string; effectiveType?: string; downlinkMbps?: number;
     },
     config?: AxiosRequestConfig
   ) {

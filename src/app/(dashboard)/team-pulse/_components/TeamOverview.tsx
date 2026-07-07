@@ -11,6 +11,7 @@ import { DEPARTMENTS } from "@/lib/departments";
 import type { TeamMember, Absence, OnlineStatus, AbsenceType } from "@/hooks/useTeamPulse";
 import { useOpenDm } from "@/hooks/useOpenDm";
 import { S, A } from "./team-pulse-constants";
+import { PresenceAvatarDot } from "./StatusDot";
 
 export function TeamOverview({
   members,
@@ -216,7 +217,7 @@ export function TeamOverview({
                           <AvatarImage src={m.avatar} />
                           <AvatarFallback className="text-sm font-black bg-muted/60">{m.name[0]}</AvatarFallback>
                         </Avatar>
-                        <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-[1.5px] border-background", S.dot[st])} />
+                        <PresenceAvatarDot status={st} deviceType={m.lastDeviceType} borderClass="border-[1.5px] border-background" />
                       </div>
                       <div className="text-center">
                         <p className="text-[10px] font-semibold max-w-12 truncate leading-tight">{m.name.split(" ")[0]}</p>

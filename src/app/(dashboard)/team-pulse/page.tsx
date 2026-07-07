@@ -99,7 +99,7 @@ export default function TeamPulsePage() {
     [absences],
   );
 
-  const myMember = useCurrentMember(user?.fullName);
+  const myMember = useCurrentMember(user?.id);
   const isAdmin = ["admin", "super_admin"].includes(myMember?.role ?? "");
   const myUserId = myMember?._id;
   const updateStatus = useUpdateMyStatus();
@@ -110,14 +110,13 @@ export default function TeamPulsePage() {
   ).length;
 
   React.useEffect(() => {
-    const me = members.find((m) => m.name === user?.fullName);
-    if (!me) return;
-    setMyStatus((prev) => (me.onlineStatus !== prev ? me.onlineStatus : prev));
+    if (!myMember) return;
+    setMyStatus((prev) => (myMember.onlineStatus !== prev ? myMember.onlineStatus : prev));
     setMyCustomStatus((prev) =>
-      (me.customStatus ?? "") !== prev ? (me.customStatus ?? "") : prev,
+      (myMember.customStatus ?? "") !== prev ? (myMember.customStatus ?? "") : prev,
     );
-    setMyExpiresAt(me.statusExpiresAt ?? null);
-  }, [members, user?.fullName]);
+    setMyExpiresAt(myMember.statusExpiresAt ?? null);
+  }, [myMember]);
 
   React.useEffect(() => {
     if (popoverOpen) {
@@ -528,7 +527,6 @@ export default function TeamPulsePage() {
               <TeamList
                 members={members}
                 membersLoading={membersLoading}
-                userName={user?.fullName}
                 myUserId={myUserId}
                 todayAbsences={todayAbsences}
                 onMemberClick={(id) => setOpenMemberId(id)}

@@ -27,7 +27,7 @@ import { useTeamMemberProfile } from "@/hooks/useTeamPulse";
 import type { OnlineStatus } from "@/hooks/useTeamPulse";
 import { useOpenDm } from "@/hooks/useOpenDm";
 import { S, ROLE_STYLE, ROLE_LABEL } from "../../_components/team-pulse-constants";
-import { StatusDot } from "../../_components/StatusDot";
+import { StatusDot, PresenceAvatarDot } from "../../_components/StatusDot";
 
 export default function MemberProfilePage() {
   const params = useParams();
@@ -159,12 +159,7 @@ export default function MemberProfilePage() {
                     {profile.name?.[0]}
                   </AvatarFallback>
                 </Avatar>
-                <span
-                  className={cn(
-                    "absolute -bottom-0.5 -right-0.5 size-5 rounded-full border-[3px] border-white shadow-md",
-                    S.dot[status],
-                  )}
-                />
+                <PresenceAvatarDot status={status} deviceType={profile.lastDeviceType} sizeClass="size-5" borderClass="border-[3px] border-white" shadowClass="shadow-md" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1.5">

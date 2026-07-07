@@ -14,6 +14,16 @@ export function sanitizeInput(input: string): string {
   return DOMPurify.sanitize(input);
 }
 
+/**
+ * Keeps a promise's loading state visible for at least `minMs`, even if it resolves
+ * instantly — used for quick-action buttons (pause/resume/stop toggles) where an
+ * instant flip reads as "did that even do anything?" rather than a real confirmed action.
+ */
+export function withMinDuration<T>(promise: Promise<T>, minMs = 500): Promise<T> {
+  const delay = new Promise<void>((resolve) => setTimeout(resolve, minMs));
+  return Promise.all([promise, delay]).then(([result]) => result);
+}
+
 export function resolveImageUrl(url?: string | null): string | undefined {
   if (!url) return undefined;
   const trimmed = url.trim();

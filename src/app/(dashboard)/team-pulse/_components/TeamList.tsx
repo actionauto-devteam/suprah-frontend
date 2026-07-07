@@ -127,14 +127,12 @@ function DropdownItem({
 export function TeamList({
   members,
   membersLoading,
-  userName,
   todayAbsences,
   onMemberClick,
   myUserId,
 }: {
   members: TeamMember[];
   membersLoading: boolean;
-  userName?: string;
   todayAbsences: Absence[];
   onMemberClick: (id: string) => void;
   myUserId?: string;
@@ -513,7 +511,7 @@ export function TeamList({
             <MemberCard
               key={m._id}
               member={m}
-              isMe={m.name === userName}
+              isMe={m._id === myUserId}
               myUserId={myUserId}
               leaveToday={todayAbsences.find((a) => a.userName === m.name)}
               onClick={() => onMemberClick(m._id)}
@@ -527,7 +525,7 @@ export function TeamList({
             <MemberCard
               key={m._id}
               member={m}
-              isMe={m.name === userName}
+              isMe={m._id === myUserId}
               myUserId={myUserId}
               leaveToday={todayAbsences.find((a) => a.userName === m.name)}
               onClick={() => onMemberClick(m._id)}

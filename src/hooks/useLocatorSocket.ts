@@ -23,11 +23,18 @@ export function useLocatorSocket() {
             const socket = initializeSocket(token);
 
             socket.on('locator:location_update', (data: Partial<ActiveEmployeeLocation> & { userId: string }) => {
-                queryClient.setQueryData<ActiveEmployeeLocation[]>(['locator-active'], (prev) => {
-                    if (!prev) return prev;
-                    const idx = prev.findIndex((l) => l.userId === data.userId);
-                    if (idx === -1) return prev;
-                    const updated = [...prev];
+                const prev = queryClient.getQueryData<ActiveEmployeeLocation[]>(['locator-active']);
+                const idx = prev?.findIndex((l) => l.userId === data.userId) ?? -1;
+                if (idx === -1) {
+                    // Someone sharing for the first time isn't in the cached list yet (no prior
+                    // EmployeeLocation doc) — refetch instead of silently dropping the update, so
+                    // they appear on the map right away instead of waiting for the next 15s poll.
+                    queryClient.invalidateQueries({ queryKey: ['locator-active'] });
+                    return;
+                }
+                queryClient.setQueryData<ActiveEmployeeLocation[]>(['locator-active'], (list) => {
+                    if (!list) return list;
+                    const updated = [...list];
                     updated[idx] = { ...updated[idx], ...data };
                     return updated;
                 });
@@ -50,8 +57,16 @@ export function useLocatorSocket() {
             socket.on('locator:place_updated', () => queryClient.invalidateQueries({ queryKey: ['locator-places'] }));
             socket.on('locator:place_deleted', () => queryClient.invalidateQueries({ queryKey: ['locator-places'] }));
 
-            socket.on('locator:driving_session_start', () => queryClient.invalidateQueries({ queryKey: ['locator-driving-sessions'] }));
-            socket.on('locator:driving_session_end', () => queryClient.invalidateQueries({ queryKey: ['locator-driving-sessions'] }));
+            // Also refresh the live locations list so the map/roster's "Driving now" badge
+            // appears/disappears promptly instead of waiting for the next 15s poll.
+            socket.on('locator:driving_session_start', () => {
+                queryClient.invalidateQueries({ queryKey: ['locator-driving-sessions'] });
+                queryClient.invalidateQueries({ queryKey: ['locator-active'] });
+            });
+            socket.on('locator:driving_session_end', () => {
+                queryClient.invalidateQueries({ queryKey: ['locator-driving-sessions'] });
+                queryClient.invalidateQueries({ queryKey: ['locator-active'] });
+            });
 
             socket.on('locator:possible_incident', (data: { userName: string }) => {
                 queryClient.invalidateQueries({ queryKey: ['locator-driving-sessions'] });

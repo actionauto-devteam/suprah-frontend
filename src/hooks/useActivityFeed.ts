@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -25,17 +25,28 @@ export interface ActivityEvent {
   createdAt: string;
 }
 
+const FEED_PAGE_SIZE = 80;
+
+/**
+ * Paginated so a busy org (many people changing status at once) doesn't quietly evict
+ * your own older events off the end of a single fixed-size fetch — "Load older" walks
+ * back further using the backend's existing `before` cursor, which used to sit unused.
+ */
 export function useActivityFeed() {
   const { isSignedIn, getToken } = useAuth();
-  return useQuery<ActivityEvent[]>({
+  return useInfiniteQuery<ActivityEvent[]>({
     queryKey: ['team-activity-feed'],
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       const token = await getToken();
       const res = await apiClient.get('/api/team-pulse/activity-feed', {
         headers: { Authorization: `Bearer ${token}` },
+        params: { limit: FEED_PAGE_SIZE, before: pageParam || undefined },
       });
       return res.data.data;
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === FEED_PAGE_SIZE ? lastPage[lastPage.length - 1].createdAt : undefined,
     enabled: !!isSignedIn,
     refetchInterval: 60_000,
     staleTime: 15_000,

@@ -2,12 +2,85 @@
 
 import * as React from "react";
 import { format, parseISO, differenceInSeconds } from "date-fns";
-import { Car, TriangleAlert, ShieldCheck, ChevronDown } from "lucide-react";
+import { Car, TriangleAlert, ShieldCheck, ChevronDown, Gauge, Route, ShieldAlert, Map as MapIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDrivingSessions, useRespondToIncident, type DrivingSession } from "@/hooks/useLocator";
+import { TripRouteMap } from "./TripRouteMap";
 
 const INCIDENT_RESPONSE_WINDOW_S = 60;
+
+/** Flat point deductions per infraction — simple and explainable, not per-mile normalized
+ * (a 0.2-mile test drive with one harsh brake shouldn't score worse than a 20-mile one). */
+function sessionScore(s: DrivingSession): number {
+  const score = 100 - (s.harshBrakingEvents ?? 0) * 8 - (s.speedingEvents ?? 0) * 6;
+  return Math.max(0, Math.min(100, score));
+}
+
+function scoreColor(score: number) {
+  if (score >= 90) return "text-emerald-600 dark:text-emerald-400";
+  if (score >= 70) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
+}
+
+interface DriverSummary {
+  userId: string;
+  userName: string;
+  sessionCount: number;
+  totalDistance: number;
+  totalHarsh: number;
+  totalSpeeding: number;
+  avgScore: number;
+}
+
+function summarizeDrivers(sessions: DrivingSession[]): DriverSummary[] {
+  const byDriver = new Map<string, DriverSummary & { scoreSum: number }>();
+  for (const s of sessions) {
+    const entry = byDriver.get(s.userId) ?? {
+      userId: s.userId, userName: s.userName, sessionCount: 0,
+      totalDistance: 0, totalHarsh: 0, totalSpeeding: 0, avgScore: 0, scoreSum: 0,
+    };
+    entry.sessionCount += 1;
+    entry.totalDistance += s.distanceMi ?? 0;
+    entry.totalHarsh += s.harshBrakingEvents ?? 0;
+    entry.totalSpeeding += s.speedingEvents ?? 0;
+    entry.scoreSum += sessionScore(s);
+    byDriver.set(s.userId, entry);
+  }
+  return Array.from(byDriver.values())
+    .map((d) => ({ ...d, avgScore: Math.round(d.scoreSum / d.sessionCount) }))
+    .sort((a, b) => b.avgScore - a.avgScore);
+}
+
+function DriverSafetyCard({ driver }: { driver: DriverSummary }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card">
+      <div className="flex flex-col items-center justify-center size-12 rounded-lg bg-muted/50 shrink-0">
+        <p className={cn("text-lg font-black tabular-nums leading-none", scoreColor(driver.avgScore))}>{driver.avgScore}</p>
+        <p className="text-[7px] font-black uppercase tracking-wide text-muted-foreground/50">score</p>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold truncate">{driver.userName}</p>
+        <p className="text-[10px] text-muted-foreground/60">
+          {driver.sessionCount} drive{driver.sessionCount === 1 ? "" : "s"} · {driver.totalDistance.toFixed(1)} mi
+        </p>
+      </div>
+      <div className="flex items-center gap-2.5 shrink-0 text-[9px] text-muted-foreground/60">
+        {driver.totalHarsh > 0 && (
+          <span className="flex items-center gap-0.5 font-bold text-amber-600 dark:text-amber-400">
+            <ShieldAlert className="size-3" /> {driver.totalHarsh}
+          </span>
+        )}
+        {driver.totalSpeeding > 0 && (
+          <span className="flex items-center gap-0.5 font-bold text-red-600 dark:text-red-400">
+            <Gauge className="size-3" /> {driver.totalSpeeding}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function IncidentBanner({ session }: { session: DrivingSession }) {
   const { mutate, isPending } = useRespondToIncident();
@@ -46,7 +119,9 @@ function IncidentBanner({ session }: { session: DrivingSession }) {
 
 function SessionRow({ session, isMe }: { session: DrivingSession; isMe: boolean }) {
   const [open, setOpen] = React.useState(false);
+  const [routeOpen, setRouteOpen] = React.useState(false);
   const needsResponse = isMe && session.possibleIncident && session.possibleIncident.confirmed === undefined;
+  const score = sessionScore(session);
 
   return (
     <div className="p-3 space-y-2">
@@ -74,38 +149,73 @@ function SessionRow({ session, isMe }: { session: DrivingSession; isMe: boolean 
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-xs font-black tabular-nums">{Math.round(session.topSpeedMph ?? 0)} mph</p>
-          <p className="text-[9px] text-muted-foreground/50">top speed</p>
+          <p className={cn("text-xs font-black tabular-nums", scoreColor(score))}>{score}</p>
+          <p className="text-[9px] text-muted-foreground/50">safety score</p>
         </div>
         <ChevronDown className={cn("size-3.5 text-muted-foreground/40 transition-transform shrink-0", open && "rotate-180")} />
       </button>
 
       {open && (
-        <div className="grid grid-cols-3 gap-2 pl-11">
-          <div className="text-center p-2 rounded-lg bg-muted/40">
-            <p className="text-xs font-black tabular-nums">{(session.distanceMi ?? 0).toFixed(1)}</p>
-            <p className="text-[9px] text-muted-foreground/50">miles</p>
+        <div className="space-y-2 pl-11">
+          <div className="grid grid-cols-4 gap-2">
+            <div className="text-center p-2 rounded-lg bg-muted/40">
+              <p className="text-xs font-black tabular-nums">{Math.round(session.topSpeedMph ?? 0)}</p>
+              <p className="text-[9px] text-muted-foreground/50">top mph</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/40">
+              <p className="text-xs font-black tabular-nums">{(session.distanceMi ?? 0).toFixed(1)}</p>
+              <p className="text-[9px] text-muted-foreground/50">miles</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/40">
+              <p className="text-xs font-black tabular-nums">{session.harshBrakingEvents}</p>
+              <p className="text-[9px] text-muted-foreground/50">harsh brakes</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/40">
+              <p className="text-xs font-black tabular-nums">{session.speedingEvents ?? 0}</p>
+              <p className="text-[9px] text-muted-foreground/50">speeding</p>
+            </div>
           </div>
-          <div className="text-center p-2 rounded-lg bg-muted/40">
-            <p className="text-xs font-black tabular-nums">{session.harshBrakingEvents}</p>
-            <p className="text-[9px] text-muted-foreground/50">harsh brakes</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-muted/40">
-            <p className="text-xs font-black capitalize">{session.status}</p>
-            <p className="text-[9px] text-muted-foreground/50">status</p>
-          </div>
+          <Button
+            size="sm" variant="outline" onClick={() => setRouteOpen(true)}
+            className="w-full h-7 text-[10px] font-bold gap-1.5"
+          >
+            <Route className="size-3" /> View Route
+          </Button>
         </div>
       )}
+
+      <Dialog open={routeOpen} onOpenChange={setRouteOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black flex items-center gap-1.5">
+              <MapIcon className="size-4" /> {session.userName}'s Route
+            </DialogTitle>
+          </DialogHeader>
+          <TripRouteMap sessionId={session._id} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 export function DrivingSessionsPanel({ myUserId }: { myUserId?: string }) {
   const { data: sessions = [], isLoading } = useDrivingSessions({});
+  const driverSummaries = React.useMemo(() => summarizeDrivers(sessions), [sessions]);
 
   return (
     <div className="space-y-3">
       <p className="text-[9px] text-muted-foreground/40 -mt-1">From test-drive appointments only</p>
+
+      {driverSummaries.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <ShieldAlert className="size-3" /> Driver Safety
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {driverSummaries.map((d) => <DriverSafetyCard key={d.userId} driver={d} />)}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-1.5">

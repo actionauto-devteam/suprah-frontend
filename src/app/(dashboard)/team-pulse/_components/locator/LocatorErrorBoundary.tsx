@@ -30,7 +30,7 @@ export class LocatorErrorBoundary extends React.Component<{ children: React.Reac
   render() {
     if (this.state.error) {
       return (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-8 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/4 p-8 text-center">
           <div className="flex items-center justify-center size-11 rounded-xl bg-red-500/10 border border-red-500/20">
             <AlertTriangle className="size-5 text-red-500" />
           </div>
@@ -40,7 +40,7 @@ export class LocatorErrorBoundary extends React.Component<{ children: React.Reac
               The rest of TeamPulse still works. Try again, and if it keeps happening send this message:
             </p>
           </div>
-          <code className="max-w-md text-[10px] text-red-600 dark:text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2 break-words">
+          <code className="max-w-md text-[10px] text-red-600 dark:text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2 wrap-break-word">
             {this.state.error.message || String(this.state.error)}
           </code>
           <Button size="sm" variant="outline" onClick={this.reset} className="h-8 text-[11px] font-bold gap-1.5">

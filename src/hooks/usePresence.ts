@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
+import { getDeviceType } from "@/lib/device";
 
 const HEARTBEAT_MS = 30_000;
 
@@ -27,7 +28,7 @@ export function usePresence() {
         const token = await getToken();
         await apiClient.patch(
           "/api/profile/heartbeat",
-          { isActive },
+          { isActive, deviceType: getDeviceType() },
           { headers: { Authorization: `Bearer ${token}` } },
         );
       } catch {

@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import type { TeamMember } from "@/hooks/useTeamPulse";
 import { useTeamLeaderboard } from "@/hooks/useTeamPulse";
 import { S } from "./team-pulse-constants";
+import { PresenceAvatarDot } from "./StatusDot";
 import DayPulsePage from "@/components/DayPulsePage";
 
 type LBPeriod = "today" | "week" | "month";
@@ -220,7 +221,7 @@ export function DayPulseTab({
                         {m.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background", S.dot[m.onlineStatus ?? "offline"])} />
+                    <PresenceAvatarDot status={m.onlineStatus ?? "offline"} deviceType={m.lastDeviceType} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{m.name}</p>

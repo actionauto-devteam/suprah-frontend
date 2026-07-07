@@ -13,6 +13,7 @@ interface PresenceUpdatePayload {
   lastActive?: string;
   breakStatus?: { isOnBreak: boolean; startedAt?: string } | null;
   statusExpiresAt?: string | null;
+  lastDeviceType?: "mobile" | "desktop" | null;
 }
 
 export function usePresenceSocket() {
@@ -49,6 +50,9 @@ export function usePresenceSocket() {
                       }),
                       ...(payload.statusExpiresAt !== undefined && {
                         statusExpiresAt: payload.statusExpiresAt,
+                      }),
+                      ...(payload.lastDeviceType !== undefined && {
+                        lastDeviceType: payload.lastDeviceType ?? undefined,
                       }),
                     }
                   : m

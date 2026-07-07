@@ -31,7 +31,7 @@ import type { OnlineStatus } from "@/hooks/useTeamPulse";
 import { useTeamMemberProfile, usePingMember } from "@/hooks/useTeamPulse";
 import { useOpenDm } from "@/hooks/useOpenDm";
 import { S, ROLE_STYLE, ROLE_LABEL } from "./team-pulse-constants";
-import { StatusDot } from "./StatusDot";
+import { StatusDot, PresenceAvatarDot } from "./StatusDot";
 
 const PING_MAX = 3;
 const PING_WINDOW_MS = 3600_000;
@@ -99,7 +99,7 @@ function MemberFullProfileDialog({
                 <AvatarImage src={profile.avatar} />
                 <AvatarFallback className="text-2xl font-black bg-primary/30 text-white">{profile.name?.[0]}</AvatarFallback>
               </Avatar>
-              <span className={cn("absolute -bottom-0.5 -right-0.5 size-5 rounded-full border-[3px] border-white shadow-md", S.dot[status])} />
+              <PresenceAvatarDot status={status} deviceType={profile.lastDeviceType} sizeClass="size-5" borderClass="border-[3px] border-white" shadowClass="shadow-md" />
             </div>
             <div className="flex-1 min-w-0 pb-1">
               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -279,7 +279,7 @@ export function MemberProfileSheet({
                   <AvatarImage src={profile.avatar} />
                   <AvatarFallback className="text-xl font-black">{profile.name?.[0]}</AvatarFallback>
                 </Avatar>
-                <span className={cn("absolute -bottom-0.5 -right-0.5 size-4 rounded-full border-2 border-background shadow-sm", S.dot[status])} />
+                <PresenceAvatarDot status={status} deviceType={profile.lastDeviceType} sizeClass="size-4" shadowClass="shadow-sm" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-base font-black tracking-tight truncate">{profile.name}</p>

@@ -12,10 +12,23 @@ import {
   type ActiveEmployeeLocation,
   type LocationHistoryPoint,
 } from "@/hooks/useLocator";
-import { sharingMeta } from "./LocatorMapLegend";
+import { sharingMeta, signalMeta, isNotablyStationary, stationaryMinutes, formatStationaryDuration } from "./LocatorMapLegend";
 import { LocatorMap } from "./LocatorMap";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { deptLabel } from "@/lib/departments";
+
+function popupSharingDuration(sinceIso?: string) {
+  if (!sinceIso) return "";
+  try {
+    const totalMin = Math.max(0, Math.round((Date.now() - parseISO(sinceIso).getTime()) / 60000));
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h === 0 ? `${m}m` : `${h}h ${m}m`;
+  } catch {
+    return "";
+  }
+}
 
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 const PLACES_SOURCE_ID = "locator-places";
@@ -69,6 +82,23 @@ function computeOffsets(locs: ActiveEmployeeLocation[]): Map<string, [number, nu
   return offsets;
 }
 
+/**
+ * GPS accuracy "halo" scale relative to the marker's own diameter — deliberately qualitative
+ * (tight/loose), not a to-scale meters conversion. A to-scale geo-anchored circle was tried
+ * first and rejected: it drifted away from the marker whenever the overlap-avoidance spiral
+ * offset (see computeOffsets) nudged the marker's *screen* position, since the circle was a
+ * real map-anchored polygon while the marker's shift is purely a pixel offset. Rendering the
+ * halo as a sibling element inside the marker's own DOM wrapper instead guarantees it always
+ * stays centered on the avatar, in exchange for not being literally to-scale.
+ */
+function haloScale(accuracyM?: number): number | null {
+  if (typeof accuracyM !== "number" || accuracyM <= 0) return null;
+  if (accuracyM <= 15) return 1.3;
+  if (accuracyM <= 40) return 1.7;
+  if (accuracyM <= 100) return 2.1;
+  return 2.5;
+}
+
 const STATE_HEX: Record<string, string> = {
   sharing: "#22c55e",
   paused_break: "#f97316",
@@ -79,6 +109,14 @@ const STATE_HEX: Record<string, string> = {
 
 function initialsOf(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+/** Popup content is injected via mapbox-gl's setHTML (raw innerHTML, not React) — every piece of
+ * user-controlled text (name, job title, department, place name, even the client-reported
+ * connection type) MUST be escaped here or it's a stored-XSS vector on the live map. */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
 function buildPopupHtml(loc: ActiveEmployeeLocation, place?: { name: string }) {
@@ -93,18 +131,40 @@ function buildPopupHtml(loc: ActiveEmployeeLocation, place?: { name: string }) {
   })();
   const where =
     loc.sharingState === "sharing"
-      ? place
-        ? `At ${place.name}`
-        : typeof loc.speedMph === "number" && loc.speedMph > 3
-          ? `On the move · ${loc.speedMph} mph`
-          : "On-site"
+      ? loc.drivingSessionId
+        ? `🚗 Driving${typeof loc.speedMph === "number" ? ` · ${loc.speedMph} mph` : ""}`
+        : place
+          ? `At ${place.name}`
+          : typeof loc.speedMph === "number" && loc.speedMph > 3
+            ? `On the move · ${loc.speedMph} mph`
+            : "Sharing location"
       : meta.label;
 
+  const subLine = [loc.jobTitle, loc.department ? deptLabel(loc.department) : undefined].filter(Boolean).join(" · ");
+  const signal = signalMeta(loc);
+  const duration = loc.sharingState === "sharing" ? popupSharingDuration(loc.sharingSince) : "";
+
+  const stationaryMin = stationaryMinutes(loc);
+  const statRows = [
+    duration ? `Sharing for ${duration}` : null,
+    typeof loc.speedMph === "number" ? `${loc.speedMph} mph` : null,
+    typeof loc.batteryLevel === "number" ? `🔋 ${loc.batteryLevel}%${loc.isCharging ? " ⚡" : ""}` : null,
+    signal.label,
+    loc.deviceType ? (loc.deviceType === "mobile" ? "📱 Phone" : "💻 Computer") : null,
+    isNotablyStationary(loc) && stationaryMin !== null ? `⚓ Stayed put ${formatStationaryDuration(stationaryMin)}` : null,
+  ].filter((r): r is string => !!r);
+
+  const safeUserName = escapeHtml(loc.userName);
+  const safeSubLine = escapeHtml(subLine);
+  const safeWhere = escapeHtml(where);
+  const safeStatRows = statRows.map(escapeHtml);
+
   return `
-    <div style="font-size:12px;line-height:1.45;padding:2px 4px;min-width:150px;color:#111827">
-      <div style="font-weight:700;margin-bottom:2px;color:#111827">${loc.userName}</div>
-      ${loc.jobTitle ? `<div style="color:#6b7280;font-size:10.5px;margin-bottom:3px">${loc.jobTitle}</div>` : ""}
-      <div style="color:${color};font-weight:600;font-size:11px;margin-bottom:2px">${where}</div>
+    <div style="font-size:12px;line-height:1.45;padding:2px 4px;min-width:170px;color:#111827">
+      <div style="font-weight:700;margin-bottom:2px;color:#111827">${safeUserName}</div>
+      ${safeSubLine ? `<div style="color:#6b7280;font-size:10.5px;margin-bottom:3px">${safeSubLine}</div>` : ""}
+      <div style="color:${color};font-weight:600;font-size:11px;margin-bottom:3px">${safeWhere}</div>
+      ${safeStatRows.length > 0 ? `<div style="color:#374151;font-size:10px;margin-bottom:3px">${safeStatRows.join(" &nbsp;·&nbsp; ")}</div>` : ""}
       <div style="color:#9ca3af;font-size:10px">Updated ${lastSeen}</div>
     </div>`;
 }
@@ -126,7 +186,10 @@ export function LocatorLiveMapSection({ selectedUserId, onSelectUser, historyPoi
 
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<any>(null);
-  const markersRef = React.useRef<Map<string, { marker: any; popup: any; circleEl: HTMLDivElement; lastState: string; lastSelected: boolean }>>(new Map());
+  const markersRef = React.useRef<Map<string, {
+    marker: any; popup: any; circleEl: HTMLDivElement; haloEl: HTMLDivElement;
+    lastState: string; lastSelected: boolean; lastHaloScale: number | null;
+  }>>(new Map());
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
 
@@ -245,6 +308,8 @@ export function LocatorLiveMapSection({ selectedUserId, onSelectUser, historyPoi
         const place = loc.currentPlaceId ? placesRef.current.find((p) => p._id === loc.currentPlaceId) : undefined;
         const existing = markers.get(loc.userId);
 
+        const haloScaleNow = haloScale(loc.accuracyM);
+
         if (existing) {
           existing.marker.setLngLat([loc.coords.lng, loc.coords.lat]);
           if (typeof existing.marker.setOffset === "function") existing.marker.setOffset(offset);
@@ -264,6 +329,16 @@ export function LocatorLiveMapSection({ selectedUserId, onSelectUser, historyPoi
               : "0 2px 6px rgba(0,0,0,.3)";
             existing.lastSelected = isSelected;
           }
+          if (existing.lastHaloScale !== haloScaleNow) {
+            const size = isSelected ? 46 : 36;
+            existing.haloEl.style.display = haloScaleNow ? "block" : "none";
+            if (haloScaleNow) {
+              const haloSize = Math.round(size * haloScaleNow);
+              existing.haloEl.style.width = `${haloSize}px`;
+              existing.haloEl.style.height = `${haloSize}px`;
+            }
+            existing.lastHaloScale = haloScaleNow;
+          }
           return;
         }
 
@@ -274,7 +349,29 @@ export function LocatorLiveMapSection({ selectedUserId, onSelectUser, historyPoi
         wrapper.style.width = `${size}px`;
         wrapper.style.height = `${size}px`;
 
+        // GPS-accuracy halo — a sibling of the avatar circle inside the same wrapper, so it
+        // always stays perfectly centered on the marker even when the marker itself is nudged
+        // by the overlap-avoidance pixel offset (see the comment on haloScale()).
+        const haloEl = document.createElement("div");
+        haloEl.style.position = "absolute";
+        haloEl.style.top = "50%";
+        haloEl.style.left = "50%";
+        haloEl.style.borderRadius = "9999px";
+        haloEl.style.background = "rgba(59,130,246,0.15)";
+        haloEl.style.border = "1px solid rgba(59,130,246,0.3)";
+        haloEl.style.pointerEvents = "none";
+        haloEl.style.display = haloScaleNow ? "block" : "none";
+        if (haloScaleNow) {
+          const haloSize = Math.round(size * haloScaleNow);
+          haloEl.style.width = `${haloSize}px`;
+          haloEl.style.height = `${haloSize}px`;
+        }
+        haloEl.style.transform = "translate(-50%, -50%)";
+        wrapper.appendChild(haloEl);
+
         const circleEl = document.createElement("div");
+        circleEl.style.position = "relative";
+        circleEl.style.zIndex = "1";
         circleEl.style.width = "100%";
         circleEl.style.height = "100%";
         circleEl.style.borderRadius = "9999px";
@@ -330,7 +427,10 @@ export function LocatorLiveMapSection({ selectedUserId, onSelectUser, historyPoi
           .setLngLat([loc.coords.lng, loc.coords.lat])
           .addTo(map);
 
-        markers.set(loc.userId, { marker, popup, circleEl, lastState: loc.sharingState, lastSelected: isSelected });
+        markers.set(loc.userId, {
+          marker, popup, circleEl, haloEl,
+          lastState: loc.sharingState, lastSelected: isSelected, lastHaloScale: haloScaleNow,
+        });
       });
     };
 

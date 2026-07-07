@@ -20,7 +20,7 @@ import type { TeamMember, Absence, OnlineStatus } from "@/hooks/useTeamPulse";
 import { usePingMember } from "@/hooks/useTeamPulse";
 import { useOpenDm } from "@/hooks/useOpenDm";
 import { S, ROLE_STYLE, ROLE_LABEL, A } from "./team-pulse-constants";
-import { StatusDot } from "./StatusDot";
+import { StatusDot, PresenceAvatarDot } from "./StatusDot";
 
 const PING_MAX = 3;
 const PING_WINDOW_MS = 3_600_000;
@@ -215,7 +215,7 @@ export function MemberCard({
               <AvatarImage src={member.avatar} />
               <AvatarFallback className="text-base font-black bg-muted/60">{member.name[0]}</AvatarFallback>
             </Avatar>
-            <span className={cn("absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-background", S.dot[status])} />
+            <PresenceAvatarDot status={status} deviceType={member.lastDeviceType} sizeClass="size-3" />
           </div>
           <div className="w-full text-center min-w-0">
             <div className="flex items-center justify-center gap-1 mb-0.5 flex-wrap">

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
+import { withMinDuration } from '@/lib/utils';
 import { useCallback } from 'react';
 
 export type SharingState =
@@ -36,16 +37,25 @@ export interface ActiveEmployeeLocation {
     userName: string;
     userAvatar?: string;
     jobTitle?: string;
+    department?: string;
     employmentLocationType?: 'onsite' | 'remote';
     coords: { lat: number; lng: number };
     heading?: number;
     speedMph?: number;
+    accuracyM?: number;
     sharingState: SharingState;
     batteryLevel?: number;
     isCharging?: boolean;
     connectivity: 'online' | 'offline';
+    deviceType?: 'mobile' | 'desktop';
+    connectionType?: string;
+    effectiveType?: string;
+    downlinkMbps?: number;
     currentPlaceId?: string;
+    drivingSessionId?: string;
     lastSeenAt: string;
+    sharingSince?: string;
+    stationarySince?: string;
 }
 
 function useAuthHeaders() {
@@ -79,7 +89,7 @@ export function useSetLocationConsent() {
     return useMutation({
         mutationFn: async (data: { granted: boolean; deviceHint?: string }) => {
             const headers = await getHeaders();
-            const response = await apiClient.setLocationConsent(data, headers);
+            const response = await withMinDuration(apiClient.setLocationConsent(data, headers));
             return response.data?.data || response.data;
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['locator-my-status'] }),
@@ -234,6 +244,7 @@ export interface DrivingSession {
     endedAt?: string;
     topSpeedMph: number;
     harshBrakingEvents: number;
+    speedingEvents: number;
     distanceMi: number;
     possibleIncident?: {
         detectedAt: string;

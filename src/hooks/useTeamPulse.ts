@@ -18,6 +18,7 @@ export interface TeamMember {
     onlineStatus: OnlineStatus;
     customStatus?: string;
     lastActive?: string;
+    lastDeviceType?: 'mobile' | 'desktop';
     role: string;
     personalInfo?: {
         jobTitle?: string;
@@ -328,12 +329,12 @@ export function useUpdateMyStatus() {
 
 // ── Member profile (click-through) ────────────────────────────────────────────
 
-export function useCurrentMember(fullName: string | undefined | null) {
+export function useCurrentMember(userId: string | undefined | null) {
     const { data: members = [] } = useTeamMembers();
     return useMemo(() => {
-        if (!fullName) return undefined;
-        return members.find((m) => m.name.toLowerCase() === fullName.toLowerCase());
-    }, [members, fullName]);
+        if (!userId) return undefined;
+        return members.find((m) => m._id === userId);
+    }, [members, userId]);
 }
 
 export function useTeamMemberProfile(userId: string | null) {

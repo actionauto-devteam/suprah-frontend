@@ -135,8 +135,8 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
     <Badge
       variant="outline"
       className={`text-[10px] h-5 px-2 rounded-full font-semibold ${isActive
-          ? "bg-green-500/10 text-green-600 border-green-500/20"
-          : "bg-red-500/8 text-red-500 border-red-500/20"
+        ? "bg-green-500/10 text-green-600 border-green-500/20"
+        : "bg-red-500/8 text-red-500 border-red-500/20"
         }`}
     >
       <span
@@ -730,10 +730,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                       <AvatarImage src={u.avatar} />
                       <AvatarFallback
                         className={`text-[10px] font-bold text-white ${u.role === "admin"
-                            ? "bg-violet-500"
-                            : u.role === "manager"
-                              ? "bg-blue-500"
-                              : "bg-emerald-600"
+                          ? "bg-violet-500"
+                          : u.role === "manager"
+                            ? "bg-blue-500"
+                            : "bg-emerald-600"
                           }`}
                       >
                         {ini(u.fullName)}
@@ -746,7 +746,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                           <p className="text-sm font-semibold leading-tight text-foreground">
                             {u.fullName}
                           </p>
-                          <p className="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground/60">
+                          <p className="mt-0.5 wrap-break-word text-xs leading-relaxed text-muted-foreground/60">
                             {u.email}
                           </p>
                         </div>
@@ -863,10 +863,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                             <AvatarImage src={u.avatar} />
                             <AvatarFallback
                               className={`text-[9px] font-bold text-white ${u.role === "admin"
-                                  ? "bg-violet-500"
-                                  : u.role === "manager"
-                                    ? "bg-blue-500"
-                                    : "bg-emerald-600"
+                                ? "bg-violet-500"
+                                : u.role === "manager"
+                                  ? "bg-blue-500"
+                                  : "bg-emerald-600"
                                 }`}
                             >
                               {ini(u.fullName)}

@@ -7,7 +7,7 @@ import {
   WifiOff, Clock, Flame, BellOff, Minus,
   Activity, Users, TrendingUp, Map as MapIcon,
   MapPin, MapPinOff, AlertTriangle, ShieldCheck, Car, CarFront, TriangleAlert,
-  Navigation, Pause, BatteryFull, BatteryLow, Building2, Coffee, Radio, Play, X,
+  Navigation, Pause, BatteryFull, BatteryLow, Building2, Coffee, Radio, Play, X, Anchor,
 } from "lucide-react";
 import { formatDistanceToNowStrict, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -16,13 +16,17 @@ import type { TeamMember, OnlineStatus } from "@/hooks/useTeamPulse";
 import { useActivityFeed, type ActivityEvent, type ActivityEventType } from "@/hooks/useActivityFeed";
 import { useOpenDm } from "@/hooks/useOpenDm";
 import { S } from "./team-pulse-constants";
+import { PresenceAvatarDot } from "./StatusDot";
 import { EmploymentTypeToggle } from "./locator/EmploymentTypeToggle";
 import { LocatorLiveMapSection, type MapFocus } from "./locator/LocatorLiveMapSection";
 import { PlacesAdminPanel } from "./locator/PlacesAdminPanel";
 import { DrivingSessionsPanel } from "./locator/DrivingSessionsPanel";
 import { MyStatusQuickSet } from "./locator/MyStatusQuickSet";
 import { LocationInfoPanel } from "./locator/LocationInfoPanel";
-import { sharingMeta } from "./locator/LocatorMapLegend";
+import {
+  sharingMeta, DepartmentBadge, signalMeta, DeviceBadge,
+  isNotablyStationary, stationaryMinutes, formatStationaryDuration,
+} from "./locator/LocatorMapLegend";
 import {
   useActiveEmployeeLocations, usePlaces, useLocationHistory, useTimeAtPlaceReport, useMyLocatorStatus,
   type ActiveEmployeeLocation, type Place,
@@ -101,6 +105,7 @@ function MemberAvatar({ name, avatar }: { name: string; avatar?: string }) {
 /** Describes where a sharing employee is, Life360-style. */
 function whereText(loc: ActiveEmployeeLocation, place?: Place) {
   if (loc.sharingState !== "sharing") return sharingMeta(loc.sharingState).label;
+  if (loc.drivingSessionId) return typeof loc.speedMph === "number" ? `Driving · ${loc.speedMph} mph` : "Driving";
   if (place) return `at ${place.name}`;
   if (typeof loc.speedMph === "number" && loc.speedMph > 3) return `On the move · ${loc.speedMph} mph`;
   return "Sharing location";
@@ -109,7 +114,8 @@ function whereText(loc: ActiveEmployeeLocation, place?: Place) {
 function LocationLine({ loc, place }: { loc: ActiveEmployeeLocation; place?: Place }) {
   const meta = sharingMeta(loc.sharingState);
   const sharing = loc.sharingState === "sharing";
-  const WhereIcon = sharing ? (place ? Building2 : Navigation) : loc.sharingState === "declined_permission" ? MapPinOff : Pause;
+  const isDriving = sharing && !!loc.drivingSessionId;
+  const WhereIcon = isDriving ? Car : sharing ? (place ? Building2 : Navigation) : loc.sharingState === "declined_permission" ? MapPinOff : Pause;
 
   return (
     <div className="mt-1.5 rounded-lg bg-muted/40 border border-border/30 px-2 py-1.5">
@@ -118,10 +124,11 @@ function LocationLine({ loc, place }: { loc: ActiveEmployeeLocation; place?: Pla
           {meta.pulse && <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-50", meta.color)} />}
           <span className={cn("relative inline-flex size-2 rounded-full", meta.color)} />
         </span>
-        <WhereIcon className="size-3 text-muted-foreground/60 shrink-0" />
-        <span className="text-[10px] font-bold text-foreground/80 truncate" style={place ? { color: place.color || undefined } : undefined}>
+        <WhereIcon className={cn("size-3 shrink-0", isDriving ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground/60")} />
+        <span className={cn("text-[10px] font-bold truncate", isDriving ? "text-blue-600 dark:text-blue-400" : "text-foreground/80")} style={place && !isDriving ? { color: place.color || undefined } : undefined}>
           {whereText(loc, place)}
         </span>
+        <DeviceBadge deviceType={loc.deviceType} />
       </div>
       <div className="flex items-center gap-2.5 mt-1 pl-3.5">
         <span className="text-[9px] text-muted-foreground/50">Updated {timeAgo(loc.lastSeenAt)}</span>
@@ -134,12 +141,24 @@ function LocationLine({ loc, place }: { loc: ActiveEmployeeLocation; place?: Pla
             {loc.batteryLevel}%{loc.isCharging ? "⚡" : ""}
           </span>
         )}
-        {loc.connectivity === "offline" && (
-          <span className="text-[9px] text-muted-foreground/40 flex items-center gap-0.5">
-            <WifiOff className="size-2.5" /> Offline
-          </span>
-        )}
+        {sharing && (() => {
+          const signal = signalMeta(loc);
+          const SignalIcon = signal.icon;
+          return (
+            <span className={cn("text-[9px] flex items-center gap-0.5 font-semibold", signal.className)}>
+              <SignalIcon className="size-2.5" /> {signal.label}
+            </span>
+          );
+        })()}
       </div>
+      {isNotablyStationary(loc) && (
+        <div
+          title="Position hasn't moved more than ~40m — any small pin wobble on the map is just GPS noise, not real movement."
+          className="flex items-center gap-1 mt-1 pl-3.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400"
+        >
+          <Anchor className="size-2.5" /> Stayed put · {formatStationaryDuration(stationaryMinutes(loc)!)}
+        </div>
+      )}
     </div>
   );
 }
@@ -157,7 +176,12 @@ function MemberCard({
 }) {
   const isOffline = member.onlineStatus === "offline";
   const statusLabel = S.label[member.onlineStatus as OnlineStatus] ?? member.onlineStatus;
-  const isOnsite = member.employmentLocationType === "onsite";
+  // "On-Site"/"Off-Site" reflects real-time presence inside a company Place geofence right
+  // now — not the static employmentLocationType HR label, which only says how someone
+  // *normally* works and stays "onsite" even when they're at home sharing from across town.
+  const isSharingNow = locationInfo?.sharingState === "sharing";
+  const isOnsite = isSharingNow && !!locationInfo?.currentPlaceId;
+  const isOffsite = isSharingNow && !locationInfo?.currentPlaceId;
   const canSelect = !!locationInfo?.coords && locationInfo.sharingState !== "off_duty";
 
   return (
@@ -174,12 +198,7 @@ function MemberCard({
     >
       <div className="relative shrink-0">
         <MemberAvatar name={member.name} avatar={member.avatar} />
-        <span
-          className={cn(
-            "absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background",
-            S.dot[member.onlineStatus as OnlineStatus] ?? "bg-gray-400",
-          )}
-        />
+        <PresenceAvatarDot status={member.onlineStatus as OnlineStatus} deviceType={member.lastDeviceType} />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -188,9 +207,15 @@ function MemberCard({
             {member.name}
           </span>
           {isMe && <span className="text-[9px] font-black text-primary bg-primary/10 px-1 rounded shrink-0">You</span>}
+          <DepartmentBadge department={member.personalInfo?.department} />
           {isOnsite && (
             <span className="text-[8px] font-black text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1 rounded shrink-0 uppercase tracking-wide">
               On-Site
+            </span>
+          )}
+          {isOffsite && (
+            <span className="text-[8px] font-black text-muted-foreground/60 bg-muted/50 border border-border/30 px-1 rounded shrink-0 uppercase tracking-wide">
+              Off-Site
             </span>
           )}
         </div>
@@ -332,7 +357,11 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const [to, setTo] = React.useState(() => new Date().toISOString().slice(0, 10));
   const focusRef = React.useRef<MapFocus | null>(null);
 
-  const { data: events = [], isLoading: eventsLoading } = useActivityFeed();
+  const {
+    data: eventPages, isLoading: eventsLoading,
+    fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useActivityFeed();
+  const events = React.useMemo(() => eventPages?.pages.flat() ?? [], [eventPages]);
   const { data: myStatus } = useMyLocatorStatus();
 
   useLocatorSocket();
@@ -357,7 +386,9 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   );
 
   const sharingCount = activeLocations.filter((l) => l.sharingState === "sharing").length;
-  const onsiteCount = members.filter((m) => m.employmentLocationType === "onsite").length;
+  // Live presence inside a company Place right now — not the static employmentLocationType
+  // HR label, so this matches the roster's On-Site/Off-Site badges.
+  const onsiteCount = activeLocations.filter((l) => l.sharingState === "sharing" && !!l.currentPlaceId).length;
   const onlineCount = members.filter((m) => m.onlineStatus === "online").length;
   const offlineCount = members.filter((m) => m.onlineStatus === "offline").length;
   const activeCount = members.length - offlineCount;
@@ -367,7 +398,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
     { label: "Online Now", value: onlineCount,  sub: `${pct(onlineCount)}% of team`,   accent: "text-green-600 dark:text-green-400" },
     { label: "Active",     value: activeCount,  sub: `${members.length} total`,        accent: "text-blue-600 dark:text-blue-400" },
     { label: "Sharing",    value: sharingCount, sub: "live on map",                    accent: "text-emerald-600 dark:text-emerald-400" },
-    { label: "On-Site",    value: onsiteCount,  sub: "flagged onsite",                 accent: "text-violet-600 dark:text-violet-400" },
+    { label: "On-Site",    value: onsiteCount,  sub: "at a company place",             accent: "text-violet-600 dark:text-violet-400" },
     { label: "Offline",    value: offlineCount, sub: `${pct(offlineCount)}% of team`,  accent: "text-muted-foreground/60" },
   ];
 
@@ -600,6 +631,17 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                 {filteredEvents.map((event, i) => (
                   <EventItem key={event._id} event={event} myUserId={myUserId} index={i} />
                 ))}
+                {hasNextPage && (
+                  <div className="py-2.5 flex justify-center">
+                    <button
+                      onClick={() => fetchNextPage()}
+                      disabled={isFetchingNextPage}
+                      className="text-[10px] font-bold text-muted-foreground/60 hover:text-foreground px-3 py-1 rounded-full border border-border/40 transition-colors disabled:opacity-50"
+                    >
+                      {isFetchingNextPage ? "Loading…" : "Load older"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
