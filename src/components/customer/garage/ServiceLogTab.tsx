@@ -153,7 +153,7 @@ export function ServiceLogTab({ vehicles, onLogService }: ServiceLogTabProps) {
                         <p className="text-sm font-medium text-muted-foreground">—</p>
                       )}
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {new Date(record.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        {new Date(record.date).toLocaleDateString('en-US', { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
                       </p>
                     </div>
                   </div>

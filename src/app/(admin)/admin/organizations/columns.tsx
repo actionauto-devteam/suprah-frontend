@@ -50,7 +50,7 @@ export const columns: ColumnDef<AdminOrganization>[] = [
         accessorKey: "createdAt",
         header: "Created At",
         cell: ({ row }) => {
-            return new Date(row.getValue("createdAt")).toLocaleDateString()
+            return new Date(row.getValue("createdAt")).toLocaleDateString('en-US', { timeZone: 'America/Denver' })
         },
     },
     {

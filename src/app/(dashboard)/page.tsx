@@ -17,6 +17,9 @@ import {
   CreditCard,
   LayoutGrid,
   Settings,
+  ArrowRight,
+  Bell,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useAuthActions } from "@/providers/AuthProvider";
+import { useWebPush } from "@/hooks/useWebPush";
 import { useRouter, usePathname } from "next/navigation";
 
 import { StatHero } from "./components/StatHero";
@@ -64,6 +69,14 @@ const QUICK_NAV: { label: string; href: string; icon: LucideIcon }[] = [
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
+  const { user: rawUser } = useAuthActions();
+  const isLotTech = (rawUser as any)?.personalInfo?.department === 'LotTechTeam';
+  const isAdmin = ['admin', 'super_admin'].includes((rawUser as any)?.role);
+  const { isSupported: pushSupported, isSubscribed: pushSubscribed, isLoading: pushLoading, subscribe: pushSubscribe } = useWebPush();
+  const [pushDismissed, setPushDismissed] = React.useState(false);
+  React.useEffect(() => {
+    if (sessionStorage.getItem('push_admin_dismissed')) setPushDismissed(true);
+  }, []);
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [revenuePeriod, setRevenuePeriod] = React.useState<string>("1Y");
   const [leaderboardMonth, setLeaderboardMonth] = React.useState<string>("Mar");
@@ -221,6 +234,52 @@ export default function Dashboard() {
           </TooltipProvider>
         </div>
       </div>
+
+      {/* ── Lot Tech Clock-In Card — only visible to LotTechTeam department ── */}
+      {isLotTech && (
+        <button
+          onClick={() => router.push("/crm/timeproof-clock")}
+          className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12 active:scale-[0.99] transition-all text-left group"
+        >
+          <div className="h-11 w-11 rounded-xl bg-emerald-600/15 flex items-center justify-center shrink-0 group-hover:bg-emerald-600/20 transition-colors">
+            <Clock className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black tracking-tight text-foreground">Timeproof Clock</p>
+            <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">Clock in, track your shift, share your location</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-emerald-500/60 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+        </button>
+      )}
+
+      {/* ── Admin Push Notification Banner — shown until subscribed or dismissed ── */}
+      {isAdmin && pushSupported && !pushSubscribed && !pushLoading && !pushDismissed && (
+        <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-amber-500/25 bg-amber-500/8">
+          <div className="h-11 w-11 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+            <Bell className="h-5 w-5 text-amber-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black tracking-tight text-foreground">Enable Admin Alerts</p>
+            <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">
+              Get push notifications for Lot Tech clock-in, clock-out, and location events — even on lock screen.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 mt-0.5">
+            <button
+              onClick={() => pushSubscribe()}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors active:scale-95"
+            >
+              Enable
+            </button>
+            <button
+              onClick={() => { setPushDismissed(true); sessionStorage.setItem('push_admin_dismissed', '1'); }}
+              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/40 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Quick Nav (mirrors the sidebar) — mobile only, sidebar covers desktop ── */}
       <div className="flex md:hidden gap-1.5 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0">

@@ -33,6 +33,7 @@ interface CreateUserForm {
   hireDate: string;
   birthday: string;
   gender: string;
+  department: string;
 
 }
 
@@ -41,10 +42,7 @@ interface FormErrors {
   email?: string;
   password?: string;
   role?: string;
-  hireDate?: string;
-
-  birthday?: string;
-
+  department?: string;
 }
 
 interface CreateUserModalProps {
@@ -77,14 +75,9 @@ function validate(form: CreateUserForm): FormErrors {
   if (!form.role) {
     errors.role = "Please select a role.";
   }
-  if (!form.hireDate) {
-    errors.hireDate = "Hire date is required.";
+  if (!form.department) {
+    errors.department = "Please select a department.";
   }
-
-  if (!form.birthday) {
-    errors.birthday = "Birthday is required.";
-  }
-
 
   return errors;
 }
@@ -113,6 +106,7 @@ export function CreateUserModal({
     hireDate: "",
     birthday: "",
     gender: "",
+    department: "",
 
   });
 
@@ -146,6 +140,7 @@ export function CreateUserModal({
       hireDate: "",
       birthday: "",
       gender: "",
+      department: "",
     });
 
     setErrors({});
@@ -220,6 +215,7 @@ export function CreateUserModal({
           birthday: form.birthday || undefined,
 
           gender: form.gender || undefined,
+          department: form.department,
 
         },
         { headers: { Authorization: `Bearer ${token}` } },
@@ -393,67 +389,86 @@ export function CreateUserModal({
           {/* Hire Date + Birthday row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-
-              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
-                Hire Date <span className="text-red-500">*</span>
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                Hire Date
+                <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
               </Label>
               <Input
-
                 type="date"
                 value={form.hireDate}
-                onChange={(e) => {
-                  setForm((p) => ({ ...p, hireDate: e.target.value }));
-
-                  if (errors.hireDate)
-                    setErrors((p) => ({ ...p, hireDate: undefined }));
-                }}
-                className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 ${errors.hireDate ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
-
+                onChange={(e) => setForm((p) => ({ ...p, hireDate: e.target.value }))}
+                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30"
               />
-              {errors.hireDate && (
-                <p className="text-[11px] text-red-500">{errors.hireDate}</p>
-              )}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
-                Birthday <span className="text-red-500">*</span>
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                Birthday
+                <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
               </Label>
               <Input
                 type="date"
                 value={form.birthday}
-                onChange={(e) => {
-                  setForm((p) => ({ ...p, birthday: e.target.value }));
-                  if (errors.birthday)
-                    setErrors((p) => ({ ...p, birthday: undefined }));
-                }}
-                className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 ${errors.birthday ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
+                onChange={(e) => setForm((p) => ({ ...p, birthday: e.target.value }))}
+                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30"
               />
-              {errors.birthday && (
-                <p className="text-[11px] text-red-500">{errors.birthday}</p>
-              )}
             </div>
           </div>
 
-          {/* Gender */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
-              Gender
-              <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
-                Optional
-              </span>
-            </Label>
-            <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
-              <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-emerald-500/30">
-                <SelectValue placeholder="Select gender" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
-                <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Gender + Department row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                Gender
+                <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
+              </Label>
+              <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
+                <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-emerald-500/30">
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
+                  <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                Department <span className="text-red-500">*</span>
+              </Label>
+              <Select value={form.department} onValueChange={(v) => { setForm((p) => ({ ...p, department: v })); setErrors((p) => ({ ...p, department: undefined })); }}>
+                <SelectTrigger className={`h-10 rounded-xl text-sm border-border/50 focus:ring-emerald-500/30 ${errors.department ? "border-red-400 focus:ring-red-400/30" : ""}`}>
+                  <SelectValue placeholder="Select dept." />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Sales & Finance" className="rounded-lg text-sm">Sales & Finance</SelectItem>
+                  <SelectItem value="Accounting" className="rounded-lg text-sm">Accounting</SelectItem>
+                  <SelectItem value="Recon" className="rounded-lg text-sm">Recon</SelectItem>
+                  <SelectItem value="Marketing" className="rounded-lg text-sm">Marketing</SelectItem>
+                  <SelectItem value="Online Team" className="rounded-lg text-sm">Online Team</SelectItem>
+                  <SelectItem value="Web Dev" className="rounded-lg text-sm">Web Dev</SelectItem>
+                  <SelectItem value="Wholesale" className="rounded-lg text-sm">Wholesale</SelectItem>
+                  <SelectItem value="Buying" className="rounded-lg text-sm">Buying</SelectItem>
+                  <SelectItem value="Operations" className="rounded-lg text-sm">Operations</SelectItem>
+                  <SelectItem value="Lot Tech" className="rounded-lg text-sm">Lot Tech</SelectItem>
+                  <SelectItem value="Funding" className="rounded-lg text-sm">Funding</SelectItem>
+                  <SelectItem value="Prospects" className="rounded-lg text-sm">Prospects</SelectItem>
+                  <SelectItem value="Price Check" className="rounded-lg text-sm">Price Check</SelectItem>
+                  <SelectItem value="Other" className="rounded-lg text-sm">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.department && (
+                <p className="text-[11px] text-red-500">{errors.department}</p>
+              )}
+            </div>
+          </div>
 
           {/* Role hint */}
           {form.role && (

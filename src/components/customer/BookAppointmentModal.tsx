@@ -298,7 +298,7 @@ export function BookAppointmentModal({
                 <span className="text-muted-foreground">Date</span>
                 <span className="font-semibold">
                   {new Date(date + "T12:00:00").toLocaleDateString("en-US", {
-                    weekday: "short", month: "short", day: "numeric",
+                    weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver",
                   })}
                 </span>
               </div>
@@ -383,7 +383,7 @@ export function BookAppointmentModal({
                 <span className="text-muted-foreground">Date & Time</span>
                 <span className="font-semibold">
                   {new Date(date + "T12:00:00").toLocaleDateString("en-US", {
-                    weekday: "short", month: "short", day: "numeric",
+                    weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver",
                   })}{" "}
                   · {timeSlot}
                 </span>

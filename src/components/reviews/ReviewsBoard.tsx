@@ -257,7 +257,7 @@ export default function ReviewsBoard() {
                 <div className="flex items-center justify-between mt-auto pt-2">
                   <div className="flex items-center gap-1.5">
                     {r.reviewDate && (
-                      <span className="text-[11px] text-zinc-400">{new Date(r.reviewDate).toLocaleDateString()}</span>
+                      <span className="text-[11px] text-zinc-400">{new Date(r.reviewDate).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1">

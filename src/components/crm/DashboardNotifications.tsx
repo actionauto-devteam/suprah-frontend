@@ -884,7 +884,7 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
 
   const firstName = user.fullName.split(' ')[0]
   const now = new Date()
-  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Denver' })
   const hasAlerts = alerts.length > 0
 
   // Derive status dot for current state

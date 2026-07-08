@@ -14,7 +14,7 @@ import {
   Link as LinkIcon, RefreshCw,
 } from "lucide-react"
 import { Appointment } from "@/types/appointment"
-import { format } from "date-fns"
+import { fmtLongDateMDT, fmtTimeMDT, fmtLongDateTimeMDT } from "@/lib/timezone"
 import { useUser } from "@/providers/AuthProvider"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
@@ -400,8 +400,8 @@ export function AppointmentDetailsModal({
                   </div>
                 ) : (
                   <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-0.5">
-                    <p className="text-sm font-semibold">{format(new Date(appointment.startTime), "PPP")}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(appointment.startTime), "p")}</p>
+                    <p className="text-sm font-semibold">{fmtLongDateMDT(appointment.startTime)}</p>
+                    <p className="text-xs text-muted-foreground">{fmtTimeMDT(appointment.startTime)}</p>
                   </div>
                 )}
               </div>
@@ -414,8 +414,8 @@ export function AppointmentDetailsModal({
                   </div>
                 ) : (
                   <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-0.5">
-                    <p className="text-sm font-semibold">{format(new Date(appointment.endTime), "PPP")}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(appointment.endTime), "p")}</p>
+                    <p className="text-sm font-semibold">{fmtLongDateMDT(appointment.endTime)}</p>
+                    <p className="text-xs text-muted-foreground">{fmtTimeMDT(appointment.endTime)}</p>
                   </div>
                 )}
               </div>
@@ -585,7 +585,7 @@ export function AppointmentDetailsModal({
                         )}
                         {guest.respondedAt && (
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Responded {format(new Date(guest.respondedAt), "PPp")}
+                            Responded {fmtLongDateTimeMDT(guest.respondedAt)}
                           </p>
                         )}
                       </div>
@@ -661,9 +661,9 @@ export function AppointmentDetailsModal({
           {/* ── Metadata ── */}
           <div className="rounded-lg border bg-muted/20 px-3 py-3 text-[11px] text-muted-foreground space-y-1">
             <p>Created by: <span className="font-medium text-foreground/70">{appointment.createdBy.fullName || appointment.createdBy.name}</span> ({appointment.createdBy.email})</p>
-            <p>Created: {format(new Date(appointment.createdAt), "PPp")}</p>
+            <p>Created: {fmtLongDateTimeMDT(appointment.createdAt)}</p>
             {appointment.updatedAt !== appointment.createdAt && (
-              <p>Last updated: {format(new Date(appointment.updatedAt), "PPp")}</p>
+              <p>Last updated: {fmtLongDateTimeMDT(appointment.updatedAt)}</p>
             )}
           </div>
         </div>

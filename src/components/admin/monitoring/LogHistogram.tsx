@@ -12,7 +12,7 @@ import {
     CartesianGrid
 } from 'recharts';
 import { LogStatsEntry } from '@/lib/types/monitoring';
-import { format } from 'date-fns';
+import { fmtDateTime24MDT } from '@/lib/timezone';
 
 interface LogHistogramProps {
     data: LogStatsEntry[] | undefined;
@@ -61,7 +61,7 @@ export function LogHistogram({ data, isLoading }: LogHistogramProps) {
                                 const data = payload[0].payload;
                                 return (
                                     <div className="bg-popover border border-white/10 rounded-lg p-2.5 shadow-xl text-[10px] font-mono animate-in zoom-in-95 duration-200">
-                                        <p className="text-muted-foreground mb-1.5">{format(new Date(data.time), 'MMM d, HH:mm')}</p>
+                                        <p className="text-muted-foreground mb-1.5">{fmtDateTime24MDT(new Date(data.time))}</p>
                                         <div className="space-y-1">
                                             <div className="flex items-center justify-between gap-4">
                                                 <span className="text-blue-400">INFO</span>

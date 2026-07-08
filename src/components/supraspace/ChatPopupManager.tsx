@@ -74,7 +74,7 @@ function initials(name: string): string {
   return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 function msgTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Denver' });
 }
 function isEmojiOnlyText(text?: string | null): boolean {
   const value = (text || '').trim();
@@ -672,7 +672,7 @@ function PinnedMessagesModal({
             <div style={{ textAlign: 'center', padding: '48px 0', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>No pinned messages</div>
           ) : (
             pinned.map((m, idx) => {
-              const dateStr = new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dateStr = new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Denver' });
               const avatarLetter = (m.sender?.fullName || 'U')[0].toUpperCase();
               const contentText = MEDIA_LABELS[m.type] || messagePreviewText(m.content) || '';
               return (

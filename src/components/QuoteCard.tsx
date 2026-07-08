@@ -29,7 +29,8 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
         return new Date(dateString).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
-            year: 'numeric'
+            year: 'numeric',
+            timeZone: 'America/Denver',
         })
     }
 

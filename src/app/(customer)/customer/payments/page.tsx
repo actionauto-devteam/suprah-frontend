@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
-import { format } from "date-fns";
+import { fmtDateMDT } from "@/lib/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ function money(n?: number | null) {
   return `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function fmtDate(d?: string) {
-  return d ? format(new Date(d), "MMM d, yyyy") : "";
+  return d ? fmtDateMDT(d) : "";
 }
 
 const STATUS_META: Record<

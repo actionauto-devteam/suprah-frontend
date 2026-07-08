@@ -77,6 +77,7 @@ export async function generateLoadReportPdf(
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "America/Denver",
   });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -441,7 +442,7 @@ export async function generateQuoteReportPdf(
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.text(
-    `Generated: ${new Date().toLocaleDateString("en-US", { dateStyle: "long" })}`,
+    `Generated: ${new Date().toLocaleDateString("en-US", { dateStyle: "long", timeZone: "America/Denver" } as Intl.DateTimeFormatOptions)}`,
     14,
     35,
   );

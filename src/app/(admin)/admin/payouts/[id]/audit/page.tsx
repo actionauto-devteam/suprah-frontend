@@ -26,7 +26,7 @@ import {
     useApproveWithdrawal,
     useRejectWithdrawal
 } from "@/hooks/api/useAdminReferral"
-import { format } from "date-fns"
+import { fmtDateMDT, fmtLongDateMDT } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -225,14 +225,14 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                                                                 <User className="w-3 h-3" /> {entry.referralInfo.name}
                                                             </span>
                                                             <span className="flex items-center gap-1">
-                                                                <Calendar className="w-3 h-3" /> {format(new Date(entry.referralInfo.dateJoined), 'MMM d, yyyy')}
+                                                                <Calendar className="w-3 h-3" /> {fmtDateMDT(entry.referralInfo.dateJoined)}
                                                             </span>
                                                         </div>
                                                     )}
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-2xl font-black text-green-600 tracking-tighter">+${entry.amount.toFixed(2)}</p>
-                                                    <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold tracking-widest">{format(new Date(entry.createdAt), 'MMM d, yyyy')}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold tracking-widest">{fmtDateMDT(entry.createdAt)}</p>
                                                 </div>
                                             </div>
 
@@ -289,7 +289,7 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                                                             <div className="flex justify-between items-start">
                                                                 <div>
                                                                     <p className="text-sm font-bold text-foreground uppercase tracking-tight">{entry.paymentInfo.invoiceNumber || 'Stripe Order'}</p>
-                                                                    <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(entry.paymentInfo.createdAt), 'MMMM d, yyyy')}</p>
+                                                                    <p className="text-[10px] text-muted-foreground mt-0.5">{fmtLongDateMDT(entry.paymentInfo.createdAt)}</p>
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <p className="text-sm font-black text-foreground">${entry.paymentInfo.amount.toFixed(2)}</p>

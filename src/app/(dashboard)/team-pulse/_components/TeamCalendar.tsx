@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import {
   Building2,
   CalendarDays,
@@ -127,16 +127,16 @@ export function TeamCalendar({
   }, [absences, calDeptFilter, calTypeFilter, members]);
 
   const todayAbsences = React.useMemo(
-    () => absences.filter((a) => isSameDay(parseISO(a.date), new Date())),
+    () => absences.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), new Date())),
     [absences],
   );
 
   const dayAbsences = selectedDay
-    ? calAbsences.filter((a) => isSameDay(parseISO(a.date), selectedDay))
+    ? calAbsences.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), selectedDay))
     : [];
   const myDayAbsence = selectedDay
     ? absences
-        .filter((a) => isSameDay(parseISO(a.date), selectedDay))
+        .filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), selectedDay))
         .find((a) => a.userName === userName)
     : undefined;
   const myMonthAbsences = absences.filter((a) => a.userName === userName);
@@ -148,10 +148,10 @@ export function TeamCalendar({
     weekEnd.setDate(todayStart.getDate() + 6);
     return calAbsences
       .filter((a) => {
-        const d = parseISO(a.date);
+        const d = new Date(a.date + 'T00:00:00');
         return d >= todayStart && d <= weekEnd;
       })
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+      .sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime());
   }, [calAbsences]);
 
   const monthStats = React.useMemo(() => {
@@ -489,7 +489,7 @@ export function TeamCalendar({
                 components={{
                   DayButton: ({ day, modifiers, ...props }: any) => {
                     const hits = calAbsences.filter((a) =>
-                      isSameDay(parseISO(a.date), day.date),
+                      isSameDay(new Date(a.date + 'T00:00:00'), day.date),
                     );
                     const isSel =
                       selectedDay && isSameDay(day.date, selectedDay);
@@ -699,7 +699,7 @@ export function TeamCalendar({
                           </p>
                         </div>
                         <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                          {format(parseISO(a.date), "EEE d")}
+                          {new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })}
                         </span>
                         <span
                           className={cn(
@@ -1132,7 +1132,7 @@ export function TeamCalendar({
                           )}
                         />
                         <span className="text-xs font-bold tabular-nums">
-                          {format(parseISO(a.date), "MMM d")}
+                          {new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
                         <span
                           className={cn(

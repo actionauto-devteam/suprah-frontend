@@ -120,6 +120,7 @@ export const generateLoadPDF = async (
       month: "long",
       day: "numeric",
       year: "numeric",
+      timeZone: "America/Denver",
     });
   };
 
@@ -152,6 +153,7 @@ export const generateLoadPDF = async (
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/Denver",
   });
 
   // Load logo + embed fonts in parallel

@@ -183,6 +183,8 @@ export function getNotificationRoute(notification: Notification, pathname?: stri
   return ROUTE_MAP[notification.type] || '/notifications';
 }
 
+const _TZ = 'America/Denver';
+
 export function formatNotificationDate(dateStr: string): string {
   const now = new Date();
   const date = new Date(dateStr);
@@ -191,17 +193,16 @@ export function formatNotificationDate(dateStr: string): string {
   if (seconds < 60) return 'Just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
 
-  const isToday = date.toDateString() === now.toDateString();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = date.toDateString() === yesterday.toDateString();
+  const dateInMDT = date.toLocaleDateString('en-US', { timeZone: _TZ });
+  const nowInMDT = now.toLocaleDateString('en-US', { timeZone: _TZ });
+  const yesterdayInMDT = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { timeZone: _TZ });
 
-  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: _TZ });
 
-  if (isToday) return `Today, ${timeStr}`;
-  if (isYesterday) return `Yesterday, ${timeStr}`;
+  if (dateInMDT === nowInMDT) return `Today, ${timeStr}`;
+  if (dateInMDT === yesterdayInMDT) return `Yesterday, ${timeStr}`;
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: _TZ });
 }
 
 export function formatFullDate(dateStr: string): string {
@@ -212,5 +213,6 @@ export function formatFullDate(dateStr: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: _TZ,
   });
 }

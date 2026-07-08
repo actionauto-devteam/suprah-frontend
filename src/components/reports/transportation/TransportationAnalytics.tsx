@@ -78,7 +78,7 @@ function buildMonthlyLoadTrend(rawLoads: Load[]) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d
-      .toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      .toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "America/Denver" })
       .replace(", ", " '");
     months.push({ key, label });
   }
@@ -98,7 +98,7 @@ function buildMonthlyQuoteTrend(rawQuotes: Quote[]) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d
-      .toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      .toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "America/Denver" })
       .replace(", ", " '");
     months.push({ key, label });
   }

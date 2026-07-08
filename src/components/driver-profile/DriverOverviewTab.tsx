@@ -188,12 +188,12 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                 {[
                                     { label: 'Phone', value: profile?.personalInfo?.phone ? `+1 ${profile.personalInfo.phone}` : null, icon: Phone, color: 'text-blue-500' },
                                     { label: 'Location', value: profile?.personalInfo?.location || null, icon: MapPin, color: 'text-emerald-500' },
-                                    { label: 'Birthday', value: profile?.personalInfo?.dateOfBirth ? new Date(profile.personalInfo.dateOfBirth + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }) : null, icon: Calendar, color: 'text-pink-500' },
+                                    { label: 'Birthday', value: profile?.personalInfo?.dateOfBirth ? new Date(profile.personalInfo.dateOfBirth + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : null, icon: Calendar, color: 'text-pink-500' },
                                     { label: 'Gender', value: profile?.personalInfo?.gender ? profile.personalInfo.gender.charAt(0).toUpperCase() + profile.personalInfo.gender.slice(1).replace(/-/g, ' ') : null, icon: User, color: 'text-violet-500' },
                                     { label: 'Job Title', value: profile?.personalInfo?.jobTitle || null, icon: Briefcase, color: 'text-amber-500' },
                                     { label: 'Department', value: profile?.personalInfo?.department || null, icon: Building2, color: 'text-cyan-500' },
                                     { label: 'Language', value: profile?.personalInfo?.language ? languageOptions.find(l => l.code === profile?.personalInfo?.language)?.name : null, icon: Globe, color: 'text-indigo-500' },
-                                    { label: 'Joined', value: profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'America/New_York' }) : 'Today', icon: Calendar, color: 'text-teal-500' },
+                                    { label: 'Joined', value: profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'America/Denver' }) : 'Today', icon: Calendar, color: 'text-teal-500' },
                                 ].filter(info => info.value).map((info, i) => (
                                     <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50">
                                         <info.icon className={cn("size-4 shrink-0", info.color)} />

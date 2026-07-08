@@ -11,6 +11,7 @@ const formatDate = (iso: string) =>
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "America/Denver",
   });
 
 export function ListingStatusTimeline({ listing }: { listing: AuctionListing }) {

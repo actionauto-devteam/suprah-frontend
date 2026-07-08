@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format, parseISO } from "date-fns";
+import { MDT_TZ } from "@/lib/timezone";
 import {
   AlertTriangle,
   Bell,
@@ -213,7 +213,7 @@ export function TeamBoard({
     setNoteBody(note.content);
     setNoteColor(note.color);
     setNoteEmoji(note.emoji ?? "");
-    setNotePostedAt(note.postedAt ? format(parseISO(note.postedAt), "yyyy-MM-dd") : "");
+    setNotePostedAt(note.postedAt ? new Date(note.postedAt).toLocaleDateString('en-CA', { timeZone: MDT_TZ }) : "");
     setPendingImages([]);
     setNoteDialog(true);
   }
@@ -577,7 +577,7 @@ export function TeamBoard({
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full justify-start text-left h-9 text-sm font-normal">
                         <CalendarDays className="size-4 mr-2 text-muted-foreground/60 shrink-0" />
-                        {noteExpiry ? format(parseISO(noteExpiry), "MMMM d, yyyy") : <span className="text-muted-foreground/50">No expiry — permanent</span>}
+                        {noteExpiry ? new Date(noteExpiry + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : <span className="text-muted-foreground/50">No expiry — permanent</span>}
                         {noteExpiry && (
                           <span className="ml-auto text-[10px] text-muted-foreground/40 font-normal">
                             {Math.max(1, Math.ceil((new Date(noteExpiry).getTime() - Date.now()) / 86_400_000))}d from now
@@ -588,8 +588,8 @@ export function TeamBoard({
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
-                        selected={noteExpiry ? parseISO(noteExpiry) : undefined}
-                        onSelect={(day) => setNoteExpiry(day ? format(day, "yyyy-MM-dd") : "")}
+                        selected={noteExpiry ? new Date(noteExpiry + 'T00:00:00') : undefined}
+                        onSelect={(day) => setNoteExpiry(day ? day.toLocaleDateString('en-CA') : "")}
                         disabled={(date) => date <= new Date()}
                       />
                       {noteExpiry && (

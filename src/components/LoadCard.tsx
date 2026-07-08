@@ -31,7 +31,7 @@ function formatCurrency(n?: number) {
 function formatDate(d?: string | Date) {
   if (!d) return "—"
   const date = typeof d === 'string' ? new Date(d) : d
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })
 }
 
 function getStatusTheme(status: LoadStatus) {

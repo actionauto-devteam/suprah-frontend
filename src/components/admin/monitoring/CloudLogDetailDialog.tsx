@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from 'date-fns';
+import { fmtLongDateTimeMDT } from '@/lib/timezone';
 import { 
     Activity, 
     Network, 
@@ -68,7 +68,7 @@ export function CloudLogDetailDialog({ log, open, onOpenChange, onTraceRequest }
                                     </Badge>
                                 </DialogTitle>
                                 <DialogDescription className="font-mono text-[11px] truncate max-w-[500px]">
-                                    {log._id} • {format(new Date(log.timestamp), 'PPP p')}
+                                    {log._id} • {fmtLongDateTimeMDT(new Date(log.timestamp))}
                                 </DialogDescription>
                             </div>
                         </div>

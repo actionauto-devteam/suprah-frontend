@@ -15,6 +15,7 @@ import {
   Users,
   Zap,
   Apple,
+  ChevronDown,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -39,6 +40,7 @@ interface UserTimeproof {
     username: string
     avatar?: string
     role: string
+    department?: string
   }
   today: HoursSummary
   thisWeek: HoursSummary
@@ -71,6 +73,7 @@ interface MergedUser {
   username: string
   avatar?: string
   role: string
+  department?: string
   today: HoursSummary
   thisWeek: HoursSummary
   isLive: boolean
@@ -86,6 +89,26 @@ interface MergedUser {
   todayTotalWorkedSeconds: number
   totalBreakSeconds: number
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Constants
+───────────────────────────────────────────────────────────────────────── */
+const DEPARTMENTS = [
+  "Sales & Finance",
+  "Accounting",
+  "Recon",
+  "Marketing",
+  "Online Team",
+  "Web Dev",
+  "Wholesale",
+  "Buying",
+  "Operations",
+  "Lot Tech",
+  "Funding",
+  "Prospects",
+  "Price Check",
+  "Other",
+]
 
 /* ─────────────────────────────────────────────────────────────────────────
    Utilities
@@ -285,6 +308,7 @@ export default function AdminShiftBoardPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null)
+  const [selectedDept, setSelectedDept] = React.useState<string>("all")
 
   const fetchData = React.useCallback(async () => {
     const token = localStorage.getItem("crm_token")
@@ -316,6 +340,7 @@ export default function AdminShiftBoardPage() {
           username: u.user.username,
           avatar: u.user.avatar,
           role: u.user.role,
+          department: u.user.department,
           today: u.today,
           thisWeek: u.thisWeek,
           isLive: u.isLive,
@@ -396,12 +421,33 @@ export default function AdminShiftBoardPage() {
   }, [fetchData])
 
 
+  // Derive unique department list from loaded users
+  const departments = React.useMemo(() => {
+    const seen = new Set<string>()
+    users.forEach((u) => { if (u.department) seen.add(u.department) })
+    return Array.from(seen).sort()
+  }, [users])
+
+  // selectedDept values: "all" | "role:<role>" | "dept:<dept>"
+  const filteredUsers = React.useMemo(() => {
+    if (selectedDept === "all") return users
+    if (selectedDept.startsWith("role:")) {
+      const role = selectedDept.slice(5)
+      return users.filter((u) => u.role === role)
+    }
+    if (selectedDept.startsWith("dept:")) {
+      const dept = selectedDept.slice(5)
+      return users.filter((u) => u.department === dept)
+    }
+    return users
+  }, [users, selectedDept])
+
   // Online = anyone on shift (any state) OR with an active tray/CRM connection
-  const onlineCount = users.filter((u) => u.isLive || u.isOnline).length
-  const onShiftCount = users.filter((u) => u.isLive && !u.isOnBreak && !u.isIdle).length
-  const onBreakCount = users.filter((u) => u.isLive && u.isOnBreak).length
-  const idleCount = users.filter((u) => u.isLive && u.isIdle).length
-  const overBreakCount = users.filter((u) => u.isLive && u.isBreakExceeded).length
+  const onlineCount = filteredUsers.filter((u) => u.isLive || u.isOnline).length
+  const onShiftCount = filteredUsers.filter((u) => u.isLive && !u.isOnBreak && !u.isIdle).length
+  const onBreakCount = filteredUsers.filter((u) => u.isLive && u.isOnBreak).length
+  const idleCount = filteredUsers.filter((u) => u.isLive && u.isIdle).length
+  const overBreakCount = filteredUsers.filter((u) => u.isLive && u.isBreakExceeded).length
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -428,8 +474,22 @@ export default function AdminShiftBoardPage() {
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2">
             <LiveClock />
+            {/* Department filter */}
+            <div className="relative">
+              <select
+                value={selectedDept}
+                onChange={(e) => setSelectedDept(e.target.value)}
+                className="h-9 pl-3 pr-7 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-[11px] font-bold appearance-none focus:outline-none focus:border-zinc-600 cursor-pointer"
+              >
+                <option value="all">All Departments</option>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={`dept:${d}`}>{d}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-600" />
+            </div>
             {lastRefreshed && (
               <span className="hidden sm:block text-[10px] text-zinc-600 font-mono">
                 Updated {fmtLastSeen(lastRefreshed.toISOString())}
@@ -489,17 +549,21 @@ export default function AdminShiftBoardPage() {
         )}
 
         {/* ── Empty ── */}
-        {!loading && users.length === 0 && !error && (
+        {!loading && filteredUsers.length === 0 && !error && (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <Users className="h-10 w-10 text-zinc-700" />
-            <p className="text-sm text-zinc-500 font-semibold">No agents found</p>
+            <p className="text-sm text-zinc-500 font-semibold">
+              {selectedDept === "all"
+                ? "No agents found"
+                : `No agents in "${selectedDept.startsWith("dept:") ? selectedDept.slice(5) : selectedDept}"`}
+            </p>
           </div>
         )}
 
         {/* ── Grid ── */}
-        {!loading && users.length > 0 && (
+        {!loading && filteredUsers.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <UserCard
                 key={u._id}
                 user={u}

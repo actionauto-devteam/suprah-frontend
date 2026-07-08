@@ -33,19 +33,28 @@ export interface Place {
 
 export interface ActiveEmployeeLocation {
     userId: string;
+    userModel?: 'User' | 'CrmUser';
     userName: string;
     userAvatar?: string;
     jobTitle?: string;
+    department?: string;
     employmentLocationType?: 'onsite' | 'remote';
     coords: { lat: number; lng: number };
     heading?: number;
     speedMph?: number;
+    accuracyM?: number;
     sharingState: SharingState;
     batteryLevel?: number;
     isCharging?: boolean;
     connectivity: 'online' | 'offline';
+    connectionType?: string;
+    effectiveType?: string;
+    deviceType?: 'mobile' | 'desktop';
     currentPlaceId?: string;
+    drivingSessionId?: string;
     lastSeenAt: string;
+    sharingSince?: string;
+    stationarySince?: string;
 }
 
 function useAuthHeaders() {

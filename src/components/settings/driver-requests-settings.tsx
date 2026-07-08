@@ -181,7 +181,7 @@ export function DriverRequestsSettings() {
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                       <Clock className="size-3" />
-                      {new Date(request.createdAt).toLocaleDateString()}
+                      {new Date(request.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                     </div>
                   </div>
                 </div>

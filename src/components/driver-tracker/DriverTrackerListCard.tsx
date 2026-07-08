@@ -317,9 +317,10 @@ export function DriverTrackerListCard({
                       <span className="text-muted-foreground/30">|</span>
                       <span className="inline-flex items-center gap-1 text-muted-foreground/60">
                         <Clock className="size-2.5" />
-                        {new Date(driver.lastSeenAt).toLocaleTimeString([], {
+                        {new Date(driver.lastSeenAt).toLocaleTimeString('en-US', {
                           hour: "2-digit",
                           minute: "2-digit",
+                          timeZone: "America/Denver",
                         })}
                       </span>
                     </div>

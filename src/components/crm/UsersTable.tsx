@@ -68,6 +68,7 @@ interface CrmUserRow {
 
   birthday?: string
   hireDate?: string
+  department?: string
   isOffboarded?: boolean
 }
 
@@ -101,6 +102,7 @@ function formatDate(iso: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/Denver",
   })
 }
 

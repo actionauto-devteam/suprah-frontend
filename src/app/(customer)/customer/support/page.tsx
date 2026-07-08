@@ -108,9 +108,10 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_FILES = 5;
 
 function fmtTime(d: string) {
-  return new Date(d).toLocaleTimeString([], {
+  return new Date(d).toLocaleTimeString('en-US', {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: 'America/Denver',
   });
 }
 function fmtSize(b: number) {
@@ -118,13 +119,15 @@ function fmtSize(b: number) {
     ? `${(b / 1024).toFixed(1)} KB`
     : `${(b / 1048576).toFixed(1)} MB`;
 }
+const _TZ = 'America/Denver';
 function fmtDate(d: string) {
   const date = new Date(d);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 86400000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Yesterday";
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  const dStr = date.toLocaleDateString('en-US', { timeZone: _TZ });
+  const todayStr = new Date().toLocaleDateString('en-US', { timeZone: _TZ });
+  const yesterdayStr = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { timeZone: _TZ });
+  if (dStr === todayStr) return "Today";
+  if (dStr === yesterdayStr) return "Yesterday";
+  return date.toLocaleDateString('en-US', { month: "short", day: "numeric", timeZone: _TZ });
 }
 function ini(name: string) {
   return (name || "?")

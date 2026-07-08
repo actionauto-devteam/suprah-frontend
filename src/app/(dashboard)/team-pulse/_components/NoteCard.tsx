@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { differenceInCalendarDays } from "date-fns";
+import { fmtShortDateTimeMDT } from "@/lib/timezone";
 import { CheckCheck, GripVertical, Pencil, Pin, PinOff, Timer, Trash2, X, ZoomIn } from "lucide-react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 
@@ -164,7 +165,7 @@ export function NoteCard({
 
   const style = N[note.color] ?? N.yellow;
   const daysLeft = note.expiresAt
-    ? differenceInCalendarDays(parseISO(note.expiresAt), new Date())
+    ? differenceInCalendarDays(new Date(note.expiresAt), new Date())
     : null;
   const announceConfig =
     ANNOUNCE_CONFIG[note.announcementType ?? "general"] ??
@@ -361,7 +362,7 @@ export function NoteCard({
               {note.userName}
             </span>
             <span className="text-[10px] text-foreground/35 shrink-0 tabular-nums">
-              {format(parseISO(displayDate), "MMM d · h:mm a")}
+              {fmtShortDateTimeMDT(new Date(displayDate))}
             </span>
             {daysLeft !== null && (
               <span

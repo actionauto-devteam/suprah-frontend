@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { fmtDateMDT, fmtFullDateTime24MDT } from "@/lib/timezone";
 import { useQuery } from "@tanstack/react-query";
 import {
   Car, CheckCircle2, RefreshCw, Loader2, Gauge, ShoppingBag,
@@ -279,7 +279,7 @@ export function VehicleHistory({
                       <VehicleStatusBadge status={v.status} />
                       {v.sold && v.soldAt && (
                         <div className="mt-0.5 text-[10.5px] tabular-nums text-muted-foreground">
-                          {format(new Date(v.soldAt), "MMM d, yyyy")}
+                          {fmtDateMDT(v.soldAt)}
                         </div>
                       )}
                     </td>
@@ -296,7 +296,7 @@ export function VehicleHistory({
                     <td className="px-3.5 py-3 align-middle">
                       <span className="text-[12px] tabular-nums text-muted-foreground">
                         {v.lastActivityAt
-                          ? format(new Date(v.lastActivityAt), "MMM d, yyyy · HH:mm")
+                          ? fmtFullDateTime24MDT(v.lastActivityAt)
                           : "—"}
                       </span>
                     </td>

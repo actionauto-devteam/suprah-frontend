@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { fmtFullDateTime24MDT, fmtLongDateMDT, fmtTime24MDT, MDT_TZ } from "@/lib/timezone";
 import {
   ArrowLeft, Calendar, CalendarDays, Car, CheckCircle2, ChevronRight,
   Clock, Download, Eye, FileText, Loader2, Plus, RefreshCw, Search,
@@ -176,7 +176,7 @@ function PostCard({ post }: { post: DashboardPost }) {
           {post.type}
         </span>
         <span className="text-[11px] text-muted-foreground/60">
-          By {post.authorName} · {format(new Date(post.createdAt), "MMM d, yyyy · HH:mm")}
+          By {post.authorName} · {fmtFullDateTime24MDT(post.createdAt)}
         </span>
       </div>
       <p className="text-[13px] font-bold text-foreground mb-1">{post.title}</p>
@@ -210,7 +210,7 @@ function AppointmentRow({ apt, onOpen }: {
         <span className="font-mono text-[12px] text-foreground/80 whitespace-nowrap">{apt.customerBooking.phone}</span>
       </td>
       <td className="px-3.5 py-3 align-middle w-[8%]">
-        <div className="font-mono text-[13px] font-medium">{format(start, "HH:mm")}</div>
+        <div className="font-mono text-[13px] font-medium">{fmtTime24MDT(start)}</div>
         <div className="text-[11px] text-muted-foreground">{dur} min</div>
       </td>
       <td className="px-3.5 py-3 align-middle w-[11%]">
@@ -265,8 +265,8 @@ export function AppointmentDashboard() {
   const queryClient  = useQueryClient();
   const { getToken } = useAuth();
 
-  const today    = format(new Date(), "yyyy-MM-dd");
-  const tomorrow = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
+  const today    = new Date().toLocaleDateString('en-CA', { timeZone: MDT_TZ });
+  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ });
 
   const [selectedDate,  setSelectedDate]  = React.useState(today);
   const [statusFilter,  setStatusFilter]  = React.useState("all");
@@ -396,7 +396,7 @@ export function AppointmentDashboard() {
   }, [appointmentsData?.appointments, searchQuery]);
 
   const displayDate = (() => {
-    try { return format(new Date(selectedDate + "T00:00:00"), "MMMM d, yyyy"); }
+    try { return new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); }
     catch { return selectedDate; }
   })();
 

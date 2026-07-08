@@ -31,15 +31,15 @@ interface EditUserForm {
 
   hireDate: string
   birthday: string
-  gender: string
+  gender: string
+  department: string
 }
 
 interface FormErrors {
   fullName?: string
   email?: string
   role?: string
-  birthday?: string
-  hireDate?: string
+  department?: string
 }
 
 interface EditUserModalProps {
@@ -54,7 +54,8 @@ interface EditUserModalProps {
 
     hireDate?: string
     birthday?: string
-    gender?: string | null
+    gender?: string | null
+    department?: string | null
   } | null
   onUpdated?: () => void
 }
@@ -72,6 +73,7 @@ function validate(form: EditUserForm): FormErrors {
     errors.email = "Enter a valid email address."
   }
   if (!form.role) errors.role = "Please select a role."
+  if (!form.department) errors.department = "Please select a department."
   return errors
 }
 
@@ -87,7 +89,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
 
     hireDate: "",
     birthday: "",
-    gender: "",
+    gender: "",
+    department: "",
   })
 
   // Populate form when user changes
@@ -100,7 +103,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
 
         hireDate: user.hireDate?.split("T")[0] ?? "",
         birthday: user.birthday?.split("T")[0] ?? "",
-        gender: user.gender ?? "",
+        gender: user.gender ?? "",
+        department: user.department ?? "",
       })
       setErrors({})
     }
@@ -143,7 +147,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           hireDate: form.hireDate || undefined,
           birthday: form.birthday || undefined,
 
-          gender: form.gender || undefined,
+          gender: form.gender || undefined,
+          department: form.department,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -252,10 +257,12 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           {/* Hire Date + Birthday row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
                 Hire Date
+                <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
               </Label>
-
               <Input
                 type="date"
                 value={form.hireDate}
@@ -274,31 +281,62 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
                 type="date"
                 value={form.birthday}
                 onChange={setField("birthday")}
-                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
+                className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-blue-500/30"
               />
             </div>
           </div>
 
+          {/* Gender + Department row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                Gender
+                <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  Optional
+                </span>
+              </Label>
+              <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
+                <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-blue-500/30">
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
+                  <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Gender */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
-              Gender
-              <span className="text-[9px] font-bold text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
-                Optional
-              </span>
-            </Label>
-            <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v }))}>
-              <SelectTrigger className="h-10 rounded-xl text-sm border-border/50 focus:ring-blue-500/30">
-                <SelectValue placeholder="Select gender" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="male" className="rounded-lg text-sm">Male</SelectItem>
-                <SelectItem value="female" className="rounded-lg text-sm">Female</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                Department <span className="text-red-500">*</span>
+              </Label>
+              <Select value={form.department} onValueChange={(v) => { setForm((p) => ({ ...p, department: v })); setErrors((p) => ({ ...p, department: undefined })) }}>
+                <SelectTrigger className={`h-10 rounded-xl text-sm border-border/50 focus:ring-blue-500/30 ${errors.department ? "border-red-400 focus:ring-red-400/30" : ""}`}>
+                  <SelectValue placeholder="Select dept." />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Sales & Finance" className="rounded-lg text-sm">Sales & Finance</SelectItem>
+                  <SelectItem value="Accounting" className="rounded-lg text-sm">Accounting</SelectItem>
+                  <SelectItem value="Recon" className="rounded-lg text-sm">Recon</SelectItem>
+                  <SelectItem value="Marketing" className="rounded-lg text-sm">Marketing</SelectItem>
+                  <SelectItem value="Online Team" className="rounded-lg text-sm">Online Team</SelectItem>
+                  <SelectItem value="Web Dev" className="rounded-lg text-sm">Web Dev</SelectItem>
+                  <SelectItem value="Wholesale" className="rounded-lg text-sm">Wholesale</SelectItem>
+                  <SelectItem value="Buying" className="rounded-lg text-sm">Buying</SelectItem>
+                  <SelectItem value="Operations" className="rounded-lg text-sm">Operations</SelectItem>
+                  <SelectItem value="Lot Tech" className="rounded-lg text-sm">Lot Tech</SelectItem>
+                  <SelectItem value="Funding" className="rounded-lg text-sm">Funding</SelectItem>
+                  <SelectItem value="Prospects" className="rounded-lg text-sm">Prospects</SelectItem>
+                  <SelectItem value="Price Check" className="rounded-lg text-sm">Price Check</SelectItem>
+                  <SelectItem value="Other" className="rounded-lg text-sm">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.department && (
+                <p className="text-[11px] text-red-500">{errors.department}</p>
+              )}
+            </div>
           </div>
-
+
           {/* Role hint */}
           {form.role && (
             <div className={`rounded-xl p-3 text-xs border ${

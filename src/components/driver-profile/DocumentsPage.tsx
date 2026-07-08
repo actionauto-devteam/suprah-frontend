@@ -861,7 +861,7 @@ export const DocumentsPage: React.FC = () => {
                           <div>
                             <h3 className="font-bold text-amber-700 dark:text-amber-400 mb-2">Verification in Progress</h3>
                             <ol className="text-xs text-amber-600/90 dark:text-amber-400/80 space-y-1.5 list-decimal list-inside leading-relaxed">
-                              <li>Submitted at {new Date().toLocaleDateString()} - Awaiting admin review</li>
+                              <li>Submitted at {new Date().toLocaleDateString('en-US', { timeZone: 'America/Denver' })} - Awaiting admin review</li>
                               <li>Documents will be verified against government records</li>
                               <li>Background check processing (1-2 business days)</li>
                               <li>You'll receive an email notification when approved</li>

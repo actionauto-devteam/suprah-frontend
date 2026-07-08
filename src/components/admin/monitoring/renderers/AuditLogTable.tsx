@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AuditLogEntry } from '@/lib/types/monitoring';
-import { format } from 'date-fns';
+import { MDT_TZ } from '@/lib/timezone';
 import { Eye, User, Calendar, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -54,8 +54,8 @@ export const AuditLogTable = React.memo(({ logs, onViewDetail }: AuditLogTablePr
                             <TableRow key={log._id} className="group hover:bg-muted/30 transition-colors">
                                 <TableCell className="whitespace-nowrap">
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-medium">{format(new Date(log.timestamp), 'MMM dd, HH:mm:ss')}</span>
-                                        <span className="text-[10px] text-muted-foreground">{format(new Date(log.timestamp), 'yyyy')}</span>
+                                        <span className="text-sm font-medium">{new Date(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: '2-digit', timeZone: MDT_TZ }) + ', ' + new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: MDT_TZ })}</span>
+                                        <span className="text-[10px] text-muted-foreground">{new Date(log.timestamp).toLocaleDateString('en-US', { year: 'numeric', timeZone: MDT_TZ })}</span>
                                     </div>
                                 </TableCell>
                                 <TableCell>

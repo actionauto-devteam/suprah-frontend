@@ -253,7 +253,7 @@ export function ReportsFilesTab() {
       const doc = printWindow?.document;
       if (!doc || !printWindow) throw new Error("Print unavailable");
 
-      const generatedAt = new Date().toLocaleString();
+      const generatedAt = new Date().toLocaleString('en-US', { timeZone: 'America/Denver' });
       const rows = printableFiles
         .map((file, index) => {
           const details = printIncludeMetadata

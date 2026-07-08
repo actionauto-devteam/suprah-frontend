@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
+import { fmtDateMDT, MDT_TZ } from "@/lib/timezone";
 import {
   Search, Plus, User, Users, Mail, Phone, Car, MessageSquare,
   Receipt, ChevronRight, X, Edit2, Trash2,
@@ -199,7 +200,7 @@ function SyncBar({
       <div className="flex items-center gap-2 shrink-0">
         {lastSynced && status !== "syncing" && (
           <span className="text-[10px] font-mono text-muted-foreground/60 hidden sm:block">
-            {format(lastSynced, "HH:mm:ss")}
+            {lastSynced.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: MDT_TZ })}
           </span>
         )}
         <button
@@ -873,7 +874,7 @@ function CustomerDetail({
                     <Clock className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
                     <span className="text-[12px] text-muted-foreground">First contact:</span>
                     <span className="text-[12px] font-semibold text-foreground/80 font-mono">
-                      {format(new Date(customer.stats.firstContactedAt), "MMM d, yyyy")}
+                      {fmtDateMDT(customer.stats.firstContactedAt)}
                     </span>
                   </div>
                 )}
@@ -890,7 +891,7 @@ function CustomerDetail({
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
                   <span className="text-[12px] text-muted-foreground">Record created:</span>
                   <span className="text-[12px] font-semibold text-foreground/80 font-mono">
-                    {format(new Date(customer.createdAt), "MMM d, yyyy")}
+                    {fmtDateMDT(customer.createdAt)}
                   </span>
                 </div>
               </div>

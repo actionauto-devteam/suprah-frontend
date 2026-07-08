@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { SystemLogEntry } from '@/lib/types/monitoring';
-import { format } from 'date-fns';
+import { MDT_TZ } from '@/lib/timezone';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { CloudLogDetailDialog } from './CloudLogDetailDialog';
@@ -103,7 +103,7 @@ export function AdvancedLogTable({ logs, isLoading, onTraceRequest }: AdvancedLo
                             >
                                 {/* Timestamp */}
                                 <div className="text-[11px] font-mono text-muted-foreground py-0.5 tabular-nums">
-                                    {format(new Date(log.timestamp), 'MMM d, HH:mm:ss.SS')}
+                                    {new Date(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ }) + ', ' + new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: MDT_TZ })}
                                 </div>
 
                                 {/* Status */}

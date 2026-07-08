@@ -12,8 +12,10 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-
   ZoomIn,
+  Play,
+  LogIn,
+  LogOut,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -39,6 +41,19 @@ interface ActualBreak {
   out: string | null
   duration: number  // seconds (from backend)
   isActive: boolean
+}
+
+interface WorkSession {
+  in: string
+  out: string | null
+  duration: number
+  isLive: boolean
+}
+
+interface LotTechDayData {
+  sessions: WorkSession[]
+  totalSeconds: number
+  breakSeconds: number
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -324,6 +339,200 @@ const Lightbox = ({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   Lot Tech Activity Log View
+───────────────────────────────────────────────────────────────────────── */
+function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
+  dateStr: string; totalSecondsFromParam: number; formattedDate: string
+}) {
+  const router = useRouter()
+  const [dayData, setDayData] = React.useState<LotTechDayData | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState("")
+
+  React.useEffect(() => {
+    setLoading(true)
+    apiClient.get("/api/timeclock/my?range=365")
+      .then((res) => {
+        const cal = res.data?.data?.calendar ?? {}
+        const d = cal[dateStr]
+        setDayData(d ? {
+          sessions: d.sessions ?? [],
+          totalSeconds: d.totalSeconds ?? 0,
+          breakSeconds: d.breakSeconds ?? 0,
+        } : null)
+      })
+      .catch(() => setError("Failed to load activity log."))
+      .finally(() => setLoading(false))
+  }, [dateStr])
+
+  const fmtSec = (s: number) => {
+    const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60)
+    if (h === 0 && m === 0) return "0m"
+    if (h === 0) return `${m}m`
+    if (m === 0) return `${h}h`
+    return `${h}h ${m}m`
+  }
+
+  const totalSec = dayData?.totalSeconds ?? totalSecondsFromParam
+  const breakSec = dayData?.breakSeconds ?? 0
+  const sessions = dayData?.sessions ?? []
+
+  // Compute break intervals from session gaps
+  const breakIntervals: { from: string; to: string; durationSec: number }[] = []
+  for (let i = 0; i < sessions.length - 1; i++) {
+    const prev = sessions[i]
+    const next = sessions[i + 1]
+    if (prev.out && next.in) {
+      const gapSec = (new Date(next.in).getTime() - new Date(prev.out).getTime()) / 1000
+      if (gapSec > 60) breakIntervals.push({ from: prev.out, to: next.in, durationSec: gapSec })
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+          <button onClick={() => router.back()} className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 rounded-lg bg-emerald-600/10 flex items-center justify-center shrink-0">
+              <Clock className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <span className="text-sm font-black tracking-tight truncate">{formattedDate}</span>
+          </div>
+          <div className="ml-auto"><LiveClock /></div>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-4 py-5 space-y-5">
+        {error && <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-600">{error}</div>}
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="h-14 w-14 rounded-2xl bg-emerald-600/10 flex items-center justify-center animate-pulse">
+              <Clock className="h-6 w-6 text-emerald-600" />
+            </div>
+            <p className="text-[11px] text-muted-foreground/40 tracking-[0.2em] uppercase font-semibold">Loading…</p>
+          </div>
+        ) : (
+          <>
+            {/* ── Summary Cards ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20 px-4 py-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">Work Time</p>
+                  <Clock className="h-3.5 w-3.5 text-emerald-600" />
+                </div>
+                <p className="text-2xl font-black tracking-tight leading-none text-emerald-700 dark:text-emerald-300">{fmtSec(totalSec)}</p>
+                <p className="text-[10px] text-muted-foreground/40 leading-none">Total for the day</p>
+              </div>
+              <div className="rounded-xl border border-border/40 bg-card px-4 py-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">Sessions</p>
+                  <Play className="h-3.5 w-3.5 text-muted-foreground/25" />
+                </div>
+                <p className="text-2xl font-black tracking-tight leading-none">{sessions.length}</p>
+                <p className="text-[10px] text-muted-foreground/40 leading-none">Work interval{sessions.length !== 1 ? "s" : ""}</p>
+              </div>
+              <div className={`rounded-xl border px-4 py-3.5 space-y-2 col-span-2 sm:col-span-1 ${breakSec > 0 ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15" : "border-border/40 bg-card"}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">Break Time</p>
+                  <Coffee className={`h-3.5 w-3.5 ${breakSec > 0 ? "text-amber-500" : "text-muted-foreground/25"}`} />
+                </div>
+                <p className={`text-2xl font-black tracking-tight leading-none ${breakSec > 0 ? "text-amber-700 dark:text-amber-300" : ""}`}>{breakSec > 0 ? fmtSec(breakSec) : "0m"}</p>
+                <p className="text-[10px] text-muted-foreground/40 leading-none">{breakIntervals.length} break session{breakIntervals.length !== 1 ? "s" : ""}</p>
+              </div>
+            </div>
+
+            {/* ── Activity Log ── */}
+            {sessions.length === 0 ? (
+              <div className="rounded-2xl border border-border/40 bg-card flex flex-col items-center justify-center py-20 gap-3">
+                <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm font-semibold text-muted-foreground/50">No activity recorded for this day</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border/20 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-emerald-600" />
+                  <p className="text-xs font-black tracking-tight">Activity Log</p>
+                  <span className="ml-auto text-[10px] text-muted-foreground/40">Server-verified timestamps · MDT</span>
+                </div>
+
+                <div className="divide-y divide-border/10">
+                  {sessions.map((s, i) => {
+                    const breakAfter = breakIntervals[i]
+                    return (
+                      <React.Fragment key={i}>
+                        {/* Work session row */}
+                        <div className="flex items-center gap-4 px-5 py-4">
+                          <div className="h-8 w-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                            <LogIn className="h-3.5 w-3.5 text-emerald-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-[13px] font-black font-mono tabular-nums text-foreground">
+                                {fmtTime(s.in)}
+                              </span>
+                              <span className="text-muted-foreground/30 text-xs">→</span>
+                              <span className="text-[13px] font-black font-mono tabular-nums text-foreground">
+                                {s.out ? fmtTime(s.out) : (
+                                  <span className="flex items-center gap-1.5 text-emerald-500">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Active
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground/40 mt-0.5 font-mono">
+                              {s.out ? fmtSec(s.duration) : "In progress"} · Session {i + 1}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">{s.out ? fmtSec(s.duration) : "—"}</p>
+                          </div>
+                        </div>
+
+                        {/* Break row (gap to next session) */}
+                        {breakAfter && (
+                          <div className="flex items-center gap-4 px-5 py-3 bg-amber-500/4 border-l-2 border-amber-400/40">
+                            <div className="h-8 w-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                              <Coffee className="h-3.5 w-3.5 text-amber-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3">
+                                <span className="text-[12px] font-bold font-mono tabular-nums text-muted-foreground/60">{fmtTime(breakAfter.from)}</span>
+                                <span className="text-muted-foreground/30 text-xs">→</span>
+                                <span className="text-[12px] font-bold font-mono tabular-nums text-muted-foreground/60">{fmtTime(breakAfter.to)}</span>
+                              </div>
+                              <p className="text-[10px] text-amber-600/60 mt-0.5">Break · {fmtSec(Math.round(breakAfter.durationSec))}</p>
+                            </div>
+                            <span className="text-[11px] font-bold text-amber-500 font-mono shrink-0">{fmtSec(Math.round(breakAfter.durationSec))}</span>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </div>
+
+                {/* Total footer */}
+                <div className="px-5 py-4 border-t border-border/20 bg-muted/10 flex items-center gap-3">
+                  <LogOut className="h-3.5 w-3.5 text-muted-foreground/30" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Total Worked</span>
+                  <span className="ml-auto text-[15px] font-black font-mono text-foreground">{fmtSec(totalSec)}</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────────────────────── */
 export default function ScreenshotGalleryPage() {
@@ -340,19 +549,25 @@ export default function ScreenshotGalleryPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null)
+  const [isLotTechMain, setIsLotTechMain] = React.useState<boolean | null>(null)
 
   const formattedDate = React.useMemo(() => {
-    // dateStr is an MDT calendar date — parse as UTC noon so timeZone:"UTC" renders it correctly
     return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
+      weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC",
     })
   }, [dateStr])
 
+  // Detect Lot Tech main User mode: no crm_token + main token exists
   React.useEffect(() => {
+    const crmToken = localStorage.getItem("crm_token")
+    const mainToken = typeof window !== "undefined" ? (window as any).__AUTH_TOKEN__ : null
+    if (!crmToken && mainToken) { setIsLotTechMain(true); return }
+    setIsLotTechMain(false)
+  }, [])
+
+  // Screenshot + break fetch — only runs for CRM users (isLotTechMain === false)
+  React.useEffect(() => {
+    if (isLotTechMain !== false) return
     const token = localStorage.getItem("crm_token")
     if (!token) { router.replace("/crm"); return }
 
@@ -360,7 +575,6 @@ export default function ScreenshotGalleryPage() {
     const qs = new URLSearchParams({ date: dateStr })
     if (userId) qs.set("userId", userId)
 
-    // Fetch screenshots and actual break events in parallel
     Promise.all([
       apiClient.get(`/api/crm/timeproof/screenshots?${qs.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -373,16 +587,13 @@ export default function ScreenshotGalleryPage() {
         const list: Screenshot[] = ssRes.data?.data?.screenshots ?? []
         list.sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())
         setScreenshots(list)
-
         const cal = tpRes.data?.data?.calendar ?? {}
         const dayBreaks: ActualBreak[] = cal[dateStr]?.breaks ?? []
         setActualBreaks(dayBreaks)
       })
-      .catch((e: any) =>
-        setError(e?.response?.data?.message || "Failed to load screenshots.")
-      )
+      .catch((e: any) => setError(e?.response?.data?.message || "Failed to load screenshots."))
       .finally(() => setLoading(false))
-  }, [dateStr, userId, router])
+  }, [dateStr, userId, router, isLotTechMain])
 
   const breaks = React.useMemo(() => actualBreaksToSegments(actualBreaks), [actualBreaks])
   const idleCount = screenshots.filter((s) => s.idleDetected).length
@@ -393,6 +604,12 @@ export default function ScreenshotGalleryPage() {
   const prevPhoto = () => setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i))
   const nextPhoto = () =>
     setLightboxIndex((i) => (i !== null && i < screenshots.length - 1 ? i + 1 : i))
+
+  // All hooks declared — conditional renders safe from here
+  if (isLotTechMain === null) return null
+  if (isLotTechMain === true) {
+    return <LotTechDayView dateStr={dateStr} totalSecondsFromParam={totalSecondsFromParam} formattedDate={formattedDate} />
+  }
 
   return (
     <div className="min-h-screen bg-background">

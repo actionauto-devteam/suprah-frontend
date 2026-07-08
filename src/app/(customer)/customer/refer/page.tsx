@@ -269,7 +269,7 @@ export default function ReferAndEarnPage() {
                                             <p className={`font-bold text-sm sm:text-base ${t.type === 'deposit' ? 'text-primary' : 'text-foreground'}`}>
                                                 {t.type === 'deposit' ? '+' : '-'}${t.amount.toFixed(2)}
                                             </p>
-                                            <p className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString()}</p>
+                                            <p className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}</p>
                                         </div>
                                     </div>
                                 ))}

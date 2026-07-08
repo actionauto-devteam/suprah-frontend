@@ -48,12 +48,15 @@ interface CrmUserData {
   email: string
   avatar?: string
   role: string
+  department?: string
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
     timestamp: string
   }>
 }
+
+const isLotTechDept = (dept?: string) => dept === 'LotTechTeam' || dept === 'Lot Tech'
 
 interface Session {
   in: string
@@ -102,6 +105,7 @@ type ApiError = {
 }
 
 type GaugeAccent = "emerald" | "amber" | "red" | "zinc"
+type LocatorSharingState = "sharing" | "paused_break" | "paused_manual" | "declined_permission" | "off_duty"
 
 /* ─────────────────────────────────────────────────────────────────────────
    Constants & helpers
@@ -111,6 +115,8 @@ const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000
+const LOCATION_PING_INTERVAL_MS = 30_000
+const MPS_TO_MPH = 2.23694
 
 function fmt(d: Date) {
   return toMDT(d).toLocaleTimeString("en-US", {
@@ -127,6 +133,45 @@ const fmtHHMM = (seconds: number) => {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+}
+
+function getDeviceHint() {
+  if (typeof navigator === "undefined") return "desktop"
+  const ua = navigator.userAgent || ""
+  if (/iPad|iPhone|iPod/i.test(ua)) return "ios-pwa"
+  if (/Android/i.test(ua)) return "android-pwa"
+  return "desktop-web"
+}
+
+async function readBatteryInfo(): Promise<{ batteryLevel?: number; isCharging?: boolean }> {
+  const nav = navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> }
+  if (typeof nav.getBattery !== "function") return {}
+  try {
+    const battery = await nav.getBattery()
+    return { batteryLevel: Math.round(battery.level * 100), isCharging: battery.charging }
+  } catch {
+    return {}
+  }
+}
+
+function getNetworkInfo() {
+  const connection = (navigator as Navigator & {
+    connection?: { type?: string; effectiveType?: string; downlink?: number }
+  }).connection
+  return {
+    deviceType: /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") ? "mobile" as const : "desktop" as const,
+    connectionType: connection?.type,
+    effectiveType: connection?.effectiveType,
+    downlinkMbps: typeof connection?.downlink === "number" ? connection.downlink : undefined,
+  }
+}
+
+function locatorStateMeta(state: LocatorSharingState, error: string | null) {
+  if (error) return { label: "Needs attention", detail: error, dot: "bg-red-500", text: "text-red-500", pill: "border-red-500/20 bg-red-500/10" }
+  if (state === "sharing") return { label: "Live", detail: "Sharing to Team Pulse Locator", dot: "bg-emerald-500", text: "text-emerald-500", pill: "border-emerald-500/20 bg-emerald-500/10" }
+  if (state === "paused_break") return { label: "Paused", detail: "Paused while on break", dot: "bg-amber-500", text: "text-amber-500", pill: "border-amber-500/20 bg-amber-500/10" }
+  if (state === "declined_permission") return { label: "Blocked", detail: "Location permission is disabled", dot: "bg-red-500", text: "text-red-500", pill: "border-red-500/20 bg-red-500/10" }
+  return { label: "Off Duty", detail: "Starts automatically on shift", dot: "bg-zinc-500", text: "text-zinc-500", pill: "border-zinc-500/20 bg-zinc-500/10" }
 }
 
 const fmtHuman = (seconds: number) => {
@@ -390,6 +435,94 @@ const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
   )
 }
 
+const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive }: {
+  year: number; month: number; calendar: Record<string, DayData>
+  onSelectDay: (ds: string) => void; isLive: boolean
+}) => {
+  const todayStr = toDateStr(new Date())
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+  type DayEntry = { ds: string; day: number; dow: number; data?: DayData; isToday: boolean; isFuture: boolean }
+  type Week = { days: DayEntry[]; weekTotal: number }
+
+  const weeks: Week[] = []
+  let cur: DayEntry[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+    const dow = new Date(year, month, d).getDay()
+    cur.push({ ds, day: d, dow, data: calendar[ds], isToday: ds === todayStr, isFuture: ds > todayStr })
+    if (dow === 6 || d === daysInMonth) {
+      weeks.push({ days: cur, weekTotal: cur.reduce((s, e) => s + (e.data?.totalSeconds ?? 0), 0) })
+      cur = []
+    }
+  }
+
+  return (
+    <div>
+      {weeks.map((week, wi) => {
+        const hasAct = week.days.some(e => !!e.data?.totalSeconds)
+        if (week.days.every(e => e.isFuture)) return null
+        return (
+          <div key={wi}>
+            {week.days.map(({ ds, day, dow, data, isToday, isFuture }) => {
+              if (isFuture) return null
+              const hasData = !!data?.totalSeconds && data.totalSeconds > 0
+              return (
+                <div key={ds}
+                  onClick={() => (hasData || isToday) && onSelectDay(ds)}
+                  className={cn(
+                    "flex items-center gap-4 px-4 py-3.5 border-b border-border/10 transition-colors",
+                    hasData || isToday ? "cursor-pointer active:bg-muted/20" : "cursor-default"
+                  )}
+                >
+                  <div className="w-11 shrink-0 flex flex-col items-center gap-0.5">
+                    <span className={cn("text-[9px] font-bold uppercase tracking-widest",
+                      isToday ? "text-emerald-500" : "text-muted-foreground/30")}>{DOW[dow]}</span>
+                    <span className={cn("text-2xl font-black tabular-nums leading-none",
+                      isToday ? "text-emerald-500" : "text-foreground/70")}>{day}</span>
+                  </div>
+
+                  <div className="flex-1 min-w-0 flex items-center gap-2.5">
+                    {hasData ? (
+                      <>
+                        {isToday && isLive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                        <span className="text-[18px] font-black font-mono tabular-nums text-foreground tracking-tight leading-none">
+                          {fmtHHMM(data!.totalSeconds)}
+                        </span>
+                        {!!data!.breakSeconds && data!.breakSeconds > 0 && (
+                          <span className="text-[10px] font-bold font-mono text-orange-400/80 bg-orange-500/8 px-2 py-0.5 rounded-full border border-orange-500/15">
+                            {fmtHHMM(data!.breakSeconds)} brk
+                          </span>
+                        )}
+                      </>
+                    ) : isToday ? (
+                      <span className="text-[13px] text-muted-foreground/30 font-medium">Not clocked in yet</span>
+                    ) : (
+                      <span className="text-[15px] font-mono text-muted-foreground/15">—</span>
+                    )}
+                  </div>
+
+                  {hasData && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/20 shrink-0" />}
+                </div>
+              )
+            })}
+            {hasAct && (
+              <div className="flex items-center gap-4 px-4 py-2.5 bg-emerald-500/5 border-b border-emerald-500/10">
+                <div className="w-11 shrink-0" />
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/25">Week total</span>
+                  <span className="text-[13px] font-black font-mono text-emerald-600 dark:text-emerald-400">{fmtHHMM(week.weekTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────────────────────── */
@@ -398,6 +531,7 @@ export default function TimeprofClockPage() {
   const isMobile = useIsMobile()
 
   // ── Auth & user state ──
+  const authModeRef = React.useRef<'crm' | 'main'>('crm')
   const [user, setUser] = React.useState<CrmUserData | null>(null)
   const [token, setToken] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(true)
@@ -428,6 +562,12 @@ export default function TimeprofClockPage() {
   const [earlyEndReason, setEarlyEndReason] = React.useState("")
   const [earlyEndDetails, setEarlyEndDetails] = React.useState("")
   const [earlyEndSubmitting, setEarlyEndSubmitting] = React.useState(false)
+  const [locatorState, setLocatorState] = React.useState<LocatorSharingState>("off_duty")
+  const [locatorLastPingAt, setLocatorLastPingAt] = React.useState<string | null>(null)
+  const [locatorError, setLocatorError] = React.useState<string | null>(null)
+  const locatorWatchIdRef = React.useRef<number | null>(null)
+  const locatorLastSentAtRef = React.useRef(0)
+  const locatorWasEligibleRef = React.useRef(false)
 
   // ── Timeproof data state ──
   const [tpData, setTpData] = React.useState<TimeprofData | null>(null)
@@ -496,8 +636,112 @@ export default function TimeprofClockPage() {
     setTrayBanner(false)
   }, [])
 
+  const clearLocatorWatch = React.useCallback(() => {
+    if (locatorWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.clearWatch(locatorWatchIdRef.current)
+      locatorWatchIdRef.current = null
+    }
+  }, [])
+
+  const getCrmLocatorHeaders = React.useCallback(() => {
+    if (authModeRef.current === 'main') return {}
+    const freshToken = localStorage.getItem("crm_token")
+    if (!freshToken) throw new Error("CRM session is missing")
+    return { headers: { Authorization: `Bearer ${freshToken}` } }
+  }, [])
+
+  const sendLocatorPing = React.useCallback(async (position: GeolocationPosition) => {
+    try {
+      const battery = await readBatteryInfo()
+      const { data } = await apiClient.pingLocation(
+        {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          heading: position.coords.heading ?? undefined,
+          speedMph: position.coords.speed != null ? Math.round(position.coords.speed * MPS_TO_MPH) : undefined,
+          accuracyM: position.coords.accuracy ?? undefined,
+          connectivity: navigator.onLine ? "online" : "offline",
+          ...battery,
+          ...getNetworkInfo(),
+        },
+        getCrmLocatorHeaders(),
+      )
+      setLocatorState(data?.data?.sharingState ?? "sharing")
+      setLocatorLastPingAt(new Date().toISOString())
+      setLocatorError(null)
+    } catch (err: unknown) {
+      const apiError = err as ApiError & { message?: string }
+      setLocatorError(apiError.response?.data?.message || apiError.message || "Failed to share location")
+    }
+  }, [getCrmLocatorHeaders])
+
+  const startLocatorSharing = React.useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocatorState("declined_permission")
+      setLocatorError("Location is not available on this device")
+      return
+    }
+    if (locatorWatchIdRef.current !== null) return
+
+    try {
+      await apiClient.setLocationConsent(
+        { granted: true, deviceHint: getDeviceHint() },
+        getCrmLocatorHeaders(),
+      )
+      setLocatorState("sharing")
+      setLocatorError(null)
+    } catch (err: unknown) {
+      const apiError = err as ApiError & { message?: string }
+      setLocatorError(apiError.response?.data?.message || apiError.message || "Failed to enable location sharing")
+      return
+    }
+
+    locatorWatchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const nowMs = Date.now()
+        if (nowMs - locatorLastSentAtRef.current >= LOCATION_PING_INTERVAL_MS) {
+          locatorLastSentAtRef.current = nowMs
+          sendLocatorPing(position)
+        }
+      },
+      (err) => {
+        clearLocatorWatch()
+        setLocatorState(err.code === err.PERMISSION_DENIED ? "declined_permission" : "off_duty")
+        setLocatorError(`Location error: ${err.message}`)
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    )
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        locatorLastSentAtRef.current = Date.now()
+        sendLocatorPing(position)
+      },
+      () => null,
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    )
+  }, [clearLocatorWatch, getCrmLocatorHeaders, sendLocatorPing])
+
+  const stopLocatorSharing = React.useCallback(async () => {
+    clearLocatorWatch()
+    locatorLastSentAtRef.current = 0
+    setLocatorState("off_duty")
+    try {
+      await apiClient.stopLocationSharing(getCrmLocatorHeaders())
+    } catch {
+      // Best-effort: the local watcher is already stopped.
+    }
+  }, [clearLocatorWatch, getCrmLocatorHeaders])
+
   // ── Refresh today logs ──
   const refreshShiftState = React.useCallback(async () => {
+    if (authModeRef.current === 'main') {
+      try {
+        const res = await apiClient.get("/api/timeclock/me")
+        const data = res.data?.data || res.data
+        setTodayLogs(data.todayTimeLogs || [])
+      } catch { }
+      return
+    }
     const t = localStorage.getItem("crm_token")
     if (!t) return
     try {
@@ -515,10 +759,15 @@ export default function TimeprofClockPage() {
 
   // ── Fetch activity/shift state ──
   const fetchActivityState = React.useCallback(async () => {
-    const t = localStorage.getItem("crm_token")
-    if (!t) return
+    let res
+    if (authModeRef.current === 'main') {
+      try { res = await apiClient.get("/api/timeclock/shift-state") } catch { return }
+    } else {
+      const t = localStorage.getItem("crm_token")
+      if (!t) return
+      try { res = await apiClient.get("/api/crm/timeproof/shift-state", { headers: { Authorization: `Bearer ${t}` } }) } catch { return }
+    }
     try {
-      const res = await apiClient.get("/api/crm/timeproof/shift-state", { headers: { Authorization: `Bearer ${t}` } })
       const s = res.data?.data
       if (s) {
         setServerIsOnShift(!!s.isOnShift)
@@ -552,7 +801,10 @@ export default function TimeprofClockPage() {
   // ── Real-time socket sync ──
   React.useEffect(() => {
     if (!token) return
-    const sock = initializeSocket(token)
+    const socketJwt = authModeRef.current === 'main'
+      ? (typeof window !== 'undefined' ? (window as any).__AUTH_TOKEN__ : '') || ''
+      : token
+    const sock = initializeSocket(socketJwt)
     const syncTimeIn = () => {
       refreshShiftState()
       setActivityStartAt(Date.now())
@@ -592,51 +844,97 @@ export default function TimeprofClockPage() {
   }, [token, refreshShiftState, fetchActivityState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth check + initial load ──
+  // Priority: if the main User's department is LotTechTeam, always use main User
+  // mode — even when a crm_token is also present (e.g. an admin testing as Lot Tech).
   React.useEffect(() => {
     const check = async () => {
-      const t = localStorage.getItem("crm_token")
-      if (!t) { router.replace("/crm"); return }
-      try {
-        const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
-        const data = res.data?.data || res.data
-        setUser(data)
-        setToken(t)
-        setTodayLogs(data.todayTimeLogs || [])
-      } catch {
-        localStorage.removeItem("crm_token")
-        localStorage.removeItem("crm_user")
-        router.replace("/crm")
-      } finally {
-        setIsLoading(false)
+      const crmT = localStorage.getItem("crm_token")
+      const mainToken = typeof window !== 'undefined' ? (window as any).__AUTH_TOKEN__ : null
+
+      // Check main user first — if they're Lot Tech, always prefer main mode
+      if (mainToken) {
+        try {
+          const mainRes = await apiClient.get("/api/timeclock/me")
+          const mainData = mainRes.data?.data || mainRes.data
+          if (mainData?.department === 'LotTechTeam') {
+            authModeRef.current = 'main'
+            setUser(mainData)
+            setToken('__main__')
+            setTodayLogs(mainData.todayTimeLogs || [])
+            setIsLoading(false)
+            return
+          }
+        } catch { }
       }
+
+      // Fall back to CRM mode
+      if (crmT) {
+        authModeRef.current = 'crm'
+        try {
+          const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${crmT}` } })
+          const data = res.data?.data || res.data
+          setUser(data)
+          setToken(crmT)
+          setTodayLogs(data.todayTimeLogs || [])
+        } catch {
+          localStorage.removeItem("crm_token")
+          localStorage.removeItem("crm_user")
+          router.replace("/crm")
+        } finally {
+          setIsLoading(false)
+        }
+        return
+      }
+
+      // Main user but not Lot Tech (and no CRM token)
+      if (mainToken) {
+        authModeRef.current = 'main'
+        try {
+          const res = await apiClient.get("/api/timeclock/me")
+          const data = res.data?.data || res.data
+          setUser(data)
+          setToken('__main__')
+          setTodayLogs(data.todayTimeLogs || [])
+        } catch {
+          router.replace("/")
+        } finally {
+          setIsLoading(false)
+        }
+        return
+      }
+
+      router.replace("/crm")
+      setIsLoading(false)
     }
     check()
   }, [router])
 
   // ── Fetch timeproof data ──
   React.useEffect(() => {
-    const t = localStorage.getItem("crm_token")
-    if (!t) return
+    if (!token) return
     setTpLoading(true)
+    const endpoint = authModeRef.current === 'main' ? "/api/timeclock/my?range=365" : "/api/crm/timeproof/my?range=365"
+    const options = authModeRef.current === 'main' ? {} : { headers: { Authorization: `Bearer ${localStorage.getItem("crm_token")}` } }
     apiClient
-      .get("/api/crm/timeproof/my?range=365", { headers: { Authorization: `Bearer ${t}` } })
+      .get(endpoint, options)
       .then((res) => setTpData(res.data?.data))
       .catch((e: any) => setTpError(e?.response?.data?.message || "Failed to load timeproof data."))
       .finally(() => setTpLoading(false))
-  }, [router])
+  }, [token])
 
   // ── Clock handlers ──
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     setIsClocking(true)
     setClockMsg("")
-    const freshToken = localStorage.getItem("crm_token")
-    if (!freshToken) { router.replace("/crm"); return }
+    const isMain = authModeRef.current === 'main'
+    const freshToken = isMain ? null : localStorage.getItem("crm_token")
+    if (!isMain && !freshToken) { router.replace("/crm"); return }
+    const clockEndpoint = isMain ? "/api/timeclock/clock" : "/api/crm/time-clock"
+    const clockOptions = isMain
+      ? { _skipAuthRefresh: true } as any
+      : { headers: { Authorization: `Bearer ${freshToken}` }, _skipAuthRefresh: true } as any
     try {
-      const res = await apiClient.post(
-        "/api/crm/time-clock",
-        { type, ...(note && { note }) },
-        { headers: { Authorization: `Bearer ${freshToken}` }, _skipAuthRefresh: true } as any,
-      )
+      const res = await apiClient.post(clockEndpoint, { type, ...(note && { note }) }, clockOptions)
       const data = res.data?.data || res.data
       setTodayLogs(data.todayLogs || [])
       if (type === "time-out") {
@@ -652,7 +950,7 @@ export default function TimeprofClockPage() {
       const apiError = err as ApiError
       const msg = apiError.response?.data?.message || "Failed"
       const status = apiError.response?.status
-      if (status === 401) {
+      if (status === 401 && !isMain) {
         localStorage.removeItem("crm_token")
         localStorage.removeItem("crm_user")
         router.replace("/crm")
@@ -677,22 +975,42 @@ export default function TimeprofClockPage() {
   }
 
   const checkTrayAndStartShift = React.useCallback(async () => {
-    if (isMobile) return
+    // Lot Tech department uses mobile-only mode — no tray app required on any device.
+    // Mobile devices and Lot Tech department always skip the tray check.
+    const isLotTech = isLotTechDept(user?.department)
+    const isMain = authModeRef.current === 'main'
+    const resumableEndpoint = isMain ? "/api/timeclock/resumable-shift" : "/api/crm/timeproof/resumable-shift"
+    const getResumeHeaders = () => {
+      const t = localStorage.getItem("crm_token")
+      return isMain ? {} : (t ? { headers: { Authorization: `Bearer ${t}` } } : {})
+    }
+    if (isMobile || isLotTech || isMain) {
+      try {
+        if (token) {
+          const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
+          const d = resumeRes.data?.data
+          if (d?.resumable && d?.originalClockIn) {
+            setResumeOriginalClockIn(d.originalClockIn)
+            setResumeModal(true)
+            return
+          }
+        }
+      } catch { }
+      handleClock("time-in")
+      return
+    }
     setTrayChecking(true)
     try {
       const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) })
       if (res.status < 600) {
         setShowTrayModal(false)
         try {
-          const t = localStorage.getItem("crm_token")
-          if (t) {
-            const resumeRes = await apiClient.get("/api/crm/timeproof/resumable-shift", { headers: { Authorization: `Bearer ${t}` } })
-            const d = resumeRes.data?.data
-            if (d?.resumable && d?.originalClockIn) {
-              setResumeOriginalClockIn(d.originalClockIn)
-              setResumeModal(true)
-              return
-            }
+          const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
+          const d = resumeRes.data?.data
+          if (d?.resumable && d?.originalClockIn) {
+            setResumeOriginalClockIn(d.originalClockIn)
+            setResumeModal(true)
+            return
           }
         } catch { }
         handleClock("time-in")
@@ -704,7 +1022,7 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMobile, user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0)
@@ -728,12 +1046,15 @@ export default function TimeprofClockPage() {
 
   const handleBreak = async () => {
     setClockMsg("")
+    const isMain = authModeRef.current === 'main'
+    const breakEndpoint = isMain ? "/api/timeclock/clock" : "/api/crm/time-clock"
+    const breakHeaders = isMain ? {} : { headers: { Authorization: `Bearer ${token}` } }
     if (!isOnBreak) {
       setIsOnBreak(true)
       setCurrentBreakStartAt(Date.now())
       setActivityStartAt(null)
       try {
-        const res = await apiClient.post("/api/crm/time-clock", { type: "break-in" }, { headers: { Authorization: `Bearer ${token}` } })
+        const res = await apiClient.post(breakEndpoint, { type: "break-in" }, breakHeaders)
         const d = res.data?.data || res.data
         if (d?.todayLogs) setTodayLogs(d.todayLogs)
       } catch { }
@@ -744,7 +1065,7 @@ export default function TimeprofClockPage() {
       setCurrentBreakStartAt(null)
       setActivityStartAt(Date.now())
       try {
-        const res = await apiClient.post("/api/crm/time-clock", { type: "break-out" }, { headers: { Authorization: `Bearer ${token}` } })
+        const res = await apiClient.post(breakEndpoint, { type: "break-out" }, breakHeaders)
         const d = res.data?.data || res.data
         if (d?.todayLogs) setTodayLogs(d.todayLogs)
       } catch { }
@@ -770,6 +1091,31 @@ export default function TimeprofClockPage() {
   const hasClockedOut = !!timeOut
   const isActive = hasClockedIn && !hasClockedOut
   const isComplete = hasClockedOut
+
+  React.useEffect(() => {
+    if (!isActive) {
+      if (locatorWasEligibleRef.current) {
+        stopLocatorSharing()
+      } else {
+        clearLocatorWatch()
+        setLocatorState("off_duty")
+      }
+      locatorWasEligibleRef.current = false
+      return
+    }
+
+    locatorWasEligibleRef.current = true
+    if (isOnBreak) {
+      clearLocatorWatch()
+      setLocatorState("paused_break")
+      apiClient.pauseLocationSharing({ reason: "break" }, getCrmLocatorHeaders()).catch(() => null)
+      return
+    }
+
+    startLocatorSharing()
+  }, [clearLocatorWatch, getCrmLocatorHeaders, isActive, isOnBreak, startLocatorSharing, stopLocatorSharing])
+
+  React.useEffect(() => () => clearLocatorWatch(), [clearLocatorWatch])
 
   React.useEffect(() => {
     const sessionStartMs = timeIn
@@ -928,6 +1274,7 @@ export default function TimeprofClockPage() {
   }
 
   const exportCSV = async () => {
+    if (authModeRef.current === 'main') return
     const t = localStorage.getItem("crm_token")
     try {
       const res = await apiClient.get("/api/crm/timeproof/export?range=365", {
@@ -1097,7 +1444,7 @@ export default function TimeprofClockPage() {
             </div>
 
             {!isActive && (
-              isMobile ? (
+              (isMobile && !isLotTechDept(user?.department) && authModeRef.current !== 'main') ? (
                 <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
                   <MonitorDot className="h-4 w-4 text-zinc-500 shrink-0" />
                   <p className="text-[11px] text-zinc-500 font-bold text-center">Shift tracking requires the desktop app</p>
@@ -1141,23 +1488,31 @@ export default function TimeprofClockPage() {
         </div>
 
         {/* ── Share Location ── */}
-        <button
-          disabled
-          className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card px-5 py-4 opacity-60 cursor-not-allowed"
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-              <MapPin className="h-4 w-4 text-emerald-500" />
+        {(() => {
+          const meta = locatorStateMeta(locatorState, locatorError)
+          return (
+            <div className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                  {locatorState === "sharing" ? <Radio className="h-4 w-4 text-emerald-500" /> : <MapPin className="h-4 w-4 text-emerald-500" />}
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
+                  <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/50">{meta.detail}</p>
+                  {locatorLastPingAt && (
+                    <p className="mt-1 font-mono text-[9px] text-muted-foreground/40">
+                      Last ping {fmt(new Date(locatorLastPingAt))}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
+                <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, locatorState === "sharing" && "animate-pulse motion-reduce:animate-none")} />
+                {meta.label}
+              </span>
             </div>
-            <div className="text-left">
-              <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
-              <p className="text-[10px] text-muted-foreground/50 mt-0.5">Live location sync with Team Pulse</p>
-            </div>
-          </div>
-          <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-full">
-            Coming Soon
-          </span>
-        </button>
+          )
+        })()}
 
         {/* ── Tray App Section ── */}
         <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
@@ -1282,11 +1637,19 @@ export default function TimeprofClockPage() {
                   ))}
                 </div>
               </div>
-              <MonthCalendar
-                year={viewYear} month={viewMonth} calendar={tpData.calendar}
-                onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
-                isLive={tpData.isLive}
-              />
+              {isMobile ? (
+                <MobileCalendarList
+                  year={viewYear} month={viewMonth} calendar={tpData.calendar}
+                  onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
+                  isLive={tpData.isLive}
+                />
+              ) : (
+                <MonthCalendar
+                  year={viewYear} month={viewMonth} calendar={tpData.calendar}
+                  onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
+                  isLive={tpData.isLive}
+                />
+              )}
             </div>
 
             {/* ── Payout Calculator ── */}

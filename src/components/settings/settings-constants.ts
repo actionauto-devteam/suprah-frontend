@@ -101,6 +101,7 @@ export function formatRelativeFileTime(createdAt: number): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/Denver",
   });
 }
 

@@ -31,7 +31,8 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { fmtMonthYearMDT, fmtFullDateTimeMDT } from '@/lib/timezone';
 import { useRouter } from 'next/navigation';
 
 interface OverviewTabProps {
@@ -122,7 +123,7 @@ export function OverviewTab({
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Member Since</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
-                  {profile?.createdAt ? format(new Date(profile.createdAt), 'MMM yyyy') : 'N/A'}
+                  {profile?.createdAt ? fmtMonthYearMDT(profile.createdAt) : 'N/A'}
                 </p>
               </div>
             </div>
@@ -169,7 +170,7 @@ export function OverviewTab({
                 </span>
                 {profile?.accountStatus?.lastActive && (
                   <span className="text-[11px] text-gray-400">
-                    {format(new Date(profile.accountStatus.lastActive), 'MMM d, yyyy · h:mm a')}
+                    {fmtFullDateTimeMDT(profile.accountStatus.lastActive)}
                   </span>
                 )}
               </div>
@@ -214,7 +215,7 @@ export function OverviewTab({
                   <span className="flex items-center gap-1.5"><Phone className="size-4 text-emerald-600" /><span className="font-medium">{phoneCountryCode} {personalInfo.phone}</span></span>
                 )}
                 {personalInfo.dateOfBirth && (
-                  <span className="flex items-center gap-1.5"><Calendar className="size-4 text-emerald-600" /><span className="font-medium">{format(new Date(personalInfo.dateOfBirth), 'MMM d, yyyy')}</span></span>
+                  <span className="flex items-center gap-1.5"><Calendar className="size-4 text-emerald-600" /><span className="font-medium">{new Date((personalInfo.dateOfBirth as string).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span></span>
                 )}
                 {personalInfo.gender && (
                   <span className="flex items-center gap-1.5"><User className="size-4 text-emerald-600" /><span className="font-medium capitalize">{personalInfo.gender}</span></span>

@@ -572,6 +572,7 @@ class ApiClient {
     data: {
       lat: number; lng: number; heading?: number; speedMph?: number; accuracyM?: number;
       batteryLevel?: number; isCharging?: boolean; connectivity?: "online" | "offline";
+      deviceType?: "mobile" | "desktop"; connectionType?: string; effectiveType?: string; downlinkMbps?: number;
     },
     config?: AxiosRequestConfig
   ) {
@@ -584,6 +585,10 @@ class ApiClient {
 
   async resumeLocationSharing(config?: AxiosRequestConfig) {
     return this.post("/api/locator/resume", {}, config);
+  }
+
+  async stopLocationSharing(config?: AxiosRequestConfig) {
+    return this.post("/api/locator/off-duty", {}, config);
   }
 
   async getActiveEmployeeLocations(config?: AxiosRequestConfig) {

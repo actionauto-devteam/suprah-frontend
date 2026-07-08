@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatDistanceToNowStrict, parseISO, format } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
+import { fmtTimeMDT } from "@/lib/timezone";
 import {
   X, Building2, Navigation, Pause, Play, Power, MapPinOff, Crosshair,
   BatteryFull, BatteryLow, Wifi, WifiOff, Gauge, History, Clock, MapPin, Loader2,
@@ -22,7 +23,7 @@ import { sharingMeta } from "./LocatorMapLegend";
 function timeAgo(iso?: string) {
   if (!iso) return "";
   try {
-    return formatDistanceToNowStrict(parseISO(iso), { addSuffix: true });
+    return formatDistanceToNowStrict(new Date(iso), { addSuffix: true });
   } catch {
     return "";
   }
@@ -246,7 +247,7 @@ export function LocationInfoPanel({
           ) : (
             <p className="text-[10px] text-muted-foreground/70 leading-snug">
               <span className="font-bold text-foreground">{history.length}</span> points ·{" "}
-              {format(parseISO(history[0].recordedAt), "h:mm a")} → {format(parseISO(history[history.length - 1].recordedAt), "h:mm a")}
+              {fmtTimeMDT(history[0].recordedAt)} → {fmtTimeMDT(history[history.length - 1].recordedAt)}
               <br />
               <span className="text-muted-foreground/50">Shown as the blue trail on the map.</span>
             </p>

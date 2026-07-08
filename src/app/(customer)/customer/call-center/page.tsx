@@ -72,7 +72,7 @@ interface StatusToast {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(d: string) {
-  return new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit", timeZone: 'America/Denver' });
 }
 
 const STATUS_META: Record<
