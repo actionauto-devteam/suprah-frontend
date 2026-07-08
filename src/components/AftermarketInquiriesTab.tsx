@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
-import { format, isToday, isYesterday } from "date-fns";
+import { fmtTimeMDT, fmtFullDateTimeMDT, MDT_TZ } from "@/lib/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,12 +114,15 @@ interface InquiryDetail {
 function fmtRelative(d?: string) {
   if (!d) return "";
   const date = new Date(d);
-  if (isToday(date)) return format(date, "h:mm a");
-  if (isYesterday(date)) return "Yesterday";
-  return format(date, "MMM d");
+  const dateStr = date.toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  const todayStr = new Date().toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  const yestStr = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  if (dateStr === todayStr) return fmtTimeMDT(date);
+  if (dateStr === yestStr) return "Yesterday";
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ });
 }
 function fmtFull(d?: string) {
-  return d ? format(new Date(d), "MMM d, yyyy · h:mm a") : "";
+  return d ? fmtFullDateTimeMDT(d) : "";
 }
 function ini(name: string) {
   return (name || "?").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);

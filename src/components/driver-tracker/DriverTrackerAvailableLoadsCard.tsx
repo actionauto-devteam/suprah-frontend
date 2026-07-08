@@ -136,7 +136,7 @@ export function DriverTrackerAvailableLoadsCard({
                     {load.requestedPickupDate && (
                       <span className="inline-flex items-center gap-1">
                         <Calendar className="size-2.5" />
-                        Pickup: {new Date(load.requestedPickupDate).toLocaleDateString()}
+                        Pickup: {new Date(load.requestedPickupDate).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                       </span>
                     )}
                     {load.carrierPayAmount != null && load.carrierPayAmount > 0 && (

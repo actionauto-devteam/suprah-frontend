@@ -40,7 +40,7 @@ interface Props {
   isAdmin?: boolean;
 }
 
-type RosterFilter = "all" | "active" | "sharing" | "offline";
+type RosterFilter = "all" | "active" | "sharing" | "offline" | "lot_tech";
 type StreamFilter = "all" | "status" | "location" | "driving";
 
 const EVENT_META: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
@@ -160,6 +160,95 @@ function LocationLine({ loc, place }: { loc: ActiveEmployeeLocation; place?: Pla
         </div>
       )}
     </div>
+  );
+}
+
+/** Movement-based status label for Lot Tech employees (no idle — they're field workers). */
+function lotTechStatus(loc: ActiveEmployeeLocation, place?: Place) {
+  if (loc.sharingState !== "sharing") return { label: sharingMeta(loc.sharingState).label, color: "text-muted-foreground" };
+  if (place) return { label: `At ${place.name}`, color: "text-blue-600 dark:text-blue-400" };
+  if (typeof loc.speedMph === "number" && loc.speedMph > 3) return { label: `Moving · ${loc.speedMph} mph`, color: "text-green-600 dark:text-green-400" };
+  if (loc.stationarySince) {
+    try {
+      const minAgo = Math.round((Date.now() - new Date(loc.stationarySince).getTime()) / 60000);
+      if (minAgo >= 45) return { label: `Stationary ${minAgo}m ⚠️`, color: "text-amber-600 dark:text-amber-400" };
+      return { label: `Stationary ${minAgo}m`, color: "text-muted-foreground" };
+    } catch { /* fall through */ }
+  }
+  return { label: "Sharing location", color: "text-emerald-600 dark:text-emerald-400" };
+}
+
+function LotTechCard({ loc, place, isSelected, onSelect }: {
+  loc: ActiveEmployeeLocation;
+  place?: Place;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const sharing = loc.sharingState === "sharing";
+  const status = lotTechStatus(loc, place);
+  const initials = loc.userName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+  return (
+    <motion.div
+      layout
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={onSelect}
+      className={cn(
+        "relative flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer",
+        "bg-card hover:bg-accent/10 hover:border-border",
+        isSelected ? "border-primary/50 ring-2 ring-primary/20 bg-primary/3" : "border-border/40",
+      )}
+    >
+      <div className="relative shrink-0">
+        {loc.userAvatar ? (
+          <img src={loc.userAvatar} alt={loc.userName} className="size-9 rounded-full object-cover" />
+        ) : (
+          <div className="size-9 text-[11px] rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+            {initials}
+          </div>
+        )}
+        <span className={cn(
+          "absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background",
+          sharing ? "bg-emerald-500" : "bg-gray-400",
+        )} />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[12px] font-bold truncate">{loc.userName}</span>
+          <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 rounded shrink-0 uppercase tracking-wide">
+            Lot Tech
+          </span>
+        </div>
+
+        <div className={cn("text-[10px] font-semibold mt-0.5", status.color)}>{status.label}</div>
+
+        <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+          <span className="text-[9px] text-muted-foreground/40">Updated {timeAgo(loc.lastSeenAt)}</span>
+          {typeof loc.batteryLevel === "number" && (
+            <span className={cn(
+              "text-[9px] flex items-center gap-0.5 font-semibold",
+              loc.batteryLevel <= 20 ? "text-red-500" : loc.batteryLevel <= 50 ? "text-amber-500" : "text-muted-foreground/50",
+            )}>
+              {loc.batteryLevel <= 20 ? <BatteryLow className="size-2.5" /> : <BatteryFull className="size-2.5" />}
+              {loc.batteryLevel}%{loc.isCharging ? "⚡" : ""}
+            </span>
+          )}
+          {loc.connectivity === "offline" && (
+            <span className="text-[9px] text-red-500 flex items-center gap-0.5 font-semibold">
+              <WifiOff className="size-2.5" /> Offline
+            </span>
+          )}
+        </div>
+
+        {loc.coords && sharing && (
+          <p className="text-[9px] font-bold text-primary/70 mt-1 flex items-center gap-1">
+            <Navigation className="size-2.5" /> Tap to view on map
+          </p>
+        )}
+      </div>
+    </motion.div>
   );
 }
 
@@ -324,7 +413,10 @@ const FILTER_LABELS: Record<RosterFilter, string> = {
   active: "Active",
   sharing: "Sharing",
   offline: "Offline",
+  lot_tech: "Lot Tech",
 };
+
+const LOT_TECH_DEPT = "LotTechTeam";
 
 function SectionHeading({
   icon: Icon, label, accent, right,
@@ -394,12 +486,14 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const activeCount = members.length - offlineCount;
   const pct = (n: number) => (members.length ? Math.round((n / members.length) * 100) : 0);
 
+  const lotTechOnShift = activeLocations.filter((l) => l.department === LOT_TECH_DEPT && l.sharingState === "sharing").length;
+
   const statMetrics = [
-    { label: "Online Now", value: onlineCount,  sub: `${pct(onlineCount)}% of team`,   accent: "text-green-600 dark:text-green-400" },
-    { label: "Active",     value: activeCount,  sub: `${members.length} total`,        accent: "text-blue-600 dark:text-blue-400" },
-    { label: "Sharing",    value: sharingCount, sub: "live on map",                    accent: "text-emerald-600 dark:text-emerald-400" },
-    { label: "On-Site",    value: onsiteCount,  sub: "at a company place",             accent: "text-violet-600 dark:text-violet-400" },
-    { label: "Offline",    value: offlineCount, sub: `${pct(offlineCount)}% of team`,  accent: "text-muted-foreground/60" },
+    { label: "Online Now", value: onlineCount,    sub: `${pct(onlineCount)}% of team`,   accent: "text-green-600 dark:text-green-400" },
+    { label: "Active",     value: activeCount,    sub: `${members.length} total`,        accent: "text-blue-600 dark:text-blue-400" },
+    { label: "Sharing",    value: sharingCount,   sub: "live on map",                    accent: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Lot Tech",   value: lotTechOnShift, sub: "on shift now",                   accent: "text-amber-600 dark:text-amber-400" },
+    { label: "Offline",    value: offlineCount,   sub: `${pct(offlineCount)}% of team`,  accent: "text-muted-foreground/60" },
   ];
 
   const handleSelect = React.useCallback((userId: string) => {
@@ -416,12 +510,19 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
     if (loc?.coords) focusRef.current?.(loc.coords.lat, loc.coords.lng);
   }, [viewingUserId, locationByUserId]);
 
+  const lotTechLocations = React.useMemo(
+    () => activeLocations.filter((l) => l.department === LOT_TECH_DEPT),
+    [activeLocations],
+  );
   const filteredMembers = React.useMemo(() => {
     const q = search.toLowerCase();
     let list = members.filter((m) => !q || m.name.toLowerCase().includes(q));
     if (rosterFilter === "active") list = list.filter((m) => m.onlineStatus !== "offline");
     else if (rosterFilter === "sharing") list = list.filter((m) => locationByUserId.get(m._id)?.sharingState === "sharing");
     else if (rosterFilter === "offline") list = list.filter((m) => m.onlineStatus === "offline");
+    // Lot Tech filter shows only CrmUser employees in the Lot Tech department who have location data.
+    // These are not in the `members` list (which is main User accounts), so we handle them separately.
+    if (rosterFilter === "lot_tech") return [];
     return [...list].sort((a, b) => {
       if (a._id === myUserId) return -1;
       if (b._id === myUserId) return 1;
@@ -545,7 +646,24 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
           </div>
 
           <div className={cn("space-y-2 pr-0.5", LIST_HEIGHT, "sm:overflow-y-auto")}>
-            {filteredMembers.length === 0 ? (
+            {rosterFilter === "lot_tech" ? (
+              lotTechLocations.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
+                  <MapPinOff className="size-8" />
+                  <p className="text-xs">No Lot Tech employees on shift</p>
+                </div>
+              ) : (
+                lotTechLocations.map((loc) => (
+                  <LotTechCard
+                    key={loc.userId}
+                    loc={loc}
+                    place={loc.currentPlaceId ? placeById.get(loc.currentPlaceId) : undefined}
+                    isSelected={selectedUserId === loc.userId}
+                    onSelect={() => handleSelect(loc.userId)}
+                  />
+                ))
+              )
+            ) : filteredMembers.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
                 <User2 className="size-8" />
                 <p className="text-xs">No members match this filter</p>

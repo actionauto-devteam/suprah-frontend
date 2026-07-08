@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format, isToday, isYesterday } from "date-fns";
+import { MDT_TZ, isTodayMDT, isYesterdayMDT } from "@/lib/timezone";
 import {
   MessageSquare, Send, Reply, Pencil, Trash2, X, CornerDownRight,
   Loader2, Wifi, WifiOff, ChevronUp,
@@ -36,10 +36,12 @@ function toneFor(id: string) {
 }
 
 function stamp(iso: string) {
-  const d = new Date(iso);
-  if (isToday(d)) return format(d, "HH:mm");
-  if (isYesterday(d)) return `Yesterday ${format(d, "HH:mm")}`;
-  return format(d, "MMM d · HH:mm");
+  const dt = new Date(iso);
+  const time24 = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: MDT_TZ });
+  if (isTodayMDT(dt)) return time24;
+  if (isYesterdayMDT(dt)) return `Yesterday ${time24}`;
+  const datePart = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ });
+  return `${datePart} · ${time24}`;
 }
 
 // ─── Single message ─────────────────────────────────────────────────────────

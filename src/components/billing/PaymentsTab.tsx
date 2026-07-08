@@ -382,7 +382,7 @@ export function PaymentsTab({
                         <StatusBadge status={p.status} />
                       </td>
                       <td style={{ padding: "11px 14px", fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.30)", whiteSpace: "nowrap" }}>
-                        {new Date(p.createdAt).toLocaleDateString()}
+                        {new Date(p.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                       </td>
                       <td style={{ padding: "11px 14px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                         <DropdownMenu>
@@ -528,7 +528,7 @@ function CreatePaymentDialog({ open, form, isCreating, onOpenChange, onFormChang
 function PaymentDetailModal({ payment, onClose }: { payment: Payment | null; onClose: () => void }) {
   if (!payment) return null;
   const fmt = (d?: string) => d
-    ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })
     : "—";
 
   return (

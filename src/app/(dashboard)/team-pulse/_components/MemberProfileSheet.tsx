@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
+import { fmtMonthYearMDT } from "@/lib/timezone";
 import {
   Briefcase,
   Building2,
@@ -83,7 +84,7 @@ function MemberFullProfileDialog({
     {
       icon: CalendarDays,
       label: "Birthday",
-      value: (profile.personalInfo as any)?.dateOfBirth ? format(new Date((profile.personalInfo as any).dateOfBirth), "MMM d, yyyy") : null,
+      value: (profile.personalInfo as any)?.dateOfBirth ? new Date(((profile.personalInfo as any).dateOfBirth as string).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : null,
       color: "text-rose-500",
     },
   ].filter((i) => i.value);
@@ -184,7 +185,7 @@ function MemberFullProfileDialog({
               {profile.createdAt && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-muted/40 text-muted-foreground border-border/30">
                   <CalendarDays className="size-3" />
-                  Member since {format(new Date(profile.createdAt), "MMM yyyy")}
+                  Member since {fmtMonthYearMDT(profile.createdAt)}
                 </div>
               )}
             </div>
@@ -194,7 +195,7 @@ function MemberFullProfileDialog({
             <div className="flex items-center gap-2 text-xs text-muted-foreground/50 px-0.5">
               <Clock className="size-3.5" />
               {status === "offline" ? "Last active" : "Active"}{" "}
-              {formatDistanceToNow(parseISO(profile.lastActive), { addSuffix: true })}
+              {formatDistanceToNow(new Date(profile.lastActive), { addSuffix: true })}
             </div>
           )}
         </div>
@@ -379,7 +380,7 @@ export function MemberProfileSheet({
               <p className="text-[11px] text-muted-foreground/40 flex items-center gap-1.5 px-0.5">
                 <Clock className="size-3" />
                 {status === "offline" ? "Last active" : "Active"}{" "}
-                {formatDistanceToNow(parseISO(profile.lastActive), { addSuffix: true })}
+                {formatDistanceToNow(new Date(profile.lastActive), { addSuffix: true })}
               </p>
             )}
 

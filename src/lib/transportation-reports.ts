@@ -92,7 +92,7 @@ export function buildQuoteSummary(quotes: Quote[]): QuoteSummary {
 
 export function fmtDate(d?: string): string {
   if (!d) return "—"
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })
 }
 
 export function fmtCurrency(amount: number): string {

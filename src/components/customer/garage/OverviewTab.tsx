@@ -134,6 +134,7 @@ export function OverviewTab() {
     : "";
   const localTime = now
     ? new Intl.DateTimeFormat(undefined, {
+      timeZone: "America/Denver",
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
@@ -531,7 +532,7 @@ export function OverviewTab() {
                 >
                   <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-primary/10 shrink-0 text-center">
                     <span className="text-[10px] font-bold text-primary uppercase leading-none">
-                      {appt.startTime ? new Date(appt.startTime).toLocaleDateString(undefined, { month: "short" }) : "—"}
+                      {appt.startTime ? new Date(appt.startTime).toLocaleDateString('en-US', { month: "short", timeZone: "America/Denver" }) : "—"}
                     </span>
                     <span className="text-base font-black text-primary leading-none">
                       {appt.startTime ? new Date(appt.startTime).getDate() : "—"}
@@ -543,7 +544,7 @@ export function OverviewTab() {
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {appt.startTime
-                        ? new Date(appt.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                        ? new Date(appt.startTime).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })
                         : ""}
                     </p>
                   </div>

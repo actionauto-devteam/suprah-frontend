@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '@/types/user';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { fmtLongDateTimeMDT } from '@/lib/timezone';
 
 interface SecurityTabProps {
     profile: UserProfile | null;
@@ -100,7 +101,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                                 </div>
                                 <div>
                                     <p className="font-semibold text-gray-900 dark:text-white">Last Login</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{format(new Date(profile.securityStatus.lastLogin), 'PPpp')}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{fmtLongDateTimeMDT(new Date(profile.securityStatus.lastLogin))}</p>
                                 </div>
                             </div>
                         </div>

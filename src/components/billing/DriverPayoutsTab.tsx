@@ -437,7 +437,7 @@ export function DriverPayoutsTab({
                   <td style={{ ...tdBase, fontFamily: DISPLAY, fontSize: 13, fontWeight: 700, color: "#fff", whiteSpace: "nowrap" }}>{formatCurrency(p.amount)}</td>
                   <td style={{ ...tdBase }}><PayoutStatusBadge status={p.status} /></td>
                   <td style={{ ...tdBase, fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.30)", whiteSpace: "nowrap" }}>
-                    {new Date(p.paidAt || p.createdAt).toLocaleDateString()}
+                    {new Date(p.paidAt || p.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                   </td>
                 </tr>
               );

@@ -34,6 +34,7 @@ export interface Place {
 
 export interface ActiveEmployeeLocation {
     userId: string;
+    userModel?: 'User' | 'CrmUser';
     userName: string;
     userAvatar?: string;
     jobTitle?: string;
@@ -47,10 +48,9 @@ export interface ActiveEmployeeLocation {
     batteryLevel?: number;
     isCharging?: boolean;
     connectivity: 'online' | 'offline';
-    deviceType?: 'mobile' | 'desktop';
     connectionType?: string;
     effectiveType?: string;
-    downlinkMbps?: number;
+    deviceType?: 'mobile' | 'desktop';
     currentPlaceId?: string;
     drivingSessionId?: string;
     lastSeenAt: string;

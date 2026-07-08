@@ -17,7 +17,8 @@ import {
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from '@/lib/api-client';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { fmtLongDateTimeMDT, MDT_TZ } from '@/lib/timezone';
 import { Notification } from '@/types/notification';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -152,10 +153,10 @@ function NotificationItem({ notification, onMarkAsRead, onDelete, onClick }: Not
 
           <div className="flex items-center justify-between mt-2.5">
             <div className="flex items-center gap-2">
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1" title={format(new Date(notification.createdAt), 'PPpp')}>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1" title={fmtLongDateTimeMDT(new Date(notification.createdAt))}>
                 <span className="opacity-60">•</span>
                 {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                <span className="opacity-40 ml-1">({format(new Date(notification.createdAt), 'MMM d, h:mm a')})</span>
+                <span className="opacity-40 ml-1">({new Date(notification.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ }) + ', ' + new Date(notification.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: MDT_TZ })})</span>
               </p>
               {isClickable && (
                 <Badge variant="outline" className="text-[10px] h-5 px-2 bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:bg-emerald-500/20 dark:border-emerald-700 animate-pulse">

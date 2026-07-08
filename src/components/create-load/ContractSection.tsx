@@ -57,7 +57,7 @@ export function ContractSection({ value, onChange }: ContractSectionProps) {
           {value.signatureName && value.agreedToTerms && (
             <div className="flex items-center gap-1.5 text-[10px] text-green-600 dark:text-green-400">
               <ShieldCheck className="size-3 shrink-0" />
-              Signed as &ldquo;{value.signatureName}&rdquo; — {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              Signed as &ldquo;{value.signatureName}&rdquo; — {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
             </div>
           )}
           {!value.agreedToTerms && (

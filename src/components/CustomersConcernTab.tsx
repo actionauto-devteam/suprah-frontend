@@ -26,7 +26,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
-import { format, isToday, isYesterday } from "date-fns";
+import { fmtTimeMDT, fmtFullDateTimeMDT, fmtDateMDT, MDT_TZ, isTodayMDT, isYesterdayMDT } from "@/lib/timezone";
 import {
   AttachmentLightbox,
   type LightboxAttachment,
@@ -100,13 +100,16 @@ interface RelatedCase {
 function fmtRelative(d?: string) {
   if (!d) return "";
   const date = new Date(d);
-  if (isToday(date)) return format(date, "h:mm a");
-  if (isYesterday(date)) return "Yesterday";
-  return format(date, "MMM d");
+  const dateStr = date.toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  const todayStr = new Date().toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  const yestStr = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  if (dateStr === todayStr) return fmtTimeMDT(date);
+  if (dateStr === yestStr) return "Yesterday";
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ });
 }
 
 function fmtFull(d: string) {
-  return format(new Date(d), "MMM d, yyyy · h:mm a");
+  return fmtFullDateTimeMDT(d);
 }
 
 function ini(name: string) {
@@ -169,11 +172,11 @@ function Squircle({
 
 function DateSep({ date }: { date: string }) {
   const d = new Date(date);
-  const label = isToday(d)
+  const label = isTodayMDT(d)
     ? "Today"
-    : isYesterday(d)
+    : isYesterdayMDT(d)
       ? "Yesterday"
-      : format(d, "EEEE, MMM d, yyyy");
+      : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric', timeZone: MDT_TZ });
   return (
     <div className="flex items-center gap-3 my-5 px-5">
       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 font-mono">
@@ -185,7 +188,7 @@ function DateSep({ date }: { date: string }) {
 }
 
 function fmtDate(d: string) {
-  return format(new Date(d), "MMM d, yyyy");
+  return fmtDateMDT(d);
 }
 
 // ─── Message row (transcript style, not chat-bubble) ───────────────────────────

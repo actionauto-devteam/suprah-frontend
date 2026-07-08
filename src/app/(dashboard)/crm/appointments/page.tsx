@@ -40,7 +40,7 @@ import {
 } from "@/components/MultiPaneLayout";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { format, isToday, isTomorrow } from "date-fns";
+import { fmtWeekdayDateMDT, fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
 
 // ─── Tab options ──────────────────────────────────────────────────────────────
 
@@ -86,9 +86,12 @@ function getStatusStyle(status: string) {
 }
 
 function formatDateLabel(date: Date) {
-  if (isToday(date)) return "Today";
-  if (isTomorrow(date)) return "Tomorrow";
-  return format(date, "EEE, MMM d");
+  const dateStr = date.toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  const todayStr = new Date().toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  const tomorrowStr = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { timeZone: MDT_TZ });
+  if (dateStr === todayStr) return "Today";
+  if (dateStr === tomorrowStr) return "Tomorrow";
+  return fmtWeekdayDateMDT(date);
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
@@ -174,9 +177,9 @@ function UpcomingAppointmentCard({
           {formatDateLabel(start)}
         </span>
         <span className="mt-0.5 text-base font-bold tabular-nums leading-none">
-          {format(start, "h:mm")}
+          {fmtTimeMDT(start).split(' ')[0]}
         </span>
-        <span className="text-[10px] text-muted-foreground">{format(start, "a")}</span>
+        <span className="text-[10px] text-muted-foreground">{fmtTimeMDT(start).split(' ')[1]}</span>
       </div>
 
       {/* Content */}
@@ -205,7 +208,7 @@ function UpcomingAppointmentCard({
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {format(start, "EEEE, MMM d, yyyy")}
+            {start.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric', timeZone: MDT_TZ })}
           </span>
           {appointment.location && (
             <span className="flex items-center gap-1">

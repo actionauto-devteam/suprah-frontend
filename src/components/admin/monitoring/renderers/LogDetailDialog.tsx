@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AuditLogEntry } from '@/lib/types/monitoring';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format } from 'date-fns';
+import { fmtLongDateTimeMDT } from '@/lib/timezone';
 import { ShieldCheck, User, Calendar, Database, Info } from 'lucide-react';
 
 interface LogDetailDialogProps {
@@ -46,7 +46,7 @@ export function LogDetailDialog({ log, open, onOpenChange }: LogDetailDialogProp
                                     Timestamp
                                 </div>
                                 <span className="text-sm font-medium">
-                                    {format(new Date(log.timestamp), 'PPP p')}
+                                    {fmtLongDateTimeMDT(new Date(log.timestamp))}
                                 </span>
                             </div>
                             <div className="flex flex-col gap-1 p-3 rounded-md bg-muted/50 border">

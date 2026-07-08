@@ -1066,7 +1066,7 @@ export function VehicleDetailView({
                         icon: Calendar,
                         label: "Date Added",
                         value: vehicle.dateAdded
-                          ? new Date(vehicle.dateAdded).toLocaleDateString()
+                          ? new Date(vehicle.dateAdded).toLocaleDateString('en-US', { timeZone: 'America/Denver' })
                           : undefined,
                       },
                       { icon: Car, label: "Status", value: vehicle.status },
@@ -1233,7 +1233,7 @@ export function VehicleDetailView({
                           </span>
                           <span>
                             {note.date
-                              ? new Date(note.date).toLocaleDateString()
+                              ? new Date(note.date).toLocaleDateString('en-US', { timeZone: 'America/Denver' })
                               : "—"}
                           </span>
                         </div>

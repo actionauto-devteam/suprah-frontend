@@ -1301,9 +1301,9 @@ function ReminderTab() {
   React.useEffect(() => { fetchReminders(selectedModule) }, [selectedModule, fetchReminders])
 
   const fmtTime = (d: string) =>
-    new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Denver' })
   const fmtDate = (d: string) =>
-    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Denver' })
 
   const renderContent = () => {
     if (loading) return (
@@ -1450,7 +1450,7 @@ function ReminderTab() {
               <div className="axp-reminder-item success">
                 <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>Time In</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p-tx)', fontFamily: 'Exo 2, sans-serif' }}>
-                  {new Date(tp.timeIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(tp.timeIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Denver' })}
                 </div>
               </div>
             )}
@@ -1458,7 +1458,7 @@ function ReminderTab() {
               <div className="axp-reminder-item info">
                 <div style={{ fontSize: 10, color: 'var(--p-tx3)' }}>Time Out</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--p-tx)', fontFamily: 'Exo 2, sans-serif' }}>
-                  {new Date(tp.timeOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(tp.timeOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Denver' })}
                 </div>
               </div>
             )}

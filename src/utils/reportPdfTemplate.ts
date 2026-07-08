@@ -195,6 +195,7 @@ export function formatGeneratedAt(date: Date): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "America/Denver",
   });
 }
 

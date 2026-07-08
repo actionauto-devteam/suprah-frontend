@@ -391,7 +391,7 @@ export function OrganizationMembersSettings() {
                                                 {member.organizationRole}
                                             </Badge>
                                             <span className="text-[10px] text-muted-foreground mt-1">
-                                                Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                                Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                                             </span>
                                         </div>
                                     </TableCell>

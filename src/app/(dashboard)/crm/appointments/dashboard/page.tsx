@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { fmtFullDateTime24MDT, fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
 import {
   ArrowLeft, Calendar, CalendarDays, Car, ChevronRight, Clock,
   Download, Eye, FileText, Loader2, Plus, RefreshCw, Search,
@@ -335,7 +335,7 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
           {post.type}
         </span>
         <span className="text-[11px] text-muted-foreground/60">
-          By {post.authorName} · {format(new Date(post.createdAt), "MMM d, yyyy · HH:mm")}
+          By {post.authorName} · {fmtFullDateTime24MDT(post.createdAt)}
         </span>
         {canDelete && (
           <button
@@ -389,7 +389,7 @@ function AppointmentRow({ apt, onOpen }: {
         <span className="whitespace-nowrap font-mono text-[12px] tabular-nums text-foreground/80">{apt.customerBooking.phone}</span>
       </td>
       <td className="w-[8%] px-3.5 py-3 align-middle">
-        <div className="font-mono text-[13px] font-medium tabular-nums">{format(start, "HH:mm")}</div>
+        <div className="font-mono text-[13px] font-medium tabular-nums">{start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: MDT_TZ })}</div>
         <div className="text-[11px] tabular-nums text-muted-foreground">{dur} min</div>
       </td>
       <td className="w-[11%] px-3.5 py-3 align-middle">
@@ -471,7 +471,7 @@ function AppointmentMobileCard({ apt, onOpen }: {
         <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted-foreground">
           <span className="inline-flex items-center gap-1 font-mono tabular-nums">
             <Clock className="h-3 w-3 shrink-0" />
-            {format(start, "h:mm a")} · {dur}min
+            {fmtTimeMDT(start)} · {dur}min
           </span>
           {apt.customerBooking.phone && (
             <span className="font-mono tabular-nums">· {apt.customerBooking.phone}</span>
@@ -515,9 +515,9 @@ function AppointmentDashboard() {
   const queryClient = useQueryClient();
   const { getToken } = useAuth();
 
-  const today = format(new Date(), "yyyy-MM-dd");
-  const tomorrow = format(new Date(Date.now() + 86_400_000), "yyyy-MM-dd");
-  const currentMonth = format(new Date(), "yyyy-MM");
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: MDT_TZ });
+  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ });
+  const currentMonth = new Date().toLocaleDateString('en-CA', { timeZone: MDT_TZ }).slice(0, 7);
 
   const [viewMode, setViewMode] = React.useState<"day" | "month">("day");
   const [selectedDate, setSelectedDate] = React.useState(today);
@@ -686,8 +686,8 @@ function AppointmentDashboard() {
 
   const displayDate = (() => {
     try {
-      if (viewMode === "month") return format(new Date(selectedMonth + "-01T00:00:00"), "MMMM yyyy");
-      return format(new Date(selectedDate + "T00:00:00"), "MMMM d, yyyy");
+      if (viewMode === "month") return new Date(selectedMonth + '-01T00:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      return new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     } catch { return selectedDate; }
   })();
 

@@ -201,7 +201,7 @@ export function DriverAssignLoadModal({
                       {load.requestedPickupDate && (
                         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
                           <Calendar className="size-3" />
-                          Pickup: {new Date(load.requestedPickupDate).toLocaleDateString()}
+                          Pickup: {new Date(load.requestedPickupDate).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                         </div>
                       )}
                       <div className="flex flex-wrap gap-1 mt-1">

@@ -587,6 +587,10 @@ class ApiClient {
     return this.post("/api/locator/resume", {}, config);
   }
 
+  async stopLocationSharing(config?: AxiosRequestConfig) {
+    return this.post("/api/locator/off-duty", {}, config);
+  }
+
   async getActiveEmployeeLocations(config?: AxiosRequestConfig) {
     return this.get("/api/locator/active", config);
   }

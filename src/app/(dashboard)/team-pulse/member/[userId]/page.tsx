@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
+import { fmtMonthYearMDT } from "@/lib/timezone";
 import {
   ArrowLeft,
   Briefcase,
@@ -98,7 +99,7 @@ export default function MemberProfilePage() {
       icon: CalendarDays,
       label: "Birthday",
       value: (profile?.personalInfo as any)?.dateOfBirth
-        ? format(new Date((profile?.personalInfo as any).dateOfBirth), "MMM d, yyyy")
+        ? new Date(((profile?.personalInfo as any).dateOfBirth as string).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
         : null,
       color: "text-rose-500",
     },
@@ -355,14 +356,14 @@ export default function MemberProfilePage() {
               {profile.createdAt && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-muted/40 text-muted-foreground border-border/30">
                   <CalendarDays className="size-3" />
-                  Member since {format(new Date(profile.createdAt), "MMM yyyy")}
+                  Member since {fmtMonthYearMDT(profile.createdAt)}
                 </div>
               )}
               {profile.lastActive && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-muted/40 text-muted-foreground border-border/30">
                   <Clock className="size-3" />
                   {status === "offline" ? "Last active" : "Active"}{" "}
-                  {formatDistanceToNow(parseISO(profile.lastActive), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(profile.lastActive), { addSuffix: true })}
                 </div>
               )}
             </div>

@@ -24,19 +24,22 @@ function getAvaClass(str: string) {
 function ini(first?: string, last?: string) {
   return `${(first || '?')[0]}${(last || '')[0] || ''}`.toUpperCase();
 }
+const _TZ = 'America/Denver';
 function fmtTime(iso: string) {
-  try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: _TZ }); }
   catch { return ''; }
 }
 function fmtDateLabel(iso: string) {
   try {
     const date = new Date(iso);
-    const now = new Date();
-    const days = Math.floor((now.getTime() - date.getTime()) / 86400000);
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return date.toLocaleDateString([], { weekday: 'long' });
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const dStr = date.toLocaleDateString('en-US', { timeZone: _TZ });
+    const todayStr = new Date().toLocaleDateString('en-US', { timeZone: _TZ });
+    const yesterdayStr = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { timeZone: _TZ });
+    if (dStr === todayStr) return 'Today';
+    if (dStr === yesterdayStr) return 'Yesterday';
+    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+    if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: _TZ });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: _TZ });
   } catch { return ''; }
 }
 

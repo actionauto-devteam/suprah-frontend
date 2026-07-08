@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { format } from "date-fns"
+import { fmtDateMDT, fmtTimeMDT } from "@/lib/timezone"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
@@ -135,7 +135,8 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null
     try {
-      return format(new Date(dateStr), "MMM d, h:mm a")
+      const dt = new Date(dateStr)
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Denver' }) + ', ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Denver' })
     } catch {
       return null
     }
@@ -249,7 +250,7 @@ export default function LoadDetailsPage() {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "N/A"
     try {
-      return format(new Date(dateStr), "MMM d, yyyy 'at' h:mm a")
+      return fmtDateMDT(dateStr) + ' at ' + fmtTimeMDT(dateStr)
     } catch {
       return "Invalid date"
     }
@@ -258,7 +259,7 @@ export default function LoadDetailsPage() {
   const formatShortDate = (dateStr?: string) => {
     if (!dateStr) return "N/A"
     try {
-      return format(new Date(dateStr), "MMM d, yyyy")
+      return fmtDateMDT(dateStr)
     } catch {
       return "Invalid date"
     }
@@ -495,7 +496,7 @@ export default function LoadDetailsPage() {
 
                 <div className="flex flex-col gap-1.5">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
-                  <p className="text-sm font-medium">{new Date(load.proofOfDelivery.submittedAt).toLocaleString()}</p>
+                  <p className="text-sm font-medium">{new Date(load.proofOfDelivery.submittedAt).toLocaleString('en-US', { timeZone: 'America/Denver' })}</p>
                 </div>
 
                 <Link href={`/billing/driver-payouts/${load._id}`}>

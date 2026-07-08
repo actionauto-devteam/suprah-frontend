@@ -602,7 +602,7 @@ export function CommunicationHub() {
                       </span>
                     </div>
                     <span className="text-[10px] text-(--text-tertiary)">
-                      {new Date(log.createdAt).toLocaleString()}
+                      {new Date(log.createdAt).toLocaleString('en-US', { timeZone: 'America/Denver' })}
                     </span>
                   </div>
                   <p className="text-xs text-(--text-secondary) mt-1">

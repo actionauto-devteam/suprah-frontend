@@ -47,7 +47,7 @@ import {
     useRejectWithdrawal,
     useWithdrawalAudit
 } from "@/hooks/api/useAdminReferral"
-import { format } from "date-fns"
+import { fmtDateMDT } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 
 export default function AdminPayoutsPage() {
@@ -174,7 +174,7 @@ export default function AdminPayoutsPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-muted-foreground text-sm">
-                                            {format(new Date(w.createdAt), 'MMM d, yyyy')}
+                                            {fmtDateMDT(w.createdAt)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">

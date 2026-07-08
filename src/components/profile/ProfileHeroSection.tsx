@@ -13,7 +13,7 @@ import {
   LogOut,
   Trash2,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { fmtFullWeekdayDateTimeMDT } from '@/lib/timezone';
 
 interface ProfileHeroSectionProps {
   profile: UserProfile | null;
@@ -114,7 +114,7 @@ export function ProfileHeroSection({
             </p>
             <p className="text-white/60 text-[11px] sm:text-xs mb-3">
               <Clock className="size-3 inline mr-1" />
-              {format(new Date(), 'EEEE, MMM d · h:mm a')} (local)
+              {fmtFullWeekdayDateTimeMDT(new Date())} MDT
             </p>
             {customStatus && (
               <p className="text-white/80 text-xs sm:text-sm italic mb-3 animate-fade-in-up">"{customStatus}"</p>

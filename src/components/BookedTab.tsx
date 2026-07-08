@@ -34,7 +34,7 @@ import {
   MapPin,
   History,
 } from "lucide-react";
-import { format, isToday } from "date-fns";
+import { fmtLongDateTimeMDT, isTodayMDT, MDT_TZ } from "@/lib/timezone";
 import { useCustomerBookings } from "@/hooks/useCustomerBookings";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
@@ -134,7 +134,7 @@ function BookingCard({
   const start = new Date(booking.startTime);
   const style = getStatusStyle(booking.status);
   const totalBookings = customer?.bookingHistory?.totalBookings || 1;
-  const todayFlag = isToday(start);
+  const todayFlag = isTodayMDT(start);
 
   return (
     <div className="group relative flex gap-4 overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:border-border/80">
@@ -210,11 +210,11 @@ function BookingCard({
           )}
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3 shrink-0" />
-            {format(start, "EEE, MMM d, yyyy")}
+            {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: MDT_TZ })}
           </span>
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3 shrink-0" />
-            {format(start, "h:mm a")}
+            {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: MDT_TZ })}
           </span>
           {booking.location && (
             <span className="flex items-center gap-1 truncate">
@@ -361,7 +361,7 @@ function HistoryModal({
                               {b.title}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(b.startTime), "PPP p")}
+                              {fmtLongDateTimeMDT(b.startTime)}
                             </p>
                             {b.createdBy?.name && (
                               <p className="text-[11px] text-muted-foreground/60">
@@ -655,9 +655,9 @@ export function BookedTab() {
         {/* Date */}
         <input
           type="date"
-          value={selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""}
+          value={selectedDate ? selectedDate.toLocaleDateString('en-CA') : ""}
           onChange={(e) =>
-            setSelectedDate(e.target.value ? new Date(e.target.value) : null)
+            setSelectedDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)
           }
           className="h-8 w-36 px-2.5 rounded-md border border-input bg-muted/40 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all scheme-light-dark"
         />

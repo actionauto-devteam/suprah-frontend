@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatDistanceToNowStrict, parseISO, format } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
+import { fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
 import {
   X, Building2, Navigation, Pause, Play, Power, MapPinOff, Crosshair,
   BatteryFull, BatteryLow, Gauge, History, Clock, MapPin, Loader2, Smartphone, Monitor, Crosshair as CrosshairIcon, Timer,
@@ -29,7 +30,7 @@ import {
 function sharingDuration(sinceIso?: string) {
   if (!sinceIso) return "";
   try {
-    const ms = Date.now() - parseISO(sinceIso).getTime();
+    const ms = Date.now() - new Date(sinceIso).getTime();
     const totalMin = Math.max(0, Math.round(ms / 60000));
     const h = Math.floor(totalMin / 60);
     const m = totalMin % 60;
@@ -70,22 +71,20 @@ function summarizeHistory(history: LocationHistoryPoint[]) {
     if (i > 0) distanceMi += haversineMi(history[i - 1].coords, history[i].coords);
   }
   const spanMs = history.length > 1
-    ? parseISO(history[history.length - 1].recordedAt).getTime() - parseISO(history[0].recordedAt).getTime()
+    ? new Date(history[history.length - 1].recordedAt).getTime() - new Date(history[0].recordedAt).getTime()
     : 0;
   const spanMin = Math.round(spanMs / 60000);
   return { distanceMi, maxSpeed, spanMin, pointCount: history.length };
 }
 
 function todayStr(offsetDays = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ });
 }
 
 function timeAgo(iso?: string) {
   if (!iso) return "";
   try {
-    return formatDistanceToNowStrict(parseISO(iso), { addSuffix: true });
+    return formatDistanceToNowStrict(new Date(iso), { addSuffix: true });
   } catch {
     return "";
   }
@@ -394,76 +393,12 @@ export function LocationInfoPanel({
           ) : history.length === 0 ? (
             <p className="text-[10px] text-muted-foreground/50 py-1">No breadcrumb points for this range.</p>
           ) : (
-            (() => {
-              const stats = summarizeHistory(history);
-              const reversedHistory = [...history].reverse(); // newest first, for the itemized log below
-              const visibleLog = reversedHistory.slice(0, logVisibleCount);
-              const hasMore = reversedHistory.length > logVisibleCount;
-
-              return (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <Chip icon={Route} label="Distance" value={`${stats.distanceMi.toFixed(1)} mi`} />
-                    <Chip icon={Clock} label="Duration" value={stats.spanMin >= 60 ? `${Math.floor(stats.spanMin / 60)}h ${stats.spanMin % 60}m` : `${stats.spanMin}m`} />
-                    <Chip icon={TrendingUp} label="Top Speed" value={`${Math.round(stats.maxSpeed)} mph`} />
-                  </div>
-                  <p className="text-[9px] text-muted-foreground/50 px-0.5">
-                    {format(parseISO(history[0].recordedAt), "MMM d, h:mm a")} → {format(parseISO(history[history.length - 1].recordedAt), "h:mm a")}
-                    {" · "}{stats.pointCount} points
-                  </p>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setLogExpanded((v) => !v)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-muted/60 hover:bg-muted px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-                    >
-                      <List className="size-3" /> {logExpanded ? "Hide" : "View"} Detailed Log
-                      {logExpanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
-                    </button>
-                    <button
-                      onClick={() => setRouteMapOpen(true)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/15 px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-                    >
-                      <MapIcon className="size-3" /> View Full Route
-                    </button>
-                  </div>
-
-                  {logExpanded && (
-                    <div className="rounded-lg border border-border/40 divide-y divide-border/30 max-h-64 overflow-y-auto">
-                      {visibleLog.map((point, i) => {
-                        const prior = reversedHistory[i + 1];
-                        const deltaMi = prior ? haversineMi(prior.coords, point.coords) : 0;
-                        const place = placeForCoords(point.coords, places);
-                        const speed = point.speedMph;
-                        const isMoving = typeof speed === "number" && speed > 2;
-                        return (
-                          <div key={point._id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[10px]">
-                            <div className="min-w-0">
-                              <p className="font-bold tabular-nums">{format(parseISO(point.recordedAt), "MMM d, h:mm:ss a")}</p>
-                              <p className="text-muted-foreground/60 truncate">
-                                {place ? `At ${place.name}` : isMoving ? "Moving" : "Stationary"}
-                                {deltaMi > 0.005 && ` · +${deltaMi.toFixed(2)} mi`}
-                              </p>
-                            </div>
-                            <span className="shrink-0 tabular-nums font-semibold text-muted-foreground/70">
-                              {typeof speed === "number" ? `${Math.round(speed)} mph` : "—"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {hasMore && (
-                        <button
-                          onClick={() => setLogVisibleCount((c) => c + LOG_PAGE_SIZE)}
-                          className="w-full py-1.5 text-[9px] font-bold text-primary hover:bg-primary/5 transition-colors"
-                        >
-                          Load {Math.min(LOG_PAGE_SIZE, reversedHistory.length - logVisibleCount)} older points
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()
+            <p className="text-[10px] text-muted-foreground/70 leading-snug">
+              <span className="font-bold text-foreground">{history.length}</span> points ·{" "}
+              {fmtTimeMDT(history[0].recordedAt)} → {fmtTimeMDT(history[history.length - 1].recordedAt)}
+              <br />
+              <span className="text-muted-foreground/50">Shown as the blue trail on the map.</span>
+            </p>
           )}
 
           <Dialog open={routeMapOpen} onOpenChange={setRouteMapOpen}>

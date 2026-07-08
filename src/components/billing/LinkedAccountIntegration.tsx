@@ -511,7 +511,7 @@ function ConnectedCard() {
             {primary.lastSyncedAt && (
               <p style={{ fontSize: 11, color: C.textMute, margin: "6px 0 0" }}>
                 Last synced {new Date(primary.lastSyncedAt).toLocaleString("en-US", {
-                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver",
                 })}
               </p>
             )}
@@ -562,7 +562,7 @@ function ConnectedCard() {
                     <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.description}</p>
                     <p style={{ fontSize: 11, color: C.textMute, margin: "2px 0 0" }}>
-                      {new Date(tx.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {new Date(tx.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" })}
                       {tx.recipient ? ` · ${tx.recipient}` : ""}
                     </p>
                   </div>

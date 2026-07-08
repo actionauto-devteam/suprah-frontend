@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { format, parseISO, differenceInSeconds } from "date-fns";
-import { Car, TriangleAlert, ShieldCheck, ChevronDown, Gauge, Route, ShieldAlert, Map as MapIcon } from "lucide-react";
+import { differenceInSeconds } from "date-fns";
+import { fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
+import { Car, TriangleAlert, ShieldCheck, ShieldAlert, ChevronDown, Gauge, Route, Map as MapIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -89,7 +90,7 @@ function IncidentBanner({ session }: { session: DrivingSession }) {
   React.useEffect(() => {
     if (!session.possibleIncident) return;
     const tick = () => {
-      const elapsed = differenceInSeconds(new Date(), parseISO(session.possibleIncident!.detectedAt));
+      const elapsed = differenceInSeconds(new Date(), new Date(session.possibleIncident!.detectedAt));
       setSecondsLeft(Math.max(0, INCIDENT_RESPONSE_WINDOW_S - elapsed));
     };
     tick();
@@ -144,8 +145,8 @@ function SessionRow({ session, isMe }: { session: DrivingSession; isMe: boolean 
             )}
           </div>
           <p className="text-[10px] text-muted-foreground/60">
-            {format(parseISO(session.startedAt), "MMM d, h:mm a")}
-            {session.endedAt && ` – ${format(parseISO(session.endedAt), "h:mm a")}`}
+            {new Date(session.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ }) + ', ' + fmtTimeMDT(session.startedAt)}
+            {session.endedAt && ` – ${fmtTimeMDT(session.endedAt)}`}
           </p>
         </div>
         <div className="text-right shrink-0">

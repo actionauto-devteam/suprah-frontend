@@ -74,7 +74,7 @@ export function RecentActivity() {
                         </p>
                     </div>
                     <div className="ml-auto font-medium text-xs text-muted-foreground">
-                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Denver' })}
                     </div>
                 </div>
             ))}
