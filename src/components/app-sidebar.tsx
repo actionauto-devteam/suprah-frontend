@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  FolderKanban,
   HeartHandshake,
   LayoutDashboard,
   MessageSquare,
@@ -58,6 +59,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
+import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,6 +137,11 @@ const data = {
   ] satisfies SidebarNavItem[],
 
   services: [
+    {
+      title: "Project Management",
+      url: "/project",
+      icon: FolderKanban,
+    },
     {
       title: "Transportation",
       url: "/transportation",
@@ -229,6 +236,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isCustomer } = useOrg();
   const { avatarUrl } = useProfileContext();
   const { totalUnread } = useSupraSpaceMessenger();
+  const { unreadCount: pmUnread } = useProjectNotifications();
 
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
@@ -359,6 +367,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
+                        {/* Project Management: unread task-activity badge.
+                            Count comes from ProjectNotificationContext —
+                            assignments, comments, and status changes on the
+                            logged-in user's tasks only. */}
+                        {item.title === "Project Management" && pmUnread > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            {pmUnread > 99 ? "99+" : pmUnread}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
