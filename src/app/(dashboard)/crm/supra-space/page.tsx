@@ -403,6 +403,42 @@ function preserveVisibleVinLines(serialized: string, visibleText: string): strin
   return serializedLines.join('\n');
 }
 
+function canonicalizeColorMarkup(value: string): string {
+  const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
+  let result = '';
+  let cursor = 0;
+  let activeColor: string | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagPattern.exec(value)) !== null) {
+    result += value.slice(cursor, match.index);
+    const isClosing = Boolean(match[1]);
+    const nextColor = match[2]?.toLowerCase() || null;
+    if (isClosing) {
+      if (activeColor) result += '{/color}';
+      activeColor = null;
+    } else if (nextColor && nextColor !== activeColor) {
+      if (activeColor) result += '{/color}';
+      result += `{color:${nextColor}}`;
+      activeColor = nextColor;
+    }
+    cursor = match.index + match[0].length;
+  }
+
+  result += value.slice(cursor);
+  if (activeColor) result += '{/color}';
+  result = result.replace(/\{color:(#[0-9a-f]{3,8})\}\s*\{\/color\}/gi, '');
+  let previous = '';
+  while (previous !== result) {
+    previous = result;
+    result = result.replace(
+      /\{color:(#[0-9a-f]{3,8})\}([^{}]*)\{\/color\}\s*\{color:\1\}/gi,
+      '{color:$1}$2',
+    );
+  }
+  return result;
+}
+
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
   const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
@@ -1279,7 +1315,7 @@ function Bubble({
     }
   };
   const syncEditDraft = React.useCallback(() => {
-    const next = editAreaRef.current ? htmlToMarkdown(editAreaRef.current).trim() : '';
+    const next = editAreaRef.current ? canonicalizeColorMarkup(htmlToMarkdown(editAreaRef.current)).trim() : '';
     setEditDraft(next);
     return next;
   }, []);
@@ -4048,10 +4084,10 @@ export default function SupraSpacePage() {
     const conversationId = activeId;
     const visibleComposerText = textareaRef.current?.innerText || input;
     const content = normalizeMessageMarkdownText(
-      preserveVisibleVinLines(
+      canonicalizeColorMarkup(preserveVisibleVinLines(
         textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim(),
         visibleComposerText,
-      ),
+      )),
     );
     const replyMessageId = replyTo?._id;
     const isScheduledSend = Boolean(scheduledAt);
@@ -4399,15 +4435,24 @@ export default function SupraSpacePage() {
   };
 
   const insertMention = React.useCallback((name: string) => {
-    const before = input.slice(0, mentionAnchor);
-    const after = input.slice(mentionAnchor + 1 + (mentionQuery?.length ?? 0));
-    const next = `${before}@${name} ${after}`;
-    const caretOffset = before.length + name.length + 2;
+    const el = textareaRef.current;
+    if (!el || mentionAnchor < 0) return;
+    const selection = window.getSelection();
+    const range = rangeFromTextOffset(el, mentionAnchor);
+    const endRange = rangeFromTextOffset(el, mentionAnchor + 1 + (mentionQuery?.length ?? 0));
+    range.setEnd(endRange.startContainer, endRange.startOffset);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand('insertText', false, `@${name} `);
+    const next = el.innerText.replace(/\n$/, '');
+    const caretOffset = mentionAnchor + name.length + 2;
     setInput(next);
     setMentionQuery(null);
     setMentionAnchor(-1);
-    setTimeout(() => setEditableTextAndCaret(next, caretOffset), 0);
-  }, [input, mentionAnchor, mentionQuery, setEditableTextAndCaret]);
+    composerCaretOffsetRef.current = caretOffset;
+    saveComposerSelection();
+    requestAnimationFrame(refreshActiveFormats);
+  }, [mentionAnchor, mentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection]);
 
   const startRecording = async () => {
     try {

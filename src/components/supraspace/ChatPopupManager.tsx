@@ -341,6 +341,42 @@ function preserveVisibleVinLines(serialized: string, visibleText: string): strin
   return serializedLines.join('\n');
 }
 
+function canonicalizeColorMarkup(value: string): string {
+  const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
+  let result = '';
+  let cursor = 0;
+  let activeColor: string | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagPattern.exec(value)) !== null) {
+    result += value.slice(cursor, match.index);
+    const isClosing = Boolean(match[1]);
+    const nextColor = match[2]?.toLowerCase() || null;
+    if (isClosing) {
+      if (activeColor) result += '{/color}';
+      activeColor = null;
+    } else if (nextColor && nextColor !== activeColor) {
+      if (activeColor) result += '{/color}';
+      result += `{color:${nextColor}}`;
+      activeColor = nextColor;
+    }
+    cursor = match.index + match[0].length;
+  }
+
+  result += value.slice(cursor);
+  if (activeColor) result += '{/color}';
+  result = result.replace(/\{color:(#[0-9a-f]{3,8})\}\s*\{\/color\}/gi, '');
+  let previous = '';
+  while (previous !== result) {
+    previous = result;
+    result = result.replace(
+      /\{color:(#[0-9a-f]{3,8})\}([^{}]*)\{\/color\}\s*\{color:\1\}/gi,
+      '{color:$1}$2',
+    );
+  }
+  return result;
+}
+
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
   const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
@@ -1090,7 +1126,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   };
 
   const syncEditDraft = React.useCallback(() => {
-    const next = editAreaRef.current ? htmlToMarkdown(editAreaRef.current).trim() : editDraft.trim();
+    const next = editAreaRef.current ? canonicalizeColorMarkup(htmlToMarkdown(editAreaRef.current)).trim() : editDraft.trim();
     setEditDraft(next);
     return next;
   }, [editDraft]);
@@ -1229,6 +1265,26 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     return range.toString().length;
   };
 
+  const rangeFromTextOffset = React.useCallback((el: HTMLElement, offset: number) => {
+    const range = document.createRange();
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let remaining = Math.max(0, offset);
+    let node = walker.nextNode();
+    while (node) {
+      const length = node.textContent?.length ?? 0;
+      if (remaining <= length) {
+        range.setStart(node, remaining);
+        range.collapse(true);
+        return range;
+      }
+      remaining -= length;
+      node = walker.nextNode();
+    }
+    range.selectNodeContents(el);
+    range.collapse(false);
+    return range;
+  }, []);
+
   const setEditableAndCaret = React.useCallback((text: string, caretOffset: number) => {
     const el = inputRef.current;
     if (!el) return;
@@ -1250,13 +1306,18 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, []);
 
   const insertMention = React.useCallback((name: string) => {
-    const before = input.slice(0, mentionAnchor);
-    const after  = input.slice(mentionAnchor + 1 + (mentionQuery?.length ?? 0));
-    const next   = `${before}@${name} ${after}`;
-    const caretOffset = before.length + name.length + 2;
+    const el = inputRef.current;
+    if (!el || mentionAnchor < 0) return;
+    const selection = window.getSelection();
+    const range = rangeFromTextOffset(el, mentionAnchor);
+    const endRange = rangeFromTextOffset(el, mentionAnchor + 1 + (mentionQuery?.length ?? 0));
+    range.setEnd(endRange.startContainer, endRange.startOffset);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand('insertText', false, `@${name} `);
+    const next = el.innerText.replace(/\n$/, '');
     setInput(next); setMentionQuery(null); setMentionAnchor(-1);
-    setTimeout(() => setEditableAndCaret(next, caretOffset), 0);
-  }, [input, mentionAnchor, mentionQuery, setEditableAndCaret]);
+  }, [mentionAnchor, mentionQuery, rangeFromTextOffset]);
 
   const fetchMessages = React.useCallback(async () => {
     const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
@@ -1319,10 +1380,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const handleSend = async () => {
     const visibleComposerText = inputRef.current?.innerText || input;
     const text = normalizeMessageMarkdownText(
-      preserveVisibleVinLines(
+      canonicalizeColorMarkup(preserveVisibleVinLines(
         inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim(),
         visibleComposerText,
-      ),
+      )),
     );
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
