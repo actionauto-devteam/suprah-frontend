@@ -1220,7 +1220,7 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
             {msg.role === 'leo' && (
               <SupraLeoAvatar
                 state={msg.streaming ? 'thinking' : 'idle'}
-                size={24}
+                size={24}galawa
                 animate={!!msg.streaming}
               />
             )}

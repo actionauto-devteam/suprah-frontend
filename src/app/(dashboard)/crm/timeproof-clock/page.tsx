@@ -143,6 +143,22 @@ function getDeviceHint() {
   return "desktop-web"
 }
 
+function isMacDesktop() {
+  if (typeof navigator === "undefined") return false
+  const platform = navigator.platform || ""
+  const ua = navigator.userAgent || ""
+  const isMacUA = /Mac/i.test(platform) || /Macintosh/i.test(ua)
+  // iPadOS 13+ reports navigator.platform as "MacIntel" but is touch-capable — exclude it.
+  const isTouchIpad = isMacUA && (navigator.maxTouchPoints ?? 0) > 1
+  return isMacUA && !isTouchIpad
+}
+
+function getTrayDownloadUrl() {
+  const winUrl = process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"
+  const macUrl = process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? winUrl
+  return isMacDesktop() ? macUrl : winUrl
+}
+
 async function readBatteryInfo(): Promise<{ batteryLevel?: number; isCharging?: boolean }> {
   const nav = navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> }
   if (typeof nav.getBattery !== "function") return {}
@@ -1974,9 +1990,9 @@ export default function TimeprofClockPage() {
                 ))}
               </div>
               <div className="space-y-2">
-                <a href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"} target="_blank" rel="noopener noreferrer" onClick={() => setShowTrayModal(false)}
+                <a href={getTrayDownloadUrl()} target="_blank" rel="noopener noreferrer" onClick={() => setShowTrayModal(false)}
                   className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors">
-                  <Download className="h-4 w-4" /> Download Tray App
+                  <Download className="h-4 w-4" /> Download Tray App ({isMacDesktop() ? ".dmg" : ".exe"})
                 </a>
                 <button onClick={async () => {
                   try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
