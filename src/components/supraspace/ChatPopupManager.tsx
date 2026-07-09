@@ -87,7 +87,7 @@ const MEDIA_LABELS: Record<string, string> = {
   file: '📎 File', poll: '📊 Poll', event: '📅 Event',
 };
 // Renders message content with markdown formatting (bold, italic, underline, strike, code, bullets, quotes, links, @mentions)
-const MD_SPLIT = /(\{color:#[0-9a-fA-F]{6}\}[\s\S]*?\{\/color\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/g;
+const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
   return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
@@ -208,8 +208,8 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 function messagePreviewText(content?: string | null): string {
   if (!content) return '';
   return normalizeMessageMarkdownForDisplay(content)
-    .replace(/\{color:#[0-9a-fA-F]{6}\}/g, '')
-    .replace(/\{\/color\}/g, '')
+    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*color\s*\}/gi, '')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -233,7 +233,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
 
   return text.split(MD_SPLIT).map((part, i) => {
     const k = `${keyPrefix}-${i}`;
-    const colorMatch = part.match(/^\{color:(#[0-9a-fA-F]{6})\}([\s\S]*)\{\/color\}$/);
+    const colorMatch = part.match(/^\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*color\s*\}$/i);
     if (colorMatch) return <span key={k} style={{ color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
       return <strong key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-strong`)}</strong>;
@@ -249,7 +249,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
       return <a key={k} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isOwn ? 'rgba(255,255,255,0.85)' : '#60a5fa', textDecoration: 'underline' }}>{part}</a>;
     if (/^@/.test(part))
       return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' } : { color: '#60a5fa' }}>{part}</span>;
-    return part;
+    return part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, '');
   });
 }
 
@@ -324,6 +324,23 @@ function clipboardHtmlToPlainText(html: string): string {
 }
 
 const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
+
+function preserveVisibleVinLines(serialized: string, visibleText: string): string {
+  const visibleLines = visibleText.replace(/\r\n?/g, '\n').split('\n');
+  const vins = visibleText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  if (!vins.length) return serialized;
+
+  const serializedLines = serialized.replace(/\r\n?/g, '\n').split('\n');
+  vins.forEach(vin => {
+    if (serialized.toUpperCase().includes(vin)) return;
+    const visibleLineIndex = visibleLines.findIndex(line => line.toUpperCase().includes(vin));
+    const sourceLine = visibleLineIndex >= 0 ? visibleLines[visibleLineIndex].trim() : vin;
+    serializedLines.splice(Math.min(Math.max(visibleLineIndex, 0), serializedLines.length), 0, sourceLine || vin);
+    serialized = serializedLines.join('\n');
+  });
+  return serializedLines.join('\n');
+}
+
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
   const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
@@ -739,6 +756,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const bottomRef  = React.useRef<HTMLDivElement>(null);
   const inputRef   = React.useRef<HTMLDivElement>(null);
   const headerRef  = React.useRef<HTMLDivElement>(null);
+  const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
   const pendingAttachmentsRef = React.useRef<PendingPopupAttachment[]>([]);
 
@@ -816,7 +834,12 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 
   // Full emoji picker
   const [emojiPickerMsg, setEmojiPickerMsg] = React.useState<string | null>(null);
-  const [emojiPickerPos, setEmojiPickerPos] = React.useState<{ top: number; left?: number; right?: number } | null>(null);
+  const [emojiPickerPos, setEmojiPickerPos] = React.useState<{
+    top: number;
+    left?: number;
+    right?: number;
+    boundary?: { top: number; right: number; bottom: number; left: number };
+  } | null>(null);
   const [textColorOpen, setTextColorOpen] = React.useState(false);
   const [selectedTextColor, setSelectedTextColor] = React.useState('#ffffff');
   const [textPalette, setTextPalette] = React.useState(TEXT_COLORS);
@@ -1128,12 +1151,25 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const openEmojiPickerForMsg = (msgId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const popup = popupShellRef.current?.getBoundingClientRect();
     const pickerW = 288;
-    // Center picker on the button, then clamp so it never exits viewport
+    const boundaryLeft = popup?.left ?? 0;
+    const boundaryRight = popup?.right ?? window.innerWidth;
     const idealLeft = btn.left + btn.width / 2 - pickerW / 2;
-    const left = Math.max(8, Math.min(idealLeft, window.innerWidth - pickerW - 8));
+    const left = Math.max(boundaryLeft + 8, Math.min(idealLeft, boundaryRight - pickerW - 8));
     setEmojiPickerMsg(msgId);
-    setEmojiPickerPos({ top: btn.top - 350, left });
+    setEmojiPickerPos({
+      top: btn.top - 350,
+      left,
+      ...(popup ? {
+        boundary: {
+          top: popup.top,
+          right: popup.right,
+          bottom: popup.bottom,
+          left: popup.left,
+        },
+      } : {}),
+    });
     clearBar();
   };
 
@@ -1281,7 +1317,13 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, [isMinimized]);
 
   const handleSend = async () => {
-    const text = normalizeMessageMarkdownText(inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim());
+    const visibleComposerText = inputRef.current?.innerText || input;
+    const text = normalizeMessageMarkdownText(
+      preserveVisibleVinLines(
+        inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim(),
+        visibleComposerText,
+      ),
+    );
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
       return;
@@ -1364,6 +1406,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     <>
       {/* ── Popup container — no overflow-hidden so portals render correctly ── */}
       <div
+        ref={popupShellRef}
         data-chat-popup-shell="true"
         className="fixed bottom-0 z-50 flex flex-col shadow-2xl rounded-t-xl border border-border/60 bg-card"
         style={{ width: POPUP_W, right: rightPx, height: isMinimized ? HEADER_H : POPUP_H, transition: 'height 0.2s ease' }}
@@ -1658,7 +1701,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
-                                        setOpenReactPop(isPopOpen ? null : popId);
+                                        if (mine) handleReact(msg._id, r.emoji);
+                                        else setOpenReactPop(isPopOpen ? null : popId);
                                       } else {
                                         handleReact(msg._id, r.emoji);
                                       }
@@ -1666,6 +1710,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                     className={cn('inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] cursor-pointer transition-all border',
                                       mine ? 'border-blue-400/60 bg-blue-500/10 text-blue-300' : 'border-white/10 bg-white/5 text-foreground/70 hover:border-white/20'
                                     )}
+                                    title={mine ? `Remove ${r.emoji} reaction` : `React with ${r.emoji}`}
+                                    aria-label={mine ? `Remove ${r.emoji} reaction` : `React with ${r.emoji}`}
                                   >
                                     <span>{r.emoji}</span>
                                     <span style={{ fontSize: 9 }}>{r.users.length}</span>

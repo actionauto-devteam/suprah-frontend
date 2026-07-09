@@ -10,6 +10,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { adminNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { useAuth } from "@/providers/AuthProvider";
+import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 
 function AdminLayoutContent({
     children,
@@ -29,7 +30,8 @@ function AdminLayoutContent({
                         <Separator orientation="vertical" className="mr-2 h-4" />
                         <span className="font-medium">Admin Dashboard </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                        <MountainTimeClock compact />
                         <ThemeModeToggle compact />
                         <NotificationBell />
                     </div>

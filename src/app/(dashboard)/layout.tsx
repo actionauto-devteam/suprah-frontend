@@ -40,6 +40,7 @@ import { dealershipNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import { CrmHeader } from "@/components/layout/CrmHeader";
+import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -225,7 +226,8 @@ function DashboardLayoutContent({
                 </React.Suspense>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 sm:gap-3">
+                <MountainTimeClock compact />
                 <Button
                   variant="outline"
                   size="icon"

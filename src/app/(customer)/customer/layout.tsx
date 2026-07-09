@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { resolveImageUrl } from "@/lib/utils";
 import { Settings, User, LogOut } from "lucide-react";
+import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +96,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-1">
+              <MountainTimeClock compact />
               <ThemeModeToggle compact />
               <NotificationBell />
 

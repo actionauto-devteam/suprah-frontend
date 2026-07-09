@@ -52,8 +52,8 @@ function cleanPreviewContent(content?: string | null): string {
   return content
     .replace(/\r\n?/g, '\n')
     .replace(/\u00a0/g, ' ')
-    .replace(/\{color:#[0-9a-fA-F]{6}\}/g, '')
-    .replace(/\{\/color\}/g, '')
+    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*color\s*\}/gi, '')
     .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')

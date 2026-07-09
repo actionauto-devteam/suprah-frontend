@@ -31,6 +31,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { driverNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { resolveImageUrl } from "@/lib/utils";
+import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -117,7 +118,8 @@ function DriverLayoutContent({
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
+            <MountainTimeClock compact />
             <ThemeModeToggle compact />
             <NotificationBell />
             <DropdownMenu>

@@ -8,7 +8,12 @@ import { EMOJI_CATS, EMOJI_SEARCH } from '@/lib/emoji-data';
 export interface EmojiReactionPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
-  position: { top: number; left?: number; right?: number };
+  position: {
+    top: number;
+    left?: number;
+    right?: number;
+    boundary?: { top: number; right: number; bottom: number; left: number };
+  };
 }
 
 export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReactionPickerProps) {
@@ -35,11 +40,31 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
     });
   }, [search]);
 
+  if (typeof document === 'undefined') return null;
+
   const displayCat = EMOJI_CATS.find(c => c.key === activeCat) ?? EMOJI_CATS[0];
   const displayEmojis = searchResults ?? displayCat.emojis;
-  const top = Math.max(8, Math.min(position.top, (typeof window !== 'undefined' ? window.innerHeight : 800) - 360));
-
-  if (typeof document === 'undefined') return null;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const boundary = position.boundary ?? {
+    top: 0,
+    right: viewportWidth,
+    bottom: viewportHeight,
+    left: 0,
+  };
+  const edge = Math.min(viewportWidth, boundary.right - boundary.left) < 640 ? 12 : 8;
+  const safeLeft = Math.max(edge, boundary.left + edge);
+  const safeRight = Math.min(viewportWidth - edge, boundary.right - edge);
+  const safeTop = Math.max(edge, boundary.top + edge);
+  const safeBottom = Math.min(viewportHeight - edge, boundary.bottom - edge);
+  const availableWidth = Math.max(0, safeRight - safeLeft);
+  const availableHeight = Math.max(0, safeBottom - safeTop);
+  const width = Math.min(288, availableWidth);
+  const height = Math.min(340, availableHeight);
+  const requestedLeft = position.left
+    ?? (position.right !== undefined ? viewportWidth - position.right - width : safeLeft);
+  const left = Math.max(safeLeft, Math.min(requestedLeft, safeRight - width));
+  const top = Math.max(safeTop, Math.min(position.top, safeBottom - height));
 
   return createPortal(
     <div
@@ -47,10 +72,9 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
       className="fixed z-9999 flex flex-col rounded-2xl shadow-2xl"
       style={{
         top,
-        left: position.left,
-        right: position.right,
-        width: 288,
-        height: 340,
+        left,
+        width,
+        height,
         background: 'var(--bg-elevated,#18191c)',
         border: '1px solid rgba(255,255,255,0.1)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)',

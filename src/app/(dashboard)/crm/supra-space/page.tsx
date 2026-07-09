@@ -38,6 +38,8 @@ import { IncomingCallModal } from './IncomingCallModal';
 import { CallExperience } from './CallExperience';
 import { EmojiReactionPicker } from '@/components/supraspace/EmojiReactionPicker';
 import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
+import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
+import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -143,7 +145,7 @@ if (typeof document !== 'undefined') {
     .ss4-bubble-own { background:var(--bubble-own-bg); box-shadow:var(--bubble-own-shadow); color:#fff; border-radius:18px 18px 4px 18px; }
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
-    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; }
+    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:15px; line-height:1.55; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-composer-main { display:flex!important; flex-direction:column; width:100%; max-width:100%; min-width:0; }
@@ -218,8 +220,8 @@ if (typeof document !== 'undefined') {
     @media (max-width:767px) {
       .ss4 input, .ss4 textarea { font-size: 16px !important; }
       .ss4-msg-column { max-width:min(82%,22rem); }
-      .ss4-msg-bubble { font-size:15px !important; line-height:1.55 !important; }
-      .ss4-msg-sender { font-size:13px !important; }
+      .ss4-msg-bubble { font-size:17px !important; line-height:1.55 !important; }
+      .ss4-msg-sender { font-size:14px !important; }
       .ss4-date-chip { font-size:12px; }
       .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; height:auto!important; }
       .ss4-composer-placeholder { font-size:16px !important; top:1px; }
@@ -240,8 +242,8 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
       .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
-      .ss4-conv-name { font-size:16px !important; line-height:1.25 !important; }
-      .ss4-conv-preview { font-size:14.5px !important; line-height:1.35 !important; }
+      .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
+      .ss4-conv-preview { font-size:17px !important; line-height:1.35 !important; }
       .ss4-conv-time { font-size:12.5px !important; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
       .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
@@ -254,14 +256,24 @@ if (typeof document !== 'undefined') {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const ini = (n: string) => (n || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-const fmtTime = (d: string) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const fmtTime = (d: string) => fmtTimeMDT(d);
 function fmtDate(d: string) {
-  const date = new Date(d), now = new Date();
-  const days = Math.floor((now.getTime() - date.getTime()) / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return date.toLocaleDateString([], { weekday: 'long' });
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const date = new Date(d);
+  if (isTodayMDT(date)) return 'Today';
+  if (isYesterdayMDT(date)) return 'Yesterday';
+  const dayKey = (value: Date) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: MDT_TZ,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    }).formatToParts(value);
+    const valueFor = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(part => part.type === type)?.value || 0);
+    return Date.UTC(valueFor('year'), valueFor('month') - 1, valueFor('day'));
+  };
+  const days = Math.floor((dayKey(new Date()) - dayKey(date)) / 86400000);
+  if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: MDT_TZ });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ });
 }
 function fmtRelative(d?: string) {
   if (!d) return '';
@@ -270,7 +282,7 @@ function fmtRelative(d?: string) {
     if (diff < 60_000) return 'now';
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
     if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
-    return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ });
   } catch { return ''; }
 }
 const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
@@ -374,6 +386,23 @@ function clipboardHtmlToPlainText(html: string): string {
 }
 
 const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
+
+function preserveVisibleVinLines(serialized: string, visibleText: string): string {
+  const visibleLines = visibleText.replace(/\r\n?/g, '\n').split('\n');
+  const vins = visibleText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  if (!vins.length) return serialized;
+
+  const serializedLines = serialized.replace(/\r\n?/g, '\n').split('\n');
+  vins.forEach(vin => {
+    if (serialized.toUpperCase().includes(vin)) return;
+    const visibleLineIndex = visibleLines.findIndex(line => line.toUpperCase().includes(vin));
+    const sourceLine = visibleLineIndex >= 0 ? visibleLines[visibleLineIndex].trim() : vin;
+    serializedLines.splice(Math.min(Math.max(visibleLineIndex, 0), serializedLines.length), 0, sourceLine || vin);
+    serialized = serializedLines.join('\n');
+  });
+  return serializedLines.join('\n');
+}
+
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
   const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
@@ -631,8 +660,8 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 function messagePreviewText(content?: string | null): string {
   if (!content) return '';
   return normalizeMessageMarkdownForDisplay(content)
-    .replace(/\{color:#[0-9a-fA-F]{6}\}/g, '')
-    .replace(/\{\/color\}/g, '')
+    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*color\s*\}/gi, '')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -654,6 +683,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
 
     const pushPlain = (plain: string) => {
       if (!plain) return;
+      plain = plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, '');
       const tokenPattern = /(https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
@@ -682,13 +712,22 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
     };
 
     const findNextToken = (from: number) => {
-      const candidates: Array<{ start: number; end: number; type: 'color' | 'bold' | 'strike' | 'underline' | 'italic' | 'code'; color?: string }> = [];
-      const colorRe = /\{color:(#[0-9a-fA-F]{6})\}/g;
+      const candidates: Array<{ start: number; end: number; type: 'color' | 'bold' | 'strike' | 'underline' | 'italic' | 'code'; color?: string; contentStart?: number; contentEnd?: number }> = [];
+      const colorRe = /\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}/gi;
       colorRe.lastIndex = from;
       const colorStart = colorRe.exec(text);
       if (colorStart) {
-        const close = text.indexOf('{/color}', colorStart.index + colorStart[0].length);
-        if (close >= 0) candidates.push({ start: colorStart.index, end: close + 8, type: 'color', color: colorStart[1] });
+        const closeRe = /\{\s*\/\s*color\s*\}/gi;
+        closeRe.lastIndex = colorStart.index + colorStart[0].length;
+        const close = closeRe.exec(text);
+        if (close) candidates.push({
+          start: colorStart.index,
+          end: close.index + close[0].length,
+          type: 'color',
+          color: colorStart[1],
+          contentStart: colorStart.index + colorStart[0].length,
+          contentEnd: close.index,
+        });
       }
       const markerDefs: Array<[string, 'bold' | 'strike' | 'underline' | 'code']> = [['**', 'bold'], ['~~', 'strike'], ['__', 'underline'], ['`', 'code']];
       markerDefs.forEach(([marker, type]) => {
@@ -716,7 +755,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       if (token.start > cursor) pushPlain(text.slice(cursor, token.start));
       const key = `${keyPrefix}-fmt-${index++}`;
       if (token.type === 'color') {
-        const inner = text.slice(text.indexOf('}', token.start) + 1, token.end - 8);
+        const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(<span key={key} style={{ color: token.color }}>{renderInline(inner, key)}</span>);
       } else if (token.type === 'bold') {
         nodes.push(<strong key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</strong>);
@@ -967,7 +1006,7 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
       <div className="px-3.5 py-3 flex flex-col gap-1.5">
         <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           <Clock className="h-3.5 w-3.5 shrink-0" />
-          {start.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          {start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}
         </div>
         {event.location ? (
           <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -1025,7 +1064,7 @@ function MeetingCard({
         {start && (
           <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
             <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{start.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="truncate">{start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}</span>
           </div>
         )}
         <div className="flex items-center gap-2 rounded-lg px-2.5 py-2" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-2)' }}>
@@ -1066,7 +1105,7 @@ function PendingMeetingPreview({ meeting, onRemove }: { meeting: PendingMeetingD
           <p className="mt-1" style={{ fontSize: 11, color: 'rgba(255,255,255,0.78)' }}>SupraSpace Meet</p>
           {start && (
             <p className="mt-2" style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)' }}>
-              {start.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}
             </p>
           )}
         </div>
@@ -1157,8 +1196,14 @@ function Bubble({
 }) {
   const [hov, setHov] = React.useState(false);
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
-  const [pickerPos, setPickerPos] = React.useState<{ top: number; left?: number; right?: number } | null>(null);
-  const pickerPosRef = React.useRef<{ top: number; left?: number; right?: number } | null>(null);
+  type PickerPosition = {
+    top: number;
+    left?: number;
+    right?: number;
+    boundary?: { top: number; right: number; bottom: number; left: number };
+  };
+  const [pickerPos, setPickerPos] = React.useState<PickerPosition | null>(null);
+  const pickerPosRef = React.useRef<PickerPosition | null>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [mobileMenu, setMobileMenu] = React.useState(false);
   const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1325,7 +1370,7 @@ function Bubble({
   );
   const editFormatIconStyle = (format: RichTextFormat) => ({ color: editActiveFormats[format] ? 'var(--accent-text)' : 'currentColor' });
 
-  const openPicker = (pos: { top: number; left?: number; right?: number }) => {
+  const openPicker = (pos: PickerPosition) => {
     pickerPosRef.current = pos;
     setPickerPos(pos);
   };
@@ -1586,8 +1631,19 @@ function Bubble({
                 <button
                   onClick={(e) => {
                     const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const chatBoundary = bubbleRowRef.current
+                      ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
+                      ?.getBoundingClientRect();
                     const pos = {
                       top: btn.top - 348,
+                      ...(chatBoundary ? {
+                        boundary: {
+                          top: chatBoundary.top,
+                          right: chatBoundary.right,
+                          bottom: chatBoundary.bottom,
+                          left: chatBoundary.left,
+                        },
+                      } : {}),
                       ...(isOwn ? { right: Math.max(8, window.innerWidth - btn.right) } : { left: btn.left }),
                     };
                     pickerPosRef.current ? closePicker() : openPicker(pos);
@@ -1815,12 +1871,15 @@ function Bubble({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
-                        setOpenReactPop(isPopOpen ? null : popId);
+                        if (mine) onReact(message._id, r.emoji);
+                        else setOpenReactPop(isPopOpen ? null : popId);
                       } else {
                         onReact(message._id, r.emoji);
                       }
                     }}
                     className={cn('ss4-reaction-chip', mine && 'ss4-reaction-mine')}
+                    title={mine ? `Remove ${r.emoji} reaction` : `React with ${r.emoji}`}
+                    aria-label={mine ? `Remove ${r.emoji} reaction` : `React with ${r.emoji}`}
                   >
                     <span>{r.emoji}</span>
                     <span className="ss4-mono" style={{ fontSize: 10 }}>{r.users.length}</span>
@@ -2355,7 +2414,7 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
 }
 
 // ─── GIF Picker ───────────────────────────────────────────────────────────────
-function GifPicker({ onPick, onClose }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void }) {
+function GifPicker({ onPick, onClose, mobile = false }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void; mobile?: boolean }) {
   const [q, setQ] = React.useState('');
   const [gifs, setGifs] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -2375,7 +2434,17 @@ function GifPicker({ onPick, onClose }: { onPick: (g: { url: string; width?: num
   React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden" style={{ width: 300, background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+    <div
+      className={cn(mobile ? 'absolute bottom-full right-0 mb-2 z-90 rounded-xl overflow-hidden' : 'absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden')}
+      style={{
+        ...(mobile
+          ? { width: 'min(300px, calc(100vw - 24px))', maxHeight: 'min(420px, calc(100dvh - 160px))' }
+          : { width: 300 }),
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-2)',
+        boxShadow: 'var(--shadow-lg)',
+      }}
+    >
       <div className="p-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
         <div className="relative">
           <Search className="ss4-search-icon absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
@@ -3128,6 +3197,7 @@ export default function SupraSpacePage() {
   const createMenuRef = React.useRef<HTMLDivElement>(null);
   const meetingMenuRef = React.useRef<HTMLDivElement>(null);
   const gifRef = React.useRef<HTMLDivElement>(null);
+  const mobileGifRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
   const [deleteConfirmConv, setDeleteConfirmConv] = React.useState<SSConversation | null>(null);
@@ -3941,7 +4011,10 @@ export default function SupraSpacePage() {
       }],
       [createMenuOpen, make(createMenuRef, () => setCreateMenuOpen(false))],
       [meetingMenuOpen, make(meetingMenuRef, () => setMeetingMenuOpen(false))],
-      [gifOpen, make(gifRef, () => setGifOpen(false))],
+      [gifOpen, (e: MouseEvent) => {
+        const target = e.target as Node;
+        if (!gifRef.current?.contains(target) && !mobileGifRef.current?.contains(target)) setGifOpen(false);
+      }],
     ];
     const active = hs.filter(([on]) => on).map(([, h]) => h);
     active.forEach(h => document.addEventListener('mousedown', h));
@@ -3973,7 +4046,13 @@ export default function SupraSpacePage() {
     const hasPendingGif = !!pendingGif;
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     const conversationId = activeId;
-    const content = normalizeMessageMarkdownText(textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim());
+    const visibleComposerText = textareaRef.current?.innerText || input;
+    const content = normalizeMessageMarkdownText(
+      preserveVisibleVinLines(
+        textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim(),
+        visibleComposerText,
+      ),
+    );
     const replyMessageId = replyTo?._id;
     const isScheduledSend = Boolean(scheduledAt);
     if (isScheduledSend && (hasPendingFiles || hasPendingMeeting)) {
@@ -5098,7 +5177,8 @@ export default function SupraSpacePage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <MountainTimeClock compact />
               <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
                 <Wifi className="h-3.5 w-3.5" />
                 <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
@@ -5331,7 +5411,11 @@ export default function SupraSpacePage() {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
           >
-            <div className="relative flex-1 flex min-h-0 flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg-base)' }}>
+            <div
+              data-supraspace-chat-boundary="true"
+              className="relative flex-1 flex min-h-0 flex-col overflow-hidden min-w-0"
+              style={{ background: 'var(--bg-base)' }}
+            >
               {isDraggingOver && activeId && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
                   <div className="flex flex-col items-center gap-3 px-8 py-6 rounded-2xl" style={{ background: 'var(--bg-elevated)', border: '2px dashed var(--accent)', textAlign: 'center', maxWidth: 300 }}>
@@ -5354,31 +5438,31 @@ export default function SupraSpacePage() {
               {activeId && activeConv && (
                 <>
                   {/* Chat header */}
-                  <div className="ss4-chat-header shrink-0 flex items-center gap-2 px-2.5 py-2.5 sm:gap-2.5 sm:px-4 sm:py-3">
-                    <button className="lg:hidden ss4-icon-btn h-8 w-8" onClick={() => { setActiveId(null); setShowInfo(false); }}><ChevronLeft className="h-4 w-4" /></button>
-                    <button onClick={() => setShowInfo(true)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                  <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 py-3.5 lg:px-4 lg:py-3">
+                    <button className="lg:hidden ss4-icon-btn h-10 w-10 shrink-0" onClick={() => { setActiveId(null); setShowInfo(false); }} aria-label="Back to conversations"><ChevronLeft className="h-5 w-5" /></button>
+                    <button onClick={() => setShowInfo(true)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
                       <div className="relative shrink-0">
-                        <div className={cn('h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={12} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(getConvName(activeConv, uid))}</span>}
+                        <div className={cn('h-10.5 w-10.5 lg:h-9 lg:w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={14} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold text-sm lg:text-[11px]">{ini(getConvName(activeConv, uid))}</span>}
                         </div>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="ss4-display font-bold leading-none truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
-                        <p className="mt-1 leading-none" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        <p className="ss4-display font-bold leading-tight truncate text-[17px] lg:text-sm" style={{ color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
+                        <p className="mt-0.5 leading-tight text-[13px] lg:mt-1 lg:text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
                           {activeConv.type === 'group' ? `${safeMembers(activeConv).length} members` : (() => { const o = safeMembers(activeConv).find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
                         </p>
                       </div>
                     </button>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild><button className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Start a call"><Phone className="h-3.5 w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Call</span></button></DropdownMenuTrigger>
+                        <DropdownMenuTrigger asChild><button className="ss4-video-btn h-10 min-w-10 px-2.5 lg:h-8 lg:min-w-0 lg:px-3 flex items-center justify-center gap-1.5" title="Start a call"><Phone className="h-5 w-5 lg:h-3.5 lg:w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 12 }}>Call</span></button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}` }}>
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setMeetingOpen(true)}><CalendarPlus className="h-3.5 w-3.5" /> Create Meeting</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-8 w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-4 w-4" /></button>
+                      <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-5 w-5 lg:h-4 lg:w-4" /></button>
                     </div>
                   </div>
 
@@ -5785,6 +5869,12 @@ export default function SupraSpacePage() {
                               </button>
                             ) : (
                               <>
+                                <div ref={mobileGifRef} className="relative">
+                                  <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-10 px-1.5 font-bold" title="GIF" aria-label="Choose a GIF">
+                                    <span style={{ fontSize: 12 }}>GIF</span>
+                                  </button>
+                                  {gifOpen && <GifPicker mobile onPick={selectGif} onClose={() => setGifOpen(false)} />}
+                                </div>
                                 <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-10 w-10" title="Image"><ImageIcon className="h-6 w-6" /></button>
                                 <button onClick={startRecording} className="ss4-icon-btn h-10 w-10" title="Voice message"><Mic className="h-6 w-6" /></button>
                               </>
