@@ -30,6 +30,7 @@ import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useAuthActions } from "@/providers/AuthProvider";
 import { useWebPush } from "@/hooks/useWebPush";
 import { useRouter, usePathname } from "next/navigation";
+import { isMobileMonitoringDept } from "@/lib/departments";
 
 import { StatHero } from "./components/StatHero";
 import { LeaderboardPro } from "./components/LeaderboardPro";
@@ -70,7 +71,7 @@ export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const { user: rawUser } = useAuthActions();
-  const isLotTech = (rawUser as any)?.personalInfo?.department === 'LotTechTeam';
+  const isLotTech = isMobileMonitoringDept((rawUser as any)?.personalInfo?.department);
   const isAdmin = ['admin', 'super_admin'].includes((rawUser as any)?.role);
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, isLoading: pushLoading, subscribe: pushSubscribe } = useWebPush();
   const [pushDismissed, setPushDismissed] = React.useState(false);

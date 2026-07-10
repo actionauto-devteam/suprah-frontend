@@ -16,6 +16,9 @@ import {
   Play,
   LogIn,
   LogOut,
+  MapPin,
+  Gauge,
+  Anchor,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -54,6 +57,27 @@ interface LotTechDayData {
   sessions: WorkSession[]
   totalSeconds: number
   breakSeconds: number
+}
+
+interface PlaceVisitEntry {
+  placeName: string
+  enteredAt: string
+  exitedAt: string | null
+  durationMin: number | null
+}
+
+interface StationarySegment {
+  start: string
+  end: string
+  durationMin: number
+}
+
+interface DailyActivityLog {
+  distanceMi: number
+  topSpeedMph: number
+  stationaryMinutes: number
+  stationarySegments: StationarySegment[]
+  placeVisits: PlaceVisitEntry[]
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -346,20 +370,25 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
 }) {
   const router = useRouter()
   const [dayData, setDayData] = React.useState<LotTechDayData | null>(null)
+  const [movement, setMovement] = React.useState<DailyActivityLog | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
 
   React.useEffect(() => {
     setLoading(true)
-    apiClient.get("/api/timeclock/my?range=365")
-      .then((res) => {
-        const cal = res.data?.data?.calendar ?? {}
+    Promise.all([
+      apiClient.get("/api/timeclock/my?range=365"),
+      apiClient.getDailyActivityLog({ date: dateStr }).catch(() => null),
+    ])
+      .then(([tpRes, moveRes]) => {
+        const cal = tpRes.data?.data?.calendar ?? {}
         const d = cal[dateStr]
         setDayData(d ? {
           sessions: d.sessions ?? [],
           totalSeconds: d.totalSeconds ?? 0,
           breakSeconds: d.breakSeconds ?? 0,
         } : null)
+        setMovement(moveRes?.data?.data ?? null)
       })
       .catch(() => setError("Failed to load activity log."))
       .finally(() => setLoading(false))
@@ -418,7 +447,7 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
         ) : (
           <>
             {/* ── Summary Cards ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20 px-4 py-3.5 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">Work Time</p>
@@ -443,7 +472,80 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
                 <p className={`text-2xl font-black tracking-tight leading-none ${breakSec > 0 ? "text-amber-700 dark:text-amber-300" : ""}`}>{breakSec > 0 ? fmtSec(breakSec) : "0m"}</p>
                 <p className="text-[10px] text-muted-foreground/40 leading-none">{breakIntervals.length} break session{breakIntervals.length !== 1 ? "s" : ""}</p>
               </div>
+              <div className="rounded-xl border border-border/40 bg-card px-4 py-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">Distance</p>
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground/25" />
+                </div>
+                <p className="text-2xl font-black tracking-tight leading-none">{movement ? `${movement.distanceMi.toFixed(1)}mi` : "—"}</p>
+                <p className="text-[10px] text-muted-foreground/40 leading-none">GPS-tracked movement</p>
+              </div>
+              <div className="rounded-xl border border-border/40 bg-card px-4 py-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">Top Speed</p>
+                  <Gauge className="h-3.5 w-3.5 text-muted-foreground/25" />
+                </div>
+                <p className="text-2xl font-black tracking-tight leading-none">{movement ? `${movement.topSpeedMph}mph` : "—"}</p>
+                <p className="text-[10px] text-muted-foreground/40 leading-none">Fastest recorded ping</p>
+              </div>
             </div>
+
+            {/* ── Movement & Places ── */}
+            {movement && (movement.placeVisits.length > 0 || movement.stationarySegments.length > 0) && (
+              <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border/20 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-blue-500" />
+                  <p className="text-xs font-black tracking-tight">Movement &amp; Places</p>
+                  <span className="ml-auto text-[10px] text-muted-foreground/40">GPS-verified · MDT</span>
+                </div>
+                <div className="divide-y divide-border/10">
+                  {[
+                    ...movement.placeVisits.map((v) => ({
+                      kind: "place" as const,
+                      sortAt: new Date(v.enteredAt).getTime(),
+                      v,
+                    })),
+                    ...movement.stationarySegments.map((s) => ({
+                      kind: "stationary" as const,
+                      sortAt: new Date(s.start).getTime(),
+                      s,
+                    })),
+                  ]
+                    .sort((a, b) => a.sortAt - b.sortAt)
+                    .map((entry, i) =>
+                      entry.kind === "place" ? (
+                        <div key={`place-${i}`} className="flex items-center gap-4 px-5 py-4">
+                          <div className="h-8 w-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <MapPin className="h-3.5 w-3.5 text-blue-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-bold text-foreground truncate">{entry.v.placeName}</p>
+                            <p className="text-[10px] text-muted-foreground/40 mt-0.5 font-mono">
+                              {fmtTime(entry.v.enteredAt)} → {entry.v.exitedAt ? fmtTime(entry.v.exitedAt) : "still here"}
+                            </p>
+                          </div>
+                          <span className="text-[11px] font-bold text-blue-500 font-mono shrink-0">
+                            {entry.v.durationMin != null ? fmtSec(entry.v.durationMin * 60) : "—"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div key={`stationary-${i}`} className="flex items-center gap-4 px-5 py-3 bg-muted/10">
+                          <div className="h-8 w-8 rounded-xl bg-muted/30 border border-border/30 flex items-center justify-center shrink-0">
+                            <Anchor className="h-3.5 w-3.5 text-muted-foreground/50" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-bold text-muted-foreground/60">Stayed in one spot</p>
+                            <p className="text-[10px] text-muted-foreground/40 mt-0.5 font-mono">
+                              {fmtTime(entry.s.start)} → {fmtTime(entry.s.end)}
+                            </p>
+                          </div>
+                          <span className="text-[11px] font-bold text-muted-foreground/50 font-mono shrink-0">{fmtSec(entry.s.durationMin * 60)}</span>
+                        </div>
+                      ),
+                    )}
+                </div>
+              </div>
+            )}
 
             {/* ── Activity Log ── */}
             {sessions.length === 0 ? (

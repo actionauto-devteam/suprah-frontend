@@ -24,6 +24,7 @@ import { LiveClock } from "@/components/crm/LiveClock"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { resolveImageUrl } from "@/lib/utils"
 import { useCrmUser } from "@/hooks/useCrmUser"
+import { isTimeEditExempt } from "@/lib/departments"
 
 /* ─────────────────────────────────────────────────────────────────────────
    Types
@@ -56,6 +57,7 @@ interface TimeprofData {
     username: string
     avatar?: string
     role: string
+    department?: string
   }
   calendar: Record<string, DayData>
   summary: {
@@ -266,6 +268,53 @@ export default function AdminUserTimeprofPage() {
   const [payDone, setPayDone] = React.useState(false)
   const [payError, setPayError] = React.useState("")
 
+  /* ── Time correction state (overrun/forgotten clock-out fix) ── */
+  const [showCorrectForm, setShowCorrectForm] = React.useState(false)
+  const [correctDate, setCorrectDate] = React.useState("")
+  const [correctTime, setCorrectTime] = React.useState("")
+  const [correctReason, setCorrectReason] = React.useState("")
+  const [alsoExcludeScreenshots, setAlsoExcludeScreenshots] = React.useState(true)
+  const [correctSubmitting, setCorrectSubmitting] = React.useState(false)
+  const [correctError, setCorrectError] = React.useState("")
+  const [correctSuccess, setCorrectSuccess] = React.useState("")
+
+  const handleSubmitCorrection = React.useCallback(async () => {
+    if (!correctDate || !correctTime || !correctReason.trim()) {
+      setCorrectError("Date, corrected time, and reason are all required.")
+      return
+    }
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setCorrectSubmitting(true)
+    setCorrectError("")
+    setCorrectSuccess("")
+    try {
+      const correctedTimeOut = new Date(`${correctDate}T${correctTime}:00`).toISOString()
+      await apiClient.correctTimeLog(
+        { userId, date: correctDate, correctedTimeOut, reason: correctReason.trim() },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      if (alsoExcludeScreenshots) {
+        await apiClient.excludeScreenshots(
+          { userId, date: correctDate, after: correctedTimeOut, reason: correctReason.trim() },
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
+      }
+      setCorrectSuccess("Time corrected. Reloading data…")
+      setCorrectReason("")
+      const res = await apiClient.get(`/api/crm/timeproof/user/${userId}?range=365`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setData(res.data?.data)
+      setTimeout(() => { setShowCorrectForm(false); setCorrectSuccess("") }, 1500)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setCorrectError(err?.response?.data?.message || "Failed to correct time log.")
+    } finally {
+      setCorrectSubmitting(false)
+    }
+  }, [correctDate, correctTime, correctReason, alsoExcludeScreenshots, userId])
+
   // Payout calculator follows the calendar month navigation — no separate nav needed
   const calcMonthDate = new Date(Date.UTC(viewYear, viewMonth, 1))
   const calcMonthShort = calcMonthDate.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
@@ -364,8 +413,8 @@ export default function AdminUserTimeprofPage() {
     ? `${nowMonthShort} 1–15`
     : `${nowMonthShort} 16–${cutoffSummary.lastDay}`
   const currentPayoutDue = currentCutoff === 1
-    ? `Due ${nowMonthShort} 21`
-    : `Due ${new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 6)).toLocaleString("en-US", { month: "short", timeZone: "UTC" })} 6`
+    ? `Due ${nowMonthShort} 20`
+    : `Due ${new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 5)).toLocaleString("en-US", { month: "short", timeZone: "UTC" })} 5`
 
   /* ── Payout calculator ── */
   const calcSeconds = payoutPeriod === 1 ? calcCutoffSummary.p1Seconds : calcCutoffSummary.p2Seconds
@@ -378,13 +427,13 @@ export default function AdminUserTimeprofPage() {
     ? `${calcMonthShort} 1–15`
     : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
   const calcPayoutDate = payoutPeriod === 1
-    ? `${calcMonthLong} 21`
-    : new Date(Date.UTC(viewYear, viewMonth + 1, 6))
+    ? `${calcMonthLong} 20`
+    : new Date(Date.UTC(viewYear, viewMonth + 1, 5))
       .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })
 
   const payDayDate = React.useMemo(() => {
-    if (payoutPeriod === 1) return new Date(Date.UTC(viewYear, viewMonth, 21))
-    return new Date(Date.UTC(viewYear, viewMonth + 1, 6))
+    if (payoutPeriod === 1) return new Date(Date.UTC(viewYear, viewMonth, 20))
+    return new Date(Date.UTC(viewYear, viewMonth + 1, 5))
   }, [payoutPeriod, viewYear, viewMonth])
   const isPayDayReached = new Date() >= payDayDate
   const payDayLabel = payDayDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
@@ -898,6 +947,87 @@ export default function AdminUserTimeprofPage() {
                 </div>
               </div>
             </div>
+
+            {/* ── Admin-only: Correct overrun/forgotten clock-out ── */}
+            {isAdmin && (
+              isTimeEditExempt(data.user.department) ? (
+                <div className="rounded-2xl border border-border/30 bg-muted/10 p-4 text-[11px] text-muted-foreground/40">
+                  Time log correction is disabled for this user&apos;s department.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-border/40 bg-card p-4 space-y-3">
+                  <button
+                    onClick={() => setShowCorrectForm((v) => !v)}
+                    className="w-full flex items-center justify-between gap-2 text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Scissors className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-[11px] font-black tracking-tight">Correct Overrun Shift</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/40">{showCorrectForm ? "Hide" : "Fix a forgotten clock-out"}</span>
+                  </button>
+
+                  {showCorrectForm && (
+                    <div className="space-y-2.5 pt-1">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Date</label>
+                          <input
+                            type="date"
+                            value={correctDate}
+                            onChange={(e) => setCorrectDate(e.target.value)}
+                            className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Corrected clock-out</label>
+                          <input
+                            type="time"
+                            value={correctTime}
+                            onChange={(e) => setCorrectTime(e.target.value)}
+                            className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Reason (required)</label>
+                        <textarea
+                          value={correctReason}
+                          onChange={(e) => setCorrectReason(e.target.value)}
+                          rows={2}
+                          placeholder="e.g. Forgot to clock out, left premises at ~6pm"
+                          className="w-full rounded-lg border border-border/40 bg-background px-2 py-1.5 text-[12px] resize-none"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
+                        <input
+                          type="checkbox"
+                          checked={alsoExcludeScreenshots}
+                          onChange={(e) => setAlsoExcludeScreenshots(e.target.checked)}
+                        />
+                        Also exclude screenshots captured after the corrected time (archived, not deleted)
+                      </label>
+
+                      {correctError && (
+                        <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{correctError}</p>
+                      )}
+                      {correctSuccess && (
+                        <p className="text-[10px] text-emerald-600 bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2">{correctSuccess}</p>
+                      )}
+
+                      <button
+                        onClick={handleSubmitCorrection}
+                        disabled={correctSubmitting}
+                        className="w-full h-9 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                      >
+                        {correctSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Scissors className="h-3.5 w-3.5" />}
+                        {correctSubmitting ? "Saving…" : "Apply Correction"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            )}
 
             {/* ── Verified footer ── */}
             <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
