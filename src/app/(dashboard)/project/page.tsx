@@ -103,6 +103,9 @@ export default function ProjectManagementPage() {
   const [selectedGroupId, setSelectedGroupId] = React.useState<string | null>(null);
   const [pageError, setPageError] = React.useState("");
 
+  // Mobile group rail (drawer) — desktop always shows the rail inline.
+  const [railOpen, setRailOpen] = React.useState(false);
+
   // Group dialogs
   const [groupDialogMode, setGroupDialogMode] = React.useState<"closed" | "create" | "edit">("closed");
   const [groupBeingEdited, setGroupBeingEdited] = React.useState<Group | null>(null);
@@ -139,6 +142,11 @@ export default function ProjectManagementPage() {
     loadGroups();
   }, [loadGroups]);
 
+  const selectedGroup = React.useMemo(
+    () => groups.find((g) => g._id === selectedGroupId) ?? null,
+    [groups, selectedGroupId],
+  );
+
   const confirmDeleteGroup = async () => {
     if (!groupToDelete) return;
     setDeletingGroup(true);
@@ -158,7 +166,7 @@ export default function ProjectManagementPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* ── Page header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 px-4 py-4 sm:px-5">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600/10">
             <FolderKanban className="h-5 w-5 text-emerald-600" />
@@ -171,21 +179,21 @@ export default function ProjectManagementPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-muted/20 p-1">
+        {/* Tabs — full-width on mobile so they get their own row, inline on desktop */}
+        <div className="order-3 flex w-full items-center gap-1 rounded-xl border border-border/40 bg-muted/20 p-1 sm:order-none sm:w-auto">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all sm:flex-none sm:justify-start",
                 tab === t.id
                   ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20"
                   : "text-muted-foreground/70 hover:text-foreground",
               )}
             >
-              <t.icon className="h-3.5 w-3.5" />
-              {t.label}
+              <t.icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{t.label}</span>
             </button>
           ))}
         </div>
@@ -196,7 +204,7 @@ export default function ProjectManagementPage() {
               setGroupBeingEdited(null);
               setGroupDialogMode("create");
             }}
-            className="h-9 gap-2 rounded-xl bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
+            className="h-9 w-full gap-2 rounded-xl bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             New Project Group
@@ -205,7 +213,7 @@ export default function ProjectManagementPage() {
       </div>
 
       {pageError && (
-        <div className="mx-5 mt-4 rounded-xl border border-rose-500/20 bg-rose-500/5 px-3.5 py-2.5 text-xs text-rose-600 dark:text-rose-400">
+        <div className="mx-4 mt-4 rounded-xl border border-rose-500/20 bg-rose-500/5 px-3.5 py-2.5 text-xs text-rose-600 dark:text-rose-400 sm:mx-5">
           {pageError}
         </div>
       )}
@@ -224,11 +232,32 @@ export default function ProjectManagementPage() {
       )}
 
       {tab === "workspace" && (
-        <div className="flex min-h-0 flex-1">
-          {/* ── Group rail ── */}
-          <aside className="flex w-64 shrink-0 flex-col border-r border-border/40">
-            <div className="px-4 pb-2 pt-4">
+        <div className="relative flex min-h-0 flex-1">
+          {/* Mobile backdrop for the group drawer */}
+          {railOpen && (
+            <div
+              className="absolute inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
+              onClick={() => setRailOpen(false)}
+            />
+          )}
+
+          {/* ── Group rail — slide-in drawer on mobile, static column on desktop ── */}
+          <aside
+            className={cn(
+              "absolute inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-border/40 bg-background transition-transform duration-300 ease-out",
+              "lg:static lg:z-auto lg:translate-x-0 lg:bg-transparent lg:shadow-none lg:transition-none",
+              railOpen ? "translate-x-0 shadow-2xl shadow-black/20" : "-translate-x-[110%]",
+            )}
+          >
+            <div className="flex items-center justify-between px-4 pb-2 pt-4">
               <SectionEyebrow>My Project Groups</SectionEyebrow>
+              <button
+                onClick={() => setRailOpen(false)}
+                title="Close"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 hover:bg-muted/50 hover:text-foreground lg:hidden"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-4 [scrollbar-width:thin]">
               {groupsLoading ? (
@@ -253,7 +282,10 @@ export default function ProjectManagementPage() {
                     )}
                   >
                     <button
-                      onClick={() => setSelectedGroupId(g._id)}
+                      onClick={() => {
+                        setSelectedGroupId(g._id);
+                        setRailOpen(false);
+                      }}
                       className={cn(
                         "flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left",
                         selectedGroupId === g._id
@@ -276,8 +308,9 @@ export default function ProjectManagementPage() {
                       </span>
                     </button>
                     {/* Group edit / delete — permission enforced by the backend
-                        (creator or admin); others get a clear error message. */}
-                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/grow:opacity-100">
+                        (creator or admin); others get a clear error message.
+                        Always visible on touch; hover-revealed on desktop. */}
+                    <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover/grow:opacity-100">
                       <button
                         onClick={() => {
                           setGroupBeingEdited(g);
@@ -304,11 +337,27 @@ export default function ProjectManagementPage() {
 
           {/* ── Workspace ── */}
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
+            {/* Mobile-only bar to open the group drawer + show current group */}
+            {groups.length > 0 && (
+              <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-border/40 bg-background/80 px-4 py-2.5 backdrop-blur lg:hidden">
+                <button
+                  onClick={() => setRailOpen(true)}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-1.5 text-[11px] font-semibold text-foreground/80 transition-colors hover:text-emerald-600"
+                >
+                  <FolderKanban className="h-3.5 w-3.5 text-emerald-600" />
+                  Groups
+                </button>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/60">
+                  {selectedGroup ? selectedGroup.name : "Select a group"}
+                </span>
+              </div>
+            )}
+
             {selectedGroupId ? (
               <GroupWorkspace key={selectedGroupId} groupId={selectedGroupId} meId={meId} />
             ) : (
               !groupsLoading && (
-                <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center">
+                <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center sm:p-10">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600/10">
                     <FolderKanban className="h-7 w-7 text-emerald-600" />
                   </div>
@@ -720,7 +769,7 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
   }
 
   return (
-    <div className="space-y-5 p-5">
+    <div className="space-y-5 p-4 sm:p-5">
       {error && (
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-3.5 py-2.5 text-xs text-rose-600 dark:text-rose-400">
           {error}
@@ -728,7 +777,7 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
       )}
 
       {/* ── Group header ── */}
-      <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+      <div className="rounded-2xl border border-border/50 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="truncate text-base font-bold tracking-tight">{group.name}</h2>
@@ -799,36 +848,36 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
           return (
             <div key={section._id} className="rounded-2xl border border-border/50 bg-card shadow-sm">
               {/* Section header */}
-              <div className="group/sec flex items-center gap-2 px-4 py-3">
+              <div className="group/sec flex items-center gap-2 px-3 py-3 sm:px-4">
                 <button
                   onClick={() =>
                     setCollapsed((c) => ({ ...c, [section._id]: !c[section._id] }))
                   }
-                  className="flex items-center gap-2 text-left"
+                  className="flex min-w-0 items-center gap-2 text-left"
                 >
                   {isCollapsed ? (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground/50" />
                   )}
-                  <Layers className="h-4 w-4 text-emerald-600" />
-                  <span className="text-sm font-semibold">{section.name}</span>
+                  <Layers className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span className="truncate text-sm font-semibold">{section.name}</span>
                 </button>
-                <span className="text-[10px] text-muted-foreground/50">
+                <span className="hidden shrink-0 text-[10px] text-muted-foreground/50 sm:inline">
                   {sectionFolders.length} folder{sectionFolders.length === 1 ? "" : "s"}
                 </span>
-                <div className="ml-auto flex items-center gap-0.5">
+                <div className="ml-auto flex shrink-0 items-center gap-0.5">
                   <button
                     onClick={() => setSectionToRename(section)}
                     title="Rename section"
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-all hover:bg-muted/50 hover:text-emerald-600 group-hover/sec:opacity-100"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-100 transition-all hover:bg-muted/50 hover:text-emerald-600 lg:opacity-0 lg:group-hover/sec:opacity-100"
                   >
                     <Pencil className="h-3 w-3" />
                   </button>
                   <button
                     onClick={() => setSectionToDelete(section)}
                     title="Delete section"
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-all hover:bg-rose-500/10 hover:text-rose-500 group-hover/sec:opacity-100"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-100 transition-all hover:bg-rose-500/10 hover:text-rose-500 lg:opacity-0 lg:group-hover/sec:opacity-100"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -837,14 +886,15 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                     onClick={() => setFolderDialogFor(section)}
                     className="h-7 gap-1.5 rounded-lg px-2 text-[11px] text-muted-foreground/70 hover:text-emerald-600"
                   >
-                    <Plus className="h-3.5 w-3.5" /> Folder Group
+                    <Plus className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Folder Group</span>
                   </Button>
                 </div>
               </div>
 
               {/* Folders */}
               {!isCollapsed && (
-                <div className="space-y-3 border-t border-border/30 p-4">
+                <div className="space-y-3 border-t border-border/30 p-3 sm:p-4">
                   {sectionFolders.length === 0 ? (
                     <p className="py-2 text-center text-xs text-muted-foreground/50">
                       No folder groups in this section yet.
@@ -869,25 +919,25 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                           key={folder._id}
                           className="rounded-xl border border-border/40 bg-background/60"
                         >
-                          <div className="group/fold flex items-center gap-2 px-3.5 py-2.5">
-                            <Folder className="h-3.5 w-3.5 text-muted-foreground/60" />
-                            <span className="text-xs font-semibold">{folder.name}</span>
-                            <span className="text-[10px] text-muted-foreground/50">
+                          <div className="group/fold flex items-center gap-2 px-3 py-2.5 sm:px-3.5">
+                            <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                            <span className="truncate text-xs font-semibold">{folder.name}</span>
+                            <span className="hidden shrink-0 text-[10px] text-muted-foreground/50 sm:inline">
                               {folderTasks.length} task{folderTasks.length === 1 ? "" : "s"}
                               {hiddenDone > 0 && ` · ${hiddenDone} completed`}
                             </span>
-                            <div className="ml-auto flex items-center gap-0.5">
+                            <div className="ml-auto flex shrink-0 items-center gap-0.5">
                               <button
                                 onClick={() => setFolderToRename(folder)}
                                 title="Rename folder group"
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-all hover:bg-muted/50 hover:text-emerald-600 group-hover/fold:opacity-100"
+                                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-100 transition-all hover:bg-muted/50 hover:text-emerald-600 lg:opacity-0 lg:group-hover/fold:opacity-100"
                               >
                                 <Pencil className="h-3 w-3" />
                               </button>
                               <button
                                 onClick={() => setFolderToDelete(folder)}
                                 title="Delete folder group"
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-all hover:bg-rose-500/10 hover:text-rose-500 group-hover/fold:opacity-100"
+                                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-100 transition-all hover:bg-rose-500/10 hover:text-rose-500 lg:opacity-0 lg:group-hover/fold:opacity-100"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -914,20 +964,22 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                                   <button
                                     key={task._id}
                                     onClick={() => setOpenTaskId(task._id)}
-                                    className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-muted/30"
+                                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-muted/30 sm:gap-3 sm:px-3.5"
                                   >
-                                    <TaskStatusBadge status={task.status} />
+                                    <span className="shrink-0">
+                                      <TaskStatusBadge status={task.status} />
+                                    </span>
                                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
                                       {task.title}
                                     </span>
                                     {task.attachmentCount > 0 && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                                      <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground/60">
                                         <Paperclip className="h-3 w-3" />
                                         {task.attachmentCount}
                                       </span>
                                     )}
                                     {task.commentCount > 0 && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                                      <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground/60">
                                         <MessageSquare className="h-3 w-3" />
                                         {task.commentCount}
                                       </span>
@@ -935,7 +987,7 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                                     {task.deadline && (
                                       <span
                                         className={cn(
-                                          "inline-flex items-center gap-1 text-[10px]",
+                                          "hidden shrink-0 items-center gap-1 text-[10px] sm:inline-flex",
                                           overdue
                                             ? "font-semibold text-rose-500"
                                             : "text-muted-foreground/60",
@@ -1273,7 +1325,7 @@ function CreateTaskDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-foreground/75">Start date</Label>
               <Input
@@ -1326,10 +1378,10 @@ function CreateTaskDialog({
                   >
                     <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                     <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                    <span className="text-muted-foreground/50">{fmtSize(f.size)}</span>
+                    <span className="shrink-0 text-muted-foreground/50">{fmtSize(f.size)}</span>
                     <button
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="text-muted-foreground/50 hover:text-rose-500"
+                      className="shrink-0 text-muted-foreground/50 hover:text-rose-500"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
