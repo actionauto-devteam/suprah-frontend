@@ -633,6 +633,29 @@ class ApiClient {
     return this.get("/api/locator/reports/time-at-place", { ...config, params });
   }
 
+  async getDailyActivityLog(
+    params: { date: string; userId?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.get("/api/locator/daily-activity", { ...config, params });
+  }
+
+  // ── Admin time-log correction (CRM) ─────────────────────────────────────
+
+  async correctTimeLog(
+    data: { userId: string; date: string; correctedTimeOut: string; reason: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.patch("/api/crm/timeproof/correct-time", data, config);
+  }
+
+  async excludeScreenshots(
+    data: { userId: string; date: string; after: string; reason: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.post("/api/crm/timeproof/screenshots/exclude", data, config);
+  }
+
   async getDrivingSessions(
     params: { userId?: string; from?: string; to?: string },
     config?: AxiosRequestConfig

@@ -49,6 +49,7 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { PushPrompt } from "@/components/pwa/PushPrompt";
 import { IOSInstallHint } from "@/components/pwa/IOSInstallHint";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
+import { TrayAutoConnect } from "@/components/pwa/TrayAutoConnect";
 
 import { Toaster } from "@/components/ui/sonner";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
@@ -95,6 +96,7 @@ export default function RootLayout({
             <ImpersonationBanner />
             {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && <DevRoleSwitcher />}
             <ServiceWorkerRegistration />
+            <TrayAutoConnect />
             <InstallPrompt />
             <PushPrompt />
             <IOSInstallHint />

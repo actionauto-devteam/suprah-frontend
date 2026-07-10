@@ -37,6 +37,7 @@ import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { isMobileMonitoringDept } from "@/lib/departments"
 
 /* ─────────────────────────────────────────────────────────────────────────
    Types
@@ -55,8 +56,6 @@ interface CrmUserData {
     timestamp: string
   }>
 }
-
-const isLotTechDept = (dept?: string) => dept === 'LotTechTeam' || dept === 'Lot Tech'
 
 interface Session {
   in: string
@@ -558,8 +557,6 @@ export default function TimeprofClockPage() {
   const [clockMsg, setClockMsg] = React.useState("")
   const [isOnBreak, setIsOnBreak] = React.useState(false)
   const [breakAccumulatedMs, setBreakAccumulatedMs] = React.useState(0)
-  const [trayBanner, setTrayBanner] = React.useState(false)
-  const [trayToken, setTrayToken] = React.useState("")
   const [showTrayModal, setShowTrayModal] = React.useState(false)
   const [trayChecking, setTrayChecking] = React.useState(false)
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false)
@@ -617,40 +614,9 @@ export default function TimeprofClockPage() {
     return () => clearInterval(id)
   }, [tpData?.isLive])
 
-  // ── Tray banner: reconnect pending auth ──
-  React.useEffect(() => {
-    const pending = localStorage.getItem("pending_tray_auth")
-    if (!pending) return
-    const controller = new AbortController()
-    const tid = setTimeout(() => controller.abort(), 2000)
-    fetch("http://127.0.0.1:18642/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: pending }),
-      signal: controller.signal,
-    })
-      .then((res) => {
-        clearTimeout(tid)
-        if (res.ok) localStorage.removeItem("pending_tray_auth")
-        else throw new Error("rejected")
-      })
-      .catch(() => {
-        clearTimeout(tid)
-        setTrayToken(pending)
-        setTrayBanner(true)
-      })
-  }, [])
-
-  const openTrayApp = React.useCallback(() => {
-    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(trayToken)}` } catch { }
-    localStorage.removeItem("pending_tray_auth")
-    setTrayBanner(false)
-  }, [trayToken])
-
-  const dismissTrayBanner = React.useCallback(() => {
-    localStorage.removeItem("pending_tray_auth")
-    setTrayBanner(false)
-  }, [])
+  // Tray app auth handoff is now handled globally by <TrayAutoConnect /> (see
+  // root layout) — it retries in the background regardless of which page the
+  // user is on, so no page-local pending-auth banner is needed here anymore.
 
   const clearLocatorWatch = React.useCallback(() => {
     if (locatorWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
@@ -872,7 +838,7 @@ export default function TimeprofClockPage() {
         try {
           const mainRes = await apiClient.get("/api/timeclock/me")
           const mainData = mainRes.data?.data || mainRes.data
-          if (mainData?.department === 'LotTechTeam') {
+          if (isMobileMonitoringDept(mainData?.department)) {
             authModeRef.current = 'main'
             setUser(mainData)
             setToken('__main__')
@@ -993,7 +959,7 @@ export default function TimeprofClockPage() {
   const checkTrayAndStartShift = React.useCallback(async () => {
     // Lot Tech department uses mobile-only mode — no tray app required on any device.
     // Mobile devices and Lot Tech department always skip the tray check.
-    const isLotTech = isLotTechDept(user?.department)
+    const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
     const resumableEndpoint = isMain ? "/api/timeclock/resumable-shift" : "/api/crm/timeproof/resumable-shift"
     const getResumeHeaders = () => {
@@ -1460,7 +1426,7 @@ export default function TimeprofClockPage() {
             </div>
 
             {!isActive && (
-              (isMobile && !isLotTechDept(user?.department) && authModeRef.current !== 'main') ? (
+              (isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main') ? (
                 <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
                   <MonitorDot className="h-4 w-4 text-zinc-500 shrink-0" />
                   <p className="text-[11px] text-zinc-500 font-bold text-center">Shift tracking requires the desktop app</p>
@@ -1477,8 +1443,14 @@ export default function TimeprofClockPage() {
             )}
             {isActive && (() => {
               const isPausedOnShift = !isOnBreak && activityStartAt === null
+              const showMobileEndShiftHint = isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main'
               return (
                 <div className="grid grid-cols-2 gap-2">
+                  {showMobileEndShiftHint && (
+                    <p className="col-span-2 -mt-1 mb-1 text-center text-[10px] text-zinc-500">
+                      Forgot to clock out on your computer? You can safely end this shift from your phone — it will stop the desktop app too.
+                    </p>
+                  )}
                   {isPausedOnShift ? (
                     <Button onClick={() => { setActivityStartAt(Date.now()); handleClock("time-in") }} disabled={isClocking}
                       className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400">
@@ -1530,77 +1502,79 @@ export default function TimeprofClockPage() {
           )
         })()}
 
-        {/* ── Tray App Section ── */}
-        <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
-              <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
-            </div>
-            <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
-          </div>
-
-          <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
-            {[
-              "Download and install the tray app",
-              "Launch it — it appears in your system tray",
-              "Return here and click Start Shift",
-            ].map((step, i) => (
-              <div key={i} className="flex items-start gap-2.5">
-                <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
+        {/* ── Tray App Section — desktop only; downloading a Windows/Mac installer from a phone is confusing and useless ── */}
+        {!isMobile && (
+          <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
+                <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
               </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border/30 p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                  <MonitorDot className="h-3.5 w-3.5 text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold">Windows</p>
-                  <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
-                </div>
-              </div>
-              <a
-                href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
-              >
-                <Download className="h-3 w-3" /> Download (.exe)
-              </a>
+              <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
             </div>
 
-            <div className="rounded-xl border border-border/30 p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
-                  <MonitorDot className="h-3.5 w-3.5 text-zinc-400" />
+            <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
+              {[
+                "Download and install the tray app",
+                "Launch it — it appears in your system tray",
+                "Return here and click Start Shift",
+              ].map((step, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                  <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
                 </div>
-                <div>
-                  <p className="text-[11px] font-bold">macOS</p>
-                  <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon</p>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border/30 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                    <MonitorDot className="h-3.5 w-3.5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold">Windows</p>
+                    <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
+                  </div>
                 </div>
+                <a
+                  href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
+                >
+                  <Download className="h-3 w-3" /> Download (.exe)
+                </a>
               </div>
-              <a
-                href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[10px] font-bold transition-colors"
-              >
-                <Download className="h-3 w-3" /> Download (.dmg)
-              </a>
+
+              <div className="rounded-xl border border-border/30 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
+                    <MonitorDot className="h-3.5 w-3.5 text-zinc-400" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold">macOS</p>
+                    <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon</p>
+                  </div>
+                </div>
+                <a
+                  href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[10px] font-bold transition-colors"
+                >
+                  <Download className="h-3 w-3" /> Download (.dmg)
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                After installing on macOS, open System Settings → Privacy &amp; Security → Screen Recording and enable Action Auto Tray.
+              </p>
             </div>
           </div>
-
-          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
-            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-              After installing on macOS, open System Settings → Privacy &amp; Security → Screen Recording and enable Action Auto Tray.
-            </p>
-          </div>
-        </div>
+        )}
 
         </div>
         {/* ── Right column — Stats, Calendar, Payout ── */}
@@ -1807,33 +1781,6 @@ export default function TimeprofClockPage() {
       </div>
 
       <CrmPushPrompt role={user.role} />
-
-      {/* ── Tray connect banner ── */}
-      {trayBanner && (
-        <div className="fixed bottom-5 right-5 z-50 w-76 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-zinc-900 border border-zinc-700/50 shadow-2xl shadow-black/60 overflow-hidden" style={{ animation: "slideUp 0.3s ease-out" }}>
-          <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
-          <div className="px-4 pt-4 pb-3">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <MonitorDot className="h-5 w-5 text-emerald-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white leading-tight">Connect CRM Tray App</p>
-                <p className="text-xs text-zinc-400 mt-0.5 leading-snug">Open your desktop agent to enable time tracking &amp; screenshots.</p>
-              </div>
-              <button onClick={dismissTrayBanner} className="flex h-8 w-8 items-center justify-center -m-1.5 shrink-0 text-zinc-600 hover:text-zinc-400 transition-colors">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button onClick={openTrayApp} className="flex-1 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                <MonitorDot className="h-3.5 w-3.5" /> Open CRM Tray-App
-              </button>
-              <button onClick={dismissTrayBanner} className="px-3 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-bold transition-colors">Later</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Early End Shift Modal ── */}
       {showEarlyEndModal && (

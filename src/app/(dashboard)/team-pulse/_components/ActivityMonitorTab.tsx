@@ -32,6 +32,7 @@ import {
   type ActiveEmployeeLocation, type Place,
 } from "@/hooks/useLocator";
 import { useLocationSharing } from "@/hooks/useLocationSharing";
+import { isMobileMonitoringDept } from "@/lib/departments";
 import { useLocatorSocket } from "@/hooks/useLocatorSocket";
 
 interface Props {
@@ -416,8 +417,6 @@ const FILTER_LABELS: Record<RosterFilter, string> = {
   lot_tech: "Lot Tech",
 };
 
-const LOT_TECH_DEPT = "LotTechTeam";
-
 function SectionHeading({
   icon: Icon, label, accent, right,
 }: {
@@ -486,7 +485,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const activeCount = members.length - offlineCount;
   const pct = (n: number) => (members.length ? Math.round((n / members.length) * 100) : 0);
 
-  const lotTechOnShift = activeLocations.filter((l) => l.department === LOT_TECH_DEPT && l.sharingState === "sharing").length;
+  const lotTechOnShift = activeLocations.filter((l) => isMobileMonitoringDept(l.department) && l.sharingState === "sharing").length;
 
   const statMetrics = [
     { label: "Online Now", value: onlineCount,    sub: `${pct(onlineCount)}% of team`,   accent: "text-green-600 dark:text-green-400" },
@@ -511,7 +510,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   }, [viewingUserId, locationByUserId]);
 
   const lotTechLocations = React.useMemo(
-    () => activeLocations.filter((l) => l.department === LOT_TECH_DEPT),
+    () => activeLocations.filter((l) => isMobileMonitoringDept(l.department)),
     [activeLocations],
   );
   const filteredMembers = React.useMemo(() => {

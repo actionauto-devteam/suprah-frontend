@@ -29,3 +29,28 @@ export function deptLabel(raw: string | undefined | null): string {
   if (!raw) return "No Department";
   return DEPT_LABELS[raw] ?? raw;
 }
+
+// Departments that use the mobile-only TimeProof monitoring profile: no desktop
+// tray app, no screenshot capture, and GPS "stationary" time (not desktop idle)
+// as their idle signal. Add more department keys here if another department
+// needs the same mobile-monitoring profile — do not hardcode department name
+// checks elsewhere in the codebase.
+export const MOBILE_MONITORING_DEPARTMENTS: string[] = ["LotTechTeam"];
+
+export function isMobileMonitoringDept(raw: string | undefined | null): boolean {
+  if (!raw) return false;
+  return MOBILE_MONITORING_DEPARTMENTS.some(
+    (key) => raw === key || raw === DEPT_LABELS[key]
+  );
+}
+
+// Departments whose TimeLog entries and screenshots admins may NOT edit/exclude
+// (mirrors suprah-backend/src/config/departmentMonitoring.ts — keep in sync).
+export const TIME_EDIT_EXEMPT_DEPARTMENTS: string[] = ["WebDevTeam"];
+
+export function isTimeEditExempt(raw: string | undefined | null): boolean {
+  if (!raw) return false;
+  return TIME_EDIT_EXEMPT_DEPARTMENTS.some(
+    (key) => raw === key || raw === DEPT_LABELS[key]
+  );
+}
