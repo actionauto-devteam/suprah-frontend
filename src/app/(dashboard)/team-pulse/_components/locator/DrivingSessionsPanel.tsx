@@ -7,7 +7,10 @@ import { Car, TriangleAlert, ShieldCheck, ShieldAlert, ChevronDown, Gauge, Route
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useDrivingSessions, useRespondToIncident, type DrivingSession } from "@/hooks/useLocator";
+import {
+  useDrivingSessions, useRespondToIncident,
+  type DrivingSession,
+} from "@/hooks/useLocator";
 import { TripRouteMap } from "./TripRouteMap";
 
 const INCIDENT_RESPONSE_WINDOW_S = 60;
@@ -98,6 +101,9 @@ function IncidentBanner({ session }: { session: DrivingSession }) {
     return () => clearInterval(id);
   }, [session.possibleIncident]);
 
+  // Admins are already push-notified the instant a possible incident is detected (server-side,
+  // at detection time) — this banner is just the driver-facing "are you okay?" confirmation and
+  // deliberately doesn't escalate anywhere further if left unanswered.
   return (
     <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
       <TriangleAlert className="size-4 text-orange-600 dark:text-orange-400 shrink-0" />
@@ -230,7 +236,11 @@ export function DrivingSessionsPanel({ myUserId }: { myUserId?: string }) {
       ) : (
         <div className="rounded-xl border border-border/40 bg-card divide-y divide-border/30">
           {sessions.map((session) => (
-            <SessionRow key={session._id} session={session} isMe={session.userId === myUserId} />
+            <SessionRow
+              key={session._id}
+              session={session}
+              isMe={session.userId === myUserId}
+            />
           ))}
         </div>
       )}

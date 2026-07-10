@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Plus, Trash2, Pencil, Loader2, Building2, Warehouse, Car, Wrench, ParkingCircle } from "lucide-react";
+import { MapPin, Plus, Trash2, Pencil, Loader2, Building2, Warehouse, Car, Wrench, ParkingCircle, Crosshair, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { usePlaces, useCreatePlace, useUpdatePlace, useDeletePlace, type Place } from "@/hooks/useLocator";
+import { usePlaces, useCreatePlace, useUpdatePlace, useDeletePlace, useActiveEmployeeLocations, type Place } from "@/hooks/useLocator";
 
 const COLOR_PRESETS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 const ICON_PRESETS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
@@ -28,8 +28,18 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { name: "", address: "", lat: "", lng: "", radiusM: 100, color: COLOR_PRESETS[0], icon: ICON_NAMES[0] };
 
-export function PlacesAdminPanel() {
+interface Props {
+  pickMode?: boolean;
+  onStartPick?: () => void;
+  onCancelPick?: () => void;
+  pickedCoords?: { lat: number; lng: number } | null;
+  onPickConsumed?: () => void;
+  onDraftChange?: (place: Place | null) => void;
+}
+
+export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCoords, onPickConsumed, onDraftChange }: Props) {
   const { data: places = [], isLoading } = usePlaces();
+  const { data: activeLocations = [] } = useActiveEmployeeLocations(true);
   const { mutate: createPlace, isPending: creating } = useCreatePlace();
   const { mutate: updatePlace, isPending: updating } = useUpdatePlace();
   const { mutate: deletePlace } = useDeletePlace();
@@ -38,6 +48,48 @@ export function PlacesAdminPanel() {
   const [editing, setEditing] = React.useState<Place | null>(null);
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+
+  const hereNowByPlace = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const loc of activeLocations) {
+      if (loc.sharingState !== "sharing" || !loc.currentPlaceId) continue;
+      counts.set(loc.currentPlaceId, (counts.get(loc.currentPlaceId) ?? 0) + 1);
+    }
+    return counts;
+  }, [activeLocations]);
+
+  const filteredPlaces = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return places;
+    return places.filter((p) => p.name.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q));
+  }, [places, search]);
+
+  // Apply a coordinate picked on the live map straight into the open form.
+  React.useEffect(() => {
+    if (!pickedCoords) return;
+    setForm((f) => ({ ...f, lat: pickedCoords.lat.toFixed(6), lng: pickedCoords.lng.toFixed(6) }));
+    onPickConsumed?.();
+  }, [pickedCoords, onPickConsumed]);
+
+  // Live-preview the geofence circle on the map while the dialog is open, without persisting it.
+  React.useEffect(() => {
+    if (!onDraftChange) return;
+    if (!dialogOpen) { onDraftChange(null); return; }
+    const lat = parseFloat(form.lat);
+    const lng = parseFloat(form.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) { onDraftChange(null); return; }
+    onDraftChange({
+      _id: "__draft__", organizationId: "", name: form.name || "New Place",
+      coords: { lat, lng }, radiusM: form.radiusM, icon: form.icon, color: form.color,
+      address: form.address, isActive: true, createdBy: "", createdAt: "", updatedAt: "",
+    });
+  }, [dialogOpen, form, onDraftChange]);
+
+  function closeDialog(open: boolean) {
+    setDialogOpen(open);
+    if (!open) onCancelPick?.();
+  }
 
   function openCreate() {
     setEditing(null);
@@ -71,12 +123,12 @@ export function PlacesAdminPanel() {
 
     if (editing) {
       updatePlace({ id: editing._id, ...payload }, {
-        onSuccess: () => { toast.success("Place updated"); setDialogOpen(false); },
+        onSuccess: () => { toast.success("Place updated"); closeDialog(false); },
         onError: () => toast.error("Could not update place"),
       });
     } else {
       createPlace(payload, {
-        onSuccess: () => { toast.success("Place created"); setDialogOpen(false); },
+        onSuccess: () => { toast.success("Place created"); closeDialog(false); },
         onError: () => toast.error("Could not create place"),
       });
     }
@@ -93,8 +145,17 @@ export function PlacesAdminPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end">
-        <Button size="sm" onClick={openCreate} className="h-7 text-[11px] font-bold gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative flex-1 max-w-56">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/40" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search places…"
+            className="pl-7 h-7 text-[11px] bg-background border-border/50"
+          />
+        </div>
+        <Button size="sm" onClick={openCreate} className="h-7 text-[11px] font-bold gap-1 shrink-0">
           <Plus className="size-3.5" />
           Add Place
         </Button>
@@ -111,10 +172,16 @@ export function PlacesAdminPanel() {
           <MapPin className="size-8" />
           <p className="text-xs">No places yet — add your first branch or lot</p>
         </div>
+      ) : filteredPlaces.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
+          <Search className="size-8" />
+          <p className="text-xs">No places match &quot;{search}&quot;</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {places.map((place) => {
+          {filteredPlaces.map((place) => {
             const PlaceIcon = ICON_PRESETS[place.icon || ""] || MapPin;
+            const hereNow = hereNowByPlace.get(place._id) ?? 0;
             return (
             <div key={place._id} className="flex items-start gap-2.5 p-3 rounded-xl border border-border/40 bg-card">
               <div
@@ -124,7 +191,14 @@ export function PlacesAdminPanel() {
                 <PlaceIcon className="size-4" style={{ color: place.color || COLOR_PRESETS[0] }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold truncate">{place.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-bold truncate">{place.name}</p>
+                  {hereNow > 0 && (
+                    <span className="flex items-center gap-0.5 text-[8px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 rounded shrink-0">
+                      <Users className="size-2.5" /> {hereNow} here
+                    </span>
+                  )}
+                </div>
                 {place.address && <p className="text-[10px] text-muted-foreground/60 truncate">{place.address}</p>}
                 <p className="text-[9px] text-muted-foreground/40 mt-0.5">{place.radiusM}m radius</p>
               </div>
@@ -146,7 +220,7 @@ export function PlacesAdminPanel() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={closeDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm font-black">{editing ? "Edit Place" : "New Place"}</DialogTitle>
@@ -162,6 +236,17 @@ export function PlacesAdminPanel() {
               <label className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">Address (optional)</label>
               <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="123 Main St" className="h-8 text-xs" />
             </div>
+
+            {onStartPick && (
+              <Button
+                type="button" size="sm" variant={pickMode ? "default" : "outline"}
+                onClick={onStartPick}
+                className="w-full h-8 text-[11px] font-bold gap-1.5"
+              >
+                <Crosshair className="size-3.5" />
+                {pickMode ? "Click the live map above…" : "Pick on map"}
+              </Button>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -181,9 +266,9 @@ export function PlacesAdminPanel() {
               </div>
               <Slider
                 value={[form.radiusM]}
-                min={25}
+                min={10}
                 max={1000}
-                step={25}
+                step={10}
                 onValueChange={([v]) => setForm((f) => ({ ...f, radiusM: v }))}
               />
             </div>
@@ -226,7 +311,7 @@ export function PlacesAdminPanel() {
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} className="h-8 text-xs">
+            <Button variant="outline" size="sm" onClick={() => closeDialog(false)} className="h-8 text-xs">
               Cancel
             </Button>
             <Button size="sm" onClick={submit} disabled={creating || updating} className="h-8 text-xs font-bold">

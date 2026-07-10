@@ -71,8 +71,25 @@ function clearWatch() {
   }
 }
 
-export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; onBreak: boolean }) {
+type AuthHeaders = { headers?: { Authorization: string } };
+
+export function useLocationSharing({
+  eligible, onBreak, getAuthHeaders,
+}: {
+  eligible: boolean;
+  onBreak: boolean;
+  /** Overrides how requests are authenticated — defaults to the main-site `useAuth()` token.
+   * Callers outside the main auth context (e.g. TimeProof's CRM-mode users) pass their own
+   * resolver so this hook's single module-level runtime can serve both, instead of each
+   * surface running its own separate GPS-watch/ping engine that fight over sharing state. */
+  getAuthHeaders?: () => Promise<AuthHeaders>;
+}) {
   const { getToken } = useAuth();
+  const defaultAuthHeaders = useCallback(async (): Promise<AuthHeaders> => {
+    const token = await getToken();
+    return { headers: { Authorization: `Bearer ${token}` } };
+  }, [getToken]);
+  const resolveAuthHeaders = getAuthHeaders ?? defaultAuthHeaders;
   const [sharingState, setSharingState] = useState(runtime.sharingState);
   const [lastPingAt, setLastPingAt] = useState(runtime.lastPingAt);
   const [error, setError] = useState(runtime.error);
@@ -90,7 +107,7 @@ export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; o
   const sendPing = useCallback(
     async (position: GeolocationPosition) => {
       try {
-        const token = await getToken();
+        const headers = await resolveAuthHeaders();
         const battery = await readBatteryInfo();
         const { data } = await apiClient.pingLocation(
           {
@@ -104,7 +121,7 @@ export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; o
             ...readConnectionInfo(),
             ...battery,
           },
-          { headers: { Authorization: `Bearer ${token}` } },
+          headers,
         );
         runtime.sharingState = data?.data?.sharingState ?? "sharing";
         runtime.lastPingAt = new Date().toISOString();
@@ -117,7 +134,7 @@ export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; o
         notifyListeners();
       }
     },
-    [getToken],
+    [resolveAuthHeaders],
   );
 
   const startWatch = useCallback(() => {
@@ -162,15 +179,15 @@ export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; o
       runtime.sharingState = reason === "break" ? "paused_break" : "paused_manual";
       notifyListeners();
       try {
-        const token = await getToken();
+        const headers = await resolveAuthHeaders();
         await withMinDuration(
-          apiClient.pauseLocationSharing({ reason }, { headers: { Authorization: `Bearer ${token}` } }),
+          apiClient.pauseLocationSharing({ reason }, headers),
         );
       } catch {
         // best-effort — local pause already stopped the watch
       }
     },
-    [getToken],
+    [resolveAuthHeaders],
   );
 
   // Guards against rapid repeat clicks firing overlapping pause/resume requests —
@@ -183,9 +200,9 @@ export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; o
     runtime.busy = true;
     notifyListeners();
     try {
-      const token = await getToken();
+      const headers = await resolveAuthHeaders();
       await withMinDuration(
-        apiClient.resumeLocationSharing({ headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.resumeLocationSharing(headers),
       );
       runtime.sharingState = "sharing";
       startWatch();
@@ -195,7 +212,7 @@ export function useLocationSharing({ eligible, onBreak }: { eligible: boolean; o
       runtime.busy = false;
       notifyListeners();
     }
-  }, [eligible, onBreak, getToken, startWatch]);
+  }, [eligible, onBreak, resolveAuthHeaders, startWatch]);
 
   const pauseManually = useCallback(async () => {
     if (runtime.busy) return;

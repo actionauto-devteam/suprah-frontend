@@ -16,6 +16,7 @@ import {
   Copy,
   DollarSign,
   Download,
+  Eye,
   Flame,
   Loader2,
   Lock,
@@ -32,17 +33,17 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { apiClient } from "@/lib/api-client"
 import { initializeSocket } from "@/lib/socket.client"
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isMobileMonitoringDept } from "@/lib/departments"
+import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departments"
+import { useLocationSharing } from "@/hooks/useLocationSharing"
+import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Types
-───────────────────────────────────────────────────────────────────────── */
 interface CrmUserData {
   _id: string
   fullName: string
@@ -107,16 +108,11 @@ type ApiError = {
 type GaugeAccent = "emerald" | "amber" | "red" | "zinc"
 type LocatorSharingState = "sharing" | "paused_break" | "paused_manual" | "declined_permission" | "off_duty"
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Constants & helpers
-───────────────────────────────────────────────────────────────────────── */
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000
-const LOCATION_PING_INTERVAL_MS = 30_000
-const MPS_TO_MPH = 2.23694
 
 function fmt(d: Date) {
   return toMDT(d).toLocaleTimeString("en-US", {
@@ -148,7 +144,6 @@ function isMacDesktop() {
   const platform = navigator.platform || ""
   const ua = navigator.userAgent || ""
   const isMacUA = /Mac/i.test(platform) || /Macintosh/i.test(ua)
-  // iPadOS 13+ reports navigator.platform as "MacIntel" but is touch-capable — exclude it.
   const isTouchIpad = isMacUA && (navigator.maxTouchPoints ?? 0) > 1
   return isMacUA && !isTouchIpad
 }
@@ -159,35 +154,21 @@ function getTrayDownloadUrl() {
   return isMacDesktop() ? macUrl : winUrl
 }
 
-async function readBatteryInfo(): Promise<{ batteryLevel?: number; isCharging?: boolean }> {
-  const nav = navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> }
-  if (typeof nav.getBattery !== "function") return {}
-  try {
-    const battery = await nav.getBattery()
-    return { batteryLevel: Math.round(battery.level * 100), isCharging: battery.charging }
-  } catch {
-    return {}
-  }
-}
-
-function getNetworkInfo() {
-  const connection = (navigator as Navigator & {
-    connection?: { type?: string; effectiveType?: string; downlink?: number }
-  }).connection
-  return {
-    deviceType: /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") ? "mobile" as const : "desktop" as const,
-    connectionType: connection?.type,
-    effectiveType: connection?.effectiveType,
-    downlinkMbps: typeof connection?.downlink === "number" ? connection.downlink : undefined,
-  }
+const LOCATOR_STATE_COLORS: Record<LocatorSharingState, { dot: string; text: string; pill: string }> = {
+  sharing:             { dot: "bg-green-500",  text: "text-green-500",  pill: "border-green-500/20 bg-green-500/10" },
+  paused_break:        { dot: "bg-orange-500", text: "text-orange-500", pill: "border-orange-500/20 bg-orange-500/10" },
+  paused_manual:       { dot: "bg-amber-500",  text: "text-amber-500",  pill: "border-amber-500/20 bg-amber-500/10" },
+  declined_permission: { dot: "bg-red-500",    text: "text-red-500",    pill: "border-red-500/20 bg-red-500/10" },
+  off_duty:            { dot: "bg-gray-400",   text: "text-gray-500",   pill: "border-gray-400/20 bg-gray-400/10" },
 }
 
 function locatorStateMeta(state: LocatorSharingState, error: string | null) {
-  if (error) return { label: "Needs attention", detail: error, dot: "bg-red-500", text: "text-red-500", pill: "border-red-500/20 bg-red-500/10" }
-  if (state === "sharing") return { label: "Live", detail: "Sharing to Team Pulse Locator", dot: "bg-emerald-500", text: "text-emerald-500", pill: "border-emerald-500/20 bg-emerald-500/10" }
-  if (state === "paused_break") return { label: "Paused", detail: "Paused while on break", dot: "bg-amber-500", text: "text-amber-500", pill: "border-amber-500/20 bg-amber-500/10" }
-  if (state === "declined_permission") return { label: "Blocked", detail: "Location permission is disabled", dot: "bg-red-500", text: "text-red-500", pill: "border-red-500/20 bg-red-500/10" }
-  return { label: "Off Duty", detail: "Starts automatically on shift", dot: "bg-zinc-500", text: "text-zinc-500", pill: "border-zinc-500/20 bg-zinc-500/10" }
+  if (error) return { label: "Needs attention", detail: error, ...LOCATOR_STATE_COLORS.declined_permission }
+  const meta = sharingMeta(state)
+  const detail = state === "sharing" ? "Sharing to Team Pulse Beacon"
+    : state === "off_duty" ? "Starts automatically on shift"
+    : meta.description
+  return { label: meta.label, detail, ...LOCATOR_STATE_COLORS[state] }
 }
 
 const fmtHuman = (seconds: number) => {
@@ -213,9 +194,6 @@ const getDayColor = (seconds: number, isToday: boolean) => {
   return { bg: "bg-blue-950/[0.07] border-blue-500/20", bar: "bg-blue-700", text: "text-white" }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Sub-components
-───────────────────────────────────────────────────────────────────────── */
 function AnimatedDigit({ value }: { value: string }) {
   const [displayed, setDisplayed] = React.useState(value)
   const [animating, setAnimating] = React.useState(false)
@@ -539,21 +517,16 @@ const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive }: {
   )
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Main Page
-───────────────────────────────────────────────────────────────────────── */
 export default function TimeprofClockPage() {
   const router = useRouter()
   const isMobile = useIsMobile()
 
-  // ── Auth & user state ──
   const authModeRef = React.useRef<'crm' | 'main'>('crm')
   const [user, setUser] = React.useState<CrmUserData | null>(null)
   const [token, setToken] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(true)
   const [todayLogs, setTodayLogs] = React.useState<CrmUserData["todayTimeLogs"]>([])
 
-  // ── Clock-in/out state ──
   const [isClocking, setIsClocking] = React.useState(false)
   const [clockMsg, setClockMsg] = React.useState("")
   const [isOnBreak, setIsOnBreak] = React.useState(false)
@@ -576,14 +549,13 @@ export default function TimeprofClockPage() {
   const [earlyEndReason, setEarlyEndReason] = React.useState("")
   const [earlyEndDetails, setEarlyEndDetails] = React.useState("")
   const [earlyEndSubmitting, setEarlyEndSubmitting] = React.useState(false)
-  const [locatorState, setLocatorState] = React.useState<LocatorSharingState>("off_duty")
-  const [locatorLastPingAt, setLocatorLastPingAt] = React.useState<string | null>(null)
-  const [locatorError, setLocatorError] = React.useState<string | null>(null)
-  const locatorWatchIdRef = React.useRef<number | null>(null)
-  const locatorLastSentAtRef = React.useRef(0)
+  const [locatorStatus, setLocatorStatus] = React.useState<{
+    consentGranted: boolean
+    isMandatoryDept: boolean
+    locationSharingOptOut: boolean
+  } | null>(null)
   const locatorWasEligibleRef = React.useRef(false)
 
-  // ── Timeproof data state ──
   const [tpData, setTpData] = React.useState<TimeprofData | null>(null)
   const [tpLoading, setTpLoading] = React.useState(true)
   const [tpError, setTpError] = React.useState("")
@@ -593,7 +565,6 @@ export default function TimeprofClockPage() {
   const [viewMonth, setViewMonth] = React.useState(now.getUTCMonth())
   const [copied, setCopied] = React.useState(false)
 
-  // ── Payout calculator state ──
   const [payoutPeriod, setPayoutPeriod] = React.useState<1 | 2>(() => now.getUTCDate() <= 15 ? 1 : 2)
   const [hourlyRate, setHourlyRate] = React.useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("tp_hourly_rate") ?? ""
@@ -607,7 +578,6 @@ export default function TimeprofClockPage() {
     if (typeof window !== "undefined") localStorage.setItem("tp_hourly_rate", hourlyRate)
   }, [hourlyRate])
 
-  // ── Minute tick for live session ──
   const [, setTick] = React.useState(0)
   React.useEffect(() => {
     if (!tpData?.isLive) return
@@ -615,107 +585,51 @@ export default function TimeprofClockPage() {
     return () => clearInterval(id)
   }, [tpData?.isLive])
 
-  // Tray app auth handoff is now handled globally by <TrayAutoConnect /> (see
-  // root layout) — it retries in the background regardless of which page the
-  // user is on, so no page-local pending-auth banner is needed here anymore.
-
-  const clearLocatorWatch = React.useCallback(() => {
-    if (locatorWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.clearWatch(locatorWatchIdRef.current)
-      locatorWatchIdRef.current = null
-    }
-  }, [])
-
-  const getCrmLocatorHeaders = React.useCallback(() => {
+  const getCrmLocatorHeaders = React.useCallback(async () => {
     if (authModeRef.current === 'main') return {}
     const freshToken = localStorage.getItem("crm_token")
     if (!freshToken) throw new Error("CRM session is missing")
     return { headers: { Authorization: `Bearer ${freshToken}` } }
   }, [])
 
-  const sendLocatorPing = React.useCallback(async (position: GeolocationPosition) => {
+  const refreshLocatorStatus = React.useCallback(async () => {
     try {
-      const battery = await readBatteryInfo()
-      const { data } = await apiClient.pingLocation(
-        {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          heading: position.coords.heading ?? undefined,
-          speedMph: position.coords.speed != null ? Math.round(position.coords.speed * MPS_TO_MPH) : undefined,
-          accuracyM: position.coords.accuracy ?? undefined,
-          connectivity: navigator.onLine ? "online" : "offline",
-          ...battery,
-          ...getNetworkInfo(),
-        },
-        getCrmLocatorHeaders(),
-      )
-      setLocatorState(data?.data?.sharingState ?? "sharing")
-      setLocatorLastPingAt(new Date().toISOString())
-      setLocatorError(null)
-    } catch (err: unknown) {
-      const apiError = err as ApiError & { message?: string }
-      setLocatorError(apiError.response?.data?.message || apiError.message || "Failed to share location")
-    }
+      const headers = await getCrmLocatorHeaders()
+      const { data } = await apiClient.getMyLocatorStatus(headers)
+      const d = data?.data || data
+      setLocatorStatus({
+        consentGranted: !!d?.locationConsent?.granted,
+        isMandatoryDept: !!d?.isMandatoryDept,
+        locationSharingOptOut: !!d?.locationSharingOptOut,
+      })
+    } catch { }
   }, [getCrmLocatorHeaders])
 
-  const startLocatorSharing = React.useCallback(async () => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocatorState("declined_permission")
-      setLocatorError("Location is not available on this device")
-      return
-    }
-    if (locatorWatchIdRef.current !== null) return
-
+  const [autoShareSaving, setAutoShareSaving] = React.useState(false)
+  const handleAutoShareToggle = React.useCallback(async (checked: boolean) => {
+    setAutoShareSaving(true)
     try {
-      await apiClient.setLocationConsent(
-        { granted: true, deviceHint: getDeviceHint() },
-        getCrmLocatorHeaders(),
-      )
-      setLocatorState("sharing")
-      setLocatorError(null)
-    } catch (err: unknown) {
-      const apiError = err as ApiError & { message?: string }
-      setLocatorError(apiError.response?.data?.message || apiError.message || "Failed to enable location sharing")
-      return
-    }
-
-    locatorWatchIdRef.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const nowMs = Date.now()
-        if (nowMs - locatorLastSentAtRef.current >= LOCATION_PING_INTERVAL_MS) {
-          locatorLastSentAtRef.current = nowMs
-          sendLocatorPing(position)
-        }
-      },
-      (err) => {
-        clearLocatorWatch()
-        setLocatorState(err.code === err.PERMISSION_DENIED ? "declined_permission" : "off_duty")
-        setLocatorError(`Location error: ${err.message}`)
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
-    )
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        locatorLastSentAtRef.current = Date.now()
-        sendLocatorPing(position)
-      },
-      () => null,
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
-    )
-  }, [clearLocatorWatch, getCrmLocatorHeaders, sendLocatorPing])
-
-  const stopLocatorSharing = React.useCallback(async () => {
-    clearLocatorWatch()
-    locatorLastSentAtRef.current = 0
-    setLocatorState("off_duty")
-    try {
-      await apiClient.stopLocationSharing(getCrmLocatorHeaders())
+      const headers = await getCrmLocatorHeaders()
+      await apiClient.setLocationSharingOptOut({ optOut: !checked }, headers)
+      toast.message(checked ? "Will auto-share when you start your shift" : "Won't auto-share on shift start anymore")
+      await refreshLocatorStatus()
     } catch {
-      // Best-effort: the local watcher is already stopped.
+      toast.error("Could not update your sharing preference")
+    } finally {
+      setAutoShareSaving(false)
     }
-  }, [clearLocatorWatch, getCrmLocatorHeaders])
+  }, [getCrmLocatorHeaders, refreshLocatorStatus])
 
-  // ── Refresh today logs ──
+  React.useEffect(() => { refreshLocatorStatus() }, [refreshLocatorStatus])
+
+  const {
+    sharingState: locatorState, lastPingAt: locatorLastPingAt, error: locatorError,
+  } = useLocationSharing({
+    eligible: !!locatorStatus?.consentGranted,
+    onBreak: isOnBreak,
+    getAuthHeaders: getCrmLocatorHeaders,
+  })
+
   const refreshShiftState = React.useCallback(async () => {
     if (authModeRef.current === 'main') {
       try {
@@ -735,12 +649,11 @@ export default function TimeprofClockPage() {
   }, [])
 
   React.useEffect(() => {
-    const onVisibility = () => { if (!document.hidden) refreshShiftState() }
+    const onVisibility = () => { if (!document.hidden) { refreshShiftState(); refreshLocatorStatus() } }
     document.addEventListener("visibilitychange", onVisibility)
     return () => document.removeEventListener("visibilitychange", onVisibility)
-  }, [refreshShiftState])
+  }, [refreshShiftState, refreshLocatorStatus])
 
-  // ── Fetch activity/shift state ──
   const fetchActivityState = React.useCallback(async () => {
     let res
     if (authModeRef.current === 'main') {
@@ -771,7 +684,6 @@ export default function TimeprofClockPage() {
     } catch { }
   }, [])
 
-  // ── Poll shift state ──
   React.useEffect(() => {
     if (!token) return
     fetchActivityState()
@@ -781,7 +693,6 @@ export default function TimeprofClockPage() {
     return () => { clearInterval(actId); clearInterval(shiftId) }
   }, [token, fetchActivityState, refreshShiftState])
 
-  // ── Real-time socket sync ──
   React.useEffect(() => {
     if (!token) return
     const socketJwt = authModeRef.current === 'main'
@@ -826,15 +737,11 @@ export default function TimeprofClockPage() {
     }
   }, [token, refreshShiftState, fetchActivityState]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Auth check + initial load ──
-  // Priority: if the main User's department is LotTechTeam, always use main User
-  // mode — even when a crm_token is also present (e.g. an admin testing as Lot Tech).
   React.useEffect(() => {
     const check = async () => {
       const crmT = localStorage.getItem("crm_token")
       const mainToken = typeof window !== 'undefined' ? (window as any).__AUTH_TOKEN__ : null
 
-      // Check main user first — if they're Lot Tech, always prefer main mode
       if (mainToken) {
         try {
           const mainRes = await apiClient.get("/api/timeclock/me")
@@ -850,7 +757,6 @@ export default function TimeprofClockPage() {
         } catch { }
       }
 
-      // Fall back to CRM mode
       if (crmT) {
         authModeRef.current = 'crm'
         try {
@@ -869,7 +775,6 @@ export default function TimeprofClockPage() {
         return
       }
 
-      // Main user but not Lot Tech (and no CRM token)
       if (mainToken) {
         authModeRef.current = 'main'
         try {
@@ -892,7 +797,6 @@ export default function TimeprofClockPage() {
     check()
   }, [router])
 
-  // ── Fetch timeproof data ──
   React.useEffect(() => {
     if (!token) return
     setTpLoading(true)
@@ -905,7 +809,6 @@ export default function TimeprofClockPage() {
       .finally(() => setTpLoading(false))
   }, [token])
 
-  // ── Clock handlers ──
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     setIsClocking(true)
     setClockMsg("")
@@ -958,8 +861,6 @@ export default function TimeprofClockPage() {
   }
 
   const checkTrayAndStartShift = React.useCallback(async () => {
-    // Lot Tech department uses mobile-only mode — no tray app required on any device.
-    // Mobile devices and Lot Tech department always skip the tray check.
     const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
     const resumableEndpoint = isMain ? "/api/timeclock/resumable-shift" : "/api/crm/timeproof/resumable-shift"
@@ -1061,7 +962,6 @@ export default function TimeprofClockPage() {
     }
   }
 
-  // ── Derived shift state ──
   const sortedLogs = React.useMemo(
     () => [...(todayLogs || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
     [todayLogs]
@@ -1081,27 +981,21 @@ export default function TimeprofClockPage() {
   React.useEffect(() => {
     if (!isActive) {
       if (locatorWasEligibleRef.current) {
-        stopLocatorSharing()
-      } else {
-        clearLocatorWatch()
-        setLocatorState("off_duty")
+        getCrmLocatorHeaders().then((headers) => apiClient.stopLocationSharing(headers)).catch(() => null)
       }
       locatorWasEligibleRef.current = false
       return
     }
-
     locatorWasEligibleRef.current = true
-    if (isOnBreak) {
-      clearLocatorWatch()
-      setLocatorState("paused_break")
-      apiClient.pauseLocationSharing({ reason: "break" }, getCrmLocatorHeaders()).catch(() => null)
-      return
-    }
 
-    startLocatorSharing()
-  }, [clearLocatorWatch, getCrmLocatorHeaders, isActive, isOnBreak, startLocatorSharing, stopLocatorSharing])
+    if (isOnBreak || !locatorStatus || locatorStatus.consentGranted) return
+    if (!locatorStatus.isMandatoryDept && locatorStatus.locationSharingOptOut) return
 
-  React.useEffect(() => () => clearLocatorWatch(), [clearLocatorWatch])
+    getCrmLocatorHeaders()
+      .then((headers) => apiClient.setLocationConsent({ granted: true, deviceHint: getDeviceHint() }, headers))
+      .then(() => refreshLocatorStatus())
+      .catch(() => null)
+  }, [isActive, isOnBreak, locatorStatus, getCrmLocatorHeaders, refreshLocatorStatus])
 
   React.useEffect(() => {
     const sessionStartMs = timeIn
@@ -1149,7 +1043,6 @@ export default function TimeprofClockPage() {
     return `${h}h ${m}m`
   }, [timeIn, timeOut, breakAccumulatedMs, previousSessionsMs])
 
-  // ── Timeproof derived ──
   const isCurrentMonth = viewYear === now.getUTCFullYear() && viewMonth === now.getUTCMonth()
   const monthLabel = new Date(viewYear, viewMonth).toLocaleDateString("en-US", { month: "long", year: "numeric" })
   const calcMonthDate = new Date(Date.UTC(viewYear, viewMonth, 1))
@@ -1291,7 +1184,6 @@ export default function TimeprofClockPage() {
     win.document.close()
   }, [tpData, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
 
-  // ── Loading ──
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -1310,13 +1202,9 @@ export default function TimeprofClockPage() {
 
   if (!user) return null
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     Render
-  ───────────────────────────────────────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-background">
 
-      {/* ── Sticky Header ── */}
       <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -1363,10 +1251,8 @@ export default function TimeprofClockPage() {
       <div className="w-full px-4 sm:px-6 py-5">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4 items-start">
 
-        {/* ── Left column — Time Clock ── */}
         <div className="space-y-4 lg:sticky lg:top-[57px] lg:self-start">
 
-        {/* ── Time Clock Card ── */}
         <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
           <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">
             <div className="flex items-center gap-2">
@@ -1479,34 +1365,64 @@ export default function TimeprofClockPage() {
           </div>
         </div>
 
-        {/* ── Share Location ── */}
         {(() => {
           const meta = locatorStateMeta(locatorState, locatorError)
           return (
-            <div className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card px-5 py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                  {locatorState === "sharing" ? <Radio className="h-4 w-4 text-emerald-500" /> : <MapPin className="h-4 w-4 text-emerald-500" />}
+            <div className="w-full rounded-2xl border border-border/40 bg-card">
+              <div className="flex items-center justify-between gap-3 px-5 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    {locatorState === "sharing" ? <Radio className="h-4 w-4 text-emerald-500" /> : <MapPin className="h-4 w-4 text-emerald-500" />}
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
+                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/50">{meta.detail}</p>
+                    {locatorLastPingAt && (
+                      <p className="mt-1 font-mono text-[9px] text-muted-foreground/40">
+                        Last ping {fmt(new Date(locatorLastPingAt))}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="min-w-0 text-left">
-                  <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
-                  <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/50">{meta.detail}</p>
-                  {locatorLastPingAt && (
-                    <p className="mt-1 font-mono text-[9px] text-muted-foreground/40">
-                      Last ping {fmt(new Date(locatorLastPingAt))}
-                    </p>
-                  )}
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
+                    <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, locatorState === "sharing" && "animate-pulse motion-reduce:animate-none")} />
+                    {meta.label}
+                  </span>
+                  <Button
+                    size="sm" variant="outline"
+                    onClick={() => router.push("/team-pulse?tab=activity")}
+                    className="h-7 gap-1.5 rounded-full border-border/50 px-2.5 text-[10px] font-bold"
+                  >
+                    <Eye className="h-3 w-3" /> View
+                  </Button>
                 </div>
               </div>
-              <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
-                <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, locatorState === "sharing" && "animate-pulse motion-reduce:animate-none")} />
-                {meta.label}
-              </span>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
+                {locatorStatus?.isMandatoryDept ? (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                    <Lock className="h-3 w-3 shrink-0" />
+                    Auto-share is required for your department — always on during your shift.
+                  </div>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-foreground">Auto-share when I start my shift</p>
+                      <p className="mt-0.5 text-[9px] text-muted-foreground/50">Turns location sharing on the moment you clock in.</p>
+                    </div>
+                    <Switch
+                      checked={!locatorStatus?.locationSharingOptOut}
+                      disabled={autoShareSaving || !locatorStatus}
+                      onCheckedChange={handleAutoShareToggle}
+                    />
+                  </>
+                )}
+              </div>
             </div>
           )
         })()}
 
-        {/* ── Tray App Section — desktop only; downloading a Windows/Mac installer from a phone is confusing and useless ── */}
         {!isMobile && (
           <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -1585,17 +1501,14 @@ export default function TimeprofClockPage() {
         )}
 
         </div>
-        {/* ── Right column — Stats, Calendar, Payout ── */}
         <div className="space-y-4">
 
-        {/* ── Timeproof error ── */}
         {tpError && (
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-600">{tpError}</div>
         )}
 
         {tpData && (
           <>
-            {/* ── Stat Cards ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="Today" value={fmtHuman(tpData.summary.today.totalSeconds)}
                 sub={tpData.isLive ? "🟢 Live session" : tpData.summary.today.totalSeconds > 0 ? "Completed" : "Not clocked in"}
@@ -1607,7 +1520,6 @@ export default function TimeprofClockPage() {
               <StatCard label="Streak" value={`${tpData.streak}d`} sub={`Best: ${tpData.longestStreak} days`} icon={Flame} amber />
             </div>
 
-            {/* ── Calendar Card ── */}
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
                 <h2 className="text-base font-black tracking-tight">{monthLabel}</h2>
@@ -1650,7 +1562,6 @@ export default function TimeprofClockPage() {
               )}
             </div>
 
-            {/* ── Payout Calculator ── */}
             {!showPayoutCalculator ? (
               <div className="rounded-2xl border border-border/40 bg-card p-5">
                 <div className="flex items-center justify-between mb-5">
@@ -1780,17 +1691,13 @@ export default function TimeprofClockPage() {
           </>
         )}
 
-        {/* end right column */}
         </div>
-        {/* end grid */}
         </div>
-        {/* end page wrapper */}
 
       </div>
 
       <CrmPushPrompt role={user.role} />
 
-      {/* ── Early End Shift Modal ── */}
       {showEarlyEndModal && (
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEarlyEndModal(false)} />
@@ -1846,7 +1753,6 @@ export default function TimeprofClockPage() {
         </div>
       )}
 
-      {/* ── Confirm End Shift Modal ── */}
       {showConfirmEndModal && (
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmEndModal(false)} />
@@ -1883,7 +1789,6 @@ export default function TimeprofClockPage() {
         </div>
       )}
 
-      {/* ── Resume Shift Modal ── */}
       {resumeModal && (
         <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResumeModal(false)} />
@@ -1918,7 +1823,6 @@ export default function TimeprofClockPage() {
         </div>
       )}
 
-      {/* ── Tray App Required Modal ── */}
       {showTrayModal && (
         <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTrayModal(false)} />

@@ -186,7 +186,7 @@ export default function TeamPulsePage() {
     {
       id: "activity",
       Icon: Navigation,
-      label: "Locator",
+      label: "Beacon",
       count: activeCount > 0 ? activeCount : undefined,
     },
     { id: "calendar", Icon: CalendarDays, label: "Calendar" },
@@ -447,7 +447,7 @@ export default function TeamPulsePage() {
                       {
                         id: "activity" as TabId,
                         Icon: Navigation,
-                        label: "Locator",
+                        label: "Beacon",
                         desc: `${onlineCount} online now`,
                         accentCls: "bg-green-500",
                         borderCls:

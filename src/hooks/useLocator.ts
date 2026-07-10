@@ -15,6 +15,10 @@ export interface MyLocatorStatus {
     sharingState: SharingState;
     coords: { lat: number; lng: number } | null;
     lastSeenAt: string | null;
+    isMandatoryDept: boolean;
+    locationSharingOptOut: boolean;
+    isOnShift: boolean;
+    isOnBreak: boolean;
 }
 
 export interface Place {
@@ -90,6 +94,20 @@ export function useSetLocationConsent() {
         mutationFn: async (data: { granted: boolean; deviceHint?: string }) => {
             const headers = await getHeaders();
             const response = await withMinDuration(apiClient.setLocationConsent(data, headers));
+            return response.data?.data || response.data;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['locator-my-status'] }),
+    });
+}
+
+export function useSetLocationSharingOptOut() {
+    const queryClient = useQueryClient();
+    const getHeaders = useAuthHeaders();
+
+    return useMutation({
+        mutationFn: async (data: { optOut: boolean }) => {
+            const headers = await getHeaders();
+            const response = await withMinDuration(apiClient.setLocationSharingOptOut(data, headers));
             return response.data?.data || response.data;
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['locator-my-status'] }),

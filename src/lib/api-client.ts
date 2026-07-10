@@ -568,6 +568,13 @@ class ApiClient {
     return this.post("/api/locator/consent", data, config);
   }
 
+  async setLocationSharingOptOut(
+    data: { optOut: boolean },
+    config?: AxiosRequestConfig
+  ) {
+    return this.post("/api/locator/sharing-preference", data, config);
+  }
+
   async pingLocation(
     data: {
       lat: number; lng: number; heading?: number; speedMph?: number; accuracyM?: number;

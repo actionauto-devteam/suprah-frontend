@@ -171,39 +171,62 @@ export function DeviceBadge({ deviceType }: { deviceType?: "mobile" | "desktop" 
   );
 }
 
-export function LocatorMapLegend({ activeCount = 0 }: { activeCount?: number }) {
+interface LocatorMapLegendProps {
+  activeCount?: number;
+  stateCounts?: Partial<Record<SharingState, number>>;
+}
+
+export function LocatorMapLegend({ activeCount = 0, stateCounts }: LocatorMapLegendProps) {
   return (
-    <details className="absolute bottom-2.5 left-2.5 sm:bottom-4 sm:left-4 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg w-48 sm:w-56 group">
+    <details className="absolute bottom-2.5 left-2.5 sm:bottom-4 sm:left-4 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg w-52 sm:w-64 group">
       <summary className="flex items-center justify-between p-2.5 sm:p-3 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Sharing Status
+          {activeCount > 0 && (
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-black tabular-nums">
+              {activeCount}
+            </span>
+          )}
         </span>
         <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
       <div className="px-2.5 sm:px-3 pb-2.5 sm:pb-3 pt-1 space-y-2 text-xs">
         {(Object.entries(SHARING_STATE_META) as [SharingState, (typeof SHARING_STATE_META)[SharingState]][]).map(
-          ([key, item]) => (
-            <div key={key} className="flex items-start gap-2">
-              <span className="relative flex size-2.5 shrink-0 mt-0.5">
-                {item.pulse && (
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${item.color} opacity-40`} />
-                )}
-                <span className={`relative inline-flex size-2.5 rounded-full ${item.color}`} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-foreground/80 font-semibold leading-tight">{item.label}</p>
-                <p className="text-[10px] text-muted-foreground/60 leading-snug">{item.description}</p>
+          ([key, item]) => {
+            const count = stateCounts?.[key] ?? 0;
+            return (
+              <div key={key} className="flex items-start gap-2">
+                <span className="relative flex size-2.5 shrink-0 mt-0.5">
+                  {item.pulse && (
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${item.color} opacity-40`} />
+                  )}
+                  <span className={`relative inline-flex size-2.5 rounded-full ${item.color}`} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-foreground/80 font-semibold leading-tight">{item.label}</p>
+                    {count > 0 && <span className="text-[9px] font-black text-foreground/60 tabular-nums shrink-0">{count}</span>}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60 leading-snug">{item.description}</p>
+                </div>
               </div>
-            </div>
-          ),
+            );
+          },
         )}
-        {activeCount > 0 && (
-          <div className="mt-1 pt-2 border-t border-border/30">
-            <p className="text-[10px] text-muted-foreground">
-              <span className="font-bold text-foreground">{activeCount}</span> sharing now
-            </p>
+        <div className="flex items-start gap-2 pt-1 border-t border-border/30">
+          <span className="flex items-center justify-center size-2.5 shrink-0 mt-0.5 rounded-full border border-dashed border-gray-400" />
+          <div className="min-w-0">
+            <p className="text-foreground/80 font-semibold leading-tight">Dashed pin</p>
+            <p className="text-[10px] text-muted-foreground/60 leading-snug">Last known spot — not live right now.</p>
           </div>
-        )}
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="flex items-center justify-center size-2.5 shrink-0 mt-0.5 rounded-full border-2 border-blue-400/60 bg-blue-400/10" />
+          <div className="min-w-0">
+            <p className="text-foreground/80 font-semibold leading-tight">Faint blue ring</p>
+            <p className="text-[10px] text-muted-foreground/60 leading-snug">GPS precision — the pin itself is always their exact spot.</p>
+          </div>
+        </div>
       </div>
     </details>
   );

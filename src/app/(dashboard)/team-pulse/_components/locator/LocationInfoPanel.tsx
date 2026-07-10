@@ -6,8 +6,8 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
 import {
   X, Building2, Navigation, Pause, Play, Power, MapPinOff, Crosshair,
-  BatteryFull, BatteryLow, Gauge, History, Clock, MapPin, Loader2, Smartphone, Monitor, Crosshair as CrosshairIcon, Timer,
-  Route, TrendingUp, Anchor, List, ChevronDown, ChevronUp, Map as MapIcon,
+  BatteryFull, BatteryLow, Gauge, History, Clock, MapPin, Loader2, Smartphone, Monitor,
+  Car, Anchor, Map as MapIcon, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ import {
   sharingMeta, DepartmentBadge, signalMeta,
   isNotablyStationary, stationaryMinutes, formatStationaryDuration,
 } from "./LocatorMapLegend";
+import { haversineMi, haversineM, formatDistanceMi } from "@/lib/geo";
 
 /** "3h 12m" style duration, falls back to a plain timestamp read for very short/odd spans. */
 function sharingDuration(sinceIso?: string) {
@@ -41,16 +42,6 @@ function sharingDuration(sinceIso?: string) {
   }
 }
 
-const EARTH_RADIUS_MI = 3958.8;
-function haversineMi(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return EARTH_RADIUS_MI * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-const haversineM = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => haversineMi(a, b) * 1609.344;
-
 /** First place whose geofence radius contains this point — mirrors the backend's own
  * findNearestPlace matching order, so a breadcrumb row's "at {place}" label agrees with
  * what the live map/geofence events would have said at that moment. */
@@ -58,10 +49,13 @@ function placeForCoords(coords: { lat: number; lng: number }, places: Place[]): 
   return places.find((p) => haversineM(coords, p.coords) <= p.radiusM);
 }
 
-const LOG_PAGE_SIZE = 150;
+const SEGMENTS_PAGE_SIZE = 20;
+const MOVING_SPEED_MPH = 3;
+const MOVING_DRIFT_M = 45;
+const MIN_SEGMENT_MIN = 2;
 
 /** Turns a raw breadcrumb list into the kind of summary a person actually wants to read —
- * distance covered, how long it spanned, and top speed — instead of just a point count. */
+ * distance covered and top speed — instead of just a point count. */
 function summarizeHistory(history: LocationHistoryPoint[]) {
   let distanceMi = 0;
   let maxSpeed = 0;
@@ -70,11 +64,84 @@ function summarizeHistory(history: LocationHistoryPoint[]) {
     if (typeof speed === "number" && speed > maxSpeed) maxSpeed = speed;
     if (i > 0) distanceMi += haversineMi(history[i - 1].coords, history[i].coords);
   }
-  const spanMs = history.length > 1
-    ? new Date(history[history.length - 1].recordedAt).getTime() - new Date(history[0].recordedAt).getTime()
-    : 0;
-  const spanMin = Math.round(spanMs / 60000);
-  return { distanceMi, maxSpeed, spanMin, pointCount: history.length };
+  return { distanceMi, maxSpeed, pointCount: history.length };
+}
+
+interface HistorySegment {
+  kind: "moving" | "stationary";
+  startAt: string;
+  endAt: string;
+  durationMin: number;
+  place?: Place;
+  distanceMi?: number;
+  topSpeedMph?: number;
+}
+
+/** Collapses the raw 30s-interval breadcrumb trail into readable arrive/leave/drive
+ * segments — a flat list of a hundred near-identical pings reads as noise, while "Drove
+ * 2.3mi in 6m" / "At Suprah Lot for 32m" reads as an actual timeline of what happened.
+ * A point counts as "moving" off its own reported speed when available, falling back to
+ * distance drift from the previous point when the device didn't report one. Short blips
+ * (under MIN_SEGMENT_MIN) get folded into the segment before them instead of showing up
+ * as their own noisy one-line entries. */
+function buildHistorySegments(history: LocationHistoryPoint[], places: Place[]): HistorySegment[] {
+  if (history.length === 0) return [];
+
+  const isMoving = (prev: LocationHistoryPoint | undefined, cur: LocationHistoryPoint): boolean => {
+    if (typeof cur.speedMph === "number") return cur.speedMph > MOVING_SPEED_MPH;
+    if (!prev) return false;
+    return haversineM(prev.coords, cur.coords) > MOVING_DRIFT_M;
+  };
+
+  const raw: HistorySegment[] = [];
+  let segStart = 0;
+  let kind: HistorySegment["kind"] = isMoving(undefined, history[0]) ? "moving" : "stationary";
+
+  const finalizeSegment = (endIdx: number) => {
+    const startPt = history[segStart];
+    const endPt = history[endIdx];
+    const durationMin = Math.max(1, Math.round((new Date(endPt.recordedAt).getTime() - new Date(startPt.recordedAt).getTime()) / 60000));
+    if (kind === "stationary") {
+      raw.push({ kind, startAt: startPt.recordedAt, endAt: endPt.recordedAt, durationMin, place: placeForCoords(startPt.coords, places) });
+      return;
+    }
+    let distanceMi = 0;
+    let topSpeedMph = 0;
+    for (let i = segStart; i <= endIdx; i++) {
+      if (i > segStart) distanceMi += haversineMi(history[i - 1].coords, history[i].coords);
+      const s = history[i].speedMph;
+      if (typeof s === "number" && s > topSpeedMph) topSpeedMph = s;
+    }
+    raw.push({ kind, startAt: startPt.recordedAt, endAt: endPt.recordedAt, durationMin, distanceMi, topSpeedMph });
+  };
+
+  for (let i = 1; i < history.length; i++) {
+    const nextKind = isMoving(history[i - 1], history[i]) ? "moving" : "stationary";
+    if (nextKind !== kind) {
+      finalizeSegment(i - 1);
+      segStart = i;
+      kind = nextKind;
+    }
+  }
+  finalizeSegment(history.length - 1);
+
+  // Fold blips shorter than MIN_SEGMENT_MIN into whichever neighbor is longer, so a single
+  // red-light stop doesn't split one drive into three noisy rows.
+  const merged: HistorySegment[] = [];
+  for (const seg of raw) {
+    const prev = merged[merged.length - 1];
+    if (seg.durationMin < MIN_SEGMENT_MIN && prev) {
+      prev.endAt = seg.endAt;
+      prev.durationMin += seg.durationMin;
+      if (prev.kind === "moving" && seg.kind === "moving") {
+        prev.distanceMi = (prev.distanceMi ?? 0) + (seg.distanceMi ?? 0);
+        prev.topSpeedMph = Math.max(prev.topSpeedMph ?? 0, seg.topSpeedMph ?? 0);
+      }
+      continue;
+    }
+    merged.push({ ...seg });
+  }
+  return merged.reverse(); // newest first
 }
 
 function todayStr(offsetDays = 0) {
@@ -125,21 +192,29 @@ export function LocationInfoPanel({
   const { mutate: setConsent, isPending: consentPending } = useSetLocationConsent();
   const { data: places = [] } = usePlaces();
   const consentGranted = !!myStatus?.locationConsent?.granted;
-  const [logExpanded, setLogExpanded] = React.useState(false);
-  const [logVisibleCount, setLogVisibleCount] = React.useState(LOG_PAGE_SIZE);
+  const isMandatory = !!myStatus?.isMandatoryDept;
+  const isOnShift = !!myStatus?.isOnShift;
+  const isOnBreak = !!myStatus?.isOnBreak;
+  // Mandatory-department sharing can't be manually paused/stopped mid-shift — only a break
+  // (handled automatically below via onBreak) pauses it. Optional departments keep Pause, but
+  // Stop mirrors TimeProof shift state for everyone: once your shift starts sharing, only
+  // ending the shift or starting a break (both driven from TimeProof) can turn it off here.
+  const controlsLocked = isMandatory && isOnShift && !isOnBreak;
+  const stopLocked = !isMandatory && isOnShift && !isOnBreak;
+  const [segmentsVisibleCount, setSegmentsVisibleCount] = React.useState(SEGMENTS_PAGE_SIZE);
   const [routeMapOpen, setRouteMapOpen] = React.useState(false);
 
   // Reset pagination whenever the underlying range/history changes so an old "load more" state
   // from a previous person/date-range doesn't linger.
   React.useEffect(() => {
-    setLogVisibleCount(LOG_PAGE_SIZE);
+    setSegmentsVisibleCount(SEGMENTS_PAGE_SIZE);
   }, [history]);
   const {
     sharingState: myRuntimeState, pauseManually, resumeSharing, busy: sharingBusy,
     awaitingFirstFix, error: sharingError,
   } = useLocationSharing({
     eligible: consentGranted,
-    onBreak: false,
+    onBreak: !!myStatus?.isOnBreak,
   });
 
   // Surface the acquire-GPS success/failure that used to happen silently — this is the
@@ -161,22 +236,28 @@ export function LocationInfoPanel({
   const meta = sharingMeta(effectiveState);
   const sharing = effectiveState === "sharing";
   const isPaused = effectiveState === "paused_manual" || effectiveState === "paused_break";
-  const WhereIcon = sharing ? (place ? Building2 : Navigation) : effectiveState === "declined_permission" ? MapPinOff : Pause;
+  // Not sharing right now but we still have their last known coords (never cleared on
+  // stop) — show that as a Life360-style "last seen" instead of just a flat "Not Sharing".
+  const isLastSeen = !isSelf && effectiveState === "off_duty" && !!loc?.coords;
+  const WhereIcon = sharing ? (place ? Building2 : Navigation) : isLastSeen ? Clock : effectiveState === "declined_permission" ? MapPinOff : Pause;
   const where = sharing
     ? place
       ? `At ${place.name}`
       : typeof loc?.speedMph === "number" && loc.speedMph > 3
         ? `On the move · ${loc.speedMph} mph`
         : "Sharing location"
-    : meta.label;
+    : isLastSeen
+      ? `Last seen ${timeAgo(loc?.lastSeenAt)}`
+      : meta.label;
+  const distanceMi = !isSelf && loc?.coords && myStatus?.coords ? haversineMi(myStatus.coords, loc.coords) : null;
 
   function startSharing() {
+    // No success toast here — consent being granted just unlocks the GPS watch, it doesn't mean
+    // anyone can see you yet. The real "you're live" toast fires once `awaitingFirstFix` clears
+    // below, after an actual position has been sent.
     setConsent(
       { granted: true, deviceHint: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : undefined },
-      {
-        onSuccess: () => toast.success("You're now sharing your location"),
-        onError: () => toast.error("Could not update location sharing"),
-      },
+      { onError: () => toast.error("Could not update location sharing") },
     );
   }
 
@@ -270,7 +351,7 @@ export function LocationInfoPanel({
           {!consentGranted ? (
             <Button size="sm" disabled={consentPending} onClick={startSharing} className="h-8 flex-1 text-[11px] font-bold gap-1.5">
               {consentPending ? <Loader2 className="size-3.5 animate-spin" /> : <MapPin className="size-3.5" />}
-              Share my location
+              {consentPending ? "Turning on…" : "Share my location"}
             </Button>
           ) : awaitingFirstFix ? (
             <div className="flex-1 space-y-1">
@@ -278,84 +359,95 @@ export function LocationInfoPanel({
                 <div className="h-8 flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold text-muted-foreground/70 rounded-md border border-dashed border-border/50">
                   <Loader2 className="size-3.5 animate-spin" /> Getting your location…
                 </div>
-                <Button size="sm" variant="outline" disabled={consentPending} onClick={stopSharing} className="h-8 text-[11px] font-bold gap-1.5 border-border/50 shrink-0">
-                  {consentPending ? <Loader2 className="size-3.5 animate-spin" /> : <Power className="size-3.5" />}
-                </Button>
+                <StopButton locked={stopLocked} pending={consentPending} onClick={stopSharing} />
               </div>
               {sharingError && <p className="text-[9px] text-amber-600 dark:text-amber-400 px-0.5">{sharingError}</p>}
+            </div>
+          ) : controlsLocked ? (
+            <div className="flex-1 flex items-center gap-1.5 rounded-md border border-dashed border-border/50 px-2.5 py-2">
+              <Lock className="size-3 text-muted-foreground/50 shrink-0" />
+              <p className="text-[10px] text-muted-foreground/60 leading-snug">
+                Required for your department during your shift — pauses automatically on break.
+              </p>
             </div>
           ) : isPaused ? (
             <>
               <Button size="sm" disabled={sharingBusy} onClick={resumeSharing} className="h-8 flex-1 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
-                {sharingBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />} Resume
+                {sharingBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />} {sharingBusy ? "Resuming…" : "Resume"}
               </Button>
-              <Button size="sm" variant="outline" disabled={consentPending || sharingBusy} onClick={stopSharing} className="h-8 text-[11px] font-bold gap-1.5 border-border/50">
-                {consentPending ? <Loader2 className="size-3.5 animate-spin" /> : <Power className="size-3.5" />}
-              </Button>
+              <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
             </>
           ) : (
             <>
               <Button size="sm" variant="outline" disabled={sharingBusy} onClick={pauseManually} className="h-8 flex-1 text-[11px] font-bold gap-1.5 border-border/50">
-                {sharingBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Pause className="size-3.5" />} Pause
+                {sharingBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Pause className="size-3.5" />} {sharingBusy ? "Pausing…" : "Pause"}
               </Button>
-              <Button size="sm" variant="outline" disabled={consentPending || sharingBusy} onClick={stopSharing} className="h-8 text-[11px] font-bold gap-1.5 border-border/50 text-muted-foreground hover:text-foreground">
-                {consentPending ? <Loader2 className="size-3.5 animate-spin" /> : <Power className="size-3.5" />}
-              </Button>
+              <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
             </>
           )}
         </div>
       )}
+      {isSelf && consentGranted && stopLocked && !controlsLocked && (
+        <p className="px-3.5 pt-1.5 text-[9px] text-muted-foreground/50 leading-snug shrink-0">
+          Stop is locked during your shift — end your shift or start a break in TimeProof to turn it off.
+        </p>
+      )}
 
-      {/* scrollable body: stat chips + history — fills remaining height so the ​card bottom lines up with the map */}
+      {/* scrollable body: mini status line + Show on map + stat chips + history — fills
+          remaining height so the card bottom lines up with the map */}
       <div className="flex-1 min-h-0 overflow-y-auto mt-1">
         {loc && (
-          <div className="grid grid-cols-2 gap-1.5 p-3.5">
-            <Chip icon={Clock} label="Updated" value={timeAgo(loc.lastSeenAt) || "—"} />
-            {sharing && loc.sharingSince && (
-              <Chip icon={Timer} label="Sharing For" value={sharingDuration(loc.sharingSince)} />
-            )}
-            {typeof loc.speedMph === "number" && <Chip icon={Gauge} label="Speed" value={`${loc.speedMph} mph`} />}
-            {typeof loc.batteryLevel === "number" && (
-              <Chip
-                icon={loc.batteryLevel <= 20 ? BatteryLow : BatteryFull}
-                label="Battery"
-                value={`${loc.batteryLevel}%${loc.isCharging ? " ⚡" : ""}`}
-                danger={loc.batteryLevel <= 20}
-              />
-            )}
-            {(() => {
-              const signal = signalMeta(loc);
-              return <Chip icon={signal.icon} label="Signal" value={signal.label} iconClassName={signal.className} />;
-            })()}
-            {loc.deviceType && (
-              <Chip icon={loc.deviceType === "mobile" ? Smartphone : Monitor} label="Device" value={loc.deviceType === "mobile" ? "Phone" : "Computer"} />
-            )}
-            {typeof loc.accuracyM === "number" && (
-              <Chip icon={CrosshairIcon} label="Accuracy" value={`± ${Math.round(loc.accuracyM)}m`} />
-            )}
-            {isNotablyStationary(loc) && (
-              <Chip icon={Anchor} label="Stayed Put" value={formatStationaryDuration(stationaryMinutes(loc)!)} />
-            )}
+          <div className="px-3.5 pt-2.5 space-y-2">
+            <p className="text-[9px] font-semibold text-muted-foreground/50">
+              Updated {timeAgo(loc.lastSeenAt) || "—"}
+              {sharing && loc.sharingSince && <> · Sharing for {sharingDuration(loc.sharingSince)}</>}
+            </p>
+
             {loc.coords && onLocate && (
               <button
                 onClick={onLocate}
-                className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 text-primary px-2.5 py-1.5 text-[10px] font-bold hover:bg-primary/15 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 text-primary px-2.5 py-1.5 text-[10px] font-bold hover:bg-primary/15 transition-colors"
               >
                 <Crosshair className="size-3" /> Show on map
               </button>
             )}
-            {isNotablyStationary(loc) && (
-              <p className="col-span-2 text-[9px] text-sky-700 dark:text-sky-400 bg-sky-500/10 border border-sky-500/20 rounded-lg px-2 py-1.5 leading-snug">
-                Hasn&apos;t moved more than ~40m in a while — any small wobble of the pin on the map is just GPS noise, not real movement.
-              </p>
-            )}
+
+            <div className="grid grid-cols-2 gap-1.5">
+              {distanceMi !== null && (
+                <Chip icon={MapPin} label="Distance" value={formatDistanceMi(distanceMi)} />
+              )}
+              {typeof loc.speedMph === "number" && <Chip icon={Gauge} label="Speed" value={`${loc.speedMph} mph`} />}
+              {typeof loc.batteryLevel === "number" && (
+                <Chip
+                  icon={loc.batteryLevel <= 20 ? BatteryLow : BatteryFull}
+                  label="Battery"
+                  value={`${loc.batteryLevel}%${loc.isCharging ? " ⚡" : ""}`}
+                  danger={loc.batteryLevel <= 20}
+                />
+              )}
+              {(() => {
+                const signal = signalMeta(loc);
+                return <Chip icon={signal.icon} label="Signal" value={signal.label} iconClassName={signal.className} />;
+              })()}
+              {loc.deviceType && (
+                <Chip icon={loc.deviceType === "mobile" ? Smartphone : Monitor} label="Device" value={loc.deviceType === "mobile" ? "Phone" : "Computer"} />
+              )}
+              {/* Only counts while actually sharing — otherwise this kept showing "stayed put"
+                  off a stale last-known anchor from before sharing stopped. */}
+              {sharing && isNotablyStationary(loc) && (
+                <Chip icon={Anchor} label="Stayed Put" value={formatStationaryDuration(stationaryMinutes(loc)!)} />
+              )}
+            </div>
           </div>
         )}
 
-        <div className="px-3.5 pb-3.5 pt-1 space-y-2">
-          <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
-            <History className="size-3" /> Location History
-          </span>
+        <div className="px-3.5 pb-3.5 pt-3 space-y-2.5 border-t border-border/30">
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-center size-5 rounded-md bg-primary/10 shrink-0">
+              <History className="size-3 text-primary/70" />
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Location History</span>
+          </div>
 
           <div className="flex items-center gap-1 flex-wrap">
             {([
@@ -387,18 +479,88 @@ export function LocationInfoPanel({
           </div>
 
           {historyLoading ? (
-            <div className="grid grid-cols-3 gap-1.5">
-              {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-muted animate-pulse" />)}
+            <div className="space-y-1.5">
+              {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-9 rounded-lg bg-muted animate-pulse" />)}
             </div>
           ) : history.length === 0 ? (
             <p className="text-[10px] text-muted-foreground/50 py-1">No breadcrumb points for this range.</p>
           ) : (
-            <p className="text-[10px] text-muted-foreground/70 leading-snug">
-              <span className="font-bold text-foreground">{history.length}</span> points ·{" "}
-              {fmtTimeMDT(history[0].recordedAt)} → {fmtTimeMDT(history[history.length - 1].recordedAt)}
-              <br />
-              <span className="text-muted-foreground/50">Shown as the blue trail on the map.</span>
-            </p>
+            <>
+              {(() => {
+                const summary = summarizeHistory(history);
+                return (
+                  <p className="text-[9px] text-muted-foreground/50">
+                    <span className="font-bold text-foreground">{summary.pointCount}</span> points ·{" "}
+                    {formatDistanceMi(summary.distanceMi)}
+                    {summary.maxSpeed > 0 && <> · top {summary.maxSpeed} mph</>}
+                  </p>
+                );
+              })()}
+              <div className="flex items-center justify-between gap-2 text-[9px] text-muted-foreground/50">
+                <span>{fmtTimeMDT(history[0].recordedAt)} → {fmtTimeMDT(history[history.length - 1].recordedAt)}</span>
+                {history.length > 1 && (
+                  <button
+                    onClick={() => setRouteMapOpen(true)}
+                    className="flex items-center gap-1 font-bold text-primary hover:text-primary/80 shrink-0"
+                  >
+                    <MapIcon className="size-3" /> Replay route
+                  </button>
+                )}
+              </div>
+
+              {/* Fixed-height so a long history never stretches this panel taller than the
+                  live map next to it — it scrolls internally instead. Segments (arrive/leave/
+                  drive), not raw pings — a hundred near-identical 30s pings reads as noise,
+                  "Drove 2.3mi in 6m" / "At Suprah Lot for 32m" reads as an actual timeline. */}
+              {(() => {
+                const segments = buildHistorySegments(history, places);
+                const visible = segments.slice(0, segmentsVisibleCount);
+                return (
+                  <div className="rounded-xl border border-border/30 bg-muted/10 max-h-64 overflow-y-auto p-2.5">
+                    {visible.map((seg, i) => {
+                      const SegIcon = seg.kind === "moving" ? Car : seg.place ? Building2 : Anchor;
+                      const label = seg.kind === "moving" ? "On the move" : seg.place ? `At ${seg.place.name}` : "Stopped";
+                      const dotColor = seg.kind === "moving" ? "bg-blue-500" : seg.place ? "bg-primary" : "bg-muted-foreground/40";
+                      const isLast = i === visible.length - 1;
+                      return (
+                        <div key={`${seg.startAt}-${i}`} className="flex gap-2.5">
+                          <div className="flex flex-col items-center">
+                            <span className={cn("mt-1 size-2 rounded-full shrink-0", dotColor)} />
+                            {!isLast && <span className="w-px flex-1 bg-border/40 my-0.5" />}
+                          </div>
+                          <div className={cn("flex-1 min-w-0", !isLast && "pb-3")}>
+                            <div className="flex items-center gap-1.5">
+                              <SegIcon className="size-3 text-muted-foreground/50 shrink-0" />
+                              <span
+                                className="text-[10.5px] font-bold truncate"
+                                style={seg.place?.color ? { color: seg.place.color } : undefined}
+                              >
+                                {label}
+                              </span>
+                              <span className="text-[9px] text-muted-foreground/40 shrink-0 ml-auto">{formatStationaryDuration(seg.durationMin)}</span>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                              {fmtTimeMDT(seg.startAt)}{seg.startAt !== seg.endAt ? ` – ${fmtTimeMDT(seg.endAt)}` : ""}
+                              {seg.kind === "moving" && typeof seg.distanceMi === "number" && seg.distanceMi > 0.05 && (
+                                <> · {formatDistanceMi(seg.distanceMi)}{seg.topSpeedMph ? ` · top ${seg.topSpeedMph} mph` : ""}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {segments.length > segmentsVisibleCount && (
+                      <button
+                        onClick={() => setSegmentsVisibleCount((n) => n + SEGMENTS_PAGE_SIZE)}
+                        className="w-full text-center text-[9px] font-bold text-primary py-1.5 mt-1 hover:bg-muted/30 rounded-md"
+                      >
+                        Show {Math.min(SEGMENTS_PAGE_SIZE, segments.length - segmentsVisibleCount)} more
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+            </>
           )}
 
           <Dialog open={routeMapOpen} onOpenChange={setRouteMapOpen}>
@@ -435,6 +597,32 @@ export function LocationInfoPanel({
   );
 }
 
+function StopButton({
+  locked, pending, onClick,
+}: {
+  locked: boolean;
+  pending: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={pending || locked}
+      onClick={onClick}
+      title={locked ? "Stop is locked during your shift — end your shift or start a break in TimeProof" : undefined}
+      className={cn(
+        "h-8 text-[11px] font-bold gap-1.5 shrink-0",
+        locked
+          ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 disabled:opacity-100"
+          : "border-border/50 text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {pending ? <Loader2 className="size-3.5 animate-spin" /> : locked ? <Lock className="size-3.5" /> : <Power className="size-3.5" />}
+    </Button>
+  );
+}
+
 function Chip({
   icon: Icon, label, value, danger, iconClassName,
 }: {
@@ -445,11 +633,13 @@ function Chip({
   iconClassName?: string;
 }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-lg bg-muted/50 border border-border/30 px-2 py-1.5 min-w-0">
-      <Icon className={cn("size-3 shrink-0", iconClassName ?? (danger ? "text-red-500" : "text-muted-foreground/60"))} />
+    <div className="flex items-center gap-2 rounded-xl bg-muted/40 border border-border/25 px-2.5 py-2 min-w-0">
+      <div className={cn("flex items-center justify-center size-6 rounded-lg shrink-0", danger ? "bg-red-500/10" : "bg-primary/8")}>
+        <Icon className={cn("size-3.5", iconClassName ?? (danger ? "text-red-500" : "text-primary/70"))} />
+      </div>
       <div className="leading-tight min-w-0">
         <p className="text-[7px] uppercase tracking-wide text-muted-foreground/50 font-bold">{label}</p>
-        <p className={cn("text-[10px] font-bold tabular-nums truncate", danger && "text-red-500")}>{value}</p>
+        <p className={cn("text-[10.5px] font-bold tabular-nums truncate", danger && "text-red-500")}>{value}</p>
       </div>
     </div>
   );

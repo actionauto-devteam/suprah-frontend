@@ -35,7 +35,7 @@ export class LocatorErrorBoundary extends React.Component<{ children: React.Reac
             <AlertTriangle className="size-5 text-red-500" />
           </div>
           <div>
-            <p className="text-sm font-black">The Locator hit a snag</p>
+            <p className="text-sm font-black">Beacon hit a snag</p>
             <p className="text-[11px] text-muted-foreground/70 mt-1 max-w-md">
               The rest of TeamPulse still works. Try again, and if it keeps happening send this message:
             </p>
