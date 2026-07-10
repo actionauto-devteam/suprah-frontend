@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   Calendar,
   Check,
   CheckCircle2,
@@ -1568,11 +1569,15 @@ export default function TimeprofClockPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
-              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-                After installing on macOS, open System Settings → Privacy &amp; Security → Screen Recording and enable Action Auto Tray.
-              </p>
-            </div>
+            <a
+              href="/guide"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 h-10 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px] font-bold transition-colors"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              View Instructions — How to Download &amp; Use
+            </a>
           </div>
         )}
 
@@ -1964,6 +1969,14 @@ export default function TimeprofClockPage() {
                   className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors disabled:opacity-50">
                   {trayChecking ? <><Loader2 className="h-3 w-3 animate-spin" /> Checking…</> : <><RefreshCw className="h-3 w-3" /> Check Again</>}
                 </button>
+                <a
+                  href="/guide"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors"
+                >
+                  <BookOpen className="h-3 w-3" /> View Instructions — How to Download &amp; Use
+                </a>
               </div>
             </div>
           </div>
