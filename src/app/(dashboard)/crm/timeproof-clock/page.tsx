@@ -1031,7 +1031,10 @@ export default function TimeprofClockPage() {
     setClockMsg("")
     const isMain = authModeRef.current === 'main'
     const breakEndpoint = isMain ? "/api/timeclock/clock" : "/api/crm/time-clock"
-    const breakHeaders = isMain ? {} : { headers: { Authorization: `Bearer ${token}` } }
+    // Re-read fresh from localStorage (like handleClock does) rather than the
+    // token state, which can go stale if the token is rotated elsewhere.
+    const freshToken = isMain ? null : localStorage.getItem("crm_token")
+    const breakHeaders = isMain ? {} : { headers: { Authorization: `Bearer ${freshToken}` } }
     if (!isOnBreak) {
       setIsOnBreak(true)
       setCurrentBreakStartAt(Date.now())
