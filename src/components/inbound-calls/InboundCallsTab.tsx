@@ -20,7 +20,6 @@ import {
   RecentContact,
 } from "./types"
 
-// ─── Toast System Redesign ──────────────────────────────────────────────────
 
 interface Toast {
   id: string

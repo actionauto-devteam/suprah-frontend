@@ -4,11 +4,11 @@ import React from 'react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 
 interface JitsiMeetProps {
-  roomName: string; // already tenant-prefixed by the backend for JaaS
+  roomName: string;
   displayName: string;
   email?: string;
   avatarUrl?: string;
-  jwt?: string; // undefined when JaaS isn't configured (fallback path)
+  jwt?: string;
   domain?: string;
   onClose: () => void;
   onError?: (error: any) => void;
@@ -25,9 +25,6 @@ export function JitsiMeet({
   onError,
 }: JitsiMeetProps) {
   const resolvedDomain = domain || process.env.NEXT_PUBLIC_JITSI_DOMAIN || '8x8.vc';
-  // Guard: only close when the user has actually entered the conference.
-  // videoConferenceLeft can fire during a failed join attempt (JWT error, room
-  // rejected, etc.), which would kick users back before the call ever starts.
   const hasJoined = React.useRef(false);
 
   return (
@@ -77,7 +74,6 @@ export function JitsiMeet({
             try {
               externalApi.executeCommand('avatarUrl', avatarUrl);
             } catch {
-              /* avatar is best-effort */
             }
           }
           externalApi.addEventListeners({

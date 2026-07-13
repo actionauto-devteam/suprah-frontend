@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api-client"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ResetPasswordModalProps {
   open: boolean
@@ -33,7 +32,6 @@ interface FormErrors {
   confirm?: string
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function ResetPasswordModal({ open, onClose, token, user, onReset }: ResetPasswordModalProps) {
   const [newPassword, setNewPassword] = React.useState("")

@@ -26,9 +26,6 @@ import { resolveImageUrl } from "@/lib/utils"
 import { useCrmUser } from "@/hooks/useCrmUser"
 import { isTimeEditExempt } from "@/lib/departments"
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Types
-───────────────────────────────────────────────────────────────────────── */
 interface Session {
   in: string
   out: string | null
@@ -72,9 +69,6 @@ interface TimeprofData {
   range: { startDate: string; endDate: string }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Utilities
-───────────────────────────────────────────────────────────────────────── */
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 
@@ -902,9 +896,9 @@ export default function AdminUserTimeprofPage() {
                   <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{payError}</p>
                 )}
 
-                {/* ── Pay + Payslip buttons row ── */}
+                { }
                 <div className="flex gap-2">
-                  {/* Pay button — admin only */}
+                  { }
                   {isAdmin && (payDone ? (
                     <div className="flex-1 h-10 rounded-xl border border-emerald-500/30 bg-emerald-600/8 flex items-center justify-center gap-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 select-none">
                       <Check className="h-3.5 w-3.5" />
@@ -924,7 +918,7 @@ export default function AdminUserTimeprofPage() {
                     </button>
                   ))}
 
-                  {/* Payslip button */}
+                  { }
                   {isPayDayReached ? (
                     <button
                       onClick={printPayslip}
@@ -948,7 +942,7 @@ export default function AdminUserTimeprofPage() {
               </div>
             </div>
 
-            {/* ── Admin-only: Correct overrun/forgotten clock-out ── */}
+            { }
             {isAdmin && (
               isTimeEditExempt(data.user.department) ? (
                 <div className="rounded-2xl border border-border/30 bg-muted/10 p-4 text-[11px] text-muted-foreground/40">
@@ -1029,7 +1023,7 @@ export default function AdminUserTimeprofPage() {
               )
             )}
 
-            {/* ── Verified footer ── */}
+            { }
             <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-xl bg-emerald-600/10 flex items-center justify-center shrink-0">

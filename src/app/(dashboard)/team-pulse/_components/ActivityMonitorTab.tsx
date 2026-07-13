@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNowStrict, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { todayStrMDT, isTodayMDT, isYesterdayMDT, fmtWeekdayDateMDT } from "@/lib/timezone";
 import { Input } from "@/components/ui/input";
 import type { TeamMember, OnlineStatus } from "@/hooks/useTeamPulse";
 import { useActivityFeed, type ActivityEvent, type ActivityEventType } from "@/hooks/useActivityFeed";
@@ -45,26 +46,26 @@ type RosterFilter = "all" | "active" | "sharing" | "offline" | "lot_tech";
 type StreamFilter = "all" | "status" | "location" | "driving";
 
 const EVENT_META: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
-  online:           { icon: Wifi,       color: "text-green-600 dark:text-green-400",   bg: "bg-green-500/10 border-green-500/20" },
-  offline:          { icon: WifiOff,    color: "text-gray-500 dark:text-gray-400",     bg: "bg-muted/60 border-border/20" },
-  away:             { icon: Minus,      color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
-  busy:             { icon: Flame,      color: "text-red-600 dark:text-red-400",       bg: "bg-red-500/10 border-red-500/20" },
-  do_not_disturb:   { icon: BellOff,    color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
-  break_start:      { icon: Coffee,     color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-  break_end:        { icon: ArrowLeft,  color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-500/10 border-blue-500/20" },
-  custom_status:    { icon: CircleDot,  color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
-  idle:             { icon: Clock,      color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
-  geofence_enter:       { icon: MapPin,        color: "text-green-600 dark:text-green-400",   bg: "bg-green-500/10 border-green-500/20" },
-  geofence_exit:        { icon: MapPinOff,     color: "text-muted-foreground",                bg: "bg-muted/60 border-border/20" },
-  sos_triggered:        { icon: AlertTriangle, color: "text-red-600 dark:text-red-400",       bg: "bg-red-500/10 border-red-500/20" },
-  sos_resolved:         { icon: ShieldCheck,   color: "text-green-600 dark:text-green-400",   bg: "bg-green-500/10 border-green-500/20" },
-  driving_session_start:{ icon: Car,           color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-500/10 border-blue-500/20" },
-  driving_session_end:  { icon: CarFront,      color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-500/10 border-blue-500/20" },
-  possible_incident:    { icon: TriangleAlert, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
+  online: { icon: Wifi, color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10 border-green-500/20" },
+  offline: { icon: WifiOff, color: "text-gray-500 dark:text-gray-400", bg: "bg-muted/60 border-border/20" },
+  away: { icon: Minus, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
+  busy: { icon: Flame, color: "text-red-600 dark:text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+  do_not_disturb: { icon: BellOff, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
+  break_start: { icon: Coffee, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
+  break_end: { icon: ArrowLeft, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+  custom_status: { icon: CircleDot, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
+  idle: { icon: Clock, color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
+  geofence_enter: { icon: MapPin, color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10 border-green-500/20" },
+  geofence_exit: { icon: MapPinOff, color: "text-muted-foreground", bg: "bg-muted/60 border-border/20" },
+  sos_triggered: { icon: AlertTriangle, color: "text-red-600 dark:text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+  sos_resolved: { icon: ShieldCheck, color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10 border-green-500/20" },
+  driving_session_start: { icon: Car, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+  driving_session_end: { icon: CarFront, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+  possible_incident: { icon: TriangleAlert, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
   location_sharing_started: { icon: Navigation, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  location_sharing_paused:  { icon: Pause,      color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
-  location_sharing_resumed: { icon: Play,       color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-500/10 border-blue-500/20" },
-  location_sharing_stopped: { icon: MapPinOff,  color: "text-muted-foreground",                bg: "bg-muted/60 border-border/20" },
+  location_sharing_paused: { icon: Pause, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
+  location_sharing_resumed: { icon: Play, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+  location_sharing_stopped: { icon: MapPinOff, color: "text-muted-foreground", bg: "bg-muted/60 border-border/20" },
 };
 
 const EVENT_CATEGORY: Partial<Record<ActivityEventType, Exclude<StreamFilter, "all">>> = {
@@ -155,8 +156,8 @@ function RosterCard({ person, isAdmin, isSelected, onSelect }: {
     : loc.sharingState === "sharing"
       ? (loc.drivingSessionId ? Car : place ? Building2 : Navigation)
       : isLastSeen ? Clock
-      : loc.sharingState === "declined_permission" ? MapPinOff
-      : Pause;
+        : loc.sharingState === "declined_permission" ? MapPinOff
+          : Pause;
   const where = loc ? (isLastSeen ? `Last seen ${timeAgo(loc.lastSeenAt)}` : whereText(loc, place)) : null;
   const stationary = !!loc && isNotablyStationary(loc);
 
@@ -387,8 +388,8 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const [streamFilter, setStreamFilter] = React.useState<StreamFilter>("all");
   const [search, setSearch] = React.useState("");
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
-  const [from, setFrom] = React.useState(() => new Date().toISOString().slice(0, 10));
-  const [to, setTo] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = React.useState(() => todayStrMDT(-6));
+  const [to, setTo] = React.useState(() => todayStrMDT());
   const focusRef = React.useRef<MapFocus | null>(null);
   const [placePickMode, setPlacePickMode] = React.useState(false);
   const [pickedCoords, setPickedCoords] = React.useState<{ lat: number; lng: number } | null>(null);
@@ -398,7 +399,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const {
     data: eventPages, isLoading: eventsLoading,
     fetchNextPage, hasNextPage, isFetchingNextPage,
-  } = useActivityFeed();
+  } = useActivityFeed(selectedUserId ?? undefined);
   const events = React.useMemo(() => eventPages?.pages.flat() ?? [], [eventPages]);
   const { data: myStatus } = useMyLocatorStatus();
 
@@ -438,10 +439,10 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const pct = (n: number) => (members.length ? Math.round((n / members.length) * 100) : 0);
 
   const statMetrics = [
-    { label: "Online Now", value: onlineCount,      sub: `${pct(onlineCount)}% of team`,   accent: "text-green-600 dark:text-green-400" },
-    { label: "Active",     value: activeCount,      sub: `${members.length} total`,        accent: "text-blue-600 dark:text-blue-400" },
-    { label: "Sharing",    value: sharingCount,     sub: "live on map",                    accent: "text-emerald-600 dark:text-emerald-400" },
-    { label: "Offline",    value: offlineCount,     sub: `${pct(offlineCount)}% of team`,  accent: "text-muted-foreground/60" },
+    { label: "Online Now", value: onlineCount, sub: `${pct(onlineCount)}% of team`, accent: "text-green-600 dark:text-green-400" },
+    { label: "Active", value: activeCount, sub: `${members.length} total`, accent: "text-blue-600 dark:text-blue-400" },
+    { label: "Sharing", value: sharingCount, sub: "live on map", accent: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Offline", value: offlineCount, sub: `${pct(offlineCount)}% of team`, accent: "text-muted-foreground/60" },
   ];
 
   const handleSelect = React.useCallback((userId: string) => {
@@ -489,12 +490,38 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
     });
   }, [members, search, rosterFilter, myUserId, locationByUserId, lotTechLocations, placeById, distanceMiFor]);
 
+  const rosterGroups = React.useMemo(() => {
+    if (rosterFilter !== "all") return [{ key: "flat", label: "", people: rosterPeople }];
+    const sharing: RosterPerson[] = [];
+    const active: RosterPerson[] = [];
+    const offline: RosterPerson[] = [];
+    for (const p of rosterPeople) {
+      if (p.loc?.sharingState === "sharing") sharing.push(p);
+      else if (p.onlineStatus === "offline") offline.push(p);
+      else active.push(p);
+    }
+    return [
+      { key: "sharing", label: "Sharing", people: sharing },
+      { key: "active", label: "Active", people: active },
+      { key: "offline", label: "Offline", people: offline },
+    ].filter((g) => g.people.length > 0);
+  }, [rosterPeople, rosterFilter]);
+
   const filteredEvents = React.useMemo(() => {
-    let list = events;
-    if (selectedUserId) list = list.filter((e) => e.userId === selectedUserId);
-    if (streamFilter !== "all") list = list.filter((e) => EVENT_CATEGORY[e.type] === streamFilter);
-    return list;
-  }, [events, selectedUserId, streamFilter]);
+    if (streamFilter === "all") return events;
+    return events.filter((e) => EVENT_CATEGORY[e.type] === streamFilter);
+  }, [events, streamFilter]);
+
+  const eventGroups = React.useMemo(() => {
+    const groups: { label: string; events: ActivityEvent[] }[] = [];
+    for (const event of filteredEvents) {
+      const label = isTodayMDT(event.createdAt) ? "Today" : isYesterdayMDT(event.createdAt) ? "Yesterday" : fmtWeekdayDateMDT(event.createdAt);
+      const last = groups[groups.length - 1];
+      if (last?.label === label) last.events.push(event);
+      else groups.push({ label, events: [event] });
+    }
+    return groups;
+  }, [filteredEvents]);
 
   const viewingLoc = viewingUserId ? locationByUserId.get(viewingUserId) : undefined;
   const viewingMember = viewingUserId ? members.find((m) => m._id === viewingUserId) : undefined;
@@ -545,7 +572,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
         />
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4 items-stretch">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="h-[560px]">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
             <LocatorLiveMapSection
               selectedUserId={selectedUserId}
               onSelectUser={handleSelect}
@@ -561,7 +588,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
 
           {/* Fixed height (not min-h) — a tall Location History list must scroll inside the
               panel instead of stretching this row taller than the map next to it. */}
-          <div className="xl:sticky xl:top-20 h-[560px]">
+          <div className="xl:sticky xl:top-20 xl:h-full">
             <AnimatePresence mode="wait">
               <LocationInfoPanel
                 key={viewingUserId ?? "self"}
@@ -629,14 +656,25 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                 </p>
               </div>
             ) : (
-              rosterPeople.map((person) => (
-                <RosterCard
-                  key={person.id}
-                  person={person}
-                  isAdmin={isAdmin}
-                  isSelected={selectedUserId === person.id}
-                  onSelect={() => handleSelect(person.id)}
-                />
+              rosterGroups.map((group) => (
+                <div key={group.key} className="space-y-2">
+                  {group.label && (
+                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-background/95 backdrop-blur-sm py-1 z-10">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{group.label}</span>
+                      <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">{group.people.length}</span>
+                      <span className="flex-1 h-px bg-border/30" />
+                    </div>
+                  )}
+                  {group.people.map((person) => (
+                    <RosterCard
+                      key={person.id}
+                      person={person}
+                      isAdmin={isAdmin}
+                      isSelected={selectedUserId === person.id}
+                      onSelect={() => handleSelect(person.id)}
+                    />
+                  ))}
+                </div>
               ))
             )}
           </div>
@@ -699,9 +737,17 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="px-3 divide-y divide-border/30 sm:overflow-y-auto sm:flex-1">
-                {filteredEvents.map((event, i) => (
-                  <EventItem key={event._id} event={event} myUserId={myUserId} index={i} />
+              <div className="px-3 sm:overflow-y-auto sm:flex-1">
+                {eventGroups.map((group) => (
+                  <div key={group.label} className="divide-y divide-border/30">
+                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-card/95 backdrop-blur-sm py-1.5 z-10">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{group.label}</span>
+                      <span className="flex-1 h-px bg-border/30" />
+                    </div>
+                    {group.events.map((event, i) => (
+                      <EventItem key={event._id} event={event} myUserId={myUserId} index={i} />
+                    ))}
+                  </div>
                 ))}
                 {hasNextPage && (
                   <div ref={streamEndRef} className="py-2.5 flex justify-center">

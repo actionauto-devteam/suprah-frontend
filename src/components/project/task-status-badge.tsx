@@ -39,7 +39,6 @@ export const PROJECT_TASK_STATUSES: ProjectTaskStatus[] = [
 type StatusConfig = {
   label: string;
   icon: LucideIcon;
-  /** Chip styling: bg / text / border / dot, light + dark aware. */
   chip: string;
   dot: string;
 };
@@ -83,7 +82,6 @@ export const STATUS_CONFIG: Record<ProjectTaskStatus, StatusConfig> = {
   },
 };
 
-/* ── Read-only badge — task cards, lists, detail headers ─────────────────── */
 
 export function TaskStatusBadge({
   status,
@@ -112,7 +110,6 @@ export function TaskStatusBadge({
   );
 }
 
-/* ── Plain colored dot — compact indicators (calendar, kanban headers) ───── */
 
 export function TaskStatusDot({
   status,
@@ -130,13 +127,7 @@ export function TaskStatusDot({
   );
 }
 
-/* ── Interactive selector — task detail view ─────────────────────────────── */
 
-/**
- * Status dropdown. When `disabled`, renders the read-only badge with a lock
- * hint instead — the real permission check lives on the backend
- * (PATCH /tasks/:id/status → creator or assignee only); this only mirrors it.
- */
 export function TaskStatusSelect({
   status,
   onChange,

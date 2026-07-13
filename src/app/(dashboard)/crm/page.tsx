@@ -36,7 +36,6 @@ type ForgotStep = "email" | "otp";
 export default function CrmLoginPage() {
   const router = useRouter();
 
-  // Form state
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
@@ -44,10 +43,8 @@ export default function CrmLoginPage() {
   const [error, setError] = React.useState("");
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
 
-  // Mode
   const [loginMode, setLoginMode] = React.useState<LoginMode>("password");
 
-  // Forgot password
   const [forgotOpen, setForgotOpen] = React.useState(false);
   const [forgotStep, setForgotStep] = React.useState<ForgotStep>("email");
   const [forgotEmail, setForgotEmail] = React.useState("");
@@ -60,11 +57,9 @@ export default function CrmLoginPage() {
   const [resendCooldown, setResendCooldown] = React.useState(0);
   const cooldownRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Biometric state
   const [biometricAvailable, setBiometricAvailable] = React.useState(false);
   const [biometricLoading, setBiometricLoading] = React.useState(false);
 
-  // SSH key state
   const [sshChallenge, setSshChallenge] = React.useState("");
   const [sshStoreKey, setSshStoreKey] = React.useState("");
   const [sshSignature, setSshSignature] = React.useState("");
@@ -72,7 +67,6 @@ export default function CrmLoginPage() {
   const [sshCopied, setSshCopied] = React.useState(false);
   const [sshChallengeReady, setSshChallengeReady] = React.useState(false);
 
-  /* ── Check existing session & biometric support ──────────────────────────── */
   React.useEffect(() => {
     const token = localStorage.getItem("crm_token");
     if (token) {

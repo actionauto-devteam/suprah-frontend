@@ -3,11 +3,11 @@
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNowStrict } from "date-fns";
-import { fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
+import { fmtTimeMDT, todayStrMDT } from "@/lib/timezone";
 import {
   X, Building2, Navigation, Pause, Play, Power, MapPinOff, Crosshair,
   BatteryFull, BatteryLow, Gauge, History, Clock, MapPin, Loader2, Smartphone, Monitor,
-  Car, Anchor, Map as MapIcon, Lock,
+  Car, Anchor, Map as MapIcon, Lock, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,6 @@ import {
 } from "./LocatorMapLegend";
 import { haversineMi, haversineM, formatDistanceMi } from "@/lib/geo";
 
-/** "3h 12m" style duration, falls back to a plain timestamp read for very short/odd spans. */
 function sharingDuration(sinceIso?: string) {
   if (!sinceIso) return "";
   try {
@@ -144,10 +143,6 @@ function buildHistorySegments(history: LocationHistoryPoint[], places: Place[]):
   return merged.reverse(); // newest first
 }
 
-function todayStr(offsetDays = 0) {
-  return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ });
-}
-
 function timeAgo(iso?: string) {
   if (!iso) return "";
   try {
@@ -203,6 +198,7 @@ export function LocationInfoPanel({
   const stopLocked = !isMandatory && isOnShift && !isOnBreak;
   const [segmentsVisibleCount, setSegmentsVisibleCount] = React.useState(SEGMENTS_PAGE_SIZE);
   const [routeMapOpen, setRouteMapOpen] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
 
   // Reset pagination whenever the underlying range/history changes so an old "load more" state
   // from a previous person/date-range doesn't linger.
@@ -324,7 +320,30 @@ export function LocationInfoPanel({
           </div>
         </div>
 
-        {hasExplicitSelection && !isSelf && (
+        {isSelf ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!consentGranted ? (
+              <ShareToggleButton icon={MapPin} pending={consentPending} onClick={startSharing} title="Share my location" />
+            ) : awaitingFirstFix ? (
+              <>
+                <ShareToggleButton icon={Loader2} pending iconClassName="animate-spin" title="Getting your location…" />
+                <StopButton locked={stopLocked} pending={consentPending} onClick={stopSharing} />
+              </>
+            ) : controlsLocked ? (
+              <ShareToggleButton icon={Lock} disabled title="Required for your department during your shift — pauses automatically on break" />
+            ) : isPaused ? (
+              <>
+                <ShareToggleButton icon={Play} pending={sharingBusy} onClick={resumeSharing} variant="resume" title="Resume sharing" />
+                <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
+              </>
+            ) : (
+              <>
+                <ShareToggleButton icon={Pause} pending={sharingBusy} onClick={pauseManually} title="Pause sharing" />
+                <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
+              </>
+            )}
+          </div>
+        ) : hasExplicitSelection && (
           <button onClick={onClose} title="Back to my location" className="text-muted-foreground/40 hover:text-foreground transition-colors shrink-0">
             <X className="size-4" />
           </button>
@@ -344,54 +363,6 @@ export function LocationInfoPanel({
           {meta.description}
         </motion.p>
       </AnimatePresence>
-
-      {/* sharing controls — only for "me" */}
-      {isSelf && (
-        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 shrink-0">
-          {!consentGranted ? (
-            <Button size="sm" disabled={consentPending} onClick={startSharing} className="h-8 flex-1 text-[11px] font-bold gap-1.5">
-              {consentPending ? <Loader2 className="size-3.5 animate-spin" /> : <MapPin className="size-3.5" />}
-              {consentPending ? "Turning on…" : "Share my location"}
-            </Button>
-          ) : awaitingFirstFix ? (
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-1.5">
-                <div className="h-8 flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold text-muted-foreground/70 rounded-md border border-dashed border-border/50">
-                  <Loader2 className="size-3.5 animate-spin" /> Getting your location…
-                </div>
-                <StopButton locked={stopLocked} pending={consentPending} onClick={stopSharing} />
-              </div>
-              {sharingError && <p className="text-[9px] text-amber-600 dark:text-amber-400 px-0.5">{sharingError}</p>}
-            </div>
-          ) : controlsLocked ? (
-            <div className="flex-1 flex items-center gap-1.5 rounded-md border border-dashed border-border/50 px-2.5 py-2">
-              <Lock className="size-3 text-muted-foreground/50 shrink-0" />
-              <p className="text-[10px] text-muted-foreground/60 leading-snug">
-                Required for your department during your shift — pauses automatically on break.
-              </p>
-            </div>
-          ) : isPaused ? (
-            <>
-              <Button size="sm" disabled={sharingBusy} onClick={resumeSharing} className="h-8 flex-1 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
-                {sharingBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />} {sharingBusy ? "Resuming…" : "Resume"}
-              </Button>
-              <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
-            </>
-          ) : (
-            <>
-              <Button size="sm" variant="outline" disabled={sharingBusy} onClick={pauseManually} className="h-8 flex-1 text-[11px] font-bold gap-1.5 border-border/50">
-                {sharingBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Pause className="size-3.5" />} {sharingBusy ? "Pausing…" : "Pause"}
-              </Button>
-              <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
-            </>
-          )}
-        </div>
-      )}
-      {isSelf && consentGranted && stopLocked && !controlsLocked && (
-        <p className="px-3.5 pt-1.5 text-[9px] text-muted-foreground/50 leading-snug shrink-0">
-          Stop is locked during your shift — end your shift or start a break in TimeProof to turn it off.
-        </p>
-      )}
 
       {/* scrollable body: mini status line + Show on map + stat chips + history — fills
           remaining height so the card bottom lines up with the map */}
@@ -442,18 +413,27 @@ export function LocationInfoPanel({
         )}
 
         <div className="px-3.5 pb-3.5 pt-3 space-y-2.5 border-t border-border/30">
-          <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="w-full flex items-center gap-1.5"
+          >
             <div className="flex items-center justify-center size-5 rounded-md bg-primary/10 shrink-0">
               <History className="size-3 text-primary/70" />
             </div>
             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Location History</span>
-          </div>
+            {!historyOpen && history.length > 0 && (
+              <span className="text-[9px] text-muted-foreground/40 font-semibold">{history.length} points</span>
+            )}
+            <ChevronDown className={cn("size-3 text-muted-foreground/50 ml-auto transition-transform", historyOpen && "rotate-180")} />
+          </button>
 
+          {historyOpen && (
+          <>
           <div className="flex items-center gap-1 flex-wrap">
             {([
-              { label: "Today", from: todayStr(), to: todayStr() },
-              { label: "Yesterday", from: todayStr(-1), to: todayStr(-1) },
-              { label: "This Week", from: todayStr(-6), to: todayStr() },
+              { label: "Today", from: todayStrMDT(), to: todayStrMDT() },
+              { label: "Yesterday", from: todayStrMDT(-1), to: todayStrMDT(-1) },
+              { label: "This Week", from: todayStrMDT(-6), to: todayStrMDT() },
             ] as const).map((preset) => {
               const active = from === preset.from && to === preset.to;
               return (
@@ -563,17 +543,6 @@ export function LocationInfoPanel({
             </>
           )}
 
-          <Dialog open={routeMapOpen} onOpenChange={setRouteMapOpen}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle className="text-sm font-black flex items-center gap-1.5">
-                  <MapIcon className="size-4" /> {name}&apos;s Route
-                </DialogTitle>
-              </DialogHeader>
-              <RouteReplayMap route={history} />
-            </DialogContent>
-          </Dialog>
-
           {isAdmin && report.length > 0 && (
             <div className="space-y-1 pt-1">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Time at Place</p>
@@ -591,9 +560,50 @@ export function LocationInfoPanel({
               </div>
             </div>
           )}
+          </>
+          )}
+
+          <Dialog open={routeMapOpen} onOpenChange={setRouteMapOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-black flex items-center gap-1.5">
+                  <MapIcon className="size-4" /> {name}&apos;s Route
+                </DialogTitle>
+              </DialogHeader>
+              <RouteReplayMap route={history} />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </motion.div>
+  );
+}
+
+function ShareToggleButton({
+  icon: Icon, pending, disabled, onClick, title, variant, iconClassName,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  pending?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+  title: string;
+  variant?: "resume";
+  iconClassName?: string;
+}) {
+  return (
+    <Button
+      size="icon"
+      variant={variant === "resume" ? "default" : "outline"}
+      disabled={pending || disabled}
+      onClick={onClick}
+      title={title}
+      className={cn(
+        "size-9 shrink-0",
+        variant === "resume" && "bg-emerald-600 hover:bg-emerald-700 text-white",
+      )}
+    >
+      <Icon className={cn("size-4", pending && "animate-spin", iconClassName)} />
+    </Button>
   );
 }
 
@@ -606,19 +616,19 @@ function StopButton({
 }) {
   return (
     <Button
-      size="sm"
+      size="icon"
       variant="outline"
       disabled={pending || locked}
       onClick={onClick}
-      title={locked ? "Stop is locked during your shift — end your shift or start a break in TimeProof" : undefined}
+      title={locked ? "Stop is locked during your shift — end your shift or start a break in TimeProof" : "Stop sharing"}
       className={cn(
-        "h-8 text-[11px] font-bold gap-1.5 shrink-0",
+        "size-9 shrink-0",
         locked
           ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 disabled:opacity-100"
           : "border-border/50 text-muted-foreground hover:text-foreground",
       )}
     >
-      {pending ? <Loader2 className="size-3.5 animate-spin" /> : locked ? <Lock className="size-3.5" /> : <Power className="size-3.5" />}
+      {pending ? <Loader2 className="size-4 animate-spin" /> : locked ? <Lock className="size-4" /> : <Power className="size-4" />}
     </Button>
   );
 }

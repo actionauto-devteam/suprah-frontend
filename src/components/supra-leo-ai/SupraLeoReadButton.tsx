@@ -67,7 +67,6 @@ export function SupraLeoReadButton({ lead, leadId, size = 'sm', className = '' }
   const iconSz = size === 'sm' ? 13 : 16
   const isOn = active || hovered
 
-  // Color tokens that adapt to light/dark
   const accentBase  = dark ? 'rgba(59,130,246,' : 'rgba(37,99,235,'
   const accentSolid = dark ? '#60A5FA' : '#2563EB'
   const borderColor = active

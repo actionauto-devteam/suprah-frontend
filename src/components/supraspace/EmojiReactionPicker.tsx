@@ -80,7 +80,7 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
       }}
     >
-      {/* Search */}
+      { }
       <div className="p-2 border-b border-white/10 shrink-0">
         <input
           autoFocus
@@ -92,7 +92,7 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
         />
       </div>
 
-      {/* Category tabs */}
+      { }
       <div className="flex items-center gap-0.5 px-1.5 py-1 border-b border-white/10 shrink-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         {EMOJI_CATS.map(cat => (
           <button
@@ -111,12 +111,12 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
         ))}
       </div>
 
-      {/* Category label */}
+      { }
       <div className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/30 shrink-0">
         {search ? `Results for "${search}"` : displayCat.label}
       </div>
 
-      {/* Emoji grid */}
+      { }
       <div className="flex-1 overflow-y-auto px-1.5 pb-2 min-h-0" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
         {displayEmojis.length === 0 ? (
           <div className="flex items-center justify-center h-16 text-[11px] text-white/30">No results</div>

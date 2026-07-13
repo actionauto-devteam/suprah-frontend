@@ -22,10 +22,10 @@ export default function CommsPage() {
       className={cn("ss4 flex flex-col h-full overflow-hidden")}
       data-theme={theme}
     >
-      {/* ── Top tab bar ── */}
+      { }
       <header className="ss4-topbar shrink-0 z-40">
         <div className="flex items-center h-12 sm:h-12 px-3 sm:px-4 gap-3">
-          {/* Left: logo + title */}
+          { }
           <div className="flex items-center gap-2 shrink-0">
             <div className="h-7 w-7 ss4-logo-mark flex items-center justify-center">
               <MessageSquare
@@ -54,7 +54,7 @@ export default function CommsPage() {
             </div>
           </div>
 
-          {/* Center: tab switcher — full width on mobile */}
+          { }
           <div className="ss4-tab-bar flex gap-0.5 flex-1 sm:flex-none sm:mx-auto">
             <button
               onClick={() => setActiveTab("leads")}
@@ -80,12 +80,12 @@ export default function CommsPage() {
             </button>
           </div>
 
-          {/* Spacer */}
+          { }
           <div className="hidden sm:block w-7 shrink-0" />
         </div>
       </header>
 
-      {/* ── Content area — both mounted to preserve socket state ── */}
+      { }
       <div className="flex-1 overflow-hidden relative">
         <div
           className={cn(

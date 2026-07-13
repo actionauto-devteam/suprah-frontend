@@ -15,7 +15,6 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface CrmUserData {
   _id: string;
   fullName: string;
@@ -36,7 +35,6 @@ interface OrgLeadConfig {
   lastSyncAt?: string;
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function IntegrationsSettingsPage() {
   const router = useRouter();
   const { getToken } = useAuth();
@@ -44,7 +42,6 @@ export default function IntegrationsSettingsPage() {
   const [token, setToken] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);
 
-  // Forms & State
   const [config, setConfig] = React.useState<OrgLeadConfig | null>(null);
   const [sourceEmailInput, setSourceEmailInput] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
@@ -65,7 +62,6 @@ export default function IntegrationsSettingsPage() {
         setUser(data);
         setToken(t);
 
-        // Fetch actual org lead configuration
         const confRes = await apiClient.get("/api/org-lead/config", {
           headers: { Authorization: `Bearer ${t}` },
         });
@@ -234,7 +230,7 @@ export default function IntegrationsSettingsPage() {
 
     return (
         <div className="min-h-screen w-full bg-background">
-            {/* ── Page Content ── */}
+            { }
             <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
                 <div className="flex items-center gap-3 sm:gap-4">
                     <Button variant="ghost" size="sm" onClick={() => router.push("/crm/dashboard")} className="h-9 w-9 p-0 rounded-xl border border-border/40 hover:bg-muted/50 shrink-0">
@@ -250,7 +246,7 @@ export default function IntegrationsSettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* ─── Sidebar nav ─── */}
+                    { }
                     <div className="lg:col-span-3">
                         <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
                             <div className="px-4 py-3 border-b border-border/30">
@@ -294,10 +290,10 @@ export default function IntegrationsSettingsPage() {
                         </div>
                     </div>
 
-                    {/* ─── Main panel ─── */}
+                    { }
                     <div className="lg:col-span-9 space-y-4">
 
-                        {/* EMAIL INTEGRATION CARD */}
+                        { }
                         <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
                             <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
                                 <div className="flex items-center gap-3 min-w-0">
@@ -402,7 +398,7 @@ export default function IntegrationsSettingsPage() {
                             </div>
                         </div>
 
-                        {/* ADVANCED WEBHOOK CARD */}
+                        { }
                         <div className="rounded-2xl border border-border/30 bg-muted/20 overflow-hidden mt-6">
                             <div className="px-4 sm:px-6 py-4 border-b border-border/30 flex items-center gap-3">
                                 <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center">

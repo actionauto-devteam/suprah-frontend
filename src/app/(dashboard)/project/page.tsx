@@ -52,7 +52,6 @@ import {
 import { MyTasksPanel } from "@/components/project/my-tasks-panel";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 
-/* ── Types (mirror backend lean shapes) ────────────────────────────────── */
 
 type Group = {
   _id: string;
@@ -81,9 +80,6 @@ type TaskSummary = {
   attachmentCount: number;
 };
 
-/* ══════════════════════════════════════════════════════════════════════ */
-/*  PAGE                                                                    */
-/* ══════════════════════════════════════════════════════════════════════ */
 
 type PageTab = "workspace" | "mine" | "done";
 
@@ -103,16 +99,13 @@ export default function ProjectManagementPage() {
   const [selectedGroupId, setSelectedGroupId] = React.useState<string | null>(null);
   const [pageError, setPageError] = React.useState("");
 
-  // Mobile group rail (drawer) — desktop always shows the rail inline.
   const [railOpen, setRailOpen] = React.useState(false);
 
-  // Group dialogs
   const [groupDialogMode, setGroupDialogMode] = React.useState<"closed" | "create" | "edit">("closed");
   const [groupBeingEdited, setGroupBeingEdited] = React.useState<Group | null>(null);
   const [groupToDelete, setGroupToDelete] = React.useState<Group | null>(null);
   const [deletingGroup, setDeletingGroup] = React.useState(false);
 
-  /* ── Bootstrap: identity + groups; visiting the page clears the badge ── */
   React.useEffect(() => {
     apiClient
       .get("/api/crm/me")

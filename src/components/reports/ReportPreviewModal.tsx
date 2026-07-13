@@ -45,7 +45,6 @@ interface ReportPreviewModalProps {
   onDownload: () => void
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function statusBadgeClass(status: string) {
   const s = status.toLowerCase();
@@ -70,7 +69,6 @@ function paymentBadgeClass(status: string) {
   return "bg-muted text-muted-foreground border-border";
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
 
 function StatCard({
   label,

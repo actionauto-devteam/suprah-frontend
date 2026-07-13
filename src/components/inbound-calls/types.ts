@@ -1,4 +1,3 @@
-// ─── Shared Types ─────────────────────────────────────────────────────────────
 
 export type AgentStatus = "available" | "on-call" | "break" | "offline"
 export type BreakReason = "lunch" | "short-break" | "meeting" | "training"

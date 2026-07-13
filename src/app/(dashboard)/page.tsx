@@ -47,8 +47,6 @@ const STATUS_DOT: Record<string, string> = {
   offline: "bg-muted-foreground/40",
 };
 
-// Mirrors the AppSidebar nav items (src/components/app-sidebar.tsx) so the
-// quick-nav row stays a 1:1 shortcut to whatever the sidebar exposes.
 const QUICK_NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "CRM", href: "/crm", icon: Users },
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -123,8 +121,6 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      // min-h-full (relative to the scrolling `main`) instead of min-h-svh
-      // so the error state fills the container without using viewport units.
       <div className="flex items-center justify-center min-h-full p-4">
         <div className="text-center p-8 border border-destructive/20 bg-destructive/5 rounded-3xl backdrop-blur-sm max-w-sm w-full">
           <p className="text-destructive font-black tracking-tight text-lg mb-2">
@@ -146,13 +142,9 @@ export default function Dashboard() {
   }
 
   return (
-    // min-h-full = 100% of the scrolling `main` (which has a definite h-dvh),
-    // NOT min-h-screen (100vh). Using viewport units here forced the page to be
-    // a full window tall regardless of `main`, which made the document scroll on
-    // top of `main`'s scroll — the source of the second scrollbar.
     <div className="p-3 sm:p-6 lg:p-8 space-y-3 sm:space-y-6 lg:space-y-8 container mx-auto min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
 
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
+      { }
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -182,7 +174,7 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        {/* Team Pulse strip */}
+        { }
         <div className="flex items-center gap-2.5 sm:gap-3 bg-card/40 py-2 px-3 rounded-2xl border border-border/20 backdrop-blur-md min-w-0 w-full sm:w-auto sm:max-w-xs">
           <button
             onClick={() => router.push("/team-pulse")}

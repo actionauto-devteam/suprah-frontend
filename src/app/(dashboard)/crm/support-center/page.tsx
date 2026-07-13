@@ -22,7 +22,6 @@ function SupportCenterView() {
   const params = useSearchParams();
   const { getToken } = useAuth();
 
-  // Honor ?tab=aftermarket deep-links (aftermarket inquiry notifications route here).
   const initialTab = (params.get("tab") as SupportTab) || "concerns";
   const [activeTab, setActiveTab] = React.useState<SupportTab>(
     VALID_TABS.includes(initialTab) ? initialTab : "concerns"

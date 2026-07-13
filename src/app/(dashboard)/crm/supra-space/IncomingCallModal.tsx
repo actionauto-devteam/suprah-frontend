@@ -18,10 +18,8 @@ export function IncomingCallModal({
       audio = new Audio('/sounds/ringtone.mp3');
       audio.loop = true;
       audio.play().catch(() => {
-        /* autoplay may be blocked until user gesture */
       });
     } catch {
-      /* no-op */
     }
     return () => {
       if (audio) {

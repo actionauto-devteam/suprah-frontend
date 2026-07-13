@@ -46,7 +46,6 @@ import {
   quoteTransportType,
 } from "@/lib/transportation-reports";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TransportationPreviewModalProps {
   open: boolean;
@@ -59,7 +58,6 @@ interface TransportationPreviewModalProps {
   onDownload: () => void;
 }
 
-// ─── PDF Functions (Moved here to avoid circular dependencies) ──────────────────
 
 export async function generateLoadReportPdf(
   loads: Load[],

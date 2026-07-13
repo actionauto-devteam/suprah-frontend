@@ -13,7 +13,6 @@ import { SupraLeoAvatar, type LeoState } from './SupraLeoAvatar'
 import { apiClient } from '@/lib/api-client'
 import { useRouter } from 'next/navigation'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
 export type SpeakState =
   | 'idle' | 'fetching' | 'speaking' | 'paused'
   | 'waiting-command' | 'listening' | 'listening-reply'
@@ -48,7 +47,6 @@ interface PanelProps {
   onSendReply: () => Promise<void>
 }
 
-// ─── Panel CSS ─────────────────────────────────────────────────────────────────
 export const UPDATED_PANEL_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
@@ -1005,7 +1003,6 @@ function injectPanelCSS() {
   document.head.appendChild(el)
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function getToken(): string {
   if (typeof window === 'undefined') return ''
   return localStorage.getItem('crm_token') || ''

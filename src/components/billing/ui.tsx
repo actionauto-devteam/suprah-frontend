@@ -1,29 +1,13 @@
 "use client";
 
-/**
- * SuprahPay — shared design system (cockpit edition)
- * --------------------------------------------------
- * One source of truth for colours, type, and primitives so every billing
- * screen looks like the same e-bank product. Import from here instead of
- * re-declaring local tokens / inline styles.
- *
- *   import { T, Card, StatusBadge, StatCard, PrimaryButton, money } from "@/components/billing/ui";
- *
- * This is a self-contained DARK theme (a deliberate "digital cockpit" surface),
- * so it no longer reads the app's --background/--card vars. If you want it
- * theme-aware again, swap the hardcoded values back to var(--x, fallback).
- */
 
 import * as React from "react";
 import { formatCurrency } from "@/utils/format";
 
-/* ── Brand ──────────────────────────────────────────────────────────────── */
-export const BRAND = "#16A34A";          // SuprahPay emerald
+export const BRAND = "#16A34A";
 export const BRAND_HOVER = "#0F7A39";
-export const MINT = "#34F5A3";            // luminous accent / glow
+export const MINT = "#34F5A3";
 
-/* ── Tokens ─────────────────────────────────────────────────────────────── */
-/* Dark glass cockpit palette. Status colours are tuned for dark surfaces.    */
 export const T = {
   brand: BRAND,
   brandHover: BRAND_HOVER,
@@ -32,8 +16,8 @@ export const T = {
   brandSofter: "rgba(22,163,74,0.08)",
   brandBorder: "rgba(52,245,163,0.30)",
 
-  bg: "#070A10",                          // page void
-  surface: "#0C111A",                     // opaque card base
+  bg: "#070A10",
+  surface: "#0C111A",
   surfaceAlt: "rgba(255,255,255,0.05)",
   border: "rgba(255,255,255,0.09)",
   borderHi: "rgba(255,255,255,0.16)",
@@ -62,7 +46,6 @@ export const FONT =
 export const MONO =
   "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, 'Cascadia Code', monospace";
 
-/* Money + counters render as tabular mono figures — reads like instrument data. */
 export const numeric: React.CSSProperties = {
   fontFamily: MONO,
   fontFeatureSettings: '"tnum" 1',
@@ -72,7 +55,6 @@ export const numeric: React.CSSProperties = {
 
 export const money = (n: number) => formatCurrency(n);
 
-/* Shared glass-card surface (also used by Card / StatCard). */
 export const glassSurface: React.CSSProperties = {
   background: T.surface,
   backgroundImage:

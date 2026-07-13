@@ -30,7 +30,6 @@ import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { DEPARTMENTS, deptLabel } from '@/lib/departments';
 import { JitsiMeet } from './JitsiMeet';
-// ── NEW: calling ──
 import { useCall, CallSession } from '@/hooks/useCall';
 import { stopCallSound } from '@/lib/notification-sound';
 import { CallBanner } from './CallBanner';
@@ -72,7 +71,6 @@ const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: strin
   { name: 'Slate', accent: '#64748b', wallpaper: 'linear-gradient(160deg, rgba(100,116,139,0.12), transparent)' },
 ];
 
-// ─── Font + Style Injection ──────────────────────────────────────────────────
 if (typeof document !== 'undefined') {
   let link = document.getElementById('ss4-fonts') as HTMLLinkElement | null;
   if (!link) {
@@ -254,7 +252,6 @@ if (typeof document !== 'undefined') {
   `;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 const ini = (n: string) => (n || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 const fmtTime = (d: string) => fmtTimeMDT(d);
 function fmtDate(d: string) {
@@ -485,20 +482,12 @@ function escapeHtmlText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Detects whether pasted HTML actually carries semantic formatting worth preserving
-// (vs. plain divs/spans from a generic web page, which we'd rather flatten to plain text).
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
     || /<font\b[^>]*color\s*=/i.test(html)
     || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
-// Converts source HTML (from another app's clipboard) into the editor's own internal
-// HTML dialect: real <strong>/<em>/<u>/<s> tags for inline formatting (matches what the
-// toolbar buttons produce), but literal "\u2022 "/"> " prefixes for lists/quotes (matches how
-// this editor represents those \u2014 see applyFormat/handleFormattedLineBreak). All text is
-// escaped, and only this fixed tag allow-list is ever emitted, so no attributes or scripts
-// from the source survive.
 function clipboardHtmlToEditorHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
@@ -557,15 +546,10 @@ function clipboardHtmlToEditorHtml(html: string): string {
     .replace(/^(<br>)+/g, '');
 }
 
-// Detects markdown-style syntax in plain pasted text (e.g. copied from ChatGPT as
-// text/plain only) \u2014 **bold**, _italic_/*italic*, __underline__, ~~strike~~, "* " / "- "
-// bullets, "1. " numbered lists, "> " quotes.
 function hasMarkdownSyntax(text: string): boolean {
   return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
 }
 
-// Converts markdown syntax in plain text into the editor's internal HTML dialect
-// (same tag/marker conventions as clipboardHtmlToEditorHtml above).
 function markdownTextToEditorHtml(text: string): string {
   const lines = normalizeMessageMarkdownText(text).replace(/\r\n/g, '\n').split('\n');
   const htmlLines = lines.map(line => {
@@ -586,7 +570,6 @@ function markdownTextToEditorHtml(text: string): string {
         .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
         .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
 
-    // Process {color:#hex}...{/color} tags into editor <span style="color:"> elements
     const colorTagRe = /\{color:(#[0-9a-fA-F]{6})\}([\s\S]*?)\{\/color\}/g;
     let result = '';
     let lastIdx = 0;
@@ -848,8 +831,6 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
     if (li > 0) result.push(<br key={`br${li}`} />);
     const bulletMatch = renderLine.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
     if (bulletMatch) {
-      // Render bullet lines in an indented block with hanging indent so the text
-      // aligns under itself when it wraps, not under the bullet character.
       const bulletNodes = renderInline(`• ${bulletMatch[2]}`, `bullet-${li}`);
       result.push(
         <span key={`bul-${li}`} style={{ display: 'inline-block', paddingLeft: '1.1em', textIndent: '-0.8em' }}>
@@ -936,7 +917,6 @@ function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
   };
 }
 
-// ─── Date Separator ───────────────────────────────────────────────────────────
 function DateSep({ date }: { date: string }) {
   return (
     <div className="flex items-center gap-2.5 sm:gap-3 my-3.5 sm:my-6 px-4 sm:px-5">
@@ -947,7 +927,6 @@ function DateSep({ date }: { date: string }) {
   );
 }
 
-// ─── Voice note player ────────────────────────────────────────────────────────
 function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: string; duration?: number; own: boolean }) {
   const { getToken } = useAuth();
   const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -1017,7 +996,6 @@ function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: 
   );
 }
 
-// ─── Poll card ────────────────────────────────────────────────────────────────
 function PollCard({ poll, uid, onVote }: { poll: NonNullable<SSMessage['poll']>; uid: string; onVote: (optionId: string) => void }) {
   const totalVotes = poll.options.reduce((n, o) => n + (o.votes?.length || 0), 0);
   return (
@@ -1052,7 +1030,6 @@ function PollCard({ poll, uid, onVote }: { poll: NonNullable<SSMessage['poll']>;
   );
 }
 
-// ─── Event card ───────────────────────────────────────────────────────────────
 function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event']>; uid: string; onRsvp: (r: 'going' | 'maybe' | 'declined') => void }) {
   const mine: 'going' | 'maybe' | 'declined' | null =
     (event.going || []).includes(uid) ? 'going' : (event.maybe || []).includes(uid) ? 'maybe' : (event.declined || []).includes(uid) ? 'declined' : null;
@@ -1181,9 +1158,6 @@ function PendingMeetingPreview({ meeting, onRemove }: { meeting: PendingMeetingD
   );
 }
 
-// ─── Copy image to clipboard ──────────────────────────────────────────────────
-// Images are on a private R2 bucket with no CORS headers, so we proxy through
-// Next.js (/api/proxy-image) which fetches server-side where CORS doesn't apply.
 async function copyImageToClipboard(url: string): Promise<void> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
   const res = await fetch(proxyUrl);
@@ -1236,7 +1210,6 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
   return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 };
 
-// ─── Message Bubble ───────────────────────────────────────────────────────────
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
   onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, members = [], hideTime = false, onEditSave, onForward,
@@ -1717,7 +1690,7 @@ function Bubble({
                   <SmilePlus className="h-3.5 w-3.5" />
                 </button>
               </div>
-              {/* More actions */}
+              { }
               <div className="relative" ref={moreActionsRef}>
                 <button
                   onClick={() => {
@@ -1758,26 +1731,26 @@ function Bubble({
                     }}
                   >
                     <div className="py-1">
-                      {/* Forward message */}
+                      { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => { onForward?.(message); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
                         <Share2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Forward message</span>
                       </button>
-                      {/* Mark as unread */}
+                      { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => { toast.info('Mark as unread coming soon'); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
                         <MailOpen className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Mark as unread</span>
                       </button>
-                      {/* Star */}
+                      { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => { toast.info('Star coming soon'); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
                         <Star className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Star</span>
                       </button>
                       <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
-                      {/* Pin / Unpin */}
+                      { }
                       {onPin && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { onPin(message._id); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
@@ -1785,7 +1758,7 @@ function Bubble({
                           <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
                         </button>
                       )}
-                      {/* Copy message */}
+                      { }
                       {message.content && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { copyMessageText(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
@@ -1793,7 +1766,7 @@ function Bubble({
                           <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy message</span>
                         </button>
                       )}
-                      {/* Copy message link */}
+                      { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => {
                           const url = `${window.location.href.split('#')[0]}#ss4-msg-${message._id}`;
@@ -1805,7 +1778,7 @@ function Bubble({
                         <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy message link</span>
                       </button>
-                      {/* Copy image */}
+                      { }
                       {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={async () => {
@@ -1819,7 +1792,7 @@ function Bubble({
                           <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy image</span>
                         </button>
                       )}
-                      {/* Edit / Delete — own messages only */}
+                      { }
                       {isOwn && (
                         <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
                       )}
@@ -2062,7 +2035,6 @@ function Bubble({
   );
 }
 
-// ─── Video Call Modal (legacy — no longer used; kept so JitsiMeet import stays referenced) ──
 function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
   conv: SSConversation; uid: string; onClose: () => void; allUsers: CrmUser[]; token: string;
 }) {
@@ -2122,7 +2094,6 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
   );
 }
 
-// ─── New Conversation Modal ───────────────────────────────────────────────────
 function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
   users: CrmUser[];
   theme: 'dark' | 'light';
@@ -2250,7 +2221,6 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
   );
 }
 
-// ─── Lightbox ─────────────────────────────────────────────────────────────────
 function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image' | 'video'; name: string; onClose: () => void }) {
   const [downloading, setDownloading] = React.useState(false);
   const [zoom, setZoom] = React.useState(1);
@@ -2352,7 +2322,7 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
       style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)' }}
       onClick={onClose}
     >
-      {/* Top bar */}
+      { }
       <div
         className="flex items-center justify-between px-4 shrink-0"
         style={{ height: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
@@ -2386,7 +2356,7 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
         </div>
       </div>
 
-      {/* Media area — overflow hidden, no scrollbars, drag-to-pan */}
+      { }
       <div
         className="flex-1 flex items-center justify-center overflow-hidden"
         style={{
@@ -2441,7 +2411,7 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
         )}
       </div>
 
-      {/* Hint text when zoomed in */}
+      { }
       {type === 'image' && zoom > 1 && (
         <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: '3px 12px' }}>
@@ -2453,7 +2423,6 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
   );
 }
 
-// ─── Pending file preview ─────────────────────────────────────────────────────
 function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void }) {
   const isImg = file.type.startsWith('image/');
   const isVid = file.type.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(file.name.slice(file.name.lastIndexOf('.')).toLowerCase());
@@ -2475,7 +2444,6 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
   );
 }
 
-// ─── GIF Picker ───────────────────────────────────────────────────────────────
 function GifPicker({ onPick, onClose, mobile = false }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void; mobile?: boolean }) {
   const [q, setQ] = React.useState('');
   const [gifs, setGifs] = React.useState<any[]>([]);
@@ -2529,7 +2497,6 @@ function GifPicker({ onPick, onClose, mobile = false }: { onPick: (g: { url: str
   );
 }
 
-// ─── Poll Modal ───────────────────────────────────────────────────────────────
 function PollModal({ onClose, onCreate }: { onClose: () => void; onCreate: (q: string, opts: string[], multi: boolean) => void }) {
   const [question, setQuestion] = React.useState('');
   const [opts, setOpts] = React.useState(['', '']);
@@ -2563,7 +2530,6 @@ function PollModal({ onClose, onCreate }: { onClose: () => void; onCreate: (q: s
   );
 }
 
-// ─── Event Modal ──────────────────────────────────────────────────────────────
 function EventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: { title: string; description: string; location: string; startTime: string; endTime: string }) => void }) {
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -2785,7 +2751,6 @@ function ScheduleMeetingModal({
   );
 }
 
-// ─── Theme Modal ──────────────────────────────────────────────────────────────
 function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['theme']; onClose: () => void; onApply: (t: { accent: string | null; wallpaper: string | null }) => void }) {
   const [accent, setAccent] = React.useState<string | null>(current?.accent || null);
   const [wallpaper, setWallpaper] = React.useState<string | null>(current?.wallpaper || null);
@@ -2824,7 +2789,6 @@ function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['t
   );
 }
 
-// ─── Manage Members Modal ─────────────────────────────────────────────────────
 function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
   users: CrmUser[]; existingIds: string[]; onClose: () => void; onAdd: (ids: string[]) => void;
 }) {
@@ -2866,7 +2830,6 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
   );
 }
 
-// ─── Forward Message Modal ────────────────────────────────────────────────────
 function ForwardMessageModal({ users, message, token, onClose }: {
   users: CrmUser[]; message: SSMessage; token: string; onClose: () => void;
 }) {
@@ -2895,7 +2858,7 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           await apiClient.post(`/api/supraspace/conversations/${convId}/messages`, { content: message.content }, { headers: { Authorization: `Bearer ${token}` } });
         }
         ok++;
-      } catch { /* skip failed individual */ }
+      } catch {  }
     }
     setSending(false);
     if (ok > 0) toast.success(ok === 1 ? 'Message forwarded.' : `Message forwarded to ${ok} people.`);
@@ -2959,7 +2922,6 @@ function ForwardMessageModal({ users, message, token, onClose }: {
   );
 }
 
-// ─── Notification Settings Modal ─────────────────────────────────────────────
 function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
   conv: SSConversation;
   convName: string;
@@ -3029,7 +2991,6 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
   );
 }
 
-// ─── Active Users Modal ───────────────────────────────────────────────────────
 function ActiveUsersModal({ users, presence, uid, onClose }: {
   users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void;
 }) {
@@ -3068,7 +3029,6 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
   );
 }
 
-// ─── Summarize Modal ──────────────────────────────────────────────────────────
 function SummarizeModal({ token, conversationId, onClose }: { token: string; conversationId: string; onClose: () => void }) {
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
@@ -3119,7 +3079,6 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SupraSpacePage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -3137,7 +3096,6 @@ export default function SupraSpacePage() {
   const activeIdRef = React.useRef<string | null>(null);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
-  // On mobile: intercept back button while inside a conversation so it returns to the list
   const inConvHistoryRef = React.useRef(false);
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -3191,15 +3149,11 @@ export default function SupraSpacePage() {
   const [dropBeforeSpaceId, setDropBeforeSpaceId] = React.useState<string | null>(null);
   const [localConvOrder, setLocalConvOrder] = React.useState<string[]>([]);
   const [dropConvBeforeId, setDropConvBeforeId] = React.useState<string | null>(null);
-  // Ref-based ghost — position updated directly on the DOM node to avoid re-renders during drag
   const dragGhostRef = React.useRef<HTMLDivElement | null>(null);
-  // Pointer-events drag tracking (replaces HTML5 drag API)
   const ptrStartRef = React.useRef<{ x: number; y: number; type: 'conv' | 'space'; id: string; label: string; spaceId?: string | null } | null>(null);
   const ptrActiveRef = React.useRef(false);
-  // Refs for current drop targets — avoids stale closure in the pointer-events useEffect
   const ptrDropZoneRef = React.useRef<string | null>(null);
   const ptrDropConvBeforeRef = React.useRef<string | null>(null);
-  // Stable handler refs so the pointer-events useEffect doesn't need to re-register
   const handleMoveToSpaceRef = React.useRef<(convId: string, spaceId: string | null) => void>(() => { });
   const handleSpaceDropRef = React.useRef<(fromId: string, beforeId: string) => void>(() => { });
   const handleReorderConvRef = React.useRef<(fromId: string, beforeId: string) => void>(() => { });
@@ -3290,7 +3244,6 @@ export default function SupraSpacePage() {
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
-  // @mention state
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx, setMentionIdx] = React.useState(0);
@@ -3312,7 +3265,6 @@ export default function SupraSpacePage() {
   const activeMsgStatus = activeId ? (msgFetchState[activeId] || 'idle') : 'idle';
   const activeConvHasHistorySignal = Boolean(activeConv?.lastMessage || activeConv?.lastMessageAt);
   const msgSeenByMembers = React.useMemo(() => {
-    // Build fresh avatar/name from message sender data (more up-to-date than conv.members)
     const freshAvatar: Record<string, string | undefined> = {};
     const freshName: Record<string, string | undefined> = {};
     activeMsgs.forEach(m => {
@@ -3390,7 +3342,6 @@ export default function SupraSpacePage() {
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
-  // ── Calling (NEW) ──
   const call = useCall(socket, token, uid);
   const [activeMeeting, setActiveMeeting] = React.useState<CallSession | null>(null);
   const activeMeetingRef = React.useRef<CallSession | null>(null);
@@ -3435,17 +3386,9 @@ export default function SupraSpacePage() {
     if (mId) await call.endCall(mId);
   }, [activeMeeting, call]);
 
-  // ── Init ──
-  // Keep a ref so the async IIFE can always call the latest getMainToken without
-  // having it in the effect's dependency array. Putting getMainToken in deps would
-  // re-run the effect on every token refresh (accessToken changes → new function
-  // reference), which replaces the entire convos list and may redirect to /crm on
-  // any transient network error mid-session.
   const getMainTokenRef = React.useRef(getMainToken);
   getMainTokenRef.current = getMainToken;
 
-  // Keep token in a ref so the refresh callbacks below can read it without
-  // being listed as effect dependencies (avoids stale-closure re-registrations).
   const tokenRef = React.useRef(token);
   React.useEffect(() => { tokenRef.current = token; }, [token]);
   const convosRef = React.useRef<SSConversation[]>([]);
@@ -3453,14 +3396,8 @@ export default function SupraSpacePage() {
   const msgFetchStateRef = React.useRef(msgFetchState);
   React.useEffect(() => { msgFetchStateRef.current = msgFetchState; }, [msgFetchState]);
 
-  // True once the init effect has finished the initial conversation fetch.
-  // Prevents refreshConvos from firing during page load (init already handles it).
   const initDoneRef = React.useRef(false);
 
-  // Re-fetch the conversation list without touching any other state.
-  // Used by the focus and socket-reconnect handlers below.
-  // Also triggers the Context refresh so the Messenger popup and this page
-  // always re-fetch from the same source at the same time.
   const ctxRefreshConvosRef = React.useRef(ctxRefreshConvos);
   React.useEffect(() => { ctxRefreshConvosRef.current = ctxRefreshConvos; }, [ctxRefreshConvos]);
 
@@ -3548,26 +3485,20 @@ export default function SupraSpacePage() {
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
     if (!t || !initDoneRef.current) return;
-    ctxRefreshConvosRef.current(); // keep Messenger popup in sync
+    ctxRefreshConvosRef.current();
     apiClient
       .get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => {
         const fresh: SSConversation[] = r.data?.data || [];
-        // Merge: keep local-only additions (e.g. just-created DMs not yet in the API response)
         setConvos(prev => {
           const freshIds = new Set(fresh.map(c => c._id));
           const localOnly = prev.filter(c => !freshIds.has(c._id));
           return [...fresh, ...localOnly];
         });
       })
-      .catch(() => { /* network blip — keep current state */ });
+      .catch(() => {  });
   }, []);
 
-  // Sync from the Messenger Context into this page's convos.
-  // The Context re-fetches more aggressively (focus, socket events, conversation:new).
-  // Whenever it has a conversation that convos is missing, add it here so the
-  // SupraSpace sidebar never shows fewer conversations than the Messenger popup.
-  // Full data (admins, complete theme) is backfilled the next time refreshConvos runs.
   React.useEffect(() => {
     if (!ctxConversations.length) return;
     setConvos(prev => {
@@ -3601,7 +3532,7 @@ export default function SupraSpacePage() {
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
           }
-        } catch { /* no main app token, fall through */ }
+        } catch {  }
       }
 
       if (!t) {
@@ -3668,9 +3599,6 @@ export default function SupraSpacePage() {
           }
         }
       } catch (err: any) {
-        // Only redirect to /crm on 401 (invalid/expired CRM token).
-        // Transient network errors (5xx, timeouts) should NOT kick the user out —
-        // the page stays mounted and retains whatever state it already has.
         if (err?.response?.status === 401) {
           localStorage.removeItem('crm_token');
           router.replace('/crm');
@@ -3680,8 +3608,6 @@ export default function SupraSpacePage() {
     })();
   }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-sync conversation list when the user returns to this tab.
-  // Handles: tab switch, OS sleep/wake, phone lock/unlock.
   React.useEffect(() => {
     if (loading) return;
     const onFocus = () => {
@@ -3707,8 +3633,6 @@ export default function SupraSpacePage() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [loading, refreshConvos, fetchConversationMessages]);
 
-  // Re-sync after socket reconnection (server restart, network blip, deploy).
-  // Conversations created or changed during the gap would be missed otherwise.
   React.useEffect(() => {
     if (!socket) return;
     const onReconnect = () => {
@@ -3765,7 +3689,6 @@ export default function SupraSpacePage() {
     };
     const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
-      // If the deleted message was the conversation's lastMessage, update the sidebar preview
       setConvos(p => p.map(c => {
         if (c._id !== conversationId || c.lastMessage?._id !== messageId) return c;
         const cached = msgsRef.current[conversationId] || [];
@@ -3775,11 +3698,6 @@ export default function SupraSpacePage() {
     };
     const onNew = (c: SSConversation) => {
       setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
-      // Clear any stale message cache for this conversation. When a conversation
-      // is resurrected (someone sent a new message to a conversation this user had
-      // hidden), old cached messages may predate clearedAt and show nothing, or the
-      // cache may be empty from a previous failed fetch. A fresh getMessages call
-      // ensures the user sees current messages after the conversation reappears.
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
     };
     const onConvUpdated = (c: any) => {
@@ -3793,10 +3711,6 @@ export default function SupraSpacePage() {
     const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
     const onConvMoved = ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) =>
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
-    // When a space is deleted the backend clears spaceId in the DB and emits
-    // space:deleted. Without this handler the page's convos still carries the
-    // old spaceId, so those channels disappear (excluded from channelList and
-    // from any space section since the space no longer exists in ctxSpaces).
     const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
       setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
     const onReaction = ({ conversationId, messageId, reactions }: any) => patchMsg(conversationId, messageId, { reactions });
@@ -3930,7 +3844,6 @@ export default function SupraSpacePage() {
     }
   }, [activeId, activeMsgs.length]);
 
-  // ── Pointer-events drag (replaces HTML5 drag — instant response, no browser delay) ──
   React.useEffect(() => {
     const THRESH = 5;
     const onMove = (e: PointerEvent) => {
@@ -3947,14 +3860,12 @@ export default function SupraSpacePage() {
         if (ghost) { ghost.textContent = start.label; ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY - 12}px`; ghost.style.display = 'block'; }
         return;
       }
-      // Prevent touch-scroll on mobile while drag is active
       e.preventDefault();
       const ghost = dragGhostRef.current;
       if (ghost) { ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY - 12}px`; }
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       if (!el) return;
       if (start.type === 'conv') {
-        // Check if hovering a specific conv row in the SAME section → reorder mode
         const convBefore = el.closest('[data-conv-before]') as HTMLElement | null;
         const targetConvId = convBefore?.dataset.convBefore ?? null;
         const targetSection = convBefore?.dataset.convSection ?? null;
@@ -3965,7 +3876,6 @@ export default function SupraSpacePage() {
           setDropConvBeforeId(targetConvId);
           setDropSpaceId(null);
         } else {
-          // Cross-section or no specific conv → space-assignment mode
           const zone = (el.closest('[data-drop-zone]') as HTMLElement | null)?.dataset.dropZone ?? null;
           ptrDropZoneRef.current = zone;
           ptrDropConvBeforeRef.current = null;
@@ -4007,7 +3917,6 @@ export default function SupraSpacePage() {
       ptrDropZoneRef.current = null;
       ptrDropConvBeforeRef.current = null;
     };
-    // passive: false required so e.preventDefault() can cancel touch-scroll during drag
     window.addEventListener('pointermove', onMove, { passive: false });
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
@@ -4016,12 +3925,8 @@ export default function SupraSpacePage() {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, []); // safe: only refs + stable React state setters used inside
+  }, []);
 
-  // True when the active conversation's message cache is absent (never fetched,
-  // or explicitly cleared). Adding this to the effect below ensures the fetch
-  // re-triggers even if activeId hasn't changed — e.g. after a conversation:new
-  // resurrection event clears the cache while the user is already in the chat.
   const activeMsgsMissing = !!(activeId && !(activeId in msgs));
 
   React.useEffect(() => {
@@ -4684,8 +4589,6 @@ export default function SupraSpacePage() {
       await apiClient.delete(`/api/supraspace/conversations/${c._id}`, { headers: { Authorization: `Bearer ${token}` } });
       setConvos(p => p.filter(x => x._id !== c._id));
       setActiveId(prev => prev === c._id ? null : prev);
-      // Clear cached messages so re-opening the same conversation re-fetches from
-      // the backend, which will apply the clearedAt filter and return no history.
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to delete.')); }
   };
@@ -4931,7 +4834,6 @@ export default function SupraSpacePage() {
   const handleReorderConv = (fromId: string, beforeId: string) => {
     const allGroupIds = normalList.filter(c => c.type === 'group').map(c => c._id);
     const base = localConvOrder.length ? [...localConvOrder] : allGroupIds;
-    // include any newly added convs not yet in the order array
     allGroupIds.forEach(id => { if (!base.includes(id)) base.push(id); });
     const fromIdx = base.indexOf(fromId);
     if (fromIdx !== -1) base.splice(fromIdx, 1);
@@ -4940,7 +4842,6 @@ export default function SupraSpacePage() {
     setLocalConvOrder(base);
   };
 
-  // Keep handler refs current so the pointer-events useEffect can call them without re-registering
   handleMoveToSpaceRef.current = handleMoveToSpace;
   handleSpaceDropRef.current = handleSpaceDrop;
   handleReorderConvRef.current = handleReorderConv;
@@ -5005,13 +4906,8 @@ export default function SupraSpacePage() {
   const pinnedList = visibleConvos.filter(c => isPinnedConv(c) && !isArchivedConv(c));
   const archivedList = convos.filter(c => isArchivedConv(c));
   const normalList = visibleConvos.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
-  // Sidebar section lists — spaceId comes from the SSConversation extended type
   const dmList = normalList.filter(c => c.type === 'direct');
   const channelList = React.useMemo(() => {
-    // A group conversation belongs in the channel list if it has no spaceId, OR if its
-    // spaceId doesn't match any currently active space (orphaned after space deletion).
-    // Without this fallback, conversations in a deleted space become completely invisible:
-    // excluded from channelList (has spaceId) AND from every space section (space gone).
     const activeSpaceIds = new Set(ctxSpaces.map(s => s._id));
     const list = normalList.filter(c => {
       if (c.type !== 'group') return false;
@@ -5052,7 +4948,6 @@ export default function SupraSpacePage() {
     const isUnread = unreadCount > 0 || manualUnread.has(conv._id) || (!isAct && !!conv.lastMessage && !!uid
       && !conv.lastMessage.readBy?.includes(uid)
       && conv.lastMessage.sender?._id !== uid);
-    // Use messages cache as fallback when lastMessage is null or deleted
     const cachedConvMsgs = msgs[conv._id];
     const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
       ? conv.lastMessage
@@ -5079,7 +4974,7 @@ export default function SupraSpacePage() {
         onContextMenu={e => e.preventDefault()}
         onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
         onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
-        {/* Drag handle — only on draggable group rows */}
+        { }
         {isDraggable && (
           <div
             onPointerDown={(e) => {
@@ -5219,11 +5114,11 @@ export default function SupraSpacePage() {
   return (
     <>
       {me?.role && <CrmPushPrompt role={me.role} />}
-      {/* Global grabbing cursor while any drag is active */}
+      { }
       {(dragConvId || dragSpaceId) && (
         <style>{`* { cursor: grabbing !important; }`}</style>
       )}
-      {/* Ghost label that follows the cursor — position updated directly via ref (no React re-renders) */}
+      { }
       {typeof window !== 'undefined' && createPortal(
         <div ref={dragGhostRef} style={{
           display: 'none',
@@ -5243,7 +5138,7 @@ export default function SupraSpacePage() {
         document.body
       )}
       <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
-        {/* Topbar */}
+        { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
             <div className="flex items-center gap-3">
@@ -5272,7 +5167,7 @@ export default function SupraSpacePage() {
         </header>
 
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Sidebar */}
+          { }
           <aside className={cn('ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden', 'absolute inset-0 z-20', 'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0', activeId ? '-translate-x-full' : 'translate-x-0')}>
             <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
@@ -5358,7 +5253,7 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
-              {/* ── DIRECT MESSAGES ── */}
+              { }
               {dmList.length > 0 && (
                 <div>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
@@ -5369,7 +5264,7 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
-              {/* ── SPACES ── */}
+              { }
               {orderedSpaces.length > 0 && (
                 <div>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('spaces')}>
@@ -5388,19 +5283,19 @@ export default function SupraSpacePage() {
                       <div key={space._id}
                         data-drop-zone={space._id}
                         data-drop-before={space._id}>
-                        {/* drop indicator line — appears above this space when reordering */}
+                        { }
                         {isSpaceDropTarget && (
                           <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '2px 8px' }} />
                         )}
                         <div
                           style={{ borderRadius: 8, transition: 'background .15s', background: isConvDropTarget ? 'rgba(91,124,246,0.12)' : 'transparent', outline: isConvDropTarget ? '1.5px dashed var(--accent)' : 'none', margin: '0 4px 2px' }}>
                           <div className="group flex items-center gap-1 px-2 py-1.5">
-                            {/* drag handle for reordering spaces */}
+                            { }
                             <div
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
                                 e.stopPropagation();
-                                e.preventDefault(); // prevent text selection on drag
+                                e.preventDefault();
                                 ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'space', id: space._id, label: space.name };
                               }}
                               className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:opacity-80! transition-opacity"
@@ -5414,7 +5309,7 @@ export default function SupraSpacePage() {
                               </span>
                               <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginLeft: 2 }}>{spaceConvs.length}</span>
                             </button>
-                            {/* delete button — opens confirmation modal */}
+                            { }
                             <button onClick={(e) => { e.stopPropagation(); setDeleteSpaceConfirm(space._id); }}
                               className="shrink-0 opacity-0 group-hover:opacity-60 hover:opacity-100! transition-opacity h-5 w-5 flex items-center justify-center rounded"
                               style={{ color: 'var(--text-tertiary)' }}>
@@ -5441,7 +5336,7 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
-              {/* ── CHANNELS ── */}
+              { }
               {(channelList.length > 0 || !!dragConvId) && (
                 <div
                   data-drop-zone="__channels__"
@@ -5485,7 +5380,7 @@ export default function SupraSpacePage() {
             </div>
           </aside>
 
-          {/* Chat */}
+          { }
           <main
             className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')}
             style={themeStyle}
@@ -5520,7 +5415,7 @@ export default function SupraSpacePage() {
 
               {activeId && activeConv && (
                 <>
-                  {/* Chat header */}
+                  { }
                   <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-3 py-3.5 lg:px-4 lg:py-3">
                     <button className="lg:hidden ss4-icon-btn h-10 w-10 shrink-0" onClick={() => { setActiveId(null); setShowInfo(false); }} aria-label="Back to conversations"><ChevronLeft className="h-5 w-5" /></button>
                     <button onClick={() => setShowInfo(true)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
@@ -5549,12 +5444,12 @@ export default function SupraSpacePage() {
                     </div>
                   </div>
 
-                  {/* Active call banner */}
+                  { }
                   {call.liveCalls[activeId] && !activeMeeting && (
                     <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
                   )}
 
-                  {/* Pinned message banner */}
+                  { }
                   {(() => {
                     const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted);
                     if (pinnedMsgs.length === 0) return null;
@@ -5573,7 +5468,7 @@ export default function SupraSpacePage() {
                     );
                   })()}
 
-                  {/* Messages */}
+                  { }
                   <div
                     ref={messageScrollRef}
                     onScroll={handleMessageScroll}
@@ -5645,7 +5540,7 @@ export default function SupraSpacePage() {
                     <div ref={endRef} />
                   </div>
 
-                  {/* Input */}
+                  { }
                   <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
@@ -5869,9 +5764,6 @@ export default function SupraSpacePage() {
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
 
-                                // If the source provides semantic HTML formatting (bold, italic,
-                                // lists, etc.), convert it into the editor's own tag dialect and
-                                // insert as rich HTML so formatting is preserved.
                                 const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
                                 if (html && hasRichFormatting(html) && !shouldUsePlainText) {
                                   e.preventDefault();
@@ -5884,9 +5776,6 @@ export default function SupraSpacePage() {
                                   return;
                                 }
 
-                                // If only plain text is available but it contains markdown syntax
-                                // (e.g. copied from ChatGPT), convert markers to editor formatting
-                                // so **bold** stays bold, "* item" becomes a bullet, etc.
                                 const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
                                 if (richText) {
                                   e.preventDefault();
@@ -6094,7 +5983,7 @@ export default function SupraSpacePage() {
               )}
             </div>
 
-            {/* Details / Info full-takeover panel */}
+            { }
             {showInfo && activeId && activeConv && (() => {
               const cName = getConvName(activeConv, uid);
               const cAvatar = getConvAvatar(activeConv, uid);
@@ -6110,7 +5999,7 @@ export default function SupraSpacePage() {
                   </div>
 
                   <div className="flex-1 overflow-y-auto ss4-scroll">
-                    {/* Header card */}
+                    { }
                     <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                       <div className="relative">
                         <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
@@ -6149,7 +6038,7 @@ export default function SupraSpacePage() {
                       )}
                     </div>
 
-                    {/* Tabs */}
+                    { }
                     <div className="px-4">
                       <div className="ss4-tab-bar flex gap-1">
                         {(['members', 'media', 'files', 'pinned'] as const).map(t => (
@@ -6231,7 +6120,7 @@ export default function SupraSpacePage() {
                       )}
                     </div>
 
-                    {/* Danger zone */}
+                    { }
                     {(activeConv.type === 'direct' || isAdmin) && (
                       <div className="px-4 pb-8 pt-2">
                         <div className="mx-1 mb-3 ss4-divider" />
@@ -6256,12 +6145,12 @@ export default function SupraSpacePage() {
           </main>
         </div>
 
-        {/* ── Modals ── */}
+        { }
         {showModal.open && (
           <NewConvModal users={allUsers.filter(u => u._id !== uid)} theme={theme} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
         )}
 
-        {/* Incoming call + in-call experience (replaces the old VideoCallModal) */}
+        { }
         {call.incoming && !activeMeeting && (
           <IncomingCallModal
             call={call.incoming}
@@ -6325,7 +6214,7 @@ export default function SupraSpacePage() {
           />
         )}
 
-        {/* Member mini-card */}
+        { }
         {memberCard && (() => {
           const m = memberCard.member;
           const isOnline = presence[m._id] === 'online';
@@ -6354,7 +6243,7 @@ export default function SupraSpacePage() {
 
         {lightbox && <LightboxModal src={lightbox.src} type={lightbox.type} name={lightbox.name} onClose={() => setLightbox(null)} />}
 
-        {/* Mobile long-press bottom sheet */}
+        { }
         {convMobileSheet && (() => {
           const sheetConv = convos.find(c => c._id === convMobileSheet);
           if (!sheetConv) return null;
@@ -6389,7 +6278,7 @@ export default function SupraSpacePage() {
           );
         })()}
 
-        {/* Delete conversation confirmation */}
+        { }
         {deleteSpaceConfirm && (
           <div className="ss4-overlay fixed inset-0 z-210 flex items-center justify-center p-4" onClick={() => setDeleteSpaceConfirm(null)}>
             <div className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}

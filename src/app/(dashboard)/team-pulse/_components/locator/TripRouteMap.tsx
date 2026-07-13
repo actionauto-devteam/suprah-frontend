@@ -7,12 +7,6 @@ import { useDrivingSessionDetail, type LocationHistoryPoint } from "@/hooks/useL
 
 const ROUTE_SOURCE_ID = "trip-route";
 
-/**
- * Standalone replay map for an arbitrary breadcrumb route — draws it as a line with start
- * (green) / end (red) markers, Life360 "trip detail" style. Deliberately separate from
- * LocatorLiveMapSection (that one is wired to live org-wide state/selection); this is a
- * self-contained one-route view used inside a dialog.
- */
 export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
   const { theme } = useTheme();
   const mapRef = React.useRef<HTMLDivElement | null>(null);

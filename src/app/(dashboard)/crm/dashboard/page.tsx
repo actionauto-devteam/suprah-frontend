@@ -14,7 +14,10 @@ import {
   Headset,
   Gift,
   Star,
+  Copy,
+  Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -102,27 +105,47 @@ function StatChip({ label, value, copyable, breakMode = "words", capitalize }: {
   const handleCopy = React.useCallback(() => {
     navigator.clipboard.writeText(value).then(() => {
       setCopied(true);
+      toast.success(`${label} copied!`);
       setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
-  }, [value]);
+    }).catch(() => {
+      toast.error("Couldn't copy. Please try again.");
+    });
+  }, [value, label]);
 
-  return (
-    <div className="min-w-0 rounded-xl border border-zinc-200/60 bg-white/50 px-4 py-3 backdrop-blur-sm transition-colors duration-200 hover:border-emerald-500/20 dark:border-white/5 dark:bg-zinc-900/40 dark:hover:border-emerald-500/20">
+  const chipClassName = "min-w-0 rounded-xl border border-zinc-200/60 bg-white/50 px-4 py-3 backdrop-blur-sm transition-colors duration-200 hover:border-emerald-500/20 dark:border-white/5 dark:bg-zinc-900/40 dark:hover:border-emerald-500/20";
+
+  const content = (
+    <>
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">{label}</p>
         {copyable && (
-          <button type="button" onClick={handleCopy}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100/85 px-2 py-1 text-[10px] font-bold text-zinc-500 transition-colors hover:text-emerald-600 dark:border-zinc-700/70 dark:bg-zinc-800/70 dark:text-zinc-300 dark:hover:text-emerald-400">
-            {copied ? "✓" : "Copy"}
-          </button>
+          copied ? (
+            <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+          ) : (
+            <Copy className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-600" />
+          )
         )}
       </div>
       <p className={cn("text-sm font-bold leading-snug text-zinc-700 dark:text-zinc-200",
         breakMode === "all" ? "break-all" : "wrap-break-word", capitalize && "capitalize")}>
         {value}
       </p>
-    </div>
+    </>
   );
+
+  if (copyable) {
+    return (
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={cn(chipClassName, "w-full text-left cursor-pointer active:bg-emerald-500/5 dark:active:bg-emerald-500/10")}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={chipClassName}>{content}</div>;
 }
 
 export default function CrmDashboardPage() {
@@ -214,7 +237,6 @@ export default function CrmDashboardPage() {
 
         <main className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-7 flex-1 min-h-0 overflow-y-auto">
 
-          {/* Greeting */}
           <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 transition-all duration-700 motion-reduce:transition-none",
             mounted ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0")}>
             <div className="flex min-w-0 items-center gap-3">
@@ -231,10 +253,8 @@ export default function CrmDashboardPage() {
             </Badge>
           </div>
 
-          {/* Profile + Quick Actions */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
 
-            {/* My Profile */}
             <div className={cn(
               "relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/6 dark:bg-zinc-900/40 dark:shadow-none lg:col-span-2",
               "transition-all duration-700 delay-100 motion-reduce:transition-none",
@@ -267,7 +287,6 @@ export default function CrmDashboardPage() {
               </div>
             </div>
 
-            {/* Quick Actions */}
             <div className={cn(
               "flex-1 rounded-2xl border border-zinc-200/80 bg-white/70 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl sm:p-6 dark:border-white/6 dark:bg-zinc-900/40 dark:shadow-none lg:col-span-3",
               "transition-all duration-700 delay-200 motion-reduce:transition-none",

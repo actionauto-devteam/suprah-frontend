@@ -40,7 +40,6 @@ export default function CreateLoadPage() {
   const [activeTab, setActiveTab] = React.useState<"load-board" | "assign-carrier">("load-board")
   const [successInfo, setSuccessInfo] = React.useState<{ loadNumber: string } | null>(null)
 
-  // Load Board tab state
   const [lbPickup, setLbPickup] = React.useState<LocationBlock>(emptyLocation())
   const [lbDelivery, setLbDelivery] = React.useState<LocationBlock>(emptyLocation())
   const [lbVehicles, setLbVehicles] = React.useState<LoadVehicle[]>([emptyVehicle()])
@@ -49,7 +48,6 @@ export default function CreateLoadPage() {
   const [lbContract, setLbContract] = React.useState<LoadContract>(emptyContract())
   const [lbTrailerType, setLbTrailerType] = React.useState<string>("open_3car_wedge")
 
-  // Assign to Carrier tab state
   const [acPickup, setAcPickup] = React.useState<LocationBlock>(emptyLocation())
   const [acDelivery, setAcDelivery] = React.useState<LocationBlock>(emptyLocation())
   const [acVehicles, setAcVehicles] = React.useState<LoadVehicle[]>([emptyVehicle()])
@@ -74,7 +72,7 @@ export default function CreateLoadPage() {
 
   const handleSuccess = (_loadId: string, loadNumber: string) => {
     setSuccessInfo({ loadNumber })
-    router.refresh() // invalidate Next.js router cache so transportation page re-fetches
+    router.refresh()
     setTimeout(() => router.push(buildBackUrl()), 2000)
   }
 
@@ -96,7 +94,7 @@ export default function CreateLoadPage() {
   return (
     <div className="min-h-screen bg-background">
 
-      {/* ── Sticky Header ───────────────────────────────────────────────────── */}
+      { }
       <div className="sticky top-0 z-20 bg-card border-b border-border px-3 sm:px-4 md:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -127,7 +125,7 @@ export default function CreateLoadPage() {
         </div>
       </div>
 
-      {/* ── Post-type selector ──────────────────────────────────────────────── */}
+      { }
       <div className="px-3 sm:px-4 md:px-6 pt-4 pb-0">
         <div className="grid grid-cols-2 gap-2 max-w-5xl mx-auto">
           {POST_TYPES.map(({ value, icon: Icon, title, desc }) => {

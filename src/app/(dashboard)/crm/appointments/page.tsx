@@ -42,7 +42,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { fmtWeekdayDateMDT, fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
 
-// ─── Tab options ──────────────────────────────────────────────────────────────
 
 const TAB_OPTIONS: TabOption[] = [
   { id: "calendar",  label: "Calendar View",        icon: <Calendar className="h-3.5 w-3.5" /> },
@@ -51,7 +50,6 @@ const TAB_OPTIONS: TabOption[] = [
   { id: "customers", label: "Customer Credentials", icon: <Contact  className="h-3.5 w-3.5" /> },
 ];
 
-// ─── Style helpers ────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, { pill: string; bar: string; dot: string }> = {
   confirmed: {
@@ -94,7 +92,6 @@ function formatDateLabel(date: Date) {
   return fmtWeekdayDateMDT(date);
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   label: string;
@@ -149,7 +146,6 @@ function StatCard({
   );
 }
 
-// ─── Upcoming appointment card ────────────────────────────────────────────────
 
 function UpcomingAppointmentCard({
   appointment,
@@ -171,7 +167,7 @@ function UpcomingAppointmentCard({
     >
       <div className={cn("absolute left-0 top-0 bottom-0 w-1 rounded-l-xl", style.bar)} />
 
-      {/* Time column */}
+      { }
       <div className="flex w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-muted/60 px-2 py-2 text-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {formatDateLabel(start)}
@@ -182,7 +178,7 @@ function UpcomingAppointmentCard({
         <span className="text-[10px] text-muted-foreground">{fmtTimeMDT(start).split(' ')[1]}</span>
       </div>
 
-      {/* Content */}
+      { }
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-semibold leading-tight line-clamp-1 pr-1">
@@ -232,7 +228,6 @@ function UpcomingAppointmentCard({
   );
 }
 
-// ─── Custom tab bar ───────────────────────────────────────────────────────────
 
 interface CustomTabBarProps {
   value: string;
@@ -319,7 +314,6 @@ function CustomTabBar({
   );
 }
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function AppointmentSkeleton() {
   return (
@@ -339,7 +333,6 @@ function AppointmentSkeleton() {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
 
 function UpcomingEmpty({ onCreateAppointment }: { onCreateAppointment: () => void }) {
   return (
@@ -361,7 +354,6 @@ function UpcomingEmpty({ onCreateAppointment }: { onCreateAppointment: () => voi
   );
 }
 
-// ─── Section header ───────────────────────────────────────────────────────────
 
 function SectionHeader({
   title,
@@ -391,7 +383,6 @@ function SectionHeader({
   );
 }
 
-// ─── Inner page ───────────────────────────────────────────────────────────────
 
 function AppointmentsPageInner() {
   const router = useRouter();

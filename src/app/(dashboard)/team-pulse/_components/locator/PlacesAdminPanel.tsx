@@ -65,14 +65,12 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
     return places.filter((p) => p.name.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q));
   }, [places, search]);
 
-  // Apply a coordinate picked on the live map straight into the open form.
   React.useEffect(() => {
     if (!pickedCoords) return;
     setForm((f) => ({ ...f, lat: pickedCoords.lat.toFixed(6), lng: pickedCoords.lng.toFixed(6) }));
     onPickConsumed?.();
   }, [pickedCoords, onPickConsumed]);
 
-  // Live-preview the geofence circle on the map while the dialog is open, without persisting it.
   React.useEffect(() => {
     if (!onDraftChange) return;
     if (!dialogOpen) { onDraftChange(null); return; }

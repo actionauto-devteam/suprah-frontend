@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useAuth, useUser } from "@/providers/AuthProvider" // Import useAuth
+import { useAuth, useUser } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { useOrg } from "@/hooks/useOrg"
 import { OrganizationMember } from "@/types/organization"
@@ -47,23 +47,19 @@ export function OrganizationMembersSettings() {
     const queryClient = useQueryClient()
 
 
-    // Invite State
     const [isInviteOpen, setIsInviteOpen] = useState(false)
     const [inviteEmail, setInviteEmail] = useState("")
     const [inviteRole, setInviteRole] = useState("member")
 
-    // Rank/JobTitle State
     const [jobTitle, setJobTitle] = useState("")
     const [isEditingRank, setIsEditingRank] = useState(false)
     const [tempJobTitle, setTempJobTitle] = useState("")
 
-    // Pagination & Sorting State
     const [page, setPage] = useState(1)
     const [pageSize] = useState(10)
     const [sortBy, setSortBy] = useState<"name" | "role" | "date">("date")
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
-    // Fetch Members
     const { data: rawMembers = [], isLoading } = useQuery({
         queryKey: ['org-members', organizationId],
         queryFn: async () => {

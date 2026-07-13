@@ -21,18 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// NEW: real transfer call (Wise / PayPal) via the unified linked-account API
 import { linkedAccountApi } from "@/lib/linkedAccountApi";
 
-/*
- * Supra / Car-Dealership theme tokens
- * Same palette as BalanceCard and ReceiveModal.
- */
 
 const ORANGE   = "#E55A00";
 const DISPLAY  = "'Rajdhani', var(--font-sans), sans-serif";
 
-// ─── Theme tokens (CSS vars — auto-adapt to light/dark) ───────────────────────
 const BG       = "var(--card)";
 const SURFACE  = "color-mix(in srgb, var(--foreground) 5%, transparent)";
 const BORDER   = "var(--border)";
@@ -40,14 +34,12 @@ const TEXT_HI  = "var(--card-foreground)";
 const TEXT_MID = "var(--muted-foreground)";
 const TEXT_LO  = "color-mix(in srgb, var(--muted-foreground) 55%, transparent)";
 
-// ─── BarcodeDetector ambient type ────────────────────────────────────────────
 declare class BarcodeDetector {
   constructor(options?: { formats: string[] });
   detect(image: ImageBitmapSource): Promise<{ rawValue: string }[]>;
   static getSupportedFormats(): Promise<string[]>;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 type SendType = "bank" | "epay" | "user" | "upload-qr" | "scan-qr";
 type SendFlow = "select" | SendType | "confirm" | "success";
 
@@ -77,7 +69,6 @@ interface QrForm {
 }
 type FormErrors = Partial<Record<string, string>>;
 
-// ─── Themed atom components ───────────────────────────────────────────────────
 
 function SupraLabel({
   children,

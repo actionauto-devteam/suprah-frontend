@@ -31,16 +31,18 @@ const FEED_PAGE_SIZE = 80;
  * Paginated so a busy org (many people changing status at once) doesn't quietly evict
  * your own older events off the end of a single fixed-size fetch — "Load older" walks
  * back further using the backend's existing `before` cursor, which used to sit unused.
+ * Passing `userId` scopes the whole feed (and its pagination) server-side to that
+ * person's own history instead of filtering a fixed org-wide page client-side.
  */
-export function useActivityFeed() {
+export function useActivityFeed(userId?: string) {
   const { isSignedIn, getToken } = useAuth();
   return useInfiniteQuery<ActivityEvent[]>({
-    queryKey: ['team-activity-feed'],
+    queryKey: ['team-activity-feed', userId],
     queryFn: async ({ pageParam }) => {
       const token = await getToken();
       const res = await apiClient.get('/api/team-pulse/activity-feed', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { limit: FEED_PAGE_SIZE, before: pageParam || undefined },
+        params: { limit: FEED_PAGE_SIZE, before: pageParam || undefined, userId },
       });
       return res.data.data;
     },

@@ -31,7 +31,6 @@ interface Props {
   monthLabel: string
 }
 
-// ── Data builders ─────────────────────────────────────────────────────────────
 
 const STATUS_FILL: Record<string, string> = {
   Delivered: "var(--chart-1)",

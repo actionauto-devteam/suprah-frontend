@@ -54,7 +54,6 @@ export const ReplySection = React.memo(({
       confirmLabel: 'Reopen ticket',
     }
 
-  // ── Closed state ─────────────────────────────────────────────────────────────
   if (isClosed) {
     return (
       <>
@@ -80,7 +79,6 @@ export const ReplySection = React.memo(({
     )
   }
 
-  // ── Active reply area ─────────────────────────────────────────────────────────
   return (
     <div
       className="px-3 sm:px-4 py-2 shrink-0"
@@ -88,7 +86,7 @@ export const ReplySection = React.memo(({
     >
       <div className="ss4-input-wrap overflow-hidden">
 
-        {/* Textarea */}
+        { }
         <textarea
           value={replyMessage}
           onChange={(e) => setReplyMessage(e.target.value)}
@@ -104,15 +102,15 @@ export const ReplySection = React.memo(({
           style={{ fontSize: 14, color: 'var(--text-primary)' }}
         />
 
-        {/* Toolbar row */}
+        { }
         <div
           className="flex items-center justify-between gap-2 px-2.5 py-2.5 sm:py-2"
           style={{ borderTop: '1px solid var(--border-1)' }}
         >
-          {/* Left: action buttons */}
+          { }
           <div className="flex items-center gap-1 sm:gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink min-w-0">
 
-            {/* Status dropdown */}
+            { }
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[12px] font-medium shrink-0">

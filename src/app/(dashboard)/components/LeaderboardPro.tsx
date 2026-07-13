@@ -31,7 +31,6 @@ export function LeaderboardPro() {
   const [selectedUser, setSelectedUser] = React.useState<LeaderboardUser | null>(null)
   const [sheetOpen, setSheetOpen] = React.useState(false)
 
-  // Infinite Scroll Observer & Container refs
   const observerTarget = React.useRef<HTMLDivElement>(null)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
 
@@ -43,7 +42,7 @@ export function LeaderboardPro() {
         }
       },
       {
-        threshold: 0.1, // Trigger earlier for smoother experience
+        threshold: 0.1,
         root: scrollContainerRef.current
       }
     )

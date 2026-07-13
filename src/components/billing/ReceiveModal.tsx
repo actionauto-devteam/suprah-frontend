@@ -3,25 +3,11 @@
 import * as React from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-/*
- * Supra / Car-Dealership theme tokens
- * ─────────────────────────────────────
- * bg-card   : #0d0d10   charcoal body
- * accent    : #E55A00   Supra Prominence Orange
- * surface   : rgba(255,255,255,0.05)
- * border    : rgba(255,255,255,0.10)
- * text-hi   : #ffffff
- * text-mid  : rgba(255,255,255,0.65)
- * text-lo   : rgba(255,255,255,0.28)
- * mono font : 'Share Tech Mono', monospace
- * disp font : 'Rajdhani', sans-serif
- */
 
 const ORANGE  = "#E55A00";
 const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
 const MONO    = "'Share Tech Mono', 'Roboto Mono', monospace";
 
-// ─── Theme tokens (CSS vars — auto-adapt to light/dark) ───────────────────────
 const MODAL_BG     = "var(--card)";
 const MODAL_BORDER = "var(--border)";
 const TEXT_HI      = "var(--card-foreground)";
@@ -30,7 +16,6 @@ const TEXT_LO      = "color-mix(in srgb, var(--muted-foreground) 55%, transparen
 const TEXT_FAINT   = "color-mix(in srgb, var(--muted-foreground) 40%, transparent)";
 const SURFACE      = "color-mix(in srgb, var(--foreground) 5%, transparent)";
 
-// ─── Pure-JS QR matrix builder (no external dep) ─────────────────────────────
 function buildQRMatrix(text: string): number[][] {
   const N = 25;
   const m: number[][] = Array.from({ length: N }, () => new Array(N).fill(-1));

@@ -7,7 +7,6 @@ interface AvatarProps {
   size?: "sm" | "md" | "lg"
 }
 
-// Palette pairs that look good in both light and dark mode
 const PALETTES = [
   "bg-emerald-100 text-emerald-700 ring-emerald-200/80 dark:bg-emerald-900/50 dark:text-emerald-300 dark:ring-emerald-700/50",
   "bg-blue-100 text-blue-700 ring-blue-200/80 dark:bg-blue-900/50 dark:text-blue-300 dark:ring-blue-700/50",

@@ -148,7 +148,7 @@ export function SystemSettingsTab() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 sm:gap-6">
-        {/* Settings Navigation */}
+        { }
         <div className="xl:col-span-1 flex gap-1.5 overflow-x-auto no-scrollbar xl:flex-col xl:gap-2 xl:overflow-visible pb-1">
           {SETTINGS_NAV_ITEMS.map((item) => {
             const ItemIcon = item.icon;
@@ -165,7 +165,7 @@ export function SystemSettingsTab() {
           })}
         </div>
 
-        {/* Main Settings Content */}
+        { }
         <div className="xl:col-span-3 space-y-4 sm:space-y-6">
           {activeSettingsSection === "account" && (
             <Card className="border-none shadow-sm overflow-hidden">

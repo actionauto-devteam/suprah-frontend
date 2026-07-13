@@ -52,14 +52,12 @@ const statusTone = (status: string) => {
   return "bg-amber-500/90 text-white";
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function GarageReviewPage() {
   const router = useRouter();
   const [token, setToken] = React.useState("");
   const [activeTab, setActiveTab] = React.useState<"transfer" | "auction">("transfer");
 
-  // ── auth gate ──
   React.useEffect(() => {
     const t = localStorage.getItem("crm_token");
     if (!t) { router.replace("/crm"); return; }
@@ -69,7 +67,7 @@ export default function GarageReviewPage() {
   return (
     <div className="min-h-full bg-background">
       <div className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
+        { }
         <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-primary via-primary/70 to-primary/0" />
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-linear-to-l from-primary/8 to-transparent pointer-events-none" />
@@ -99,7 +97,7 @@ export default function GarageReviewPage() {
           </div>
         </div>
 
-        {/* Tab switcher */}
+        { }
         <div className="flex gap-1 p-1 bg-muted rounded-xl w-full sm:w-fit overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab("transfer")}
@@ -125,7 +123,7 @@ export default function GarageReviewPage() {
           </button>
         </div>
 
-        {/* Tab content */}
+        { }
         {token && activeTab === "transfer" && <TransferTab token={token} />}
         {token && activeTab === "auction" && <AuctionApprovalTab token={token} />}
       </div>
@@ -133,7 +131,6 @@ export default function GarageReviewPage() {
   );
 }
 
-// ─── TRANSFER TAB (existing functionality) ───────────────────────────────────
 
 function TransferTab({ token }: { token: string }) {
   const [selectedVehicle, setSelectedVehicle] = React.useState<InventoryVehicle | null>(null);
@@ -156,7 +153,7 @@ function TransferTab({ token }: { token: string }) {
   const [submitting, setSubmitting] = React.useState(false);
 
   const refreshHistory = React.useCallback(async (t: string) => {
-    try { setTransfers(await fetchTransfers(t)); } catch { /* non-fatal */ }
+    try { setTransfers(await fetchTransfers(t)); } catch {  }
   }, []);
 
   React.useEffect(() => {
@@ -217,9 +214,9 @@ function TransferTab({ token }: { token: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Two-panel selection */}
+      { }
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Vehicle */}
+        { }
         <Card className="p-5 rounded-2xl border-border/40 bg-card dark:bg-zinc-900/60">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold flex items-center gap-2 text-foreground">

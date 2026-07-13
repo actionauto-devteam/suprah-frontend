@@ -32,7 +32,7 @@ export function LogisticsMonitor({ data, isLoading }: LogisticsMonitorProps) {
 
   return (
     <div className="space-y-2.5 sm:space-y-6">
-      {/* Driver Availability Heatmap */}
+      { }
       <Card className="border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden p-0">
         <CardHeader className="h-auto sm:h-24! py-2! sm:py-5! px-3! sm:px-6! border-b! border-border/10! flex! flex-col! justify-center! gap-0.5! sm:gap-1!">
           <CardTitle className="text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2">
@@ -65,7 +65,7 @@ export function LogisticsMonitor({ data, isLoading }: LogisticsMonitorProps) {
         </CardContent>
       </Card>
 
-      {/* Shipment Pipeline */}
+      { }
       <Card className="border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden p-0">
         <CardHeader className="py-2 sm:py-4 px-3 sm:px-6 border-b border-border/10">
           <CardTitle className="text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2">

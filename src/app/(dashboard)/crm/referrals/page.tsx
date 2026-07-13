@@ -34,7 +34,6 @@ import { apiClient } from "@/lib/api-client";
 import { getDashboardSocket } from "@/lib/dashboardSocket";
 import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type LeadStatus = "pending" | "contacted" | "converted" | "closed";
 type CallType = "voice" | "video";
@@ -84,7 +83,6 @@ interface ReferralLead {
   };
 }
 
-// ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<
   LeadStatus,
@@ -133,7 +131,6 @@ function ini(name: string) {
     .slice(0, 2);
 }
 
-// ─── Convert Modal ────────────────────────────────────────────────────────────
 
 interface ConvertModalProps {
   lead: ReferralLead;
@@ -178,7 +175,7 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
-        {/* Header */}
+        { }
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-5 border-b border-zinc-800">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
@@ -199,7 +196,6 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
 
         <div className="p-4 sm:p-6">
           {result ? (
-            // Success state
             <div className="space-y-5 text-center">
               <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="h-7 w-7 text-emerald-400" />
@@ -225,7 +221,6 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
               </Button>
             </div>
           ) : (
-            // Form state
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-xs text-zinc-500 leading-relaxed">
                 Verify the customer email below and click <strong className="text-zinc-300">Create Account</strong>. A temporary password will be sent directly to the customer via email — you won't see it.
@@ -282,7 +277,6 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
   );
 }
 
-// ─── Pre-Call Modal ───────────────────────────────────────────────────────────
 
 interface PreCallModalProps {
   lead: ReferralLead;
@@ -325,7 +319,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
 
-        {/* Header */}
+        { }
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-5 border-b border-zinc-800">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className={cn(
@@ -355,7 +349,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
 
         <div className="p-4 sm:p-6 space-y-4">
 
-          {/* ── Step 1: Setup ───────────────────────────── */}
+          { }
           {step === "setup" && (
             <>
               <p className="text-[11px] text-zinc-500 leading-relaxed">
@@ -389,7 +383,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
             </>
           )}
 
-          {/* ── Step 2: Loading ─────────────────────────── */}
+          { }
           {step === "loading" && (
             <div className="flex flex-col items-center gap-3 py-6">
               <Loader2 className="h-7 w-7 text-primary animate-spin" />
@@ -397,7 +391,7 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
             </div>
           )}
 
-          {/* ── Step 3: Error ───────────────────────────── */}
+          { }
           {step === "error" && (
             <>
               <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5">
@@ -414,10 +408,10 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
             </>
           )}
 
-          {/* ── Step 4: Ready ───────────────────────────── */}
+          { }
           {step === "ready" && callData && (
             <>
-              {/* Email sent notice */}
+              { }
               {callData.leadEmail ? (
                 <div className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
@@ -479,7 +473,6 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
   );
 }
 
-// ─── Lead Card ────────────────────────────────────────────────────────────────
 
 interface LeadCardProps {
   lead: ReferralLead;
@@ -503,7 +496,6 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
       );
       onStatusChange(lead._id, "contacted");
     } catch {
-      // silent — UI stays unchanged
     } finally {
       setMarking(false);
     }
@@ -523,10 +515,10 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
 
   return (
     <div className="rounded-2xl border border-zinc-200/70 dark:border-zinc-800/60 bg-white dark:bg-zinc-900/60 p-5 space-y-4 transition-shadow hover:shadow-md dark:hover:shadow-none">
-      {/* Top row: avatar + info + status */}
+      { }
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar */}
+          { }
           <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
             <span className="text-sm font-black text-violet-500">{ini(lead.name)}</span>
           </div>
@@ -540,7 +532,7 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
           </div>
         </div>
 
-        {/* Status badge */}
+        { }
         <span
           className={cn(
             "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border shrink-0",
@@ -552,9 +544,9 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
         </span>
       </div>
 
-      {/* Meta row */}
+      { }
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Call type */}
+        { }
         <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
           {lead.requestType === "voice" ? (
             <Phone className="h-3 w-3" />
@@ -566,13 +558,13 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
 
         <span className="text-zinc-300 dark:text-zinc-700">·</span>
 
-        {/* Date */}
+        { }
         <span className="text-[11px] text-zinc-400">
           {formattedDate} at {formattedTime}
         </span>
       </div>
 
-      {/* Referrer */}
+      { }
       {lead.referrerId && (
         <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-500">
           <User className="h-3 w-3 shrink-0" />
@@ -587,7 +579,7 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
         </div>
       )}
 
-      {/* Converted account */}
+      { }
       {lead.convertedUserId && (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 flex items-center gap-2">
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -597,17 +589,17 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
         </div>
       )}
 
-      {/* Notes */}
+      { }
       {lead.notes && (
         <p className="text-xs text-zinc-500 italic border-l-2 border-zinc-300 dark:border-zinc-700 pl-3">
           {lead.notes}
         </p>
       )}
 
-      {/* Actions */}
+      { }
       {(lead.status === "pending" || lead.status === "contacted") && (
         <div className="flex flex-col gap-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/60 mt-1">
-          {/* Primary: Call button — full width */}
+          { }
           <Button
             size="sm"
             onClick={() => onOpenCall(lead)}
@@ -624,7 +616,7 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
             {lead.requestType === "voice" ? "Start Voice Call" : "Start Video Call"}
           </Button>
 
-          {/* Secondary actions side by side */}
+          { }
           <div className="flex gap-2">
             {lead.status === "pending" && (
               <Button
@@ -656,7 +648,6 @@ function LeadCard({ lead, token, onStatusChange, onOpenConvert, onOpenCall }: Le
   );
 }
 
-// ─── Invite Link Modal ────────────────────────────────────────────────────────
 
 interface InviteLinkModalProps {
   token: string;
@@ -737,7 +728,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
           text: "Click the link below to create your account.",
           url: invite.link,
         });
-      } catch { /* user cancelled */ }
+      } catch {  }
     } else {
       copyLink();
     }
@@ -746,7 +737,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
-        {/* Header */}
+        { }
         <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
@@ -782,7 +773,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
 
           {invite && (
             <div className="space-y-4">
-              {/* Link row */}
+              { }
               <div className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3">
                 <span className="flex-1 text-xs text-zinc-300 truncate font-mono">{invite.link}</span>
                 <button
@@ -794,7 +785,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
                 </button>
               </div>
 
-              {/* Share platforms */}
+              { }
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-3">Share via</p>
                 <div className="grid grid-cols-3 gap-2">
@@ -832,7 +823,6 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
   );
 }
 
-// ─── Bulk Create Modal ────────────────────────────────────────────────────────
 
 interface BulkCreateModalProps {
   token: string;
@@ -881,7 +871,7 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
-        {/* Header */}
+        { }
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
@@ -935,9 +925,8 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
               </p>
             </>
           ) : (
-            // Results view
             <div className="space-y-4">
-              {/* Summary */}
+              { }
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: "Created", value: summary.created, color: "text-emerald-400" },
@@ -951,7 +940,7 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
                 ))}
               </div>
 
-              {/* Per-email results */}
+              { }
               <div className="space-y-1.5 max-h-52 overflow-y-auto">
                 {results.map((r) => (
                   <div key={r.email} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950">
@@ -982,7 +971,6 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
   );
 }
 
-// ─── Registered Users View (admin only) ──────────────────────────────────────
 
 type SortField = "createdAt" | "name" | "email";
 type SortOrder = "asc" | "desc";
@@ -1088,9 +1076,9 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
 
   return (
     <div className="space-y-4">
-      {/* Controls row */}
+      { }
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Search */}
+        { }
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
           <input
@@ -1102,7 +1090,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
           />
         </div>
 
-        {/* Sort buttons */}
+        { }
         <div className="flex items-center gap-1">
           {(["name", "email", "createdAt"] as SortField[]).map((field) => (
             <button
@@ -1121,7 +1109,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
           ))}
         </div>
 
-        {/* Refresh + count */}
+        { }
         <div className="flex items-center gap-2 ml-auto shrink-0">
           <p className="text-xs text-zinc-500 hidden sm:block">
             {total} account{total !== 1 ? "s" : ""}
@@ -1154,7 +1142,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
         </div>
       ) : (
         <div className="rounded-2xl border border-zinc-200/70 dark:border-zinc-800/60 bg-white dark:bg-zinc-900/60 overflow-hidden">
-          {/* Table header */}
+          { }
           <div className="hidden sm:grid grid-cols-[2fr_2fr_1fr_110px_40px] gap-3 px-5 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/60 dark:bg-zinc-900/40">
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Name</span>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Email</span>
@@ -1181,7 +1169,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                     !isConfirming && "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
                   )}
                 >
-                  {/* Name + avatar */}
+                  { }
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
                       <span className="text-[11px] font-black text-violet-500">{initials}</span>
@@ -1189,10 +1177,10 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                     <span className="text-sm font-semibold text-zinc-900 dark:text-white truncate">{u.name}</span>
                   </div>
 
-                  {/* Email */}
+                  { }
                   <p className="text-xs text-zinc-500 truncate hidden sm:block">{u.email}</p>
 
-                  {/* Status */}
+                  { }
                   <span className={cn(
                     "shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border w-fit",
                     u.isActive
@@ -1202,13 +1190,13 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                     {u.isActive ? "Active" : "Inactive"}
                   </span>
 
-                  {/* Date */}
+                  { }
                   <div className="text-right shrink-0 hidden sm:block">
                     <p className="text-xs text-zinc-600 dark:text-zinc-400">{date}</p>
                     <p className="text-[11px] text-zinc-500">{time}</p>
                   </div>
 
-                  {/* Delete action */}
+                  { }
                   <div className="flex justify-end shrink-0">
                     {isDeleting ? (
                       <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
@@ -1232,7 +1220,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                   </div>
                 </div>
 
-                {/* Inline confirm banner */}
+                { }
                 {isConfirming && (
                   <div className="flex items-center justify-between gap-3 px-5 py-2.5 bg-red-50/60 dark:bg-red-950/20 border-t border-red-200/50 dark:border-red-500/15">
                     <p className="text-xs text-zinc-600 dark:text-zinc-400 flex-1">
@@ -1264,7 +1252,6 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ReferralsPage() {
   const router = useRouter();
@@ -1284,7 +1271,6 @@ export default function ReferralsPage() {
   const [showInviteModal, setShowInviteModal] = React.useState(false);
   const [showBulkModal, setShowBulkModal] = React.useState(false);
 
-  // Auth check
   React.useEffect(() => {
     const t = localStorage.getItem("crm_token");
     if (!t) {
@@ -1303,7 +1289,7 @@ export default function ReferralsPage() {
         try {
           const u = JSON.parse(localStorage.getItem("crm_user") || "{}");
           setUserRole(u.role ?? "");
-        } catch { /* ignore */ }
+        } catch {  }
       });
   }, [router]);
 
@@ -1317,7 +1303,6 @@ export default function ReferralsPage() {
         });
         setLeads(res.data?.data || []);
       } catch {
-        // silent
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -1330,7 +1315,6 @@ export default function ReferralsPage() {
     if (token) fetchLeads();
   }, [token, fetchLeads]);
 
-  // Real-time: listen for new referral leads emitted by the backend
   React.useEffect(() => {
     if (!token) return;
 
@@ -1338,7 +1322,6 @@ export default function ReferralsPage() {
 
     const onNewLead = (lead: ReferralLead) => {
       setLeads((prev) => {
-        // Avoid duplicates if REST and socket race
         if (prev.some((l) => l._id === lead._id)) return prev;
         return [lead, ...prev];
       });
@@ -1381,7 +1364,7 @@ export default function ReferralsPage() {
           mounted ? "opacity-100" : "opacity-0"
         )}
       >
-        {/* Header */}
+        { }
         <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl">
           <div className="flex items-center gap-3 h-14 sm:h-16 px-4 sm:px-6 max-w-6xl mx-auto">
             <button
@@ -1438,9 +1421,9 @@ export default function ReferralsPage() {
 
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
 
-          {/* Tab bar */}
+          { }
           <div className="flex gap-1.5 flex-wrap">
-            {/* Lead filter tabs — only shown in leads view */}
+            { }
             {viewMode === "leads" && FILTER_TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -1468,7 +1451,7 @@ export default function ReferralsPage() {
               </button>
             ))}
 
-            {/* Leads tab button shown when in registered view */}
+            { }
             {viewMode === "registered" && (
               <button
                 onClick={() => setViewMode("leads")}
@@ -1478,7 +1461,7 @@ export default function ReferralsPage() {
               </button>
             )}
 
-            {/* Registered tab — admin only */}
+            { }
             {isAdmin && (
               <button
                 onClick={() => setViewMode("registered")}
@@ -1495,12 +1478,12 @@ export default function ReferralsPage() {
             )}
           </div>
 
-          {/* ── Registered Users View (admin only) ── */}
+          { }
           {viewMode === "registered" && token && (
             <RegisteredUsersView token={token} />
           )}
 
-          {/* ── Leads View ── */}
+          { }
           {viewMode === "leads" && (
             loading ? (
               <div className="flex flex-col items-center justify-center py-24 gap-3">

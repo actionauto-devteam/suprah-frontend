@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils"
 
 injectSS4Styles()
 
-// Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus"
 import { ToastStack, Toast } from "./leads/atomic/ToastStack"
 import { LeadsList } from "./leads/LeadsList"
@@ -23,11 +22,9 @@ import { ReplySection } from "./leads/ReplySection"
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal"
 import { BulkReplyModal, BulkReplyRecipient } from "@/components/leads/BulkReplyModal"
 
-// External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab"
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI"
 
-// Constants
 const LEADS_SOURCE_EMAIL = 'leads@dealerscloud.com'
 const LEADS_PER_PAGE = 20
 const THREAD_POLL_INTERVAL_MS = 15_000
@@ -58,12 +55,10 @@ export function LeadsTab({
   const { getToken } = useAuth()
   const { theme, toggleTheme } = useTheme()
 
-  // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [currentPage, setCurrentPage] = React.useState(1)
 
-  // -- Main Data Hook --
   const {
     leads, isLoading, total, pages, updateLeadStatus, markAsRead, refetch,
     sync, isSyncing: isWorkerSyncing, bulkReply, isBulkReplying
@@ -74,7 +69,6 @@ export function LeadsTab({
     status: statusFilter
   })
 
-  // -- Pending deep-link lead (from ?leadId= or ?leadSearch= URL param) --
   const [pendingLeadId, setPendingLeadId] = React.useState<string | null>(null)
   const [autoSelectOnSingleResult, setAutoSelectOnSingleResult] = React.useState(false)
 

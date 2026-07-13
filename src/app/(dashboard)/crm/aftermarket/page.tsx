@@ -37,7 +37,6 @@ import {
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ProductMedia {
   url: string;
@@ -58,7 +57,6 @@ interface AftermarketProduct {
 type ViewMode = "grid" | "list";
 type CatalogFilter = "all" | "live" | "hidden";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function money(n?: number | null) {
   if (n == null) return null;

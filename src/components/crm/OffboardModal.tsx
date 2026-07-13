@@ -16,7 +16,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { apiClient } from "@/lib/api-client"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface OffboardUser {
   _id: string
@@ -35,7 +34,6 @@ interface OffboardModalProps {
   onOffboarded?: () => void
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ini(n: string) {
   return n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
@@ -48,7 +46,6 @@ const CHECKLIST = [
   "Records preserved in audit history",
 ]
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function OffboardModal({
   open,

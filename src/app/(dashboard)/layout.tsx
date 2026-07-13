@@ -62,7 +62,6 @@ function DashboardLayoutContent({
   const { avatarUrl } = useProfileContext();
   usePresence();
   usePresenceSocket();
-  // Use custom hook for organization context
   const { organization, isLoaded, isSuperAdmin, isDriver, userRole } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
@@ -70,10 +69,6 @@ function DashboardLayoutContent({
   const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
   const isSupraSpaceRoute =
     pathname === "/crm/supra-space" || pathname.startsWith("/crm/supra-space/");
-  // The CRM login gate (/crm exactly) has no session yet, so there's no nav
-  // chrome to show. Every other /crm/* page — including Supra Space and
-  // Conversations — gets the shared CrmHeader. Supra Space owns its own
-  // full-screen header, so the shared CRM header stays hidden there.
   const isStandaloneCrmShell = pathname === "/crm";
   const showCrmHeader = isCrmRoute && !isStandaloneCrmShell && !isSupraSpaceRoute;
   const showCrmMessenger =
@@ -84,8 +79,6 @@ function DashboardLayoutContent({
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
 
-  // When a Leads conversation goes full-screen on mobile, the floating bottom
-  // nav hides itself — reclaim the space `main` normally reserves for it.
   React.useEffect(() => {
     const handler = (e: Event) => {
       setLeadConvoActive((e as CustomEvent<{ active: boolean }>).detail.active);
@@ -109,11 +102,8 @@ function DashboardLayoutContent({
   }, [isLoaded]);
 
   React.useEffect(() => {
-    // Wait until org context is fully loaded before making routing decisions
     if (!isLoaded) return;
 
-    // Bypass & Redirect for Super Admin
-    // FAILSAFE: If impersonating, DO NOT redirect to admin dashboard
     if (isSuperAdmin && !isImpersonating) {
       if (
         window.location.pathname === "/" ||
@@ -125,7 +115,6 @@ function DashboardLayoutContent({
       return;
     }
 
-    // Drivers don't belong to an org — send them to their own dashboard
     if (isDriver) {
       router.push("/driver");
       return;
@@ -134,13 +123,11 @@ function DashboardLayoutContent({
     const isCustomer = userRole === "customer";
     const isEmployee = userRole === "employee";
 
-    // Strict isolation: Customers must never view the organization/employee layout
     if (isCustomer) {
       router.push("/customer");
       return;
     }
 
-    // If employee has no organization, they must go to org-selection
     if (!organization && isEmployee) {
       router.push("/org-selection");
       return;
@@ -161,7 +148,6 @@ function DashboardLayoutContent({
   const isCustomer = userRole === "customer";
   const isEmployee = userRole === "employee";
 
-  // Prevent flashing the dealer dashboard to unauthorized roles while redirecting
   if (
     !hasResolvedOrgAccess ||
     isCustomer ||
@@ -182,12 +168,6 @@ function DashboardLayoutContent({
   }
 
   return (
-    // On CRM routes, lock the OUTERMOST shell (the provider wrapper) to the viewport
-    // with overflow-hidden. The wrapper is normally `min-h-svh` (growable), which let
-    // the document scroll. Capping it here means the body can never scroll, so `main`
-    // becomes the single scroll container. We do NOT hardcode h-dvh on SidebarInset —
-    // the inset variant adds m-2 margins, and a fixed height + margins overflowed the
-    // viewport. Instead SidebarInset fills the capped wrapper via flex stretch.
     <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
       <AppSidebar />
       <SidebarInset className={cn(isCrmRoute && "min-h-0 overflow-hidden")}>
@@ -238,10 +218,10 @@ function DashboardLayoutContent({
 
                 <ThemeModeToggle compact />
 
-                {/* Notification Bell */}
+                { }
                 <NotificationBell />
 
-                {/* Messenger dropdown (Suprah Space) */}
+                { }
                 <MessengerDropdown />
 
                 <DropdownMenu>
@@ -295,13 +275,6 @@ function DashboardLayoutContent({
           className={cn(
             "relative bg-background md:pb-0",
             leadConvoActive ? "pb-0" : "pb-24",
-            // CRM: fill the capped shell (flex-1) and be the SINGLE scroll container.
-            // min-h-0 lets the flex child shrink below its content height so it scrolls
-            // instead of forcing its parent to grow.
-            // Subtle, thin scrollbar (matches the sidebar): faint thumb at rest, firmer
-            // on hover. Still fully scrollable.
-            //   Firefox      -> scrollbar-width: thin + faint scrollbar-color
-            //   WebKit/Blink -> 6px bar, transparent track, low-opacity rounded thumb
             isCrmRoute
               ? "flex-1 min-h-0 overflow-y-auto " +
                 "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
@@ -322,7 +295,7 @@ function DashboardLayoutContent({
         <MobileBottomNav items={dealershipNav} />
       </SidebarInset>
 
-      {/* Chat popup windows — fixed position, visible on all routes */}
+      { }
       <ChatPopupManager />
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>

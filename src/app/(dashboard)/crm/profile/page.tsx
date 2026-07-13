@@ -26,7 +26,10 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageCircle,
+  Copy,
+  Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -49,8 +52,8 @@ import { apiClient } from "@/lib/api-client";
 import { getSocket, initializeSocket } from "@/lib/socket.client";
 import { useAuth } from "@/providers/AuthProvider";
 import { deptLabel } from "@/lib/departments";
+import { EmployeeIdCardModal } from "@/components/crm/EmployeeIdCardModal";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface CrmUser {
   _id: string;
@@ -62,8 +65,11 @@ interface CrmUser {
   isActive?: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  hireDate?: string;
+  department?: string;
   personalInfo?: {
     department?: string;
+    jobTitle?: string;
   };
   todayTimeLogs?: TimeLog[];
 }
@@ -109,7 +115,6 @@ type TimeLogPayload = {
   note?: string;
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
   return name
@@ -145,7 +150,6 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CrmProfilePage() {
   const router = useRouter();
@@ -160,8 +164,8 @@ export default function CrmProfilePage() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [crmToken, setCrmToken] = React.useState("");
+  const [isIdCardOpen, setIsIdCardOpen] = React.useState(false);
 
-  // Edit dialog
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [editName, setEditName] = React.useState("");
   const [editEmail, setEditEmail] = React.useState("");
@@ -175,7 +179,6 @@ export default function CrmProfilePage() {
   const isOwnProfile = viewedUser?._id === currentUser?._id;
   const viewedIsActive = viewedUser?.isActive !== false;
 
-  // Load current CRM user + bootstrap main socket with main auth token
   React.useEffect(() => {
     const t = localStorage.getItem("crm_token");
     if (!t) {
@@ -184,8 +187,6 @@ export default function CrmProfilePage() {
     }
     setCrmToken(t);
 
-    // Ensure main socket is connected using the primary auth token so
-    // real-time events work correctly across the session
     getToken().then((mainToken) => {
       if (mainToken && !getSocket()?.connected) {
         initializeSocket(mainToken);
@@ -203,7 +204,6 @@ export default function CrmProfilePage() {
       .finally(() => setIsLoading(false));
   }, [router, getToken]);
 
-  // Fetch main system avatar for sync
   React.useEffect(() => {
     apiClient
       .get("/api/profile")
@@ -215,7 +215,6 @@ export default function CrmProfilePage() {
       .catch(() => { });
   }, []);
 
-  // Debounced search
   React.useEffect(() => {
     const timer = setTimeout(async () => {
       if (!searchTerm.trim() || !crmToken) {
@@ -252,7 +251,6 @@ export default function CrmProfilePage() {
     return () => clearTimeout(timer);
   }, [searchTerm, crmToken]);
 
-  // Edit dialog handlers
   const handleOpenEdit = () => {
     setEditName(currentUser?.fullName ?? "");
     setEditEmail(currentUser?.email ?? "");
@@ -264,7 +262,7 @@ export default function CrmProfilePage() {
   };
 
   const AVATAR_ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-  const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+  const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -309,12 +307,9 @@ export default function CrmProfilePage() {
     setSaveError("");
     setAvatarError("");
 
-    // ── Step 1: Upload avatar (separate catch so we show a precise error) ──
     let newAvatarUrl = mainAvatar;
     if (editAvatarFile) {
       try {
-        // Primary: upload directly to CRM — this updates CrmUser.avatar and
-        // emits user:profile:updated on the SupraSpace socket so avatars refresh live.
         if (crmToken) {
           const crmFormData = new FormData();
           crmFormData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
@@ -328,8 +323,6 @@ export default function CrmProfilePage() {
           }
         }
 
-        // Secondary: also sync to the main platform User account (best-effort;
-        // CRM-only employees who have no platform account will get a 401 here — that's fine).
         try {
           const formData = new FormData();
           formData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
@@ -374,7 +367,6 @@ export default function CrmProfilePage() {
       }
     }
 
-    // ── Step 2: Save name / email ──────────────────────────────────────────
     try {
       const nameChanged = trimmedName !== currentUser.fullName;
       const emailChanged = trimmedEmail !== currentUser.email;
@@ -414,7 +406,6 @@ export default function CrmProfilePage() {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -432,11 +423,9 @@ export default function CrmProfilePage() {
   return (
     <div className="h-[calc(100dvh-5rem)] flex flex-col bg-background overflow-hidden">
 
-      {/* ── Sticky Header ───────────────────────────────────────────────────── */}
       <div className="border-b border-border/30 bg-background shrink-0 relative z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 space-y-3">
 
-          {/* Title row */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
@@ -448,7 +437,6 @@ export default function CrmProfilePage() {
             <h1 className="text-base font-bold tracking-tight">Team Directory</h1>
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40 z-10 pointer-events-none" />
             {isSearching && (
@@ -461,7 +449,6 @@ export default function CrmProfilePage() {
               className="pl-9 h-10 text-sm rounded-lg border-border/30 bg-muted/10 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30"
             />
 
-            {/* Search Results Dropdown */}
             {searchTerm.trim() && (
               <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-xl border border-border/30 bg-card shadow-2xl overflow-hidden">
                 {isSearching ? (
@@ -509,11 +496,9 @@ export default function CrmProfilePage() {
         </div>
       </div>
 
-      {/* ── Scrollable Content ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto scrollbar-dark">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 space-y-5">
 
-          {/* Viewing another user banner */}
           {!isOwnProfile && viewedUser && (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-3">
               <div className="flex items-center gap-2 min-w-0">
@@ -539,7 +524,6 @@ export default function CrmProfilePage() {
             </div>
           )}
 
-          {/* ── Tabs ────────────────────────────────────────────────────────── */}
           <div className="flex border-b border-border/30">
             {(["profile", "activity"] as const).map((tab) => (
               <button
@@ -556,16 +540,13 @@ export default function CrmProfilePage() {
             ))}
           </div>
 
-          {/* ── Tab Content ─────────────────────────────────────────────────── */}
           {user ? (
             activeTab === "profile" ? (
               <div className="space-y-4">
 
-                {/* ── Profile Header Card ─────────────────────────────────── */}
                 <div className="rounded-xl border border-border/30 bg-card px-4 sm:px-6 py-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div className="flex items-start gap-4 sm:gap-5 min-w-0">
-                      {/* Avatar */}
                       <div className="relative shrink-0">
                         <Avatar className="h-16 w-16 ring-2 ring-border/30 shadow-lg">
                           <AvatarImage src={resolvedAvatar} />
@@ -578,7 +559,6 @@ export default function CrmProfilePage() {
                         )}
                       </div>
 
-                      {/* Name + meta */}
                       <div className="flex-1 min-w-0">
                         <h2 className="text-lg font-bold leading-tight tracking-tight wrap-break-word">
                           {user.fullName}
@@ -597,8 +577,16 @@ export default function CrmProfilePage() {
                       </div>
                     </div>
 
-                    {/* Action button */}
-                    <div className="shrink-0 pt-0.5 w-full sm:w-auto">
+                    <div className="shrink-0 pt-0.5 w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-4 text-sm border-border/40 text-foreground bg-transparent hover:bg-muted/30 rounded-md gap-1.5 w-full sm:w-auto"
+                        onClick={() => setIsIdCardOpen(true)}
+                      >
+                        <IdCard className="h-3.5 w-3.5" />
+                        ID Card
+                      </Button>
                       {isOwnProfile ? (
                         <Button
                           size="sm"
@@ -624,9 +612,7 @@ export default function CrmProfilePage() {
                   </div>
                 </div>
 
-                {/* ── Contact Details + Account Summary ───────────────────── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Contact Details */}
                   <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
                     <div className="px-4 sm:px-5 py-3.5 border-b border-border/30">
                       <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
@@ -635,12 +621,11 @@ export default function CrmProfilePage() {
                     </div>
                     <div className="divide-y divide-border/20">
                       <InfoRow icon={User} label="Name" value={user.fullName} />
-                      <InfoRow icon={IdCard} label="Employee ID" value={user.username} />
+                      <CopyableInfoRow icon={IdCard} label="Employee ID" value={user.username} />
                       <InfoRow icon={Mail} label="Email" value={user.email} />
                     </div>
                   </div>
 
-                  {/* Account Summary */}
                   <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
                     <div className="px-4 sm:px-5 py-3.5 border-b border-border/30">
                       <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
@@ -648,7 +633,6 @@ export default function CrmProfilePage() {
                       </h3>
                     </div>
                     <div className="divide-y divide-border/20">
-                      {/* Status */}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3.5 gap-2 sm:gap-4">
                         <div className="flex items-center gap-3 min-w-0">
                           <Shield className="h-4 w-4 text-muted-foreground/40" />
@@ -675,7 +659,6 @@ export default function CrmProfilePage() {
                   </div>
                 </div>
 
-                {/* ── Compact Activity Log ─────────────────────────────────── */}
                 <ActivityLogSection
                   crmToken={crmToken}
                   todayLogs={user.todayTimeLogs ?? []}
@@ -697,7 +680,6 @@ export default function CrmProfilePage() {
         </div>
       </div>
 
-      {/* ── Edit Profile Dialog ───────────────────────────────────────────────── */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -708,7 +690,6 @@ export default function CrmProfilePage() {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
-            {/* Avatar */}
             <div className="flex flex-col items-center gap-2">
               <button
                 type="button"
@@ -805,11 +786,12 @@ export default function CrmProfilePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EmployeeIdCardModal open={isIdCardOpen} onOpenChange={setIsIdCardOpen} user={user} />
     </div>
   );
 }
 
-// ── Info Row ──────────────────────────────────────────────────────────────────
 
 function InfoRow({
   icon: Icon,
@@ -837,7 +819,63 @@ function InfoRow({
   );
 }
 
-// ── Activity Log Helpers ──────────────────────────────────────────────────────
+
+function CopyableInfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const el = document.createElement("textarea");
+        el.value = value;
+        el.style.position = "fixed";
+        el.style.opacity = "0";
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+      setCopied(true);
+      toast.success(`${label} copied!`);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy. Please try again.");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="flex w-full flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3.5 gap-1.5 sm:gap-4 text-left hover:bg-muted/20 active:bg-muted/30 transition-colors cursor-pointer"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <Icon className="h-4 w-4 text-muted-foreground/40" />
+        <span className="text-sm text-muted-foreground">{label}</span>
+      </div>
+      <span className="flex items-center gap-1.5 text-sm font-medium text-left sm:text-right w-full sm:w-auto sm:max-w-[62%] wrap-break-word justify-between sm:justify-end">
+        {value}
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+        ) : (
+          <Copy className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+        )}
+      </span>
+    </button>
+  );
+}
+
 
 const ITEMS_PER_PAGE = 15;
 
@@ -921,7 +959,6 @@ function getDayLabel(timestamp: string): string {
   });
 }
 
-// ── Activity Log Section ──────────────────────────────────────────────────────
 
 function ActivityLogSection({
   crmToken,
@@ -943,7 +980,6 @@ function ActivityLogSection({
     setCurrentPage(1);
   }, [selectedMonth]);
 
-  // Load activities
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -1022,7 +1058,6 @@ function ActivityLogSection({
     };
   }, [crmToken, todayLogs]);
 
-  // Real-time socket — use the already-connected main auth socket only
   React.useEffect(() => {
     const sock = getSocket();
     if (!sock) return;
@@ -1068,7 +1103,6 @@ function ActivityLogSection({
     };
   }, []);
 
-  // ── Compact mode ──────────────────────────────────────────────────────────
   if (compact) {
     const recent = items.slice(0, 5);
     return (
@@ -1116,7 +1150,6 @@ function ActivityLogSection({
     );
   }
 
-  // ── Full mode (Activity Log tab) ──────────────────────────────────────────
 
   const months = (() => {
     const seen = new Set<string>();
@@ -1190,7 +1223,6 @@ function ActivityLogSection({
 
   return (
     <div className="space-y-5">
-      {/* Filter row */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground/70">
           <span className="font-medium text-foreground">{filtered.length}</span>{" "}
@@ -1216,7 +1248,6 @@ function ActivityLogSection({
         </Select>
       </div>
 
-      {/* Day-grouped activity */}
       {grouped.length === 0 ? (
         <div className="rounded-xl border border-border/30 bg-card p-10 text-center">
           <p className="text-sm text-muted-foreground">No activity for this period</p>
@@ -1228,14 +1259,12 @@ function ActivityLogSection({
               key={group.label}
               className="rounded-xl border border-border/30 bg-card overflow-hidden"
             >
-              {/* Day header */}
               <div className="px-5 py-3 border-b border-border/30 bg-muted/10">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
                   {group.label}
                 </p>
               </div>
 
-              {/* Items */}
               <div className="divide-y divide-border/20">
                 {group.items.map((item) => {
                   const { Icon, className } = getActivityStyle(item.type);
@@ -1266,7 +1295,6 @@ function ActivityLogSection({
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-1 pb-3">
           <Button

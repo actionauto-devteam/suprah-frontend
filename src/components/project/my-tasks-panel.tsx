@@ -60,7 +60,6 @@ export function MyTasksPanel({
       const list: MyTask[] = data?.tasks || [];
       const pages: number = data?.totalPages || 1;
 
-      // If deleting/completing emptied the current page, step back one.
       if (list.length === 0 && targetPage > 1) {
         return load(targetPage - 1);
       }

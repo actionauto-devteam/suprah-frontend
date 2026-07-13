@@ -41,7 +41,6 @@ import { apiClient } from "@/lib/api-client"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 import DayPulsePage from "@/components/DayPulsePage"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Attachment {
   url: string
@@ -111,7 +110,6 @@ const REACTIONS: { type: ReactionType; emoji: string; label: string; color: stri
 
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function usePreferNativeEmojiPicker() {
   const [preferNative, setPreferNative] = React.useState(false)

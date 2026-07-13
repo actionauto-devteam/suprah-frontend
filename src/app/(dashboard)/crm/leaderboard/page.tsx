@@ -46,7 +46,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
 interface KpiSnapshot {
   leadsCreated: number;
   leadsContacted: number;
@@ -123,7 +122,6 @@ interface ActivityLogEntry {
   user?: { fullName: string; username: string; avatar?: string };
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
 function ini(n: string) {
   return n
     .split(" ")

@@ -12,10 +12,6 @@ export default function LeadsPage() {
   const router = useRouter();
   const [convoActive, setConvoActive] = React.useState(false);
 
-  // LeadsTab dispatches this whenever a lead conversation opens/closes. On
-  // mobile/tablet we collapse this page header too, since the conversation
-  // shows its own header — on desktop (lg+) the list and conversation are
-  // shown side by side, so this header always stays visible there.
   React.useEffect(() => {
     const handler = (e: Event) => {
       setConvoActive((e as CustomEvent<{ active: boolean }>).detail.active);
@@ -27,7 +23,7 @@ export default function LeadsPage() {
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        {/* Page header */}
+        { }
         <div
           className={cn(
             "shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-border/60 bg-card",
@@ -48,7 +44,7 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        {/* Full-height LeadsTab */}
+        { }
         <div className="flex-1 min-h-0 overflow-hidden">
           <LeadsTab />
         </div>

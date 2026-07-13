@@ -71,17 +71,15 @@ import {
   TABLE_BODY_ROW,
 } from "@/utils/reportPdfTemplate";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabValue = "ALL" | "Transportation" | "Driver Reports" | "Billings";
 
 interface ReportData {
-  loads: Load[]   // already month-filtered
-  payments: Payment[]     // already month-filtered
-  payouts: DriverPayout[] // already month-filtered
+  loads: Load[]
+  payments: Payment[]
+  payouts: DriverPayout[]
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -99,30 +97,25 @@ export default function ReportsPage() {
   const { getToken } = useAuth();
   const searchParams = useSearchParams();
 
-  // 1. Core State
   const [activeTab, setActiveTab] = React.useState<TabValue>("ALL");
   const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
-  // 2. Data State
   const [reportData, setReportData] = React.useState<ReportData | null>(null);
   const [rawLoads, setRawLoads] = React.useState<Load[]>([]);
   const [rawQuotes, setRawQuotes] = React.useState<TransportQuote[]>([]);
   const [rawPayments, setRawPayments] = React.useState<Payment[]>([]);
 
-  // 3. UI Interaction State
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [downloading, setDownloading] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  // 4. Modal/Preview State
   const [previewType, setPreviewType] = React.useState<string | null>(null);
   const [transportPreview, setTransportPreview] = React.useState<
     "load" | "quote" | null
   >(null);
 
-  // ─── Data Fetching ──────────────────────────────────────────────────────────
 
   const fetchData = React.useCallback(async () => {
     setIsRefreshing(true);

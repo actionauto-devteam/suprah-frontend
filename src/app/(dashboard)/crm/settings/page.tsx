@@ -28,8 +28,6 @@ import { useTheme } from "@/context/ThemeContext";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface CrmUserData {
   _id: string;
   fullName: string;
@@ -38,8 +36,6 @@ interface CrmUserData {
   avatar?: string;
   role: string;
 }
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CrmSettingsPage() {
   const router = useRouter();

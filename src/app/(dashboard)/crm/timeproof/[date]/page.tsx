@@ -23,9 +23,6 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Types
-───────────────────────────────────────────────────────────────────────── */
 interface Screenshot {
   _id: string
   capturedAt: string
@@ -34,15 +31,15 @@ interface Screenshot {
 }
 
 interface BreakSegment {
-  from: number  // timestamp ms
+  from: number
   to: number
-  duration: number  // ms
+  duration: number
 }
 
 interface ActualBreak {
   in: string
   out: string | null
-  duration: number  // seconds (from backend)
+  duration: number
   isActive: boolean
 }
 
@@ -80,14 +77,8 @@ interface DailyActivityLog {
   placeVisits: PlaceVisitEntry[]
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Utilities
-───────────────────────────────────────────────────────────────────────── */
-// Only used for timeline gap rendering — high threshold so regular 10-min
-// screenshot intervals are never mistaken for breaks in the visual bar.
-const TIMELINE_GAP_THRESHOLD_MS = 25 * 60 * 1000  // 25 minutes
+const TIMELINE_GAP_THRESHOLD_MS = 25 * 60 * 1000
 
-// Display all times in MDT (UTC-6) to match the backend's COMPANY_TZ_OFFSET_MINUTES = -360
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 const fmtTime = (iso: string) =>
   new Date(new Date(iso).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", {

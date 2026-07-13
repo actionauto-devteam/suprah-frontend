@@ -22,9 +22,6 @@ export function StatusDot({
   );
 }
 
-// Maps each avatar-corner dot's existing "size-*" class to a narrower phone-silhouette
-// width/height pair — same visual footprint area, just not round, so a phone user's presence
-// reads as "shaped like a phone" instead of a plain circle at a glance.
 const PHONE_SHAPE: Record<string, string> = {
   "size-2.5": "w-[7px] h-2.5",
   "size-3": "w-2 h-3",
@@ -32,12 +29,6 @@ const PHONE_SHAPE: Record<string, string> = {
   "size-5": "w-3.5 h-5",
 };
 
-/**
- * Drop-in replacement for the ad-hoc `<span className="absolute -bottom-0.5 -right-0.5 {size}
- * rounded-full {border}" />` avatar-corner presence dot used across TeamPulse — same color and
- * position, but renders as a small phone silhouette instead of a circle when the member's most
- * recent presence heartbeat came from a mobile device.
- */
 export function PresenceAvatarDot({
   status,
   deviceType,

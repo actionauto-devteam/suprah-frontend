@@ -1,18 +1,5 @@
 'use client'
 
-/**
- * DashboardNotifications.tsx — Redesigned for Suprah Autrix AI
- *
- * Fully aligned to the Autrix dark-cockpit design language:
- *  - Same CSS variable tokens as SupraLeoPanel / SupraLeoAI
- *  - Rajdhani / DM Sans / JetBrains Mono typography stack
- *  - Blue-accent HUD aesthetic (replaces old gold theme)
- *  - Shimmer top-border, scan-line effect, pulse dots
- *  - Glassmorphism panel shell matching axp-panel
- *
- * Usage:
- *   <DashboardNotifications user={user} token={token} hasClockedIn={hasClockedIn} />
- */
 
 import * as React from 'react'
 import {
@@ -23,9 +10,6 @@ import {
 import { apiClient } from '@/lib/api-client'
 import { SupraLeoAvatar } from '@/components/supra-leo-ai/SupraLeoAvatar'
 
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
 
 export interface DashboardNotificationsProps {
   user: { fullName: string; role: string }
@@ -53,9 +37,6 @@ interface ReminderData {
   supraspace?: { counts?: { unread: number; activeConversations: number } }
 }
 
-// ─────────────────────────────────────────────────────────────
-// CSS — aligned to Autrix design system
-// ─────────────────────────────────────────────────────────────
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400&display=swap');
@@ -585,9 +566,6 @@ function injectCSS() {
   document.head.appendChild(el)
 }
 
-// ─────────────────────────────────────────────────────────────
-// Module config
-// ─────────────────────────────────────────────────────────────
 
 const MODULE_CONFIG = {
   appointments: { icon: <Calendar size={13} />, iconClass: 'mod-appts', badgeClass: 'badge-appts', href: '/crm/appointments' },
@@ -596,9 +574,6 @@ const MODULE_CONFIG = {
   supraspace:   { icon: <MessageSquare size={13} />, iconClass: 'mod-space', badgeClass: 'badge-space', href: '/crm/supra-space' },
 }
 
-// ─────────────────────────────────────────────────────────────
-// Alert Row
-// ─────────────────────────────────────────────────────────────
 
 function AlertRow({ item, delay = 0 }: { item: AlertItem; delay?: number }) {
   const cfg = MODULE_CONFIG[item.module]

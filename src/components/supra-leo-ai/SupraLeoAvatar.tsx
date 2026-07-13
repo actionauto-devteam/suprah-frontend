@@ -16,7 +16,6 @@ interface Props {
   animate?: boolean
 }
 
-// ─── State → color config (green-first, aligned with AutrixWelcomeSystem) ─────
 const STATE_COLORS: Record<LeoState, { primary: string; secondary: string; glow: string }> = {
   idle:              { primary: '#00B450', secondary: '#00963D', glow: 'rgba(0,180,80,0.4)'   },
   listening:         { primary: '#00FF6A', secondary: '#00C853', glow: 'rgba(0,255,106,0.5)'  },
@@ -48,7 +47,6 @@ export function drawLionFace(
   ctx.arc(cx, cy, r, 0, Math.PI * 2)
   ctx.clip()
 
-  // ── Background — deep green-tinted dark / light ──
   const bgG = ctx.createRadialGradient(cx, cy * 0.5, 0, cx, cy, r * 1.1)
   if (dark) {
     bgG.addColorStop(0, '#071409')
@@ -62,7 +60,6 @@ export function drawLionFace(
   ctx.fillStyle = bgG
   ctx.fillRect(0, 0, W, H)
 
-  // ── HUD grid lines ──
   ctx.save()
   ctx.globalAlpha = dark ? 0.07 : 0.09
   ctx.strokeStyle = dark ? '#00B450' : '#00963D'
@@ -74,7 +71,6 @@ export function drawLionFace(
   for (let y = cy % gs; y < H; y += gs) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
   }
-  // Horizon perspective lines
   ctx.globalAlpha = dark ? 0.09 : 0.11
   for (let i = 0; i < 5; i++) {
     const ly = cy + r * (0.45 + i * 0.12)
@@ -94,7 +90,6 @@ export function drawLionFace(
   }
   ctx.restore()
 
-  // ── Ambient state glow ──
   if (isActive) {
     const glowG = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r)
     glowG.addColorStop(0, 'transparent')
@@ -106,7 +101,6 @@ export function drawLionFace(
     ctx.fill()
   }
 
-  // ── Pulse rings ──
   if (isActive && pulseFrac > 0) {
     for (let ring = 0; ring < 2; ring++) {
       const ringR = r * (0.52 + ring * 0.15 + pulseFrac * 0.08)

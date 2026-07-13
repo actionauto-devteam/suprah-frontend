@@ -3,10 +3,6 @@ import * as React from 'react';
 import { Phone, Users } from 'lucide-react';
 import type { LiveCall } from '@/hooks/useCall';
 
-/**
- * Persistent in-conversation banner shown while a call is active.
- * Displays active status, participant count, elapsed duration, and Join Call.
- */
 export function CallBanner({ call, onJoin }: { call: LiveCall; onJoin: () => void }) {
   const [elapsed, setElapsed] = React.useState('00:00');
 

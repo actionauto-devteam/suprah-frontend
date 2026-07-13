@@ -23,7 +23,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api-client";
 import { OffboardModal, type OffboardUser } from "@/components/crm/OffboardModal";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CrmUserData {
   _id: string;
@@ -72,7 +71,6 @@ interface OffboardedEmployee {
 
 type Tab = "milestones" | "onboarding" | "offboarding";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ini(n: string) {
 

@@ -16,9 +16,6 @@ import { LocatorMap } from "./LocatorMap";
 import { deptLabel } from "@/lib/departments";
 import { haversineMi, formatDistanceMi } from "@/lib/geo";
 
-// Matches the icon presets a place can be created with (see PlacesAdminPanel's ICON_PRESETS) —
-// kept as plain emoji glyphs (not SVGs) since place markers are built as raw DOM/HTML, same
-// as the avatar markers and popups in this file.
 const PLACE_ICON_GLYPH: Record<string, string> = {
   MapPin: "📍", Building2: "🏢", Warehouse: "🏬", Car: "🚗", Wrench: "🔧", ParkingCircle: "🅿️",
 };
@@ -28,9 +25,6 @@ function placeGlyph(icon?: string) {
 
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
-// Belt-and-suspenders on top of the meter-based offset below: whatever the current zoom,
-// never nudge a marker away from its raw true coordinate at all until zoomed in enough
-// (city/neighborhood level) that overlap is an actual on-screen problem worth solving.
 const ZOOM_OFFSET_THRESHOLD = 14;
 
 function popupSharingDuration(sinceIso?: string) {
@@ -49,14 +43,6 @@ const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 const PLACES_SOURCE_ID = "locator-places";
 const TRAIL_SOURCE_ID = "locator-trail";
 const OVERLAP_METERS = 12;
-// Real-world METERS, not screen pixels — deliberately. An earlier version nudged overlapping
-// avatars apart with a fixed *pixel* offset (mapbox Marker's `offset` option), which is a
-// constant screen-space shift independent of zoom. At a zoomed-out view where one pixel can
-// represent many kilometers, that same "small" pixel nudge scattered people who were all
-// genuinely in the same building across an entire continent on screen. A meter-based geo
-// offset instead moves the *coordinate itself* by a few real meters, so it's imperceptible
-// zoomed out (correctly reads as "same spot") and only becomes visually distinguishable once
-// zoomed in enough that a few meters actually is a few screen pixels.
 const SPIRAL_OFFSETS_M: [number, number][] = [
   [0, 0], [3.5, 0], [-3.5, 0], [0, -3.5], [3.5, -3.5], [-3.5, -3.5], [0, 3.5], [3.5, 3.5], [-3.5, 3.5],
 ];
@@ -75,27 +61,14 @@ function circlePolygon(lat: number, lng: number, radiusM: number, points = 48): 
   return coords;
 }
 
-/** Converts a small real-world meter offset into a lngLat delta at the given latitude —
- * used to nudge overlapping avatars apart by an actual (tiny) geo distance instead of a
- * zoom-breaking screen-pixel shift. */
 function metersToLngLatDelta(lat: number, dxM: number, dyM: number): [number, number] {
   const dLat = dyM / 111320;
   const dLng = dxM / (111320 * Math.cos((lat * Math.PI) / 180));
   return [dLng, dLat];
 }
 
-// Mapbox's Map Matching API caps a single request at 100 coordinates.
 const MATCH_CHUNK_SIZE = 100;
 
-/**
- * Snaps a raw breadcrumb trail onto actual road geometry using Mapbox's Map Matching API
- * (same account/token as the base map tiles) — a straight line between GPS pings otherwise
- * cuts across blocks/lots/water instead of following the street the person actually drove.
- * Chunks into groups of <=100 points (the API's per-request limit) and stitches the matched
- * geometry back together; any chunk that fails to match (too sparse/far apart for the
- * `driving` profile — e.g. a big gap from an offline stretch) falls back to its own raw
- * straight segment rather than breaking the whole trail.
- */
 async function matchToRoads(coords: [number, number][], token: string): Promise<[number, number][]> {
   const chunks: [number, number][][] = [];
   for (let i = 0; i < coords.length; i += MATCH_CHUNK_SIZE - 1) {
@@ -107,11 +80,6 @@ async function matchToRoads(coords: [number, number][], token: string): Promise<
     chunks.map(async (chunk) => {
       try {
         const coordStr = chunk.map(([lng, lat]) => `${lng},${lat}`).join(";");
-        // radiuses tells the matcher how far each raw point may realistically be from the
-        // true road (consumer GPS is commonly 10-30m off) — the API's own default (5m) is
-        // tight enough that ordinary GPS noise alone causes spurious "NoMatch" failures on
-        // real breadcrumb data. tidy=true lets it drop/reorder noisy points instead of
-        // failing the whole chunk over one bad sample.
         const radiuses = chunk.map(() => "25").join(";");
         const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordStr}?geometries=geojson&overview=full&tidy=true&radiuses=${radiuses}&access_token=${token}`;
         const res = await fetch(url);
@@ -128,19 +96,12 @@ async function matchToRoads(coords: [number, number][], token: string): Promise<
   return matchedChunks.flat();
 }
 
-/** Rough planar distance in meters — good enough at dealership-lot scale. */
 function approxMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const dLat = (a.lat - b.lat) * 111320;
   const dLng = (a.lng - b.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180);
   return Math.sqrt(dLat * dLat + dLng * dLng);
 }
 
-/**
- * Deterministic, zoom-independent METER offsets (see SPIRAL_OFFSETS_M) for markers sitting
- * on top of each other. Computed purely from real-world distance (never from the current
- * screen projection), so pins never "jump" between an averaged cluster position and their
- * true position while zooming.
- */
 function computeOffsets(locs: ActiveEmployeeLocation[]): Map<string, [number, number]> {
   const offsets = new Map<string, [number, number]>();
   const sorted = [...locs].sort((a, b) => a.userId.localeCompare(b.userId));
@@ -158,19 +119,6 @@ function computeOffsets(locs: ActiveEmployeeLocation[]): Map<string, [number, nu
   return offsets;
 }
 
-/**
- * GPS accuracy "halo" scale relative to the marker's own diameter — deliberately qualitative
- * (tight/loose), not a to-scale meters conversion. A to-scale geo-anchored circle was tried
- * first and rejected: it drifted away from the marker's own DOM wrapper in edge cases.
- * Rendering the halo as a sibling element inside the marker's own DOM wrapper instead
- * guarantees it always stays centered on the avatar, in exchange for not being literally
- * to-scale.
- *
- * Kept intentionally tight (max ~1.5x the avatar's own diameter) — a large halo reads as "this
- * person could be anywhere in this big blob," which is exactly the "location looks inaccurate"
- * complaint this is meant to avoid. The marker's own dot is always the true, exact coordinate;
- * this ring is only ever a subtle "how tightly do we trust this" accent around it.
- */
 function haloScale(accuracyM?: number): number | null {
   if (typeof accuracyM !== "number" || accuracyM <= 0) return null;
   if (accuracyM <= 15) return 1.15;
@@ -192,9 +140,6 @@ function initialsOf(name: string) {
 }
 
 const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-/** Popup content is injected via mapbox-gl's setHTML (raw innerHTML, not React) — every piece of
- * user-controlled text (name, job title, department, place name, even the client-reported
- * connection type) MUST be escaped here or it's a stored-XSS vector on the live map. */
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
@@ -336,11 +281,6 @@ export function LocatorLiveMapSection({
     lastState: string; lastSelected: boolean; lastHaloScale: number | null; isSelf: boolean;
   }>>(new Map());
   const placeMarkersRef = React.useRef<Map<string, { marker: any; badgeEl: HTMLDivElement }>>(new Map());
-  // The map otherwise always opens on a fixed continental-US view (MAP_CENTER, zoom 4) —
-  // at that zoom, real (correct) positions a few miles apart render only a few screen
-  // pixels from each other, reading as "everyone's pin is in the wrong/cramped spot until
-  // you zoom way in." Fit the camera to wherever people/places actually are the first time
-  // we have any to show, then leave the camera alone (don't fight the user's own pan/zoom).
   const hasAutoFitRef = React.useRef(false);
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
@@ -349,8 +289,6 @@ export function LocatorLiveMapSection({
   selectRef.current = onSelectUser;
   const clearSelectionRef = React.useRef(onClearSelection);
   clearSelectionRef.current = onClearSelection;
-  // Read (not a dependency) inside the marker-rebuild effect, so crossing the zoom-offset
-  // threshold doesn't force that fairly heavy effect to re-run on every zoom tick.
   const zoomRef = React.useRef(zoom);
   zoomRef.current = zoom;
 
@@ -389,7 +327,6 @@ export function LocatorLiveMapSection({
     if (place) flyToPlace(place);
   }
 
-  // ── Map init ────────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!mapboxToken || !mapRef.current || mapInstanceRef.current) return;
     let cancelled = false;
@@ -424,11 +361,6 @@ export function LocatorLiveMapSection({
       map.on("error", (e: any) => setMapNotice(e?.error?.message || "Map failed to load"));
       map.on("zoom", () => setZoom(map.getZoom()));
 
-      // Background/canvas clicks only — marker DOM elements sit on top of the canvas and
-      // don't bubble into this, so it never fires from clicking a person's pin. Popup
-      // visibility is driven declaratively off `selectedUserId` (see the avatar-markers
-      // effect), so clicking empty map area just clears the selection — that alone closes
-      // whichever popup was open, no direct popup manipulation needed here.
       map.on("click", (e: any) => {
         if (placePickModeRef.current) {
           onPlacePickedRef.current?.(e.lngLat.lat, e.lngLat.lng);
@@ -456,7 +388,6 @@ export function LocatorLiveMapSection({
     };
   }, [mapboxToken]);
 
-  // ── Theme switch ────────────────────────────────────────────────────
   React.useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || mapThemeRef.current === theme) return;
@@ -466,9 +397,6 @@ export function LocatorLiveMapSection({
     map.once("idle", () => setMapNotice(null));
   }, [theme]);
 
-  // ── Avatar markers — stable identity, position/state updated in place, ──
-  // ── zoom-independent fixed-pixel offsets for overlapping pins. No       ──
-  // ── clustering-by-projection, so nothing "jumps" while zooming.         ──
   React.useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -481,8 +409,6 @@ export function LocatorLiveMapSection({
         return;
       }
 
-      // Off-duty-but-has-coords people stay on the map as dimmed "last known spot" pins
-      // (Life360-style) instead of vanishing entirely — coords are never cleared on stop.
       const visible = locations.filter((l) => l.coords);
 
       if (!hasAutoFitRef.current) {
@@ -510,7 +436,6 @@ export function LocatorLiveMapSection({
         return "0 2px 6px rgba(0,0,0,.3)";
       };
 
-      // remove markers for people no longer visible
       markers.forEach((entry, userId) => {
         if (!nextIds.has(userId)) {
           entry.marker.remove();
@@ -572,9 +497,6 @@ export function LocatorLiveMapSection({
         wrapper.style.height = `${size}px`;
         wrapper.style.opacity = isLastSeen ? "0.55" : "1";
 
-        // GPS-accuracy halo — a sibling of the avatar circle inside the same wrapper, so it
-        // always stays perfectly centered on the marker regardless of the overlap-avoidance
-        // geo offset baked into this marker's own lngLat (see the comment on haloScale()).
         const haloEl = document.createElement("div");
         haloEl.style.position = "absolute";
         haloEl.style.top = "50%";
@@ -641,10 +563,6 @@ export function LocatorLiveMapSection({
           .setLngLat(lngLat)
           .setHTML(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
 
-        // Mapbox's native close button is off (closeButton: false) in favor of the one drawn
-        // inside buildPopupHtml, since the popup content is otherwise pointer-events:none (see
-        // the .locator-popup CSS below) so it never steals clicks meant for the map underneath.
-        // The "open" event only fires once the popup's DOM actually exists to query.
         popup.on("open", () => {
           const closeBtn = popup.getElement()?.querySelector<HTMLButtonElement>(".popup-close-btn");
           closeBtn?.addEventListener("click", (e) => {
@@ -653,18 +571,6 @@ export function LocatorLiveMapSection({
           });
         });
 
-        // Click-only (no hover) — hovering used to also open the popup as a "desktop
-        // progressive enhancement," but the popup sits right next to the marker and could
-        // itself catch mouseenter/mouseleave, fighting the marker's own hover state and
-        // flickering open/closed. Click just selects this person; popup open/closed state
-        // is driven declaratively below (kept in sync with `selectedUserId` on every render)
-        // rather than toggled imperatively here, so it can't desync from the actual selection.
-        // stopPropagation is load-bearing: marker elements are siblings of the map canvas
-        // inside the same canvas container mapbox listens on for its own "click" handler
-        // (the map's background click — used to clear the selection, see the map init
-        // effect) — without this, every marker click also bubbled into that handler and
-        // cleared the selection it had just set, which is why the popup never actually
-        // stayed open even though the zoom-in still happened.
         wrapper.addEventListener("click", (e) => {
           e.stopPropagation();
           selectRef.current?.(loc.userId);
@@ -680,8 +586,6 @@ export function LocatorLiveMapSection({
         });
       });
 
-      // Popup visibility is a pure function of selection — always exactly one open (the
-      // selected person's, top-of-icon via the popup's own offset), everyone else's closed.
       markers.forEach((entry, userId) => {
         if (userId === selectedUserId) entry.popup.addTo(map);
         else entry.popup.remove();
@@ -691,13 +595,6 @@ export function LocatorLiveMapSection({
     run();
   }, [locations, places, selectedUserId, myUserId, myLocation, theme]);
 
-  // ── History trail for the selected employee (same map) ──────────────
-  // Renders instantly as a straight line between raw breadcrumb points, then upgrades in
-  // place to a road-snapped path once Mapbox's Map Matching API responds (progressive
-  // enhancement — never blocks or removes the trail while that request is in flight).
-  // The matching fetch itself is only ever kicked off once per historyPoints change (kept
-  // out of the styledata-bound repaint below), so a theme switch or tile reload can't
-  // re-trigger a fresh network request every time the style reloads.
   const trailGeojsonRef = React.useRef<any>(null);
 
   React.useEffect(() => {
@@ -724,8 +621,6 @@ export function LocatorLiveMapSection({
       ],
     });
 
-    // Re-adds the source/layers from whatever geometry we've already computed — bound to
-    // styledata so the trail survives a style reload (theme switch), but never re-fetches.
     const repaint = () => {
       if (!map.isStyleLoaded() || !trailGeojsonRef.current) return;
       const geojson = trailGeojsonRef.current;
@@ -765,7 +660,6 @@ export function LocatorLiveMapSection({
       const mapboxgl = (await import("mapbox-gl")).default;
       const coords = historyPoints.map((h) => [h.coords.lng, h.coords.lat] as [number, number]);
 
-      // Instant straight-line render — never left waiting on the network.
       trailGeojsonRef.current = trailGeojson(coords, coords);
       repaint();
 
@@ -774,8 +668,6 @@ export function LocatorLiveMapSection({
         map.fitBounds(bounds, { padding: 50, maxZoom: 16 });
       }
 
-      // Upgrade to a road-snapped line in place once matching resolves — the point dots
-      // always stay at the raw recorded coordinates, only the connecting line is replaced.
       if (mapboxToken && coords.length > 1) {
         const matched = await matchToRoads(coords, mapboxToken);
         if (cancelled) return;
@@ -792,8 +684,6 @@ export function LocatorLiveMapSection({
     };
   }, [historyPoints, mapboxToken]);
 
-  // ── Places overlay — geofence circle + a highlighted icon badge at the ──
-  // ── center of every company place, clickable to fly straight to it.     ──
   React.useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -813,8 +703,6 @@ export function LocatorLiveMapSection({
         source.setData(geojson);
       } else {
         map.addSource(PLACES_SOURCE_ID, { type: "geojson", data: geojson });
-        // Soft outer glow first (wide, faint line) so the geofence edge reads as
-        // "highlighted" rather than a flat thin outline, then a crisp inner fill+line on top.
         map.addLayer({
           id: `${PLACES_SOURCE_ID}-glow`,
           type: "line",
@@ -835,7 +723,6 @@ export function LocatorLiveMapSection({
         });
       }
 
-      // Icon badge + label per place, stable identity keyed by place id.
       const run = async () => {
         const mapboxgl = (await import("mapbox-gl")).default;
         const nextIds = new Set(overlayPlacesRef.current.map((p) => p._id));
@@ -934,12 +821,7 @@ export function LocatorLiveMapSection({
 
   return (
     <div className="space-y-2 h-full flex flex-col">
-      {/* Neutralize mapbox-gl's default white popup chrome so our own themed card (built in
-          buildPopupHtml) is the entire visible surface — no mismatched frame behind it.
-          pointer-events:none is load-bearing: without it, the popup's own DOM sits right next
-          to the marker and can itself receive mouseenter/mouseleave, fighting with the marker's
-          hover handlers and causing a rapid open/close flicker. The one carve-out is the close
-          button drawn inside buildPopupHtml, which needs to stay clickable. */}
+      { }
       <style>{`
         .locator-popup { pointer-events: none; }
         .locator-popup .mapboxgl-popup-content { background: transparent; box-shadow: none; padding: 0; border-radius: 14px; }

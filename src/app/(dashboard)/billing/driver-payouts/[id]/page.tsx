@@ -22,7 +22,6 @@ const BORDER = "rgba(255,255,255,0.07)";
 const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
 const MONO = "'Share Tech Mono', 'Roboto Mono', monospace";
 
-// ─── Payout Section Component ──────────────────────────────────────────────────
 function PayoutActionCard({ load, onAction }: { load: Load; onAction: () => void }) {
   const { getToken } = useAuth();
   const [amount, setAmount] = React.useState(load.pricing?.carrierPayAmount || 0);

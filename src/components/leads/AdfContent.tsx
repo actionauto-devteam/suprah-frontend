@@ -2,7 +2,7 @@ import * as React from "react"
 import { Car, Mail, MessageSquare } from "lucide-react"
 
 interface AdfContentProps {
-  parsed: any // ParsedAdfLead
+  parsed: any
 }
 
 export const AdfContent = React.memo(({ parsed }: AdfContentProps) => {

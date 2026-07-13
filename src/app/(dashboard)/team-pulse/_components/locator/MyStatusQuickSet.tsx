@@ -10,10 +10,6 @@ import { Button } from "@/components/ui/button";
 import { useUpdateMyStatus, type OnlineStatus } from "@/hooks/useTeamPulse";
 import { onlineStatusOptions } from "@/components/profile/profile-constants";
 
-/**
- * Compact inline status changer used on the current user's roster card.
- * Mirrors the header status popover but scoped to a single quick action.
- */
 export function MyStatusQuickSet({
   currentStatus,
   currentCustom,

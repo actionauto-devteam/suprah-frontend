@@ -24,7 +24,6 @@ import { CashInModal } from "@/components/CashInModal";
 import { ReceiveModal } from "@/components/billing/ReceiveModal";
 import { SendModal } from "@/components/billing/SendModal";
 
-/* ── Transaction row (unchanged) ──────────────────────────────────────────── */
 function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
   const credit = payment.status === "succeeded";
   return (

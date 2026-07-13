@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { SupraLeoAvatar, type LeoState } from './SupraLeoAvatar'
 
-// ─── Design System CSS — aligned with SupraLeoPanel green theme ───────────────
 const BADGE_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
@@ -258,7 +257,6 @@ function injectBadgeCSS() {
   document.head.appendChild(el)
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export type { LeoState }
 
 export interface LeoMessage {
@@ -304,7 +302,6 @@ interface LoadedPanelProps {
   onSendReply: () => Promise<void>
 }
 
-// ─── Module detection ─────────────────────────────────────────────────────────
 function detectModule(pathname: string): string {
   if (pathname.includes('/appointments')) return 'appointments'
   if (pathname.includes('/timeproof')) return 'timeproof'
@@ -324,7 +321,6 @@ const MODULE_LABELS: Record<string, string> = {
   general:      'CRM',
 }
 
-// ─── State dot config — green palette ────────────────────────────────────────
 const DOTS: Record<LeoState, { color: string; pulse: boolean; label: string }> = {
   idle:              { color: 'rgba(34,197,94,.40)', pulse: false, label: 'Standby'    },
   listening:         { color: '#4ade80',             pulse: true,  label: 'Listening'  },
@@ -335,7 +331,6 @@ const DOTS: Record<LeoState, { color: string; pulse: boolean; label: string }> =
   error:             { color: '#f87171',             pulse: false, label: 'Error'      },
 }
 
-// ─── Badge component ──────────────────────────────────────────────────────────
 function AutrixBadge({ state, onClick, module }: { state: LeoState; onClick: () => void; module: string }) {
   const d = DOTS[state]
   const showMod = module !== 'general'

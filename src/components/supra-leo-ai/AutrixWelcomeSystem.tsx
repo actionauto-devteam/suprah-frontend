@@ -5,11 +5,8 @@ import { createPortal } from 'react-dom'
 import { X, ChevronRight, Zap, Car, Shield, Clock, MessageSquare, Rss, Calendar } from 'lucide-react'
 import { SupraLeoAvatar } from './SupraLeoAvatar'
 
-// ─── STORAGE KEY ──────────────────────────────────────────────────────────────
-// Uses localStorage so the welcome only ever shows ONCE per browser — not just per session.
 const GLOBAL_WELCOME_KEY = 'autrix_welcomed_v1'
 
-// ─── CSS ──────────────────────────────────────────────────────────────────────
 const WELCOME_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Outfit:wght@300;400;500;600&family=Roboto+Mono:wght@300;400&display=swap');
 
@@ -352,7 +349,6 @@ function injectWelcomeCSS() {
   document.head.appendChild(el)
 }
 
-// ─── TTS helper ───────────────────────────────────────────────────────────────
 function speak(text: string, rate = 0.91, pitch = 1): SpeechSynthesisUtterance {
   window.speechSynthesis.cancel()
   const utt = new SpeechSynthesisUtterance(text)
@@ -372,7 +368,6 @@ function speak(text: string, rate = 0.91, pitch = 1): SpeechSynthesisUtterance {
   return utt
 }
 
-// Speaking bars component
 function SpeakingBars() {
   return (
     <div className="aw-bars">
@@ -383,7 +378,6 @@ function SpeakingBars() {
   )
 }
 
-// ─── Module page configs ──────────────────────────────────────────────────────
 export interface PageConfig {
   title: string
   highlight: string
@@ -462,7 +456,6 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
   },
 }
 
-// ─── Dashboard Welcome Modal ──────────────────────────────────────────────────
 interface DashboardWelcomeProps {
   userName: string
   onClose: () => void

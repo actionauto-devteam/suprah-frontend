@@ -18,11 +18,9 @@ import {
   SSConv,
 } from '@/context/SupraSpaceMessengerContext';
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface CrmUser { _id: string; fullName: string; username: string; avatar?: string }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getDisplayName(conv: SSConv, myId: string | null): string {
   if (conv.type === 'group') return conv.name || 'Group';

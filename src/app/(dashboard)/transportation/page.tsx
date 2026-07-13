@@ -24,7 +24,6 @@ import { LoadCard } from "@/components/LoadCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ShippingQuoteFormData } from "@/types/inventory";
 
-// ── Pagination UI ──────────────────────────────────────────────────────────────
 
 function getPageNumbers(current: number, total: number): (number | "…")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -41,7 +40,6 @@ function getPageNumbers(current: number, total: number): (number | "…")[] {
   return pages;
 }
 
-// Per-page selector shown at the top of each list
 function PerPageSelector({
   limit,
   total,
@@ -72,7 +70,6 @@ function PerPageSelector({
   );
 }
 
-// Centered page-number navigation shown at the bottom of each list
 function PaginationBar({
   page,
   pagination,
@@ -260,7 +257,6 @@ function TransportationPageInner() {
     }
   }, [searchParams]);
 
-  // Auto-dismiss new entries banner after 8 seconds
   React.useEffect(() => {
     if (!hasNewEntries) return;
     const timer = setTimeout(() => dismissNewEntries(), 8000);
@@ -384,7 +380,7 @@ function TransportationPageInner() {
     <div className="min-h-screen bg-background">
       <AlertDialog {...alert} onOpenChange={hideAlert} />
 
-      {/* New entries banner */}
+      { }
       {hasNewEntries && (
         <div className="bg-green-50 dark:bg-green-950 border-b border-green-200 dark:border-green-800 px-3 sm:px-4 md:px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400">
@@ -402,7 +398,7 @@ function TransportationPageInner() {
         </div>
       )}
 
-      {/* Header */}
+      { }
       <div className="bg-card border-b border-border px-3 sm:px-4 md:px-6 py-3 sm:py-4">
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex items-center justify-between">
@@ -477,7 +473,7 @@ function TransportationPageInner() {
             </div>
           </div>
 
-          {/* Live status bar */}
+          { }
           <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground border-t border-border pt-2">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1">

@@ -1,10 +1,5 @@
 'use client'
 
-/**
- * /crm/supra-leo/page.tsx
- * Full-screen Autrix AI chat page — redesigned to match SupraLeoPanel theme.
- * Green-accent automotive intelligence dashboard. Dark + Light mode support.
- */
 
 import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -18,7 +13,6 @@ import { SupraLeoAvatar } from '@/components/supra-leo-ai/SupraLeoAvatar'
 import { useSupraLeoChat, ChatModule, ChatMessage } from '@/hooks/useSupraLeoChat'
 import { apiClient } from '@/lib/api-client'
 
-// ─── Inject Styles ────────────────────────────────────────────────────────────
 const PAGE_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
@@ -878,7 +872,6 @@ function injectPageCSS() {
   document.head.appendChild(el)
 }
 
-// ─── Modules ──────────────────────────────────────────────────────────────────
 const MODULES: { id: ChatModule; label: string; icon: React.ReactNode; hint: string }[] = [
   { id: 'general',      label: 'General',      icon: <Zap className="h-3 w-3" />,          hint: 'Ask anything about the CRM' },
   { id: 'appointments', label: 'Appointments',  icon: <Calendar className="h-3 w-3" />,      hint: 'Leads, bookings & scheduling' },
@@ -901,7 +894,6 @@ interface SupraLeoStatus {
   context?: { chatMessages?: number }
 }
 
-// ─── Markdown renderer ────────────────────────────────────────────────────────
 function renderMarkdown(text: string): string {
   return text
     .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')

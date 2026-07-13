@@ -107,3 +107,8 @@ export function isYesterdayMDT(v: Date | string): boolean {
 export function isTomorrowMDT(v: Date | string): boolean {
   return d(v).toLocaleDateString('en-US', { timeZone: MDT_TZ }) === new Date(Date.now() + 86400000).toLocaleDateString('en-US', { timeZone: MDT_TZ })
 }
+
+/** "YYYY-MM-DD" for the MDT calendar day at `offsetDays` from now — for <input type="date"> values and range queries */
+export function todayStrMDT(offsetDays = 0): string {
+  return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ })
+}

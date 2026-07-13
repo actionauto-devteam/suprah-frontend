@@ -29,6 +29,30 @@ export function deptLabel(raw: string | undefined | null): string {
   return DEPT_LABELS[raw] ?? raw;
 }
 
+export const DEPT_COLOR_HEX: Record<string, string> = {
+  emerald: "#10b981",
+  sky: "#0ea5e9",
+  amber: "#f59e0b",
+  pink: "#ec4899",
+  violet: "#8b5cf6",
+  blue: "#3b82f6",
+  orange: "#f97316",
+  teal: "#14b8a6",
+  rose: "#f43f5e",
+  indigo: "#6366f1",
+  lime: "#84cc16",
+  cyan: "#06b6d4",
+  fuchsia: "#d946ef",
+};
+
+const DEPT_NEUTRAL_HEX = "#9ca3af";
+
+export function deptColorHex(raw: string | undefined | null): string {
+  if (!raw) return DEPT_NEUTRAL_HEX;
+  const dept = DEPARTMENTS.find((d) => d.key === raw || d.label === raw);
+  return dept ? DEPT_COLOR_HEX[dept.color] : DEPT_NEUTRAL_HEX;
+}
+
 export const MOBILE_MONITORING_DEPARTMENTS: string[] = ["LotTechTeam"];
 
 export function isMobileMonitoringDept(raw: string | undefined | null): boolean {

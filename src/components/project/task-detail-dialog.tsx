@@ -33,7 +33,6 @@ import {
   type ProjectTaskStatus,
 } from "@/components/project/task-status-badge";
 
-/* ── Shared types (mirror backend lean shapes) ─────────────────────────── */
 
 export type Member = {
   _id: string;
@@ -79,7 +78,6 @@ export type Comment = {
   createdAt: string;
 };
 
-/* ── Shared helpers ────────────────────────────────────────────────────── */
 
 export const fmtDate = (d?: string | null) =>
   d

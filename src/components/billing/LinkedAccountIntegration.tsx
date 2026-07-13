@@ -9,18 +9,17 @@ import {
   LinkedBalance,
 } from "@/lib/linkedAccountApi";
 
-/* ── Theme: SuprahPay cockpit — dark glass, emerald→mint glow ─────────────── */
-const GREEN = "#16A34A";        // brand anchor
+const GREEN = "#16A34A";
 const GREEN_DARK = "#0F7A39";
-const MINT = "#34F5A3";         // luminous accent / glow
+const MINT = "#34F5A3";
 const GREEN_SOFT = "rgba(22,163,74,0.16)";
 const GREEN_BORDER = "rgba(52,245,163,0.30)";
 const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const MONO = "'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, monospace";
 
 const C = {
-  base: "#0A0E15",                       // opaque card backdrop
-  surface: "rgba(255,255,255,0.035)",    // glass fill on dark
+  base: "#0A0E15",
+  surface: "rgba(255,255,255,0.035)",
   surfaceAlt: "rgba(255,255,255,0.06)",
   border: "rgba(255,255,255,0.09)",
   borderBright: "rgba(255,255,255,0.16)",
@@ -31,7 +30,6 @@ const C = {
   dangerBg: "rgba(248,113,113,0.10)",
 };
 
-/* Shared glass-card surface */
 const cardSurface: React.CSSProperties = {
   backgroundColor: C.base,
   backgroundImage:

@@ -15,8 +15,6 @@ import { TripRouteMap } from "./TripRouteMap";
 
 const INCIDENT_RESPONSE_WINDOW_S = 60;
 
-/** Flat point deductions per infraction — simple and explainable, not per-mile normalized
- * (a 0.2-mile test drive with one harsh brake shouldn't score worse than a 20-mile one). */
 function sessionScore(s: DrivingSession): number {
   const score = 100 - (s.harshBrakingEvents ?? 0) * 8 - (s.speedingEvents ?? 0) * 6;
   return Math.max(0, Math.min(100, score));
@@ -101,9 +99,6 @@ function IncidentBanner({ session }: { session: DrivingSession }) {
     return () => clearInterval(id);
   }, [session.possibleIncident]);
 
-  // Admins are already push-notified the instant a possible incident is detected (server-side,
-  // at detection time) — this banner is just the driver-facing "are you okay?" confirmation and
-  // deliberately doesn't escalate anywhere further if left unanswered.
   return (
     <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
       <TriangleAlert className="size-4 text-orange-600 dark:text-orange-400 shrink-0" />

@@ -53,7 +53,6 @@ import { EditUserModal } from "@/components/crm/EditUserModal"
 import { ResetPasswordModal } from "@/components/crm/ResetPasswordModal"
 import { OffboardModal } from "@/components/crm/OffboardModal"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CrmUserRow {
   _id: string
@@ -91,7 +90,6 @@ type RoleFilter = "all" | "employee" | "manager" | "admin"
 type StatusFilter = "all" | "active" | "inactive"
 type DateJoinedFilter = "all" | "7d" | "30d" | "90d" | "year"
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ini(n: string) {
   return n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)

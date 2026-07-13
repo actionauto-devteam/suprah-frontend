@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CustomerBooking {
   firstName: string;
@@ -60,7 +59,7 @@ interface DashboardPost {
   content: string;
   authorName: string;
   authorRole: string;
-  createdBy?: string; // author id — used to gate the delete control
+  createdBy?: string;
   createdAt: Date | string;
 }
 
@@ -72,25 +71,17 @@ interface DashboardStats {
   cancelled?: number;
 }
 
-// ─── Surface tokens ─────────────────────────────────────────────────────────
-// One card recipe, used everywhere, so every panel sits on the same layered
-// surface. Soft double shadow + hairline ring reads as "floating glass" without
-// shouting. Radius is generous (rounded-2xl) for the modern, rounded geometry.
 
 const CARD =
   "rounded-2xl border border-border/60 bg-card " +
   "shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-16px_rgba(16,24,40,0.12)] " +
   "ring-1 ring-black/[0.015] dark:ring-white/[0.02]";
 
-// Glassy header bar shared by every panel — content scrolls cleanly beneath it.
 const PANEL_HEADER =
   "flex items-center justify-between gap-2 px-5 py-3.5 border-b border-border/60 " +
   "bg-gradient-to-b from-muted/40 to-muted/10 " +
   "backdrop-blur supports-[backdrop-filter]:bg-card/50";
 
-// ─── Token map ────────────────────────────────────────────────────────────────
-// Single source of truth for status color. Drives badges + the status strip so
-// a "confirmed" pill and the strip's confirmed segment can never drift apart.
 
 const STATUS_TONE: Record<
   string,
@@ -174,7 +165,6 @@ function SourceBadge({ source }: { source: string }) {
   return <span className={cn(pill, getBadgeClass(SOURCE_BADGE, source))}>{capitalize(source)}</span>;
 }
 
-// Shared eyebrow + section-header treatment (reused across every panel) ──────────
 
 const EYEBROW = "text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground";
 
@@ -189,7 +179,7 @@ function SectionHeader({
   return (
     <div className={PANEL_HEADER}>
       <div className="flex items-center gap-2.5 text-[12.5px] font-semibold text-foreground/80">
-        {/* Icon sits in a small accent tile — anchors each panel with a spot of color */}
+        { }
         <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
           {icon}
         </span>
@@ -205,10 +195,6 @@ function SectionHeader({
   );
 }
 
-// ─── Signature: the day's status command bar ────────────────────────────────────
-// Replaces five identical stat cards with one proportional, animated bar. A
-// service desk reads "what's my mix today" in a single glance. The headline count
-// carries an accent glow to make it the unmistakable hero of the page.
 
 function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLabel: string }) {
   const segments = [
@@ -220,7 +206,6 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
   const total = stats.total ?? 0;
   const sum = segments.reduce((s, x) => s + x.value, 0);
 
-  // Grow the bar from 0 → target on mount / data change. Respects reduced motion.
   const [grown, setGrown] = React.useState(false);
   React.useEffect(() => {
     const reduce =
@@ -236,14 +221,14 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
 
   return (
     <div className={cn(CARD, "relative overflow-hidden px-5 py-5")}>
-      {/* Ambient accent wash anchored to the headline */}
+      { }
       <div
         aria-hidden
         className="pointer-events-none absolute -left-12 -top-16 size-48 rounded-full bg-primary/10 blur-3xl"
       />
 
       <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
-        {/* Headline count */}
+        { }
         <div className="shrink-0">
           <p className={cn(EYEBROW, "mb-1.5 text-primary/80")}>{contextLabel}</p>
           <div className="flex items-baseline gap-2">
@@ -258,7 +243,7 @@ function StatusStrip({ stats, contextLabel }: { stats: DashboardStats; contextLa
 
         <div className="hidden h-12 w-px self-center bg-linear-to-b from-transparent via-border to-transparent sm:block" />
 
-        {/* Proportional bar + legend */}
+        { }
         <div className="min-w-0 flex-1">
           <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted p-px ring-1 ring-inset ring-black/3">
             {sum === 0 ? (

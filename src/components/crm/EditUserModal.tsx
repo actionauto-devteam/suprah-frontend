@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/select"
 import { apiClient } from "@/lib/api-client"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EditUserForm {
   fullName: string
@@ -60,7 +59,6 @@ interface EditUserModalProps {
   onUpdated?: () => void
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -77,7 +75,6 @@ function validate(form: EditUserForm): FormErrors {
   return errors
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUserModalProps) {
   const [submitting, setSubmitting] = React.useState(false)
@@ -93,7 +90,6 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     department: "",
   })
 
-  // Populate form when user changes
   React.useEffect(() => {
     if (user) {
       setForm({

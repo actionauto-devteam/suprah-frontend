@@ -23,9 +23,6 @@ import { initializeSocket } from "@/lib/socket.client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn, resolveImageUrl } from "@/lib/utils"
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Types
-───────────────────────────────────────────────────────────────────────── */
 interface HoursSummary {
   hours: number
   minutes: number
@@ -90,9 +87,6 @@ interface MergedUser {
   totalBreakSeconds: number
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Constants
-───────────────────────────────────────────────────────────────────────── */
 const DEPARTMENTS = [
   "Sales & Finance",
   "Accounting",
@@ -110,9 +104,6 @@ const DEPARTMENTS = [
   "Other",
 ]
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Utilities
-───────────────────────────────────────────────────────────────────────── */
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 
 const fmtTimeMDT = (iso: string | null | undefined) => {

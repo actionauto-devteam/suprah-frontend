@@ -95,7 +95,6 @@ function InventoryContent() {
     handleGetQuote,
   } = useInventoryActions();
 
-  // Pagination State
   const [page, setPage] = React.useState(Number(searchParams.get("page")) || 1);
   const [limit, setLimit] = React.useState(
     Number(searchParams.get("limit")) || 12,
@@ -103,7 +102,6 @@ function InventoryContent() {
   const [total, setTotal] = React.useState(0);
   const [totalPages, setTotalPages] = React.useState(1);
 
-  // Filter State
   const [filters, setFilters] = React.useState<any>({
     search: searchParams.get("search") || "",
     make: searchParams.get("make") || undefined,
@@ -133,7 +131,6 @@ function InventoryContent() {
     sortOrder: searchParams.get("sortOrder") || "asc",
   });
 
-  // Debounced search term
   const [debouncedSearch, setDebouncedSearch] = React.useState(filters.search);
 
   React.useEffect(() => {

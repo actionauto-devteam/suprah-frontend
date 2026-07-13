@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CreateUserForm {
   fullName: string;
@@ -52,7 +51,6 @@ interface CreateUserModalProps {
   onCreated?: () => void;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const EMAIL_DOMAIN = "@actionautoutah.com";
 
@@ -82,7 +80,6 @@ function validate(form: CreateUserForm): FormErrors {
   return errors;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function CreateUserModal({
   open,
@@ -110,7 +107,6 @@ export function CreateUserModal({
 
   });
 
-  // Fetch next employee ID whenever modal opens
   React.useEffect(() => {
     if (!open || !token) return;
 

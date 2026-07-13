@@ -17,7 +17,6 @@ const BG = "#0d0d10";
 const SURFACE = "rgba(255,255,255,0.05)";
 const BORDER = "rgba(255,255,255,0.10)";
 
-// ─── Shared Supra atoms ───────────────────────────────────────────────────────
 function SupraInput({ id, type = "text", placeholder, value, onChange }: {
   id: string; type?: string; placeholder?: string; value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;

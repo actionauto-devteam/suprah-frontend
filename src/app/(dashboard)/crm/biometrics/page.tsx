@@ -31,9 +31,6 @@ import {
   detectBiometricType,
 } from "@/lib/webauthn"
 
-/* ──────────────────────────────────────────────────────────────────────────── */
-/*  Types                                                                      */
-/* ──────────────────────────────────────────────────────────────────────────── */
 
 interface BiometricCredential {
   credentialId: string
@@ -53,9 +50,6 @@ interface SshKeyEntry {
   createdAt: string
 }
 
-/* ──────────────────────────────────────────────────────────────────────────── */
-/*  Main Page                                                                  */
-/* ──────────────────────────────────────────────────────────────────────────── */
 
 export default function BiometricSettingsPage() {
   const router = useRouter()
@@ -63,7 +57,6 @@ export default function BiometricSettingsPage() {
   const [loading, setLoading] = React.useState(true)
   const [supported, setSupported] = React.useState(false)
 
-  // Biometric credentials
   const [credentials, setCredentials] = React.useState<BiometricCredential[]>([])
   const [enrolling, setEnrolling] = React.useState(false)
   const [enrollDeviceName, setEnrollDeviceName] = React.useState("")
@@ -71,7 +64,6 @@ export default function BiometricSettingsPage() {
   const [enrollSuccess, setEnrollSuccess] = React.useState("")
   const [showEnrollForm, setShowEnrollForm] = React.useState(false)
 
-  // SSH keys
   const [sshKeys, setSshKeys] = React.useState<SshKeyEntry[]>([])
   const [showSshForm, setShowSshForm] = React.useState(false)
   const [sshTitle, setSshTitle] = React.useState("")
@@ -81,7 +73,6 @@ export default function BiometricSettingsPage() {
   const [sshAdding, setSshAdding] = React.useState(false)
   const [copiedFp, setCopiedFp] = React.useState<string | null>(null)
 
-  // Rename state
   const [renamingId, setRenamingId] = React.useState<string | null>(null)
   const [renameValue, setRenameValue] = React.useState("")
 

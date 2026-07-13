@@ -94,7 +94,7 @@ export default function ReviewsBoard() {
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
+      { }
       <div className="px-4 sm:px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
@@ -113,7 +113,7 @@ export default function ReviewsBoard() {
           </Button>
         </div>
 
-        {/* Search + filters */}
+        { }
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-45 max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -154,7 +154,7 @@ export default function ReviewsBoard() {
           </Select>
         </div>
 
-        {/* Source filter strip */}
+        { }
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SOURCE_TABS.map((tab) => (
             <button
@@ -174,7 +174,7 @@ export default function ReviewsBoard() {
         </div>
       </div>
 
-      {/* Grid */}
+      { }
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

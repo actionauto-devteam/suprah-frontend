@@ -5,13 +5,8 @@ import { ChevronDown, SignalHigh, SignalMedium, SignalLow, SignalZero, Smartphon
 import type { SharingState } from "@/hooks/useLocator";
 import { DEPT_COLORS, deptLabel } from "@/lib/departments";
 
-// Below this, don't call it out — everyone pauses for a red light or to talk to someone.
-// Above it, worth explaining so the small pin-jiggle from GPS noise doesn't read as "the
-// tracker is buggy" when the person genuinely hasn't gone anywhere.
 const STATIONARY_MIN_MINUTES = 8;
 
-/** Minutes since the person's position last moved more than the server's stationary radius
- * (~40m) — null if not applicable (not sharing, or no data yet). */
 export function stationaryMinutes(loc: { sharingState?: string; stationarySince?: string }): number | null {
   if (loc.sharingState !== "sharing" || !loc.stationarySince) return null;
   const since = new Date(loc.stationarySince).getTime();

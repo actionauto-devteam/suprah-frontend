@@ -89,7 +89,7 @@ export function RevenueIntelligence({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-6">
-      {/* Revenue Trajectory Chart */}
+      { }
       <Card className="lg:col-span-7 border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col p-0">
         <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 lg:min-h-28">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">

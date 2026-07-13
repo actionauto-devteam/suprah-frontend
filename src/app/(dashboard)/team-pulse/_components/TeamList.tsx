@@ -244,7 +244,7 @@ export function TeamList({
   return (
     <div className="space-y-3">
 
-      {/* ── Top stats bar ── */}
+      { }
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {STATUS_OPTS.map((s) => {
           const c = counts[s.key as keyof typeof counts] ?? 0;
@@ -269,7 +269,7 @@ export function TeamList({
         })}
       </div>
 
-      {/* ── Search bar + view toggle ── */}
+      { }
       <div className="flex items-center gap-2">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40 pointer-events-none" />
@@ -307,14 +307,14 @@ export function TeamList({
         </div>
       </div>
 
-      {/* ── Filter strip ── */}
+      { }
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 shrink-0 pr-1 hidden sm:block">
           <SlidersHorizontal className="size-3 inline -mt-0.5 mr-1" />
           Filter
         </span>
 
-        {/* Status multi-select */}
+        { }
         <FilterDropdown
           label={statusFilters.length > 0 ? `Status (${statusFilters.length})` : "Status"}
           icon={<span className="size-2 rounded-full bg-green-500" />}

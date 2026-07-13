@@ -8,11 +8,6 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Scoped boundary so a hiccup in the Locator (e.g. a Mapbox/runtime error)
- * degrades gracefully instead of taking down the whole TeamPulse page.
- * It also surfaces the real error message for debugging.
- */
 export class LocatorErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   state: State = { error: null };
 
@@ -21,7 +16,6 @@ export class LocatorErrorBoundary extends React.Component<{ children: React.Reac
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Visible in the dev console + browser-log terminal for pinpointing.
     console.error("[Locator] render error:", error, info.componentStack);
   }
 

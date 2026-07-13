@@ -74,7 +74,7 @@ export function UserDetailSheet({
         showCloseButton={false}
         className="w-full sm:max-w-md border-l border-border/40 bg-background/95 backdrop-blur-xl p-0 gap-0 overflow-hidden"
       >
-        {/* Close button header — flex-none keeps it pinned, no sticky needed */}
+        { }
         <div className="flex-none flex items-center justify-end border-b border-border/40 bg-background/95 px-4 py-3 z-20">
           <SheetClose className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/50 bg-card/80 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <span aria-hidden="true" className="text-base leading-none">
@@ -84,9 +84,9 @@ export function UserDetailSheet({
           </SheetClose>
         </div>
 
-        {/* min-h-0 is critical: prevents flex child from expanding past parent, enabling proper inner scroll */}
+        { }
         <div className="custom-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pr-1">
-          {/* Header Section */}
+          { }
           <div className="relative h-32 bg-linear-to-br from-primary/20 via-primary/5 to-transparent border-b border-primary/10">
             <div className="absolute -bottom-10 left-6">
               <Avatar className="h-20 w-20 ring-4 ring-background shadow-2xl">
@@ -99,7 +99,7 @@ export function UserDetailSheet({
           </div>
 
           <div className="pt-14 px-6 pb-8 space-y-8">
-            {/* User Info */}
+            { }
             <div>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <h2 className="text-2xl font-black tracking-tight min-w-0 wrap-break-word pr-2">
@@ -118,7 +118,7 @@ export function UserDetailSheet({
               </p>
             </div>
 
-            {/* Quick Stats Grid */}
+            { }
             <div className="grid grid-cols-2 gap-4">
               {stats.map((stat) => (
                 <div

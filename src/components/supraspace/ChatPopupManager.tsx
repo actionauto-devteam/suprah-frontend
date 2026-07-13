@@ -15,7 +15,6 @@ import { SSAttachment, SSMessage } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { toast } from 'sonner';
 
-// ─── Layout constants ─────────────────────────────────────────────────────────
 const POPUP_W     = 400;
 const POPUP_GAP   = 8;
 const POPUP_RIGHT = 16;
@@ -33,7 +32,6 @@ const MORE_TEXT_COLORS = [
 ];
 type PendingPopupAttachment = { file: File; previewUrl: string };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ['#5b7cf6','#34c97d','#f0a855','#e05b8a','#5bbdf6','#a05bf6','#f65b5b','#5bf6c8'];
 async function copyImageToClipboard(url: string): Promise<void> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;

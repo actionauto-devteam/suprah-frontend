@@ -111,7 +111,6 @@ export async function generateShipmentReportPdf(
     fonts,
   };
 
-  // ── Page 1: Summary + Shipments table ────────────────────────────────────
   drawReportPageHeader(doc, headerOpts());
   drawSectionTitle(doc, sectionOpts("Summary", 31));
 
@@ -330,7 +329,6 @@ export async function generateShipmentReportPdf(
     });
   }
 
-  // Footers
   applyFootersToAllPages(doc, footerOpts);
 
   return doc.output("blob");
@@ -388,7 +386,6 @@ export async function generateQuoteReportPdf(
     right,
   };
 
-  // ── Page 1: Summary + Quotes table ───────────────────────────────────────
   drawReportPageHeader(doc, headerOpts());
   drawSectionTitle(doc, sectionOpts("Summary", 31));
 
