@@ -5,9 +5,11 @@ import { QRCodeSVG } from "qrcode.react"
 import { useUser, useAuthActions } from "@/providers/AuthProvider"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Share2 } from "lucide-react"
+import { CarFront, ExternalLink, Share2 } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { useMyMembership } from "@/hooks/api/useMembership"
+import { ACTION_AUTO_BENEFITS_REP, ACTION_AUTO_SERVICE_DISCOUNT_PERCENT, buildMemberBenefitsUrl } from "@/lib/customer-benefits"
 
 function getMemberId(userId: string): string {
   const hex = userId.slice(-12).toUpperCase()
@@ -39,7 +41,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
     `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.fullName || rawUser.email
   const memberId = getMemberId(rawUser._id)
   const sinceYear = getSinceYear(rawUser._id)
-  const qrValue = `https://suprah.ai/member/${rawUser._id}?name=${encodeURIComponent(memberName)}&dealer=${encodeURIComponent("Action Auto")}`
+  const qrValue = buildMemberBenefitsUrl(rawUser._id, memberName)
 
   const tier = membership?.currentTier
   const tierName = tier?.name ?? "Ignition"
@@ -48,7 +50,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
   const lifetimePts = membership?.points.lifetimePoints ?? 0
 
   const handleShare = async () => {
-    const text = `${memberName} — Action Auto ${tierName} Member · ${memberId}`
+    const text = `${memberName} - Action Auto ${tierName} Member - ${memberId} - ${ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% service benefit`
     if (navigator.share) {
       try { await navigator.share({ title: "Action Auto Membership Card", text }) } catch { /* cancelled */ }
     } else {
@@ -119,7 +121,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <svg width="38" height="30" viewBox="0 0 38 30" fill="none">
                 <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.25)" strokeWidth="1"/>
                 <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipG2)"/>
@@ -142,7 +144,16 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 style={{ background: `${tierPrimary}1a`, borderColor: `${tierPrimary}50` }}
               >
                 <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>
-                  ★ {tierName} Member
+                  {tierName} Member
+                </span>
+              </div>
+
+              <div
+                className="rounded-full border px-2.5 py-1"
+                style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.14)" }}
+              >
+                <span className="text-[9px] font-black uppercase tracking-wider text-white">
+                  {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off services
                 </span>
               </div>
 
@@ -173,22 +184,44 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
               className="rounded-xl px-3 py-2"
               style={{ background: "rgba(255,255,255,0.04)", borderTop: "1px solid rgba(255,255,255,0.07)" }}
             >
-              <p className="text-[10px] font-bold text-white/90 leading-none">Justin Soha</p>
+              <p className="text-[10px] font-bold text-white/90 leading-none">
+                {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services
+              </p>
               <p className="text-[8px] text-white/65 leading-snug mt-0.5">
-                VP of Operations &amp; Market Ops Manager · Lube Management Corp, Utah
+                Verify Action Auto Utah customer status with {ACTION_AUTO_BENEFITS_REP.name}.
               </p>
             </div>
 
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-3 grid gap-2">
           <Button
             onClick={handleShare}
             className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
           >
             <Share2 className="w-4 h-4 mr-2" />
             Share Card
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
+          >
+            <Link href={qrValue} target="_blank" rel="noreferrer">
+              <ExternalLink className="w-4 h-4 mr-2" />
+              View Benefits
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
+          >
+            <Link href="/customer?tab=vehicles" onClick={() => onOpenChange(false)}>
+              <CarFront className="w-4 h-4 mr-2" />
+              Register VIN
+            </Link>
           </Button>
         </div>
 

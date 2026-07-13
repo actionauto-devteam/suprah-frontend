@@ -62,7 +62,7 @@ export function CallExperience({
   );
   const moderatorUserId: string = String(session.call?.moderatorUserId ?? '');
   const isHost = currentUserId === moderatorUserId;
-  const canRecord = isHost || grantedIds.includes(currentUserId);
+  const canRecord = true;
   const isRecording = callRecording?.isRecording ?? false;
 
   // Live elapsed timer — ticks every second while recording
@@ -124,13 +124,14 @@ export function CallExperience({
         setGrantedIds((prev) => [...prev, userId]);
       }
     } catch {
-      // silent fail
+      // Granting is legacy-only now; recording no longer depends on this.
     } finally {
       setToggling(null);
     }
   };
 
   const otherMembers = conversationMembers.filter((m) => m._id !== currentUserId && m._id !== moderatorUserId);
+
   const copyMeetingLink = async () => {
     if (!meetingLink) return;
     try {
@@ -326,7 +327,7 @@ export function CallExperience({
 
       {/* Record / Stop button — canRecord users only */}
       {canRecord && (
-        <div style={{ position: 'fixed', bottom: 80, left: 20, zIndex: 200 }}>
+        <div style={{ position: 'fixed', top: 14, right: 60, zIndex: 215 }}>
           {isRecording ? (
             <button
               onClick={stopRecording}
@@ -370,7 +371,7 @@ export function CallExperience({
       )}
 
       {/* Host-only: Recording Permissions overlay */}
-      {isHost && (
+      {false && isHost && (
         <div style={{ position: 'fixed', bottom: 80, right: 20, zIndex: 200 }}>
           <button
             onClick={() => setPermOpen((v) => !v)}

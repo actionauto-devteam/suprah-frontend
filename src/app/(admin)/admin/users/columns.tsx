@@ -10,6 +10,7 @@ import {
   UserCog,
   Trash2,
   Loader2,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -30,10 +39,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { UserProfile } from "@/types/user";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+
+interface OrgOption {
+  _id: string;
+  name: string;
+}
 
 // Extend User type if needed for extra fields returned by admin API
 interface AdminUser extends UserProfile {
@@ -46,6 +61,55 @@ function ActionsCell({ user }: { user: AdminUser }) {
   const { getToken } = useAuth();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [orgDialogOpen, setOrgDialogOpen] = useState(false);
+  const [orgSearch, setOrgSearch] = useState("");
+  const [orgOptions, setOrgOptions] = useState<OrgOption[]>([]);
+  const [orgsLoading, setOrgsLoading] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<OrgOption | null>(null);
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  const openOrgDialog = async () => {
+    setOrgDialogOpen(true);
+    setSelectedOrg(null);
+    setOrgSearch("");
+    setOrgsLoading(true);
+    try {
+      const token = await getToken();
+      const res = await apiClient.get(`/api/admin/organizations?limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setOrgOptions(res.data?.data?.organizations || []);
+    } catch {
+      toast.error("Failed to load organizations");
+    } finally {
+      setOrgsLoading(false);
+    }
+  };
+
+  const filteredOrgs = orgOptions.filter((o) =>
+    o.name.toLowerCase().includes(orgSearch.toLowerCase()),
+  );
+
+  const handleAssignOrg = async () => {
+    if (!selectedOrg) return;
+    setIsAssigning(true);
+    try {
+      const token = await getToken();
+      await apiClient.put(
+        `/api/admin/users/${user._id}/organization`,
+        { organizationId: selectedOrg._id },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.success(`${user.name} assigned to ${selectedOrg.name}`);
+      setOrgDialogOpen(false);
+      setTimeout(() => window.location.reload(), 500);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to assign organization");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   const handleSuspend = async () => {
     try {
@@ -119,6 +183,10 @@ function ActionsCell({ user }: { user: AdminUser }) {
             <UserCog className="mr-2 h-4 w-4" />
             Manage Roles
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={openOrgDialog}>
+            <Building2 className="mr-2 h-4 w-4" />
+            Assign Organization
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user.isActive ? (
             <DropdownMenuItem onClick={handleSuspend} className="text-red-600">
@@ -171,6 +239,67 @@ function ActionsCell({ user }: { user: AdminUser }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={orgDialogOpen} onOpenChange={setOrgDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Organization</DialogTitle>
+            <DialogDescription>
+              Choose which dealership/organization <strong>{user.name}</strong> should belong to.
+              {user.organizationId?.name && (
+                <> Currently: <strong>{user.organizationId.name}</strong>.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <Input
+            placeholder="Search organizations..."
+            value={orgSearch}
+            onChange={(e) => setOrgSearch(e.target.value)}
+            autoFocus
+          />
+
+          <div className="max-h-64 overflow-y-auto rounded-md border divide-y">
+            {orgsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredOrgs.length ? (
+              filteredOrgs.map((org) => (
+                <button
+                  key={org._id}
+                  onClick={() => setSelectedOrg(org)}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                    selectedOrg?._id === org._id ? "bg-muted font-medium" : ""
+                  }`}
+                >
+                  {org.name}
+                </button>
+              ))
+            ) : (
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                No organizations found.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOrgDialogOpen(false)} disabled={isAssigning}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssignOrg} disabled={!selectedOrg || isAssigning}>
+              {isAssigning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

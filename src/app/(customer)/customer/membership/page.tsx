@@ -5,7 +5,9 @@ import {
   Key, Car, Gauge, Wind, Zap, Flame, Rocket,
   ShoppingBag, Calendar, Gift, UserCheck, CalendarClock, ShieldCheck,
   Tag, Lock, Check, ChevronRight, CreditCard, TrendingUp, Sparkles,
+  Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +17,7 @@ import { useUser, useAuthActions } from "@/providers/AuthProvider";
 import { MembershipCardModal } from "@/components/customer/MembershipCardModal";
 import type { PointSourceType } from "@/types/membership";
 import { cn } from "@/lib/utils";
+import { ACTION_AUTO_BENEFITS_REP, ACTION_AUTO_SERVICE_DISCOUNT_PERCENT } from "@/lib/customer-benefits";
 
 const TIER_ICONS: Record<string, React.ElementType> = {
   ignition: Key,
@@ -275,6 +278,32 @@ export default function MembershipPage() {
       </div>
 
       {/* ── Class ladder ──────────────────────────────────────────── */}
+      <div className="rounded-[14px] border border-primary/25 bg-primary/8 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <Wrench className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black uppercase tracking-wide text-foreground">
+                {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Show your virtual card QR at participating service locations. Stores can verify your Action Auto Utah customer benefit with {ACTION_AUTO_BENEFITS_REP.name}.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <Button asChild size="sm" className="rounded-xl">
+              <Link href="/customer?tab=vehicles">Register VIN</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="rounded-xl">
+              <Link href="/customer/network">Find Shops</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-1.5">
           <h3 className="text-sm font-black uppercase tracking-wide text-foreground">The Class Ladder</h3>

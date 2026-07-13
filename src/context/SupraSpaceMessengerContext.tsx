@@ -40,6 +40,7 @@ export interface SSConv {
   pinnedBy?: string[];
   archivedBy?: string[];
   deletedFor?: string[];
+  notificationPreference?: NotifPref;
   createdBy: string;
   spaceId?: string | null;
 }
@@ -57,6 +58,10 @@ export interface SSSpace {
 // ─── Context shape ─────────────────────────────────────────────────────────────
 
 export type NotifPref = { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
+type SupraSpaceRequestConfig = {
+  headers: { Authorization: string };
+  _skipAuthRefresh?: boolean;
+};
 
 interface MessengerCtxValue {
   conversations: SSConv[];
@@ -106,6 +111,39 @@ function sortByLastMessage(convs: SSConv[]): SSConv[] {
   );
 }
 
+function mentionBoundaryRegex(alias: string): RegExp | null {
+  const normalized = alias.trim().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  return new RegExp(`(^|\\s)@${normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s.,!?;:)\\]])`, 'i');
+}
+
+function mentionAliasesForName(fullName: string): string[] {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const aliases = new Set<string>();
+  if (parts.length) aliases.add(parts[0]);
+  if (parts.length >= 2) aliases.add(`${parts[0]} ${parts[parts.length - 1]}`);
+  if (fullName.trim()) aliases.add(fullName.trim());
+  return [...aliases];
+}
+
+function isUserMentioned(content: string, fullName: string): boolean {
+  if (/(^|\s)@all(?=$|[\s.,!?;:)\]])/i.test(content)) return true;
+  return mentionAliasesForName(fullName).some((alias) => mentionBoundaryRegex(alias)?.test(content));
+}
+
+function shouldNotify(pref: NotifPref, isMentioned: boolean): boolean {
+  if (pref.muted || pref.type === 'none') return false;
+  if (pref.type === 'foryou') return isMentioned;
+  return true;
+}
+
+function authConfig(token: string, skipAuthRefresh = false): SupraSpaceRequestConfig {
+  return {
+    headers: { Authorization: `Bearer ${token}` },
+    ...(skipAuthRefresh ? { _skipAuthRefresh: true } : {}),
+  };
+}
+
 // ─── Provider ──────────────────────────────────────────────────────────────────
 
 export function SupraSpaceMessengerProvider({ children }: { children: React.ReactNode }) {
@@ -136,9 +174,22 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     if (!crmUserId) return;
     try {
       const saved = localStorage.getItem(`ss4_notif_prefs_${crmUserId}`);
-      if (saved) setNotifPrefs(JSON.parse(saved));
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as Record<string, NotifPref>;
+      setNotifPrefs(parsed);
+      const migrationKey = `ss4_notif_prefs_migrated_${crmUserId}`;
+      if (crmToken && !localStorage.getItem(migrationKey)) {
+        Object.entries(parsed).forEach(([conversationId, pref]) => {
+          apiClient
+            .patch(`/api/supraspace/conversations/${conversationId}/notifications`, pref, {
+              ...authConfig(crmToken, true),
+            })
+            .catch(() => {});
+        });
+        localStorage.setItem(migrationKey, '1');
+      }
     } catch {}
-  }, [crmUserId]);
+  }, [crmUserId, crmToken]);
 
   // Persist whenever prefs change
   React.useEffect(() => {
@@ -183,12 +234,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     setConversationError(false);
     apiClient
       .get('/api/supraspace/conversations', {
-        headers: { Authorization: `Bearer ${crmToken}` },
-        _skipAuthRefresh: true,
-      } as any)
+        ...authConfig(crmToken, true),
+      })
       .then((r) => {
         const next = sortByLastMessage(r.data?.data || []);
         setConversations(next);
+        const serverPrefs = next.reduce<Record<string, NotifPref>>((acc, conv) => {
+          if (conv.notificationPreference) acc[conv._id] = conv.notificationPreference;
+          return acc;
+        }, {});
+        if (Object.keys(serverPrefs).length) {
+          setNotifPrefs(prev => ({ ...prev, ...serverPrefs }));
+        }
         if (next.length > 0) tokenRecoveryAttemptedRef.current = false;
         if (next.length === 0 && !tokenRecoveryAttemptedRef.current && typeof window !== 'undefined') {
           tokenRecoveryAttemptedRef.current = true;
@@ -210,9 +267,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     if (!crmToken) return;
     apiClient
       .get('/api/supraspace/spaces', {
-        headers: { Authorization: `Bearer ${crmToken}` },
-        _skipAuthRefresh: true,
-      } as any)
+        ...authConfig(crmToken, true),
+      })
       .then((r) => { setSpaces(r.data?.data || []); })
       .catch(() => {});
   }, [crmToken]);
@@ -278,15 +334,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       });
       if (message.sender?._id !== crmUserId) {
         const pref: NotifPref = notifPrefsRef.current[conversationId] ?? { type: 'all', muted: false };
-        const nameParts = myFullNameRef.current.trim().split(/\s+/);
-        const mention = (nameParts.length >= 2
-          ? `@${nameParts[0]} ${nameParts[nameParts.length - 1]}`
-          : `@${nameParts[0]}`).toLowerCase();
-        const firstName = (nameParts[0] || '').toLowerCase();
-        const contentLow = (message.content || '').toLowerCase();
-        const isMentioned = contentLow.includes('@all') || contentLow.includes(mention) || (firstName && contentLow.includes(`@${firstName}`));
-        const shouldNotify = !pref.muted && pref.type !== 'none' && (pref.type !== 'foryou' || isMentioned);
-        if (shouldNotify) {
+        const isMentioned = isUserMentioned(message.content || '', myFullNameRef.current);
+        if (shouldNotify(pref, isMentioned)) {
           playMessageSound();
           if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
             const conv = conversationsRef.current.find(c => c._id === conversationId);

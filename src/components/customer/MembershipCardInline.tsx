@@ -4,6 +4,7 @@ import * as React from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { useUser, useAuthActions } from "@/providers/AuthProvider"
 import { useMyMembership } from "@/hooks/api/useMembership"
+import { ACTION_AUTO_SERVICE_DISCOUNT_PERCENT, buildMemberBenefitsUrl } from "@/lib/customer-benefits"
 
 function getMemberId(userId: string): string {
   const hex = userId.slice(-12).toUpperCase()
@@ -30,7 +31,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
     `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.fullName || rawUser.email
   const memberId = getMemberId(rawUser._id)
   const sinceYear = getSinceYear(rawUser._id)
-  const qrValue = `https://suprah.ai/member/${rawUser._id}?name=${encodeURIComponent(memberName)}&dealer=${encodeURIComponent("Action Auto")}`
+  const qrValue = buildMemberBenefitsUrl(rawUser._id, memberName)
 
   const tier = membership?.currentTier
   const tierName = tier?.name ?? "Ignition"
@@ -96,7 +97,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
         </div>
 
         {/* Chip + tier badge */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <svg width="30" height="23" viewBox="0 0 38 30" fill="none">
             <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
             <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipGi)" />
@@ -113,7 +114,8 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
               </linearGradient>
             </defs>
           </svg>
-          <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>★ {tierName} Member</span>
+          <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>{tierName} Member</span>
+          <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
         </div>
 
         {/* Cardholder */}
@@ -148,9 +150,9 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             JS
           </div>
           <div className="min-w-0">
-            <p className="text-[8.5px] font-bold text-white/90 leading-none">Justin Soha</p>
+            <p className="text-[8.5px] font-bold text-white/90 leading-none">Action Auto Utah Customer Benefit</p>
             <p className="text-[7px] text-white/60 leading-snug mt-0.5 truncate">
-              VP of Operations &amp; Market Ops Manager · Lube Management Corp, Utah
+              {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services at participating locations
             </p>
           </div>
         </div>
