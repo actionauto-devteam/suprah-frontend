@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiClient } from "@/lib/api-client";
 import type { CalendarItem, MySchedulePayload } from "@/types/calendar.types";
-import { fmtDayLabel, fmtTime } from "@/utils/calendar.utils";
+import { fmtDayLabel, fmtTime, toZoned } from "@/utils/calendar.utils";
 
 /**
  * My Schedule — personal dashboard of everything the signed-in user
@@ -19,9 +20,9 @@ export function MySchedule({
 
   useEffect(() => {
     let live = true;
-    fetch("/api/calendar/my-schedule", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => live && setData(d))
+    apiClient
+      .get<MySchedulePayload>("/api/calendar/my-schedule")
+      .then((res) => live && setData(res.data))
       .catch(() => live && setError(true));
     return () => {
       live = false;
@@ -106,7 +107,7 @@ function Section({
       ) : (
         <ul className="flex flex-col gap-1.5">
           {items.map((item) => {
-            const s = new Date(item.start);
+            const s = toZoned(new Date(item.start));
             return (
               <li key={item.id}>
                 <button

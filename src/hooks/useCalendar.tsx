@@ -1,28 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { apiClient } from "@/lib/api-client";
 import type { CalendarItem, EventDraft } from "@/types/calendar.types";
 
-// ── INTEGRATION ───────────────────────────────────────────────────────────
-// Swap these two for your existing client utilities:
-//  - `api`: the fetch wrapper you use elsewhere (adds Clerk token, base URL)
-//  - `getSocket`: your shared Socket.io client singleton (the one SupraSpace
-//    and the Project Management notifications already use)
-// ──────────────────────────────────────────────────────────────────────────
-// TODO(integration): import { api } from "@/lib/api";
-// TODO(integration): import { getSocket } from "@/lib/socket";
-
-const API_BASE = "/api/calendar";
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    ...init,
-  });
-  if (!res.ok) throw new Error(`Calendar API ${res.status}`);
-  return res.json() as Promise<T>;
-}
+// TODO(integration): swap the placeholder below for your shared Socket.io
+// client singleton so real-time sync activates:
+//   import { getSocket } from "@/lib/socket";
 
 type SocketPayload =
   | { source: string; item: CalendarItem }
@@ -40,11 +24,16 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
     setError(null);
     try {
       const { from, to } = range.current;
-      const qs = `?from=${from.toISOString()}&to=${to.toISOString()}`;
-      const data = await api<{ items: CalendarItem[] }>(`/feed${qs}`);
-      setItems(data.items);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load calendar.");
+      const res = await apiClient.get<{ items: CalendarItem[] }>(
+        "/api/calendar/feed",
+        { params: { from: from.toISOString(), to: to.toISOString() } }
+      );
+      setItems(res.data.items ?? []);
+    } catch (e: any) {
+      setError(
+        e?.response?.data?.message ??
+          (e instanceof Error ? e.message : "Failed to load calendar.")
+      );
     } finally {
       setLoading(false);
     }
@@ -54,7 +43,7 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
     void refetch();
   }, [refetch, rangeStart.getTime(), rangeEnd.getTime()]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Real-time sync — the same three events the Appointment calendar emits. */
+  /** Real-time sync — same events the Appointment calendar emits. */
   useEffect(() => {
     // TODO(integration): const socket = getSocket();
     const socket: any = (globalThis as any).__suprahSocket; // placeholder
@@ -67,15 +56,20 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
     const onCreated = (p: SocketPayload) => {
       if ("item" in p && inRange(p.item)) {
         setItems((prev) =>
-          prev.some((x) => x.id === p.item.id) ? prev : [...prev, p.item]
+          prev.some((x) => x.id === p.item.id)
+            ? prev // creator's own client already holds it (with canEdit) from the POST response
+            : [...prev, { ...p.item, canEdit: p.item.canEdit ?? false }]
         );
       }
     };
     const onUpdated = (p: SocketPayload) => {
       if ("item" in p) {
         setItems((prev) => {
+          // Broadcasts omit viewer-specific canEdit — preserve what we know.
+          const known = prev.find((x) => x.id === p.item.id);
+          const merged = { ...p.item, canEdit: p.item.canEdit ?? known?.canEdit ?? false };
           const next = prev.filter((x) => x.id !== p.item.id);
-          return inRange(p.item) ? [...next, p.item] : next;
+          return inRange(merged) ? [...next, merged] : next;
         });
       }
     };
@@ -94,28 +88,32 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
   }, []);
 
   const createItem = useCallback(async (draft: EventDraft) => {
-    const { item } = await api<{ item: CalendarItem }>(`/events`, {
-      method: "POST",
-      body: JSON.stringify(draft),
-    });
-    // Socket echo also arrives; the created-handler dedupes by id.
+    const res = await apiClient.post<{ item: CalendarItem }>(
+      "/api/calendar/events",
+      draft
+    );
+    const item = res.data.item;
     setItems((prev) =>
       prev.some((x) => x.id === item.id) ? prev : [...prev, item]
     );
     return item;
   }, []);
 
-  const updateItem = useCallback(async (id: string, patch: Partial<EventDraft>) => {
-    const { item } = await api<{ item: CalendarItem }>(`/events/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    });
-    setItems((prev) => prev.map((x) => (x.id === id ? item : x)));
-    return item;
-  }, []);
+  const updateItem = useCallback(
+    async (id: string, patch: Partial<EventDraft>) => {
+      const res = await apiClient.patch<{ item: CalendarItem }>(
+        `/api/calendar/events/${id}`,
+        patch
+      );
+      const item = res.data.item;
+      setItems((prev) => prev.map((x) => (x.id === id ? item : x)));
+      return item;
+    },
+    []
+  );
 
   const deleteItem = useCallback(async (id: string) => {
-    await api(`/events/${id}`, { method: "DELETE" });
+    await apiClient.delete(`/api/calendar/events/${id}`);
     setItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
@@ -127,5 +125,13 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
     [items]
   );
 
-  return { items: sorted, loading, error, refetch, createItem, updateItem, deleteItem };
+  return {
+    items: sorted,
+    loading,
+    error,
+    refetch,
+    createItem,
+    updateItem,
+    deleteItem,
+  };
 }

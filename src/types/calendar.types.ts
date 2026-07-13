@@ -9,10 +9,9 @@ export type CalendarView = "day" | "week" | "month" | "agenda";
 
 export interface CrmUserLite {
   _id: string;
-  firstName?: string;
-  lastName?: string;
+  fullName?: string;
+  username?: string;
   email?: string;
-  avatarUrl?: string;
 }
 
 export interface CalendarItem {
@@ -27,11 +26,14 @@ export interface CalendarItem {
   repeatsDailyWindow: boolean;
   dailyStartTime?: string; // "HH:mm"
   dailyEndTime?: string;
+  includedDates?: string[]; // "YYYY-MM-DD" subset; empty = every day
   status: "scheduled" | "completed" | "cancelled";
   color?: string;
   meetingLink?: string;
   createdBy?: CrmUserLite;
   assignees?: CrmUserLite[];
+  /** True only for the creator; server-computed at fetch time. */
+  canEdit?: boolean;
 }
 
 export interface EventDraft {
@@ -45,6 +47,7 @@ export interface EventDraft {
   repeatsDailyWindow: boolean;
   dailyStartTime: string;
   dailyEndTime: string;
+  includedDates: string[];
   assignees: string[];
   generateMeetingLink: boolean;
 }

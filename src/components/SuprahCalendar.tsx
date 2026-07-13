@@ -3,14 +3,17 @@
 import { useMemo, useState } from "react";
 import type { CalendarItem, CalendarView, EventDraft } from "@/types/calendar.types";
 import {
+  CALENDAR_TZ_LABEL,
   addDays,
   expandOccurrences,
   fmtDayLabel,
   fmtTime,
+  fromZoned,
   sameDay,
   startOfDay,
   startOfMonth,
   startOfWeek,
+  zonedNow,
   type Occurrence,
 } from "@/utils/calendar.utils";
 import { useCalendar } from "@/hooks/useCalendar";
@@ -45,7 +48,7 @@ const HOUR_PX = 56;
 
 export default function SuprahCalendar() {
   const [view, setView] = useState<CalendarView>("week");
-  const [cursor, setCursor] = useState<Date>(startOfDay(new Date()));
+  const [cursor, setCursor] = useState<Date>(startOfDay(zonedNow()));
   const [showMySchedule, setShowMySchedule] = useState(false);
   const [modal, setModal] = useState<{
     open: boolean;
@@ -64,11 +67,13 @@ export default function SuprahCalendar() {
       return [addDays(s, -7), addDays(s, 14)];
     }
     if (view === "day") return [addDays(cursor, -1), addDays(cursor, 2)];
-    return [startOfDay(new Date()), addDays(startOfDay(new Date()), 60)]; // agenda
+    const today = startOfDay(zonedNow());
+    return [today, addDays(today, 60)]; // agenda
   }, [view, cursor]);
 
+  // Grid math runs in Mountain Time wall-clock space; the API needs instants.
   const { items, loading, error, createItem, updateItem, deleteItem } =
-    useCalendar(rangeStart, rangeEnd);
+    useCalendar(fromZoned(rangeStart), fromZoned(rangeEnd));
 
   const step = (dir: 1 | -1) => {
     if (view === "month")
@@ -107,7 +112,7 @@ export default function SuprahCalendar() {
       <header className="relative z-10 flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-4">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setCursor(startOfDay(new Date()))}
+            onClick={() => setCursor(startOfDay(zonedNow()))}
             className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-400/20"
           >
             Today
@@ -131,6 +136,9 @@ export default function SuprahCalendar() {
         <h1 className="text-lg font-semibold tracking-tight text-zinc-100">
           {headline}
         </h1>
+        <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] tabular-nums text-zinc-400">
+          {CALENDAR_TZ_LABEL} · Mountain Time
+        </span>
 
         <div className="ml-auto flex items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-white/10">
@@ -216,7 +224,8 @@ export default function SuprahCalendar() {
           onClose={() => setModal({ open: false })}
           onSave={handleSave}
           onDelete={
-            modal.editing?.source === "calendarEvent"
+            modal.editing?.source === "calendarEvent" &&
+            modal.editing?.canEdit !== false
               ? async () => {
                   await deleteItem(modal.editing!.id);
                   setModal({ open: false });
@@ -257,7 +266,7 @@ function MonthView({
         </div>
       ))}
       {days.map((day) => {
-        const today = sameDay(day, new Date());
+        const today = sameDay(day, zonedNow());
         const inMonth = day.getMonth() === cursor.getMonth();
         const dayOcc = occ.filter((o) => sameDay(o.start, day)).slice(0, 4);
         const overflow =
@@ -346,7 +355,7 @@ function TimeGridView({
         const allDayOcc = occ.filter(
           (o) => sameDay(o.start, day) && o.item.allDay
         );
-        const today = sameDay(day, new Date());
+        const today = sameDay(day, zonedNow());
         return (
           <div key={day.toISOString()} className="relative min-w-0 flex-1 border-r border-white/5">
             <div
@@ -414,7 +423,7 @@ function TimeGridView({
 }
 
 function NowLine() {
-  const now = new Date();
+  const now = zonedNow();
   const top = (now.getHours() + now.getMinutes() / 60) * HOUR_PX;
   return (
     <div
@@ -435,7 +444,7 @@ function AgendaView({
   items: CalendarItem[];
   onItemClick: (i: CalendarItem) => void;
 }) {
-  const from = startOfDay(new Date());
+  const from = startOfDay(zonedNow());
   const occ = expandOccurrences(items, from, addDays(from, 60));
   const byDay = new Map<string, Occurrence[]>();
   for (const o of occ) {
@@ -479,3 +488,4 @@ function AgendaView({
     </div>
   );
 }
+

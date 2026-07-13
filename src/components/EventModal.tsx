@@ -1,23 +1,38 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiClient } from "@/lib/api-client";
 import type { CalendarItem, CrmUserLite, EventDraft } from "@/types/calendar.types";
-import { toLocalInputValue } from "@/utils/calendar.utils";
+import {
+  CALENDAR_TZ_LABEL,
+  addDays,
+  fmtDayLabel,
+  fromZoned,
+  startOfDay,
+  toDateKey,
+  toLocalInputValue,
+  toZoned,
+  zonedNow,
+} from "@/utils/calendar.utils";
 
 /**
  * Create / edit modal for calendar items.
- *
- * TODO(integration): swap `fetchCrmUsers` for your existing users endpoint
- * or shared hook (the same list SupraSpace and Project Management use for
- * assignee pickers).
+ * Assignee list comes from the Team Pulse members endpoint via the shared
+ * apiClient (Bearer token + refresh handled there).
  */
 async function fetchCrmUsers(): Promise<CrmUserLite[]> {
-  const res = await fetch("/api/crm-users?fields=name", {
-    credentials: "include",
-  });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.users ?? data.items ?? [];
+  try {
+    const res = await apiClient.getTeamMembers();
+    const raw = res.data?.members ?? res.data?.data ?? res.data ?? [];
+    return (Array.isArray(raw) ? raw : []).map((u: any) => ({
+      _id: String(u._id ?? u.id),
+      fullName: u.fullName ?? u.name,
+      username: u.username,
+      email: u.email,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 const TYPES = [
@@ -47,17 +62,19 @@ export function EventModal({
         type: (editing.type === "appointment" ? "event" : editing.type) as EventDraft["type"],
         title: editing.title,
         description: editing.description ?? "",
-        start: toLocalInputValue(new Date(editing.start)),
-        end: toLocalInputValue(new Date(editing.end)),
+        start: toLocalInputValue(toZoned(new Date(editing.start))),
+        end: toLocalInputValue(toZoned(new Date(editing.end))),
         allDay: editing.allDay,
         repeatsDailyWindow: editing.repeatsDailyWindow,
         dailyStartTime: editing.dailyStartTime ?? "09:00",
         dailyEndTime: editing.dailyEndTime ?? "10:00",
+        includedDates: editing.includedDates ?? [],
         assignees: editing.assignees?.map((a) => a._id) ?? [],
         generateMeetingLink: false,
       };
     }
-    const s = presetStart ?? new Date();
+    // presetStart from grid clicks is already Mountain Time wall-clock.
+    const s = presetStart ?? zonedNow();
     const e = new Date(s.getTime() + 3_600_000);
     return {
       type: "event",
@@ -69,6 +86,7 @@ export function EventModal({
       repeatsDailyWindow: false,
       dailyStartTime: "09:00",
       dailyEndTime: "10:00",
+      includedDates: [],
       assignees: [],
       generateMeetingLink: false,
     };
@@ -76,9 +94,17 @@ export function EventModal({
 
   const [draft, setDraft] = useState<EventDraft>(initial);
   const [users, setUsers] = useState<CrmUserLite[]>([]);
+  const [participantQuery, setParticipantQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isAppointment = editing?.source === "appointment";
+  /** Only the creator edits; participants get a view-only details modal. */
+  const readOnly = isAppointment || (editing ? editing.canEdit !== true : false);
+  const creatorName =
+    editing?.createdBy?.fullName ||
+    editing?.createdBy?.username ||
+    editing?.createdBy?.email ||
+    "its creator";
 
   useEffect(() => {
     void fetchCrmUsers().then(setUsers);
@@ -95,6 +121,49 @@ export function EventModal({
         : [...draft.assignees, id]
     );
 
+  const displayName = (u: CrmUserLite) =>
+    u.fullName || u.username || u.email || "User";
+
+  const filteredUsers = users.filter((u) =>
+    [u.fullName, u.username, u.email]
+      .filter(Boolean)
+      .some((v) => v!.toLowerCase().includes(participantQuery.trim().toLowerCase()))
+  );
+
+  /** "All" reflects and toggles every user (not just the filtered view). */
+  const allTagged = users.length > 0 && draft.assignees.length === users.length;
+
+  const toggleAll = () =>
+    set("assignees", allTagged ? [] : users.map((u) => u._id));
+
+  /** Days spanned by the current start–end range (date parts only). */
+  const rangeDays = useMemo(() => {
+    const s = startOfDay(new Date(draft.start));
+    const e = startOfDay(new Date(draft.end));
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return [];
+    const days: Date[] = [];
+    for (let d = s; d <= e && days.length <= 62; d = addDays(d, 1)) {
+      days.push(d);
+    }
+    return days;
+  }, [draft.start, draft.end]);
+
+  /** Empty includedDates = every day runs. */
+  const dayActive = (key: string) =>
+    draft.includedDates.length === 0 || draft.includedDates.includes(key);
+
+  const toggleDay = (key: string) => {
+    const all = rangeDays.map(toDateKey);
+    // Materialise the implicit "all days" before removing one.
+    const current = draft.includedDates.length === 0 ? all : draft.includedDates;
+    const next = current.includes(key)
+      ? current.filter((k) => k !== key)
+      : [...current, key];
+    // Keep at least one day; if back to all, store [] (= every day).
+    if (next.length === 0) return;
+    set("includedDates", next.length === all.length ? [] : next);
+  };
+
   const submit = async () => {
     if (!draft.title.trim()) {
       setError("A title is required.");
@@ -107,10 +176,14 @@ export function EventModal({
     setSaving(true);
     setError(null);
     try {
+      const validKeys = new Set(rangeDays.map(toDateKey));
       await onSave({
         ...draft,
-        start: new Date(draft.start).toISOString(),
-        end: new Date(draft.end).toISOString(),
+        includedDates: draft.repeatsDailyWindow
+          ? draft.includedDates.filter((k) => validKeys.has(k))
+          : [],
+        start: fromZoned(new Date(draft.start)).toISOString(),
+        end: fromZoned(new Date(draft.end)).toISOString(),
       });
     } catch {
       setError("Couldn’t save the item. Try again.");
@@ -137,7 +210,7 @@ export function EventModal({
 
         <div className="relative max-h-[85vh] overflow-auto p-6">
           <h2 className="mb-4 text-base font-semibold text-zinc-100">
-            {editing ? "Edit item" : "New item"}
+            {editing ? (readOnly ? "Schedule details" : "Edit item") : "New item"}
           </h2>
 
           {isAppointment && (
@@ -147,12 +220,19 @@ export function EventModal({
             </p>
           )}
 
+          {readOnly && !isAppointment && (
+            <p className="mb-4 rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-3 text-xs text-cyan-200">
+              View only — {creatorName} created this {draft.type} and is the
+              only one who can change it. You&apos;re tagged as a participant.
+            </p>
+          )}
+
           {/* Type */}
           <div className="mb-4 flex gap-2">
             {TYPES.map((t) => (
               <button
                 key={t.value}
-                disabled={isAppointment}
+                disabled={readOnly}
                 onClick={() => set("type", t.value)}
                 className={`rounded-lg border px-3 py-1.5 text-xs transition ${
                   draft.type === t.value
@@ -170,7 +250,7 @@ export function EventModal({
             <input
               id="sc-title"
               className={field}
-              disabled={isAppointment}
+              disabled={readOnly}
               value={draft.title}
               onChange={(e) => set("title", e.target.value)}
               placeholder={`Name this ${draft.type}`}
@@ -182,7 +262,7 @@ export function EventModal({
             <textarea
               id="sc-desc"
               className={`${field} min-h-20 resize-y`}
-              disabled={isAppointment}
+              disabled={readOnly}
               value={draft.description}
               onChange={(e) => set("description", e.target.value)}
               placeholder="Details, agenda, notes…"
@@ -192,23 +272,23 @@ export function EventModal({
           {/* Timing */}
           <div className="mb-4 grid grid-cols-2 gap-3">
             <div>
-              <label className={label} htmlFor="sc-start">Starts</label>
+              <label className={label} htmlFor="sc-start">Starts ({CALENDAR_TZ_LABEL})</label>
               <input
                 id="sc-start"
                 type="datetime-local"
                 className={`${field} font-mono tabular-nums`}
-                disabled={isAppointment}
+                disabled={readOnly}
                 value={draft.start}
                 onChange={(e) => set("start", e.target.value)}
               />
             </div>
             <div>
-              <label className={label} htmlFor="sc-end">Ends</label>
+              <label className={label} htmlFor="sc-end">Ends ({CALENDAR_TZ_LABEL})</label>
               <input
                 id="sc-end"
                 type="datetime-local"
                 className={`${field} font-mono tabular-nums`}
-                disabled={isAppointment}
+                disabled={readOnly}
                 value={draft.end}
                 onChange={(e) => set("end", e.target.value)}
               />
@@ -219,7 +299,7 @@ export function EventModal({
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                disabled={isAppointment}
+                disabled={readOnly}
                 checked={draft.allDay}
                 onChange={(e) => set("allDay", e.target.checked)}
                 className="accent-emerald-400"
@@ -229,7 +309,7 @@ export function EventModal({
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                disabled={isAppointment}
+                disabled={readOnly}
                 checked={draft.repeatsDailyWindow}
                 onChange={(e) => set("repeatsDailyWindow", e.target.checked)}
                 className="accent-emerald-400"
@@ -260,49 +340,123 @@ export function EventModal({
                   onChange={(e) => set("dailyEndTime", e.target.value)}
                 />
               </div>
-              <p className="col-span-2 text-[11px] text-emerald-200/70">
-                Runs every day between the start and end dates, only during this
-                time window.
-              </p>
+              <div className="col-span-2">
+                <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-emerald-200/70">
+                  Runs on these days
+                </span>
+                {rangeDays.length === 0 ? (
+                  <p className="text-[11px] text-emerald-200/60">
+                    Set valid start and end dates to pick days.
+                  </p>
+                ) : (
+                  <div className="flex max-h-28 flex-wrap gap-1.5 overflow-auto">
+                    {rangeDays.map((day) => {
+                      const key = toDateKey(day);
+                      const active = dayActive(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => toggleDay(key)}
+                          aria-pressed={active}
+                          className={`rounded-md border px-2 py-1 font-mono text-[10px] tabular-nums transition ${
+                            active
+                              ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-200 shadow-[0_0_8px_-3px_rgba(52,211,153,0.6)]"
+                              : "border-white/10 text-zinc-500 hover:bg-white/5"
+                          }`}
+                        >
+                          {fmtDayLabel(day)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="mt-1.5 text-[11px] text-emerald-200/60">
+                  Highlighted days run during the time window above — tap to
+                  include or skip a day.
+                </p>
+              </div>
             </div>
           )}
 
           {/* Assignees */}
           <div className="mb-4">
-            <span className={label}>Assign CRM users</span>
-            <div className="flex max-h-32 flex-wrap gap-2 overflow-auto rounded-lg border border-white/10 bg-zinc-900/60 p-2">
-              {users.length === 0 && (
-                <span className="text-xs text-zinc-500">Loading users…</span>
-              )}
-              {users.map((u) => {
-                const active = draft.assignees.includes(u._id);
-                const name =
-                  [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-                  u.email ||
-                  "User";
-                return (
-                  <button
-                    key={u._id}
-                    disabled={isAppointment}
-                    onClick={() => toggleAssignee(u._id)}
-                    className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                      active
-                        ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200"
-                        : "border-white/10 text-zinc-400 hover:bg-white/5"
-                    } disabled:opacity-40`}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
+            <span className={label}>Tag participants</span>
+            <div className="rounded-lg border border-white/10 bg-zinc-900/60">
+              {/* Search + select all */}
+              <div className="flex items-center gap-2 border-b border-white/10 p-2">
+                <input
+                  type="search"
+                  aria-label="Search participants"
+                  placeholder="Search participants…"
+                  disabled={readOnly}
+                  value={participantQuery}
+                  onChange={(e) => setParticipantQuery(e.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-white/10 bg-zinc-950/60 px-2.5 py-1.5 text-xs text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/50 disabled:opacity-40"
+                />
+                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/5">
+                  <input
+                    type="checkbox"
+                    disabled={readOnly || users.length === 0}
+                    checked={allTagged}
+                    onChange={toggleAll}
+                    className="accent-cyan-400"
+                  />
+                  All
+                </label>
+              </div>
+
+              {/* Checkable list */}
+              <div className="max-h-40 overflow-auto p-1">
+                {users.length === 0 && (
+                  <p className="px-2 py-1.5 text-xs text-zinc-500">Loading users…</p>
+                )}
+                {users.length > 0 && filteredUsers.length === 0 && (
+                  <p className="px-2 py-1.5 text-xs text-zinc-500">
+                    No one matches “{participantQuery}”.
+                  </p>
+                )}
+                {filteredUsers.map((u) => {
+                  const active = draft.assignees.includes(u._id);
+                  return (
+                    <label
+                      key={u._id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                        active
+                          ? "bg-cyan-400/10 text-cyan-200"
+                          : "text-zinc-300 hover:bg-white/5"
+                      } ${readOnly ? "cursor-not-allowed opacity-40" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={readOnly}
+                        checked={active}
+                        onChange={() => toggleAssignee(u._id)}
+                        className="accent-cyan-400"
+                      />
+                      <span className="truncate">{displayName(u)}</span>
+                      {u.email && u.fullName && (
+                        <span className="ml-auto truncate font-mono text-[10px] text-zinc-500">
+                          {u.email}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             <p className="mt-1 text-[11px] text-zinc-500">
-              Assigned users are notified and see this on their own calendar.
+              {draft.assignees.length > 0 && (
+                <span className="mr-1 font-mono tabular-nums text-cyan-300">
+                  {draft.assignees.length} tagged ·
+                </span>
+              )}
+              Tagged participants are notified and see this on their own calendar.
             </p>
           </div>
 
           {/* Supra-Space */}
-          {draft.type === "meeting" && !isAppointment && (
+          {draft.type === "meeting" && (editing?.meetingLink || !readOnly) && (
             <div className="mb-4 rounded-lg border border-cyan-400/25 bg-cyan-400/5 p-3">
               {editing?.meetingLink ? (
                 <div className="text-xs text-cyan-200">
@@ -333,7 +487,7 @@ export function EventModal({
           {error && <p className="mb-3 text-xs text-rose-300">{error}</p>}
 
           <div className="flex items-center gap-2">
-            {onDelete && !isAppointment && (
+            {onDelete && !readOnly && (
               <button
                 onClick={() => void onDelete()}
                 className="rounded-lg border border-rose-400/30 px-3 py-2 text-xs text-rose-300 transition hover:bg-rose-400/10"
@@ -347,7 +501,7 @@ export function EventModal({
             >
               Cancel
             </button>
-            {!isAppointment && (
+            {!readOnly && (
               <button
                 onClick={() => void submit()}
                 disabled={saving}
