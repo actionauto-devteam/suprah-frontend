@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   PlusSquare,
   Rss,
+  CalendarDays,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -137,6 +138,11 @@ const data = {
   ] satisfies SidebarNavItem[],
 
   services: [
+    {
+      title: "Suprah Calendar",
+      url: "/crm/suprah-calendar",
+      icon: CalendarDays,
+    },
     {
       title: "Project Management",
       url: "/project",
