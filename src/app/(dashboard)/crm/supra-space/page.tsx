@@ -403,6 +403,32 @@ function preserveVisibleVinLines(serialized: string, visibleText: string): strin
   return serializedLines.join('\n');
 }
 
+function importantVisibleTokens(line: string): string[] {
+  return [...line.toUpperCase().matchAll(/\b[A-Z0-9][A-Z0-9-]{5,}\b/g)]
+    .map(match => match[0].replace(/-/g, ''))
+    .filter(token => token.length >= 6 && /\d/.test(token));
+}
+
+function preserveVisiblePayloadLines(serialized: string, visibleText: string): string {
+  const visibleLines = visibleText.replace(/\r\n?/g, '\n').split('\n');
+  const serializedLines = serialized.replace(/\r\n?/g, '\n').split('\n');
+  let serializedSearch = serializedLines.join('\n').toUpperCase().replace(/-/g, '');
+
+  visibleLines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const missingImportantToken = importantVisibleTokens(trimmed).some(token => !serializedSearch.includes(token));
+    if (!missingImportantToken) return;
+
+    const insertAt = Math.min(Math.max(index, 0), serializedLines.length);
+    serializedLines.splice(insertAt, 0, trimmed);
+    serializedSearch = serializedLines.join('\n').toUpperCase().replace(/-/g, '');
+  });
+
+  return serializedLines.join('\n');
+}
+
 function canonicalizeColorMarkup(value: string): string {
   const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
   let result = '';
@@ -738,7 +764,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
           );
         } else {
           nodes.push(isOwn
-            ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' }}>{token}</span>
+            ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)' }}>{token}</span>
             : <span key={key} className="font-bold" style={{ color: 'var(--accent-text)' }}>{token}</span>
           );
         }
@@ -3271,6 +3297,15 @@ export default function SupraSpacePage() {
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
   const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
+  const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => {
+    setNotifPrefs(prev => ({ ...prev, [conversationId]: pref }));
+    if (!token) return;
+    apiClient.patch(`/api/supraspace/conversations/${conversationId}/notifications`, pref, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {
+      toast.error('Could not save notification settings');
+    });
+  }, [setNotifPrefs, token]);
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
@@ -4083,11 +4118,14 @@ export default function SupraSpacePage() {
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     const conversationId = activeId;
     const visibleComposerText = textareaRef.current?.innerText || input;
+    const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim();
     const content = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(preserveVisibleVinLines(
-        textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim(),
-        visibleComposerText,
-      )),
+      canonicalizeColorMarkup(
+        preserveVisiblePayloadLines(
+          preserveVisibleVinLines(serializedComposerText, visibleComposerText),
+          visibleComposerText,
+        ),
+      ),
     );
     const replyMessageId = replyTo?._id;
     const isScheduledSend = Boolean(scheduledAt);
@@ -5097,7 +5135,7 @@ export default function SupraSpacePage() {
                   {pinned ? 'Unpin' : 'Pin'}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
-                  onClick={() => setNotifPrefs(p => ({ ...p, [conv._id]: { type: p[conv._id]?.type ?? 'all', muted: !isMuted } }))}>
+                  onClick={() => saveNotificationPref(conv._id, { type: notifPrefs[conv._id]?.type ?? 'all', muted: !isMuted })}>
                   <VolumeX className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
                   {isMuted ? 'Unmute' : 'Mute'}
                 </DropdownMenuItem>
@@ -6282,7 +6320,7 @@ export default function SupraSpacePage() {
             conv={notifModalConv}
             convName={getConvName(notifModalConv, uid)}
             prefs={notifPrefs[notifModalConv._id] ?? { type: 'all', muted: false }}
-            onSave={p => setNotifPrefs(prev => ({ ...prev, [notifModalConv._id]: p }))}
+            onSave={p => saveNotificationPref(notifModalConv._id, p)}
             onClose={() => setNotifModalConv(null)}
           />
         )}

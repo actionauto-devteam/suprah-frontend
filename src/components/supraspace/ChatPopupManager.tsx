@@ -248,7 +248,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
     if (/^https?:\/\//.test(part))
       return <a key={k} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isOwn ? 'rgba(255,255,255,0.85)' : '#60a5fa', textDecoration: 'underline' }}>{part}</a>;
     if (/^@/.test(part))
-      return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.5)' } : { color: '#60a5fa' }}>{part}</span>;
+      return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)' } : { color: '#60a5fa' }}>{part}</span>;
     return part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, '');
   });
 }
@@ -338,6 +338,32 @@ function preserveVisibleVinLines(serialized: string, visibleText: string): strin
     serializedLines.splice(Math.min(Math.max(visibleLineIndex, 0), serializedLines.length), 0, sourceLine || vin);
     serialized = serializedLines.join('\n');
   });
+  return serializedLines.join('\n');
+}
+
+function importantVisibleTokens(line: string): string[] {
+  return [...line.toUpperCase().matchAll(/\b[A-Z0-9][A-Z0-9-]{5,}\b/g)]
+    .map(match => match[0].replace(/-/g, ''))
+    .filter(token => token.length >= 6 && /\d/.test(token));
+}
+
+function preserveVisiblePayloadLines(serialized: string, visibleText: string): string {
+  const visibleLines = visibleText.replace(/\r\n?/g, '\n').split('\n');
+  const serializedLines = serialized.replace(/\r\n?/g, '\n').split('\n');
+  let serializedSearch = serializedLines.join('\n').toUpperCase().replace(/-/g, '');
+
+  visibleLines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const missingImportantToken = importantVisibleTokens(trimmed).some(token => !serializedSearch.includes(token));
+    if (!missingImportantToken) return;
+
+    const insertAt = Math.min(Math.max(index, 0), serializedLines.length);
+    serializedLines.splice(insertAt, 0, trimmed);
+    serializedSearch = serializedLines.join('\n').toUpperCase().replace(/-/g, '');
+  });
+
   return serializedLines.join('\n');
 }
 
@@ -1379,11 +1405,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 
   const handleSend = async () => {
     const visibleComposerText = inputRef.current?.innerText || input;
+    const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim();
     const text = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(preserveVisibleVinLines(
-        inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim(),
-        visibleComposerText,
-      )),
+      canonicalizeColorMarkup(
+        preserveVisiblePayloadLines(
+          preserveVisibleVinLines(serializedComposerText, visibleComposerText),
+          visibleComposerText,
+        ),
+      ),
     );
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
