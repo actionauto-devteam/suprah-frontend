@@ -43,6 +43,10 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departments"
 import { useLocationSharing } from "@/hooks/useLocationSharing"
 import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
+import {
+  DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar,
+  generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
+} from "@/components/crm/timeproof/shared"
 
 interface CrmUserData {
   _id: string
@@ -57,20 +61,6 @@ interface CrmUserData {
     type: "time-in" | "time-out" | "break-in" | "break-out"
     timestamp: string
   }>
-}
-
-interface Session {
-  in: string
-  out: string | null
-  duration: number
-  isLive: boolean
-}
-
-interface DayData {
-  sessions: Session[]
-  totalSeconds: number
-  breakSeconds?: number
-  weekTotalSeconds?: number
 }
 
 interface HoursSummary {
@@ -109,26 +99,14 @@ type GaugeAccent = "emerald" | "amber" | "red" | "zinc"
 type LocatorSharingState = "sharing" | "paused_break" | "paused_manual" | "declined_permission" | "off_duty"
 
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000
 
 function fmt(d: Date) {
-  return toMDT(d).toLocaleTimeString("en-US", {
+  return toMDTDate(d).toLocaleTimeString("en-US", {
     hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC",
   })
-}
-
-const toDateStr = (d: Date) => {
-  const m = toMDTDate(d)
-  return `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, "0")}-${String(m.getUTCDate()).padStart(2, "0")}`
-}
-
-const fmtHHMM = (seconds: number) => {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
 function getDeviceHint() {
@@ -171,27 +149,11 @@ function locatorStateMeta(state: LocatorSharingState, error: string | null) {
   return { label: meta.label, detail, ...LOCATOR_STATE_COLORS[state] }
 }
 
-const fmtHuman = (seconds: number) => {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h === 0 && m === 0) return "0m"
-  if (h === 0) return `${m}m`
-  if (m === 0) return `${h}h`
-  return `${h}h ${m}m`
-}
-
 function getPayoutWindowState(dayOfMonth: number): { available: boolean; nextUnlockLabel: string; daysUntil: number } {
   if (dayOfMonth >= 5 && dayOfMonth <= 15) return { available: true, nextUnlockLabel: "", daysUntil: 0 }
   if (dayOfMonth >= 20) return { available: true, nextUnlockLabel: "", daysUntil: 0 }
   if (dayOfMonth < 5) return { available: false, nextUnlockLabel: "the 5th of this month", daysUntil: 5 - dayOfMonth }
   return { available: false, nextUnlockLabel: "the 20th of this month", daysUntil: 20 - dayOfMonth }
-}
-
-const getDayColor = (seconds: number, isToday: boolean) => {
-  if (isToday && seconds === 0)
-    return { bg: "bg-amber-400/10 border-amber-400/40", bar: "bg-muted/40", text: "text-muted-foreground/30" }
-  if (seconds === 0) return { bg: "", bar: "", text: "" }
-  return { bg: "bg-blue-950/[0.07] border-blue-500/20", bar: "bg-blue-700", text: "text-white" }
 }
 
 function AnimatedDigit({ value }: { value: string }) {
@@ -321,110 +283,6 @@ function ActivityTimer({ todayTotalActiveMs, activityStartAt, isOnShift, isOnBre
           <p className="mt-0.5 text-[9px] text-red-400/60">Over 1h 5m — please resume your shift</p>
         </div>
       )}
-    </div>
-  )
-}
-
-const StatCard = ({ label, value, sub, icon: Icon, accent = false, amber = false }: {
-  label: string; value: string; sub?: string; icon: React.ElementType; accent?: boolean; amber?: boolean
-}) => (
-  <div className={`rounded-xl border px-4 py-3.5 space-y-2 ${
-    accent ? "border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20"
-    : amber ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
-    : "border-border/40 bg-card"}`}>
-    <div className="flex items-center justify-between">
-      <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">{label}</p>
-      <Icon className={`h-3.5 w-3.5 ${accent ? "text-emerald-600" : amber ? "text-amber-500" : "text-muted-foreground/25"}`} />
-    </div>
-    <p className={`text-2xl font-black tracking-tight leading-none ${
-      accent ? "text-emerald-700 dark:text-emerald-300" : amber ? "text-amber-700 dark:text-amber-300" : ""}`}>
-      {value}
-    </p>
-    {sub && <p className="text-[10px] text-muted-foreground/40 leading-none">{sub}</p>}
-  </div>
-)
-
-const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
-  year: number; month: number; calendar: Record<string, DayData>
-  onSelectDay: (ds: string) => void; isLive: boolean
-}) => {
-  const todayStr = toDateStr(new Date())
-  const firstDay = new Date(year, month, 1)
-  const startOffset = firstDay.getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const cells: (number | null)[] = [...Array(startOffset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
-  while (cells.length % 7 !== 0) cells.push(null)
-  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-  return (
-    <div className="w-full">
-      <div className="grid grid-cols-7 border-b border-border/30">
-        {DAYS.map((d) => (
-          <div key={d} className="py-2.5 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/35 border-r border-border/20 last:border-r-0">{d}</div>
-        ))}
-      </div>
-      {Array.from({ length: cells.length / 7 }, (_, wi) => (
-        <div key={wi} className="grid grid-cols-7 border-b border-border/20 last:border-b-0">
-          {cells.slice(wi * 7, wi * 7 + 7).map((dayNum, di) => {
-            if (dayNum === null) return <div key={di} className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-22.5 sm:min-h-25" />
-            const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`
-            const data = calendar[ds]
-            const isToday = ds === todayStr
-            const isFuture = ds > todayStr
-            const hasData = !!data && data.totalSeconds > 0
-            const colors = getDayColor(data?.totalSeconds ?? 0, isToday)
-            const isCurrentlyLive = isToday && isLive
-            return (
-              <div key={di}
-                onClick={() => !isFuture && onSelectDay(ds)}
-                className={[
-                  "border-r border-border/20 last:border-r-0 min-h-22.5 sm:min-h-25 p-2 flex flex-col gap-1 transition-all duration-100",
-                  isFuture ? "opacity-30 cursor-default select-none" : "cursor-pointer hover:bg-muted/20",
-                  isToday || hasData ? `border ${colors.bg}` : "",
-                ].filter(Boolean).join(" ")}
-              >
-                <div className="flex items-start justify-between">
-                  <span className={isToday
-                    ? "h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black"
-                    : isFuture ? "text-[12px] font-bold text-muted-foreground/20"
-                    : "text-[12px] font-bold text-muted-foreground/50"}>
-                    {dayNum}
-                  </span>
-                  {isCurrentlyLive && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse mt-0.5" />}
-                </div>
-                {(hasData || (!!data?.weekTotalSeconds && data.weekTotalSeconds > 0)) && (
-                  <div className="mt-auto space-y-0.5">
-                    {hasData && (
-                      <>
-                        <div className={`rounded-[5px] px-1.5 py-1 text-center ${colors.bar}`}>
-                          <span className={`text-[11px] font-black font-mono ${colors.text}`}>{fmtHHMM(data.totalSeconds)}</span>
-                        </div>
-                        {!!data.breakSeconds && data.breakSeconds > 0 && (
-                          <div className="rounded-[5px] px-1.5 py-0.5 text-center bg-orange-500/80">
-                            <span className="text-[10px] font-bold font-mono text-white">{fmtHHMM(data.breakSeconds)}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {!!data?.weekTotalSeconds && data.weekTotalSeconds > 0 && (
-                      <div className="rounded-[5px] px-1.5 py-0.5 text-center bg-emerald-600/90">
-                        <span className="text-[10px] font-bold font-mono text-white">{fmtHHMM(data.weekTotalSeconds)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {isToday && !hasData && (
-                  <div className="mt-auto">
-                    <div className="rounded-[5px] px-1.5 py-1 bg-muted/25 text-center">
-                      <span className="text-[10px] text-muted-foreground/25 font-mono">--:--</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      ))}
     </div>
   )
 }
@@ -573,6 +431,14 @@ export default function TimeprofClockPage() {
   const [showPhp, setShowPhp] = React.useState(false)
   const [phpRate, setPhpRate] = React.useState<number | null>(null)
   const [fetchingPhp, setFetchingPhp] = React.useState(false)
+
+  const [showTimecardModal, setShowTimecardModal] = React.useState(false)
+  const [timecardStart, setTimecardStart] = React.useState(() => {
+    const y = now.getUTCFullYear(), m = now.getUTCMonth()
+    const d = now.getUTCDate() <= 15 ? 1 : 16
+    return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+  })
+  const [timecardEnd, setTimecardEnd] = React.useState(() => toDateStr(new Date()))
 
   React.useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("tp_hourly_rate", hourlyRate)
@@ -1169,18 +1035,39 @@ export default function TimeprofClockPage() {
   const printPayslip = React.useCallback(() => {
     if (!tpData) return
     const u = tpData.user
-    const generatedAt = new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
     const periodFull = payoutPeriod === 1 ? `${nowMonthLong} 1–15, ${now.getFullYear()}` : `${nowMonthLong} 16–${cutoffSummary.lastDay}, ${now.getFullYear()}`
-    const renderedFull = fmtHHMM(calcSeconds)
-    const phpRow = showPhp && payoutPHP !== null && phpRate !== null
-      ? `<tr><td>Gross Pay (PHP)</td><td class="amount">₱${payoutPHP.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr><tr class="note-row"><td>Exchange Rate</td><td class="amount">1 USD = ₱${phpRate.toFixed(2)}</td></tr>`
-      : ""
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Payslip — ${u.fullName} — ${periodFull}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,Helvetica,sans-serif;color:#111;background:#fff;padding:48px 56px;max-width:720px;margin:0 auto}.header{text-align:center;padding-bottom:20px;border-bottom:2px solid #111;margin-bottom:24px}.company{font-size:22px;font-weight:900;letter-spacing:4px;text-transform:uppercase}.doc-title{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#555;margin-top:4px}.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 32px;margin-bottom:24px}.meta-grid .row{display:flex;flex-direction:column;gap:1px}.meta-label{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;font-weight:700}.meta-value{font-size:13px;font-weight:600;color:#111}.section-title{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#444;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px}table{width:100%;border-collapse:collapse;margin-bottom:24px}table td{padding:9px 12px;font-size:12px;border-bottom:1px solid #eee}table td:first-child{color:#444}table td.amount{text-align:right;font-family:'Courier New',monospace;font-weight:700}.total-row td{font-size:15px;font-weight:900;border-top:2px solid #111;border-bottom:none;padding-top:12px}.note-row td{font-size:10px;color:#888}.verified{background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 14px;font-size:10px;color:#166534;margin-bottom:28px}.sig-area{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:8px}.sig-box{border-top:1px solid #bbb;padding-top:6px;font-size:10px;color:#888;text-align:center}.footer{text-align:center;font-size:9px;color:#bbb;margin-top:32px;border-top:1px solid #eee;padding-top:12px;letter-spacing:1px}@media print{body{padding:24px 32px}@page{size:A4;margin:20mm}}</style></head><body><div class="header"><div class="company">Action Auto</div><div class="doc-title">Employee Payslip</div></div><div class="meta-grid"><div class="row"><span class="meta-label">Employee</span><span class="meta-value">${u.fullName}</span></div><div class="row"><span class="meta-label">Username</span><span class="meta-value">${u.username}</span></div><div class="row"><span class="meta-label">Role</span><span class="meta-value">${u.role}</span></div><div class="row"><span class="meta-label">Pay Period</span><span class="meta-value">${periodFull}</span></div><div class="row"><span class="meta-label">Pay Date</span><span class="meta-value">${payDayLabel}</span></div><div class="row"><span class="meta-label">Generated</span><span class="meta-value">${generatedAt}</span></div></div><p class="section-title">Earnings Breakdown</p><table><tr><td>Hours Rendered</td><td class="amount">${renderedFull}</td></tr><tr><td>Hours Billed</td><td class="amount">${calcWholeHours} hours</td></tr><tr><td>Hourly Rate</td><td class="amount">$${rateNum.toFixed(2)} / hr</td></tr><tr class="total-row"><td>Gross Pay (USD)</td><td class="amount">$${payoutUSD.toFixed(2)}</td></tr>${phpRow}</table><div class="verified">✓ Hours verified via Action Auto Timeproof System — server-validated timestamps</div><div class="sig-area"><div class="sig-box">Employee Signature</div><div class="sig-box">Authorized Signature</div></div><div class="footer">ACTION AUTO · CONFIDENTIAL · ${new Date().getFullYear()}</div><script>window.onload=function(){window.print()}<\/script></body></html>`
-    const win = window.open("", "_blank")
-    if (!win) return
-    win.document.write(html)
-    win.document.close()
+    const html = generatePayslipHtml({
+      fullName: u.fullName,
+      username: u.username,
+      role: u.role,
+      periodFull,
+      payDayLabel,
+      renderedFull: fmtHHMM(calcSeconds),
+      calcWholeHours,
+      rateNum,
+      payoutUSD,
+      phpPayout: showPhp && payoutPHP !== null && phpRate !== null ? { amountPHP: payoutPHP, rate: phpRate } : null,
+    })
+    openHtmlForPrint(html)
   }, [tpData, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
+
+  const timecardPreviewHtml = React.useMemo(() => {
+    if (!tpData || !showTimecardModal) return ""
+    const rows = buildTimecardRows(tpData.calendar, timecardStart, timecardEnd)
+    return generateTimecardHtml({
+      fullName: tpData.user.fullName,
+      rateNum,
+      startDateStr: timecardStart,
+      endDateStr: timecardEnd,
+      rows,
+      autoPrint: false,
+    })
+  }, [tpData, showTimecardModal, timecardStart, timecardEnd, rateNum])
+
+  const timecardPreviewRef = React.useRef<HTMLIFrameElement>(null)
+  const printTimecard = React.useCallback(() => {
+    timecardPreviewRef.current?.contentWindow?.print()
+  }, [])
 
   if (isLoading) {
     return (
@@ -1683,6 +1570,10 @@ export default function TimeprofClockPage() {
                       <Lock className="h-3.5 w-3.5" /> Payslip available on {payDayLabel}
                     </div>
                   )}
+                  <button onClick={() => setShowTimecardModal(true)}
+                    className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 hover:bg-muted/20 text-foreground/70 text-[11px] font-bold flex items-center justify-center gap-2 transition-all">
+                    <Download className="h-3.5 w-3.5" /> Download Timecard (any date range)
+                  </button>
                 </div>
               </div>
             )}
@@ -1816,6 +1707,53 @@ export default function TimeprofClockPage() {
                   No, Start a New Shift
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTimecardModal && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTimecardModal(false)} />
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" style={{ animation: "slideUp 0.25s ease-out" }}>
+            <button onClick={() => setShowTimecardModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors z-10">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
+              <div>
+                <p className="text-base font-black text-white">Download Timecard</p>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">Preview updates live — confirm it looks right before printing/downloading.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date Start</label>
+                  <input type="date" value={timecardStart} onChange={(e) => setTimecardStart(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date End</label>
+                  <input type="date" value={timecardEnd} onChange={(e) => setTimecardEnd(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
+                </div>
+              </div>
+              {rateNum <= 0 && (
+                <p className="text-[10px] text-amber-400/80">Enter your hourly rate above to include Total Income — otherwise it will show as $0.00.</p>
+              )}
+            </div>
+            <div className="px-6 flex-1 min-h-0 overflow-hidden">
+              <div className="h-[45vh] rounded-xl overflow-hidden border border-zinc-700/60 bg-white">
+                {timecardStart <= timecardEnd ? (
+                  <iframe ref={timecardPreviewRef} srcDoc={timecardPreviewHtml} title="Timecard preview" className="w-full h-full" />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-xs text-zinc-500">Date Start must be before Date End</div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 pt-4 pb-6 shrink-0">
+              <button onClick={printTimecard} disabled={timecardStart > timecardEnd}
+                className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                <Download className="h-4 w-4" /> Confirm — Print / PDF
+              </button>
             </div>
           </div>
         </div>

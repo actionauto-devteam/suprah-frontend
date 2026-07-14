@@ -300,6 +300,28 @@ function hasRichFormatting(html: string): boolean {
     || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
+function getCopiedElementVisibleText(element: HTMLElement): string {
+  const tag = element.tagName.toLowerCase();
+  if (tag === 'input') {
+    const input = element as HTMLInputElement;
+    if (input.type === 'hidden') return '';
+    return input.value || element.getAttribute('value') || '';
+  }
+  if (tag === 'textarea') {
+    const textarea = element as HTMLTextAreaElement;
+    return textarea.value || element.getAttribute('value') || element.textContent || '';
+  }
+  if (tag === 'select') {
+    const select = element as HTMLSelectElement;
+    return select.selectedOptions?.[0]?.textContent || select.value || '';
+  }
+  return element.getAttribute('data-value')
+    || element.getAttribute('data-text')
+    || element.getAttribute('data-label')
+    || element.getAttribute('aria-valuetext')
+    || '';
+}
+
 function clipboardHtmlToPlainText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walk = (node: Node): string => {
@@ -309,6 +331,8 @@ function clipboardHtmlToPlainText(html: string): string {
     const tag = el.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') return el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+    const visibleValue = getCopiedElementVisibleText(el);
+    if (visibleValue) return visibleValue;
     const inner = Array.from(el.childNodes).map(walk).join('');
     if (['div', 'p', 'li', 'section', 'article'].includes(tag)) return `${inner}\n`;
     return inner;
@@ -446,6 +470,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
 
     let inner = Array.from(element.childNodes).map(walk).join('');
+    if (!inner.trim()) inner = getCopiedElementVisibleText(element);
     if (tag === 'strong' || tag === 'b') inner = `**${inner}**`;
     else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
     else if (tag === 'u') inner = `__${inner}__`;
@@ -478,6 +503,8 @@ function clipboardHtmlToEditorHtml(html: string): string {
     if (tag === 'script' || tag === 'style') return '';
     if (tag === 'br') return '<br>';
     if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
+    const visibleValue = getCopiedElementVisibleText(el);
+    if (visibleValue) return escapeHtmlText(visibleValue);
     const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
     const elColor = cssColorToHex(el.style?.color || el.getAttribute('color') || '');
     const wrapColor = (inner: string): string =>
@@ -815,6 +842,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [replyTo,  setReplyTo]  = React.useState<SSMessage | null>(null);
   const bottomRef  = React.useRef<HTMLDivElement>(null);
   const inputRef   = React.useRef<HTMLDivElement>(null);
+  const inputStateRafRef = React.useRef<number | null>(null);
+  const pendingInputStateRef = React.useRef('');
   const headerRef  = React.useRef<HTMLDivElement>(null);
   const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
@@ -840,6 +869,19 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [mentionQuery,  setMentionQuery]  = React.useState<string | null>(null);
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx,    setMentionIdx]    = React.useState(0);
+
+  const scheduleInputState = React.useCallback((value: string) => {
+    pendingInputStateRef.current = value;
+    if (inputStateRafRef.current != null) return;
+    inputStateRafRef.current = window.requestAnimationFrame(() => {
+      inputStateRafRef.current = null;
+      setInput(pendingInputStateRef.current);
+    });
+  }, []);
+
+  React.useEffect(() => () => {
+    if (inputStateRafRef.current != null) window.cancelAnimationFrame(inputStateRafRef.current);
+  }, []);
 
   // Hover action bar (portal-based to escape overflow)
   const [hovMsg, setHovMsg] = React.useState<string | null>(null);
@@ -1455,7 +1497,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const val = (el.innerText || '').replace(/\n$/, '');
-    setInput(val);
+    scheduleInputState(val);
     const cursor = getCaretOffset(el);
     if (mentionAnchor >= 0) {
       if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
