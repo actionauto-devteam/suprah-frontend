@@ -46,6 +46,7 @@ import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/Lo
 import {
   DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
+  generateIdleLogHtml, type IdlePeriod,
 } from "@/components/crm/timeproof/shared"
 
 interface CrmUserData {
@@ -439,6 +440,15 @@ export default function TimeprofClockPage() {
     return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
   })
   const [timecardEnd, setTimecardEnd] = React.useState(() => toDateStr(new Date()))
+
+  const [showIdleLogModal, setShowIdleLogModal] = React.useState(false)
+  const [idleLogStart, setIdleLogStart] = React.useState(() => {
+    const d = new Date(now.getTime() - 14 * 86_400_000)
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+  })
+  const [idleLogEnd, setIdleLogEnd] = React.useState(() => toDateStr(new Date()))
+  const [idlePeriods, setIdlePeriods] = React.useState<IdlePeriod[]>([])
+  const [idleLogLoading, setIdleLogLoading] = React.useState(false)
 
   React.useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("tp_hourly_rate", hourlyRate)
@@ -1071,6 +1081,36 @@ export default function TimeprofClockPage() {
     timecardPreviewRef.current?.contentWindow?.print()
   }, [])
 
+  React.useEffect(() => {
+    if (!showIdleLogModal || idleLogStart > idleLogEnd) return
+    let cancelled = false
+    setIdleLogLoading(true)
+    const endpoint = authModeRef.current === 'main' ? "/api/timeclock/idle-log" : "/api/crm/timeproof/idle-log"
+    const options = authModeRef.current === 'main' ? {} : { headers: { Authorization: `Bearer ${localStorage.getItem("crm_token")}` } }
+    apiClient
+      .get(`${endpoint}?startDate=${idleLogStart}&endDate=${idleLogEnd}`, options)
+      .then((res) => { if (!cancelled) setIdlePeriods(res.data?.data?.idleLog || []) })
+      .catch(() => { if (!cancelled) setIdlePeriods([]) })
+      .finally(() => { if (!cancelled) setIdleLogLoading(false) })
+    return () => { cancelled = true }
+  }, [showIdleLogModal, idleLogStart, idleLogEnd])
+
+  const idleLogPreviewHtml = React.useMemo(() => {
+    if (!tpData || !showIdleLogModal) return ""
+    return generateIdleLogHtml({
+      fullName: tpData.user.fullName,
+      startDateStr: idleLogStart,
+      endDateStr: idleLogEnd,
+      periods: idlePeriods,
+      autoPrint: false,
+    })
+  }, [tpData, showIdleLogModal, idleLogStart, idleLogEnd, idlePeriods])
+
+  const idleLogPreviewRef = React.useRef<HTMLIFrameElement>(null)
+  const printIdleLog = React.useCallback(() => {
+    idleLogPreviewRef.current?.contentWindow?.print()
+  }, [])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -1420,6 +1460,10 @@ export default function TimeprofClockPage() {
                   <button onClick={goToday} disabled={isCurrentMonth} className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
                     Today
                   </button>
+                  <button onClick={() => setShowIdleLogModal(true)} title="Export Idle Log"
+                    className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors text-muted-foreground flex items-center gap-1.5">
+                    <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Idle Log</span>
+                  </button>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-2.5 border-b border-border/20 bg-muted/10">
@@ -1753,6 +1797,53 @@ export default function TimeprofClockPage() {
             </div>
             <div className="px-6 pt-4 pb-6 shrink-0">
               <button onClick={printTimecard} disabled={timecardStart > timecardEnd}
+                className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                <Download className="h-4 w-4" /> Confirm — Print / PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showIdleLogModal && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowIdleLogModal(false)} />
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" style={{ animation: "slideUp 0.25s ease-out" }}>
+            <button onClick={() => setShowIdleLogModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors z-10">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
+              <div>
+                <p className="text-base font-black text-white">Export Idle Log</p>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">Read-only record of when you went idle (tray-detected inactivity) — not editable. Preview updates live.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date Start</label>
+                  <input type="date" value={idleLogStart} onChange={(e) => setIdleLogStart(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date End</label>
+                  <input type="date" value={idleLogEnd} onChange={(e) => setIdleLogEnd(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 flex-1 min-h-0 overflow-hidden">
+              <div className="h-[45vh] rounded-xl overflow-hidden border border-zinc-700/60 bg-white relative">
+                {idleLogLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-xs text-zinc-500">Loading…</div>
+                )}
+                {idleLogStart <= idleLogEnd ? (
+                  <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full" />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-xs text-zinc-500">Date Start must be before Date End</div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 pt-4 pb-6 shrink-0">
+              <button onClick={printIdleLog} disabled={idleLogStart > idleLogEnd || idleLogLoading}
                 className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 <Download className="h-4 w-4" /> Confirm — Print / PDF
               </button>

@@ -289,6 +289,92 @@ export function generateTimecardHtml(p: {
 </body></html>`
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Idle Log — read-only export of when the user went idle (tray-detected
+   inactivity), for a given date range. No edit controls — export/print only.
+───────────────────────────────────────────────────────────────────────── */
+export interface IdlePeriod {
+  date: string
+  idleStart: string
+  idleEnd: string | null
+  durationSeconds: number
+}
+
+const fmtMDTDateTime = (iso: string) => {
+  const d = toMDTDate(new Date(iso))
+  const weekday = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+  const month = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+  const day = d.getUTCDate()
+  return `${weekday} ${month} ${day}, ${fmtMDTTime(iso)}`
+}
+
+export function generateIdleLogHtml(p: {
+  fullName: string
+  startDateStr: string
+  endDateStr: string
+  periods: IdlePeriod[]
+  autoPrint?: boolean
+}): string {
+  const totalSeconds = p.periods.reduce((sum, r) => sum + r.durationSeconds, 0)
+  const generatedAt = new Date().toLocaleString("en-US", {
+    month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
+  })
+
+  const rowsHtml = p.periods.length
+    ? p.periods.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${fmtMDTDateTime(r.idleStart)}</td>
+      <td>${r.idleEnd ? fmtMDTDateTime(r.idleEnd) : "Ongoing"}</td>
+      <td class="amount">${fmtHHMM(r.durationSeconds)}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="4" class="empty">No idle periods recorded for this range.</td></tr>`
+
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>Idle Log — ${p.fullName} — ${p.startDateStr} to ${p.endDateStr}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; padding: 48px 56px; max-width: 720px; margin: 0 auto; }
+  .header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #111; margin-bottom: 24px; }
+  .company { font-size: 22px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; }
+  .doc-title { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #555; margin-top: 4px; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 24px; margin-bottom: 24px; }
+  .meta-grid .row { display: flex; flex-direction: column; gap: 1px; }
+  .meta-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: #888; font-weight: 700; }
+  .meta-value { font-size: 13px; font-weight: 600; color: #111; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead td { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #555; border-bottom: 2px solid #111; padding: 8px 10px; }
+  table td { padding: 8px 10px; font-size: 11.5px; border-bottom: 1px solid #eee; }
+  table td:first-child { color: #222; font-weight: 600; }
+  table td.amount { text-align: right; font-family: 'Courier New', monospace; font-weight: 700; }
+  table td.empty { text-align: center; color: #999; padding: 24px 10px; }
+  .totals { display: flex; justify-content: space-between; border-top: 2px solid #111; padding-top: 14px; margin-top: 4px; }
+  .totals .item { font-size: 13px; font-weight: 900; }
+  .note { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 14px; font-size: 10px; color: #666; margin: 24px 0; }
+  .footer { text-align: center; font-size: 9px; color: #bbb; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; letter-spacing: 1px; }
+  @media print { body { padding: 24px 32px; } @page { size: A4; margin: 20mm; } }
+</style></head><body>
+  <div class="header"><div class="company">Action Auto</div><div class="doc-title">Idle Activity Log</div></div>
+  <div class="meta-grid">
+    <div class="row"><span class="meta-label">Employee</span><span class="meta-value">${p.fullName}</span></div>
+    <div class="row"><span class="meta-label">Date Start</span><span class="meta-value">${p.startDateStr}</span></div>
+    <div class="row"><span class="meta-label">Date End</span><span class="meta-value">${p.endDateStr}</span></div>
+  </div>
+  <table>
+    <thead><tr><td>#</td><td>Idle Start</td><td>Idle End</td><td>Duration</td></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <div class="totals">
+    <div class="item">Total Idle Time: ${fmtHHMM(totalSeconds)}</div>
+    <div class="item">Occurrences: ${p.periods.length}</div>
+  </div>
+  <div class="note">Derived from tray-detected inactivity (10+ minutes without keyboard/mouse input) while clocked in. Days without tray data are excluded, not counted as idle. This is a read-only record — not editable.</div>
+  <div class="footer">ACTION AUTO · CONFIDENTIAL · Generated ${generatedAt}</div>
+  ${p.autoPrint === false ? "" : "<script>window.onload = function() { window.print(); }<\/script>"}
+</body></html>`
+}
+
 export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
   year: number; month: number; calendar: Record<string, DayData>
   onSelectDay: (ds: string) => void; isLive: boolean

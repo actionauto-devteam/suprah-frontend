@@ -838,14 +838,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [loading,  setLoading]  = React.useState(true);
   const [fetchError, setFetchError] = React.useState(false);
   const [input,    setInput]    = React.useState('');
+  const inputTextRef = React.useRef('');
+  const [composerHasText, setComposerHasText] = React.useState(false);
   const [sending,  setSending]  = React.useState(false);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
   const [replyTo,  setReplyTo]  = React.useState<SSMessage | null>(null);
   const bottomRef  = React.useRef<HTMLDivElement>(null);
   const inputRef   = React.useRef<HTMLDivElement>(null);
-  const inputStateRafRef = React.useRef<number | null>(null);
-  const pendingInputStateRef = React.useRef('');
   const headerRef  = React.useRef<HTMLDivElement>(null);
   const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
@@ -872,18 +872,17 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx,    setMentionIdx]    = React.useState(0);
 
-  const scheduleInputState = React.useCallback((value: string) => {
-    pendingInputStateRef.current = value;
-    if (inputStateRafRef.current != null) return;
-    inputStateRafRef.current = window.requestAnimationFrame(() => {
-      inputStateRafRef.current = null;
-      setInput(pendingInputStateRef.current);
-    });
+  const syncComposerText = React.useCallback((value: string, commitToState = false) => {
+    inputTextRef.current = value;
+    const hasText = Boolean(value.trim());
+    setComposerHasText(prev => prev === hasText ? prev : hasText);
+    if (commitToState) setInput(value);
   }, []);
 
-  React.useEffect(() => () => {
-    if (inputStateRafRef.current != null) window.cancelAnimationFrame(inputStateRafRef.current);
-  }, []);
+  React.useEffect(() => {
+    inputTextRef.current = input;
+    setComposerHasText(Boolean(input.trim()));
+  }, [input]);
 
   // Hover action bar (portal-based to escape overflow)
   const [hovMsg, setHovMsg] = React.useState<string | null>(null);
@@ -1105,7 +1104,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
           return [];
         });
-        setInput('');
+        syncComposerText('', true);
         if (inputRef.current) inputRef.current.innerHTML = '';
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
       }
@@ -1384,8 +1383,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     selection?.addRange(range);
     document.execCommand('insertText', false, `@${name} `);
     const next = el.innerText.replace(/\n$/, '');
-    setInput(next); setMentionQuery(null); setMentionAnchor(-1);
-  }, [mentionAnchor, mentionQuery, rangeFromTextOffset]);
+    syncComposerText(next, true); setMentionQuery(null); setMentionAnchor(-1);
+  }, [mentionAnchor, mentionQuery, rangeFromTextOffset, syncComposerText]);
 
   const fetchMessages = React.useCallback(async () => {
     const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
@@ -1421,7 +1420,17 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     if (!socket) return;
     const handler = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
       if (conversationId !== conv._id) return;
-      setMessages(prev => prev.find(m => m._id === message._id) ? prev : [...prev, message]);
+      setMessages(prev => {
+        if (prev.find(m => m._id === message._id)) return prev;
+        const withoutMatchingOptimistic = prev.filter(m => !(
+          m._id.startsWith('optimistic-') &&
+          m.sender?._id === message.sender?._id &&
+          m.content === message.content &&
+          m.type === message.type &&
+          Math.abs(new Date(message.createdAt).getTime() - new Date(m.createdAt).getTime()) < 30000
+        ));
+        return [...withoutMatchingOptimistic, message];
+      });
       if (!isMinimized) markAsRead(conv._id);
     };
     socket.on('message:new', handler);
@@ -1446,8 +1455,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, [isMinimized]);
 
   const handleSend = async () => {
-    const visibleComposerText = inputRef.current?.innerText || input;
-    const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : input.trim();
+    const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
+    const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
     const text = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
         preserveVisiblePayloadLines(
@@ -1462,17 +1471,48 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     }
     if (!text || sending || !crmToken) return;
     const currentReplyTo = replyTo;
-    setInput('');
+    const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const member = conv.members.find(m => m._id === crmUserId);
+    setMessages(prev => [...prev, {
+      _id: tempId,
+      conversationId: conv._id,
+      sender: {
+        _id: crmUserId || 'me',
+        fullName: member?.fullName || 'You',
+        username: member?.username || 'you',
+        avatar: member?.avatar,
+      },
+      content: text,
+      type: 'text',
+      attachments: [],
+      reactions: [],
+      readBy: crmUserId ? [crmUserId] : [],
+      replyTo: currentReplyTo || null,
+      isEdited: false,
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+    }]);
+    syncComposerText('', true);
     if (inputRef.current) inputRef.current.innerHTML = '';
-    setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null); setSending(true);
+    setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null);
     try {
       const body: any = { content: text };
       if (currentReplyTo) body.replyTo = currentReplyTo._id;
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
       const sent: SSMessage = r.data?.data;
-      if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
-    } catch { /* ignored */ } finally { setSending(false); }
+      if (sent) setMessages(prev => {
+        if (prev.find(m => m._id === sent._id)) return prev.filter(m => m._id !== tempId);
+        return prev.map(m => m._id === tempId ? sent : m);
+      });
+    } catch {
+      setMessages(prev => prev.filter(m => m._id !== tempId));
+      const currentDraft = inputRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
+      if (!currentDraft.trim()) {
+        syncComposerText(text, true);
+        if (inputRef.current) inputRef.current.textContent = text;
+      }
+    } finally { setSending(false); }
   };
 
   const applyTextColor = (color: string) => {
@@ -1481,7 +1521,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     el.focus();
     document.execCommand('foreColor', false, color);
     setSelectedTextColor(color);
-    setInput(el.innerText.replace(/\n$/, ''));
+    syncComposerText(el.innerText.replace(/\n$/, ''), true);
   };
 
   const chooseExpandedTextColor = React.useCallback((color: string) => {
@@ -1499,7 +1539,15 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const val = (el.innerText || '').replace(/\n$/, '');
-    scheduleInputState(val);
+    syncComposerText(val);
+    const inputEvent = e.nativeEvent as InputEvent;
+    const shouldInspectMention =
+      mentionAnchor >= 0 ||
+      inputEvent.data === '@' ||
+      inputEvent.inputType === 'insertFromPaste';
+
+    if (!shouldInspectMention) return;
+
     const cursor = getCaretOffset(el);
     if (mentionAnchor >= 0) {
       if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
@@ -1521,7 +1569,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     e.preventDefault();
     document.execCommand('insertHTML', false, `<span style="color:${selectedTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
     const el = e.currentTarget;
-    requestAnimationFrame(() => setInput(el.innerText.replace(/\n$/, '')));
+    requestAnimationFrame(() => syncComposerText(el.innerText.replace(/\n$/, '')));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -2012,7 +2060,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 
                 {/* Text input */}
                 <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-full px-3" style={{ minHeight: 34 }}>
-                  {!input && (
+                  {!composerHasText && (
                     <span className="absolute left-3 text-[15px] text-muted-foreground/55 pointer-events-none select-none">Aa</span>
                   )}
                   <div
@@ -2030,7 +2078,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         e.preventDefault();
                         const editorHtml = clipboardHtmlToEditorHtml(html);
                         document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
-                        requestAnimationFrame(() => { const el = inputRef.current; if (el) setInput(el.innerText.replace(/\n$/, '')); });
+                        requestAnimationFrame(() => { const el = inputRef.current; if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true); });
                         return;
                       }
                       const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
@@ -2041,7 +2089,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         } else {
                           document.execCommand('insertText', false, richText);
                         }
-                        requestAnimationFrame(() => { const el = inputRef.current; if (el) setInput(el.innerText.replace(/\n$/, '')); });
+                        requestAnimationFrame(() => { const el = inputRef.current; if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true); });
                       }
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
@@ -2051,7 +2099,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 </div>
 
                 {/* Right buttons */}
-                {input.trim() || pendingAttachments.length > 0 ? (
+                {composerHasText || pendingAttachments.length > 0 ? (
                   <button title="Send" onClick={handleSend} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors disabled:opacity-40">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

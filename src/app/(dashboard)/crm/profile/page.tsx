@@ -46,6 +46,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
+import { Switch } from "@/components/ui/switch";
 import { getSocket, initializeSocket } from "@/lib/socket.client";
 import { useAuth } from "@/providers/AuthProvider";
 import { deptLabel } from "@/lib/departments";
@@ -66,6 +67,7 @@ interface CrmUser {
     department?: string;
   };
   todayTimeLogs?: TimeLog[];
+  screenshotBlurUntilPayout?: boolean;
 }
 
 interface TimeLog {
@@ -135,7 +137,11 @@ function formatDateTime(ts: string) {
   const d = new Date(ts);
   if (isNaN(d.getTime())) return "—";
   return (
-    d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) +
+    d.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }) +
     " at " +
     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   );
@@ -151,7 +157,9 @@ export default function CrmProfilePage() {
   const router = useRouter();
   const { getToken } = useAuth();
 
-  const [activeTab, setActiveTab] = React.useState<"profile" | "activity">("profile");
+  const [activeTab, setActiveTab] = React.useState<"profile" | "activity">(
+    "profile",
+  );
   const [currentUser, setCurrentUser] = React.useState<CrmUser | null>(null);
   const [viewedUser, setViewedUser] = React.useState<CrmUser | null>(null);
   const [mainAvatar, setMainAvatar] = React.useState<string | null>(null);
@@ -166,7 +174,9 @@ export default function CrmProfilePage() {
   const [editName, setEditName] = React.useState("");
   const [editEmail, setEditEmail] = React.useState("");
   const [editAvatarFile, setEditAvatarFile] = React.useState<File | null>(null);
-  const [editAvatarPreview, setEditAvatarPreview] = React.useState<string | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = React.useState<
+    string | null
+  >(null);
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState("");
   const [avatarError, setAvatarError] = React.useState("");
@@ -174,6 +184,41 @@ export default function CrmProfilePage() {
 
   const isOwnProfile = viewedUser?._id === currentUser?._id;
   const viewedIsActive = viewedUser?.isActive !== false;
+
+  // Allowlist exception — not a general-purpose feature. Only accounts listed
+  // here ever see the screenshot-privacy toggle. Add more emails here
+  // (lowercase) to extend access — must match the same list on the backend
+  // (crm.controller.ts's SCREENSHOT_PRIVACY_ALLOWED_EMAILS).
+  const SCREENSHOT_PRIVACY_ALLOWED_EMAILS = ["charl@actionautoutah.com"];
+  const canSeeScreenshotPrivacy =
+    isOwnProfile &&
+    SCREENSHOT_PRIVACY_ALLOWED_EMAILS.includes(
+      currentUser?.email?.toLowerCase() ?? "",
+    );
+
+  const [savingScreenshotPrivacy, setSavingScreenshotPrivacy] =
+    React.useState(false);
+  const handleToggleScreenshotBlur = async (checked: boolean) => {
+    if (!crmToken) return;
+    setSavingScreenshotPrivacy(true);
+    try {
+      await apiClient.patch(
+        "/api/crm/me/screenshot-privacy",
+        { screenshotBlurUntilPayout: checked },
+        { headers: { Authorization: `Bearer ${crmToken}` } },
+      );
+      setViewedUser((p) =>
+        p ? { ...p, screenshotBlurUntilPayout: checked } : p,
+      );
+      setCurrentUser((p) =>
+        p ? { ...p, screenshotBlurUntilPayout: checked } : p,
+      );
+    } catch {
+      // no-op — toggle simply won't reflect the change if this fails
+    } finally {
+      setSavingScreenshotPrivacy(false);
+    }
+  };
 
   // Load current CRM user + bootstrap main socket with main auth token
   React.useEffect(() => {
@@ -212,7 +257,7 @@ export default function CrmProfilePage() {
         const av = p?.avatar || p?.avatarUrl;
         if (av) setMainAvatar(av);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   // Debounced search
@@ -263,7 +308,12 @@ export default function CrmProfilePage() {
     setIsEditOpen(true);
   };
 
-  const AVATAR_ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  const AVATAR_ACCEPTED_TYPES = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+  ];
   const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -317,10 +367,18 @@ export default function CrmProfilePage() {
         // emits user:profile:updated on the SupraSpace socket so avatars refresh live.
         if (crmToken) {
           const crmFormData = new FormData();
-          crmFormData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
-          const crmRes = await apiClient.patch("/api/crm/me/avatar", crmFormData, {
-            headers: { Authorization: `Bearer ${crmToken}` },
-          });
+          crmFormData.append(
+            "avatar",
+            editAvatarFile,
+            editAvatarFile.name || "avatar.jpg",
+          );
+          const crmRes = await apiClient.patch(
+            "/api/crm/me/avatar",
+            crmFormData,
+            {
+              headers: { Authorization: `Bearer ${crmToken}` },
+            },
+          );
           const av = crmRes.data?.data?.avatar;
           if (av) {
             newAvatarUrl = `${av}?v=${Date.now()}`;
@@ -332,8 +390,15 @@ export default function CrmProfilePage() {
         // CRM-only employees who have no platform account will get a 401 here — that's fine).
         try {
           const formData = new FormData();
-          formData.append("avatar", editAvatarFile, editAvatarFile.name || "avatar.jpg");
-          const avatarRes = await apiClient.patch("/api/profile/avatar", formData);
+          formData.append(
+            "avatar",
+            editAvatarFile,
+            editAvatarFile.name || "avatar.jpg",
+          );
+          const avatarRes = await apiClient.patch(
+            "/api/profile/avatar",
+            formData,
+          );
           const av =
             avatarRes.data?.data?.avatar ||
             avatarRes.data?.data?.user?.avatar ||
@@ -348,7 +413,9 @@ export default function CrmProfilePage() {
       } catch (avatarErr: unknown) {
         const apiError = avatarErr as ApiError;
         const status = apiError.response?.status;
-        const serverMsg = (apiError.response?.data?.message ?? "").toLowerCase();
+        const serverMsg = (
+          apiError.response?.data?.message ?? ""
+        ).toLowerCase();
         const isTimeout = apiError.code === "ECONNABORTED";
         const isNetworkErr = apiError.code === "ERR_NETWORK";
 
@@ -358,14 +425,21 @@ export default function CrmProfilePage() {
           setAvatarError(
             "Too many upload attempts. Please wait a moment before trying again.",
           );
-        } else if (serverMsg.includes("too large") || serverMsg.includes("file too large")) {
+        } else if (
+          serverMsg.includes("too large") ||
+          serverMsg.includes("file too large")
+        ) {
           setAvatarError(
             "Photo is too large for the server. Please use a photo under 5 MB.",
           );
         } else if (isTimeout) {
-          setAvatarError("Upload timed out. Check your connection and try again.");
+          setAvatarError(
+            "Upload timed out. Check your connection and try again.",
+          );
         } else if (isNetworkErr) {
-          setAvatarError("Network error — check your connection and try again.");
+          setAvatarError(
+            "Network error — check your connection and try again.",
+          );
         } else {
           setAvatarError("Failed to upload photo. Please try again.");
         }
@@ -426,16 +500,15 @@ export default function CrmProfilePage() {
 
   const user = viewedUser;
   const resolvedAvatar = isOwnProfile && mainAvatar ? mainAvatar : user?.avatar;
-  const editPreviewSrc = editAvatarPreview ?? (mainAvatar || currentUser?.avatar);
+  const editPreviewSrc =
+    editAvatarPreview ?? (mainAvatar || currentUser?.avatar);
   const department = user?.personalInfo?.department;
 
   return (
     <div className="h-[calc(100dvh-5rem)] flex flex-col bg-background overflow-hidden">
-
       {/* ── Sticky Header ───────────────────────────────────────────────────── */}
       <div className="border-b border-border/30 bg-background shrink-0 relative z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 space-y-3">
-
           {/* Title row */}
           <div className="flex items-center gap-3">
             <button
@@ -445,7 +518,9 @@ export default function CrmProfilePage() {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <h1 className="text-base font-bold tracking-tight">Team Directory</h1>
+            <h1 className="text-base font-bold tracking-tight">
+              Team Directory
+            </h1>
           </div>
 
           {/* Search */}
@@ -479,8 +554,11 @@ export default function CrmProfilePage() {
                         setSearchResults([]);
                         setActiveTab("profile");
                       }}
-                      className={`w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left ${i < searchResults.length - 1 ? "border-b border-border/20" : ""
-                        }`}
+                      className={`w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left ${
+                        i < searchResults.length - 1
+                          ? "border-b border-border/20"
+                          : ""
+                      }`}
                     >
                       <Avatar className="h-8 w-8 ring-1 ring-border/30 shrink-0">
                         <AvatarImage src={u.avatar} />
@@ -489,8 +567,12 @@ export default function CrmProfilePage() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{u.fullName}</p>
-                        <p className="text-xs text-muted-foreground/60">{u.username}</p>
+                        <p className="text-sm font-semibold truncate">
+                          {u.fullName}
+                        </p>
+                        <p className="text-xs text-muted-foreground/60">
+                          {u.username}
+                        </p>
                       </div>
                       <span className="text-[11px] text-primary/80 capitalize shrink-0 border border-primary/30 px-2 py-0.5 rounded-sm font-medium">
                         {u.role}
@@ -512,7 +594,6 @@ export default function CrmProfilePage() {
       {/* ── Scrollable Content ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto scrollbar-dark">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 space-y-5">
-
           {/* Viewing another user banner */}
           {!isOwnProfile && viewedUser && (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-3">
@@ -546,10 +627,11 @@ export default function CrmProfilePage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 disabled={tab === "activity" && !isOwnProfile}
-                className={`px-1 mr-6 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${activeTab === tab
+                className={`px-1 mr-6 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  activeTab === tab
                     ? "border-primary text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
+                }`}
               >
                 {tab === "profile" ? "User Profile" : "Activity Log"}
               </button>
@@ -560,7 +642,6 @@ export default function CrmProfilePage() {
           {user ? (
             activeTab === "profile" ? (
               <div className="space-y-4">
-
                 {/* ── Profile Header Card ─────────────────────────────────── */}
                 <div className="rounded-xl border border-border/30 bg-card px-4 sm:px-6 py-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -635,7 +716,11 @@ export default function CrmProfilePage() {
                     </div>
                     <div className="divide-y divide-border/20">
                       <InfoRow icon={User} label="Name" value={user.fullName} />
-                      <InfoRow icon={IdCard} label="Employee ID" value={user.username} />
+                      <InfoRow
+                        icon={IdCard}
+                        label="Employee ID"
+                        value={user.username}
+                      />
                       <InfoRow icon={Mail} label="Email" value={user.email} />
                     </div>
                   </div>
@@ -652,35 +737,81 @@ export default function CrmProfilePage() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3.5 gap-2 sm:gap-4">
                         <div className="flex items-center gap-3 min-w-0">
                           <Shield className="h-4 w-4 text-muted-foreground/40" />
-                          <span className="text-sm text-muted-foreground">Status</span>
+                          <span className="text-sm text-muted-foreground">
+                            Status
+                          </span>
                         </div>
                         <span
-                          className={`inline-flex items-center w-fit text-xs px-2.5 py-0.5 rounded-full font-medium ${viewedIsActive
+                          className={`inline-flex items-center w-fit text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                            viewedIsActive
                               ? "bg-primary/15 text-primary"
                               : "bg-destructive/15 text-destructive"
-                            }`}
+                          }`}
                         >
                           {viewedIsActive ? "Active" : "Inactive"}
                         </span>
                       </div>
-                      <InfoRow icon={Building2} label="Role" value={user.role} capitalize />
+                      <InfoRow
+                        icon={Building2}
+                        label="Role"
+                        value={user.role}
+                        capitalize
+                      />
                       {department && (
-                        <InfoRow icon={Building2} label="Department" value={deptLabel(department)} />
+                        <InfoRow
+                          icon={Building2}
+                          label="Department"
+                          value={deptLabel(department)}
+                        />
                       )}
                       {user.lastLoginAt && (
-                        <InfoRow icon={Clock} label="Last Login" value={formatDate(user.lastLoginAt)} />
+                        <InfoRow
+                          icon={Clock}
+                          label="Last Login"
+                          value={formatDate(user.lastLoginAt)}
+                        />
                       )}
-                      <InfoRow icon={Calendar} label="Joined" value={formatDate(user.createdAt)} />
+                      <InfoRow
+                        icon={Calendar}
+                        label="Joined"
+                        value={formatDate(user.createdAt)}
+                      />
                     </div>
                   </div>
                 </div>
+
+                {/* ── Privacy (self-service, single-account exception) ── */}
+                {canSeeScreenshotPrivacy && (
+                  <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
+                    <div className="px-4 sm:px-5 py-3.5 border-b border-border/30">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                        Privacy
+                      </h3>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Privacy</p>
+                        <p className="text-xs text-muted-foreground/60 mt-0.5">
+                          privacy settings
+                        </p>
+                      </div>
+                      <Switch
+                        checked={!!user.screenshotBlurUntilPayout}
+                        disabled={savingScreenshotPrivacy}
+                        onCheckedChange={handleToggleScreenshotBlur}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Compact Activity Log ─────────────────────────────────── */}
                 <ActivityLogSection
                   crmToken={crmToken}
                   todayLogs={user.todayTimeLogs ?? []}
                   compact
-                  onViewAll={isOwnProfile ? () => setActiveTab("activity") : undefined}
+                  onViewAll={
+                    isOwnProfile ? () => setActiveTab("activity") : undefined
+                  }
                 />
               </div>
             ) : (
@@ -726,7 +857,9 @@ export default function CrmProfilePage() {
                   <Camera className="h-5 w-5 text-white" />
                 </div>
               </button>
-              <p className="text-xs text-muted-foreground">Click photo to change</p>
+              <p className="text-xs text-muted-foreground">
+                Click photo to change
+              </p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -737,7 +870,9 @@ export default function CrmProfilePage() {
               {avatarError && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 w-full">
                   <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-xs text-destructive leading-snug wrap-break-word min-w-0">{avatarError}</p>
+                  <p className="text-xs text-destructive leading-snug wrap-break-word min-w-0">
+                    {avatarError}
+                  </p>
                 </div>
               )}
             </div>
@@ -884,11 +1019,7 @@ function getActivityStyle(type: string): {
     t.includes("withdrawal")
   )
     return { Icon: DollarSign, className: "bg-yellow-500/15 text-yellow-500" };
-  if (
-    t.includes("password") ||
-    t.includes("compliance") ||
-    t.includes("doc_")
-  )
+  if (t.includes("password") || t.includes("compliance") || t.includes("doc_"))
     return { Icon: Shield, className: "bg-primary/15 text-primary" };
   if (
     t.includes("profile") ||
@@ -953,8 +1084,8 @@ function ActivityLogSection({
           apiClient.get("/api/profile/activities?limit=200"),
           crmToken
             ? apiClient.get("/api/crm/time-logs", {
-              headers: { Authorization: `Bearer ${crmToken}` },
-            })
+                headers: { Authorization: `Bearer ${crmToken}` },
+              })
             : Promise.resolve(null),
         ]);
 
@@ -1036,7 +1167,10 @@ function ActivityLogSection({
           type: activity.type ?? "other",
           title: activity.title ?? activity.type ?? "Activity",
           description: activity.description ?? "",
-          timestamp: activity.timestamp ?? activity.createdAt ?? new Date().toISOString(),
+          timestamp:
+            activity.timestamp ??
+            activity.createdAt ??
+            new Date().toISOString(),
         },
         ...prev,
       ]);
@@ -1050,7 +1184,9 @@ function ActivityLogSection({
           title: log.type === "time-in" ? "Clocked In" : "Clocked Out",
           description:
             log.note ??
-            (log.type === "time-in" ? "Started work session" : "Ended work session"),
+            (log.type === "time-in"
+              ? "Started work session"
+              : "Ended work session"),
           timestamp: log.timestamp ?? new Date().toISOString(),
         },
         ...prev,
@@ -1094,7 +1230,9 @@ function ActivityLogSection({
               <div key={item.id} className="flex items-start gap-4 py-3.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-snug">{item.title}</p>
+                  <p className="text-sm font-medium leading-snug">
+                    {item.title}
+                  </p>
                   <p className="text-xs text-muted-foreground/60 mt-0.5">
                     {formatDateTime(item.timestamp)}
                   </p>
@@ -1122,7 +1260,9 @@ function ActivityLogSection({
     const seen = new Set<string>();
     for (const item of items) {
       const d = new Date(item.timestamp);
-      seen.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      seen.add(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      );
     }
     return Array.from(seen).sort().reverse();
   })();
@@ -1131,10 +1271,10 @@ function ActivityLogSection({
     selectedMonth === "all"
       ? items
       : items.filter((item) => {
-        const d = new Date(item.timestamp);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        return key === selectedMonth;
-      });
+          const d = new Date(item.timestamp);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          return key === selectedMonth;
+        });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
@@ -1180,7 +1320,9 @@ function ActivityLogSection({
     return (
       <div className="rounded-xl border border-border/30 bg-card p-16 text-center">
         <Clock className="h-10 w-10 text-muted-foreground/20 mx-auto mb-3" />
-        <p className="text-sm font-medium text-muted-foreground">No activity logs yet</p>
+        <p className="text-sm font-medium text-muted-foreground">
+          No activity logs yet
+        </p>
         <p className="text-xs text-muted-foreground/50 mt-1.5">
           Actions across the app will appear here
         </p>
@@ -1197,7 +1339,8 @@ function ActivityLogSection({
           event{filtered.length !== 1 ? "s" : ""}
           {selectedMonth !== "all" && (
             <span className="text-muted-foreground/50">
-              {" "}· {formatMonthLabel(selectedMonth)}
+              {" "}
+              · {formatMonthLabel(selectedMonth)}
             </span>
           )}
         </p>
@@ -1219,7 +1362,9 @@ function ActivityLogSection({
       {/* Day-grouped activity */}
       {grouped.length === 0 ? (
         <div className="rounded-xl border border-border/30 bg-card p-10 text-center">
-          <p className="text-sm text-muted-foreground">No activity for this period</p>
+          <p className="text-sm text-muted-foreground">
+            No activity for this period
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -1240,14 +1385,19 @@ function ActivityLogSection({
                 {group.items.map((item) => {
                   const { Icon, className } = getActivityStyle(item.type);
                   return (
-                    <div key={item.id} className="flex items-start gap-4 px-5 py-4">
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-4 px-5 py-4"
+                    >
                       <div
                         className={`h-9 w-9 rounded-full shrink-0 flex items-center justify-center mt-0.5 ${className}`}
                       >
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-snug">{item.title}</p>
+                        <p className="text-sm font-medium leading-snug">
+                          {item.title}
+                        </p>
                         {item.description && (
                           <p className="text-xs text-muted-foreground/60 mt-0.5 line-clamp-1">
                             {item.description}
@@ -1280,10 +1430,8 @@ function ActivityLogSection({
             Prev
           </Button>
           <span className="text-sm text-muted-foreground">
-            Page{" "}
-            <span className="font-medium text-foreground">{safePage}</span>{" "}
-            of{" "}
-            <span className="font-medium text-foreground">{totalPages}</span>
+            Page <span className="font-medium text-foreground">{safePage}</span>{" "}
+            of <span className="font-medium text-foreground">{totalPages}</span>
           </span>
           <Button
             size="sm"

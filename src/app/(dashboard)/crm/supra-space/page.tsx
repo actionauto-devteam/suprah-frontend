@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   Search, Plus, Users, MessageSquare, Send, Paperclip,
-  X, ChevronLeft, Download, FileText,
+  X, ChevronLeft, ChevronDown, Download, FileText,
   Loader2, CheckCheck, Hash, Reply, Trash2,
   ArrowLeft, Radio, Bot, Video, Phone,
   Sun, Moon, Sparkles, SmilePlus,
@@ -3195,6 +3195,8 @@ export default function SupraSpacePage() {
   const [msgFetchState, setMsgFetchState] = React.useState<Record<string, 'idle' | 'loading' | 'loaded' | 'error' | 'stale'>>({});
 
   const [input, setInput] = React.useState('');
+  const inputTextRef = React.useRef('');
+  const [composerHasText, setComposerHasText] = React.useState(false);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -3208,6 +3210,7 @@ export default function SupraSpacePage() {
   const sendLongPressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendLongPressTriggeredRef = React.useRef(false);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = React.useState(false);
 
   const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' | 'space' }>({ open: false, tab: 'dm' });
   const [collapsedSections, setCollapsedSections] = React.useState<Set<string>>(new Set());
@@ -3314,22 +3317,34 @@ export default function SupraSpacePage() {
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputStateRafRef = React.useRef<number | null>(null);
-  const pendingInputStateRef = React.useRef('');
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
-  const scheduleInputState = React.useCallback((value: string) => {
-    pendingInputStateRef.current = value;
-    if (inputStateRafRef.current != null) return;
-    inputStateRafRef.current = window.requestAnimationFrame(() => {
-      inputStateRafRef.current = null;
-      setInput(pendingInputStateRef.current);
-    });
+  const syncComposerText = React.useCallback((value: string, commitToState = false) => {
+    inputTextRef.current = value;
+    const hasText = Boolean(value.trim());
+    setComposerHasText(prev => prev === hasText ? prev : hasText);
+    if (commitToState) setInput(value);
   }, []);
 
-  React.useEffect(() => () => {
-    if (inputStateRafRef.current != null) window.cancelAnimationFrame(inputStateRafRef.current);
+  React.useEffect(() => {
+    inputTextRef.current = input;
+    setComposerHasText(Boolean(input.trim()));
+  }, [input]);
+
+  const scrollToLatest = React.useCallback((behavior: ScrollBehavior = 'smooth', conversationId = activeIdRef.current) => {
+    if (conversationId) forceScrollToBottomRef.current = conversationId;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (conversationId && activeIdRef.current !== conversationId) return;
+        const el = messageScrollRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+        endRef.current?.scrollIntoView({ behavior, block: 'end' });
+        forceScrollToBottomRef.current = null;
+        setShowJumpToLatest(false);
+      });
+    });
   }, []);
 
   // @mention state
@@ -3414,7 +3429,14 @@ export default function SupraSpacePage() {
     setMsgs(p => {
       const ex = p[conversationId] || [];
       if (ex.find(m => m._id === message._id)) return p;
-      return { ...p, [conversationId]: [...ex, message] };
+      const withoutMatchingOptimistic = ex.filter(m => !(
+        m._id.startsWith('optimistic-') &&
+        m.sender?._id === message.sender?._id &&
+        m.content === message.content &&
+        m.type === message.type &&
+        Math.abs(new Date(message.createdAt).getTime() - new Date(m.createdAt).getTime()) < 30000
+      ));
+      return { ...p, [conversationId]: [...withoutMatchingOptimistic, message] };
     });
     setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
     setConvos(p => p.map(c => {
@@ -3429,6 +3451,26 @@ export default function SupraSpacePage() {
     })
       .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
   }, [uid]);
+
+  const replaceMessageLocal = React.useCallback((conversationId: string, tempId: string, message: SSMessage) => {
+    setMsgs(p => {
+      const ex = p[conversationId] || [];
+      if (ex.find(m => m._id === message._id)) return { ...p, [conversationId]: ex.filter(m => m._id !== tempId) };
+      return { ...p, [conversationId]: ex.map(m => m._id === tempId ? message : m) };
+    });
+    setConvos(p => p.map(c => c._id === conversationId && c.lastMessage?._id === tempId
+      ? { ...c, lastMessage: message, lastMessageAt: message.createdAt }
+      : c
+    ).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+  }, []);
+
+  const removeMessageLocal = React.useCallback((conversationId: string, messageId: string) => {
+    setMsgs(p => ({ ...p, [conversationId]: (p[conversationId] || []).filter(m => m._id !== messageId) }));
+    setConvos(p => p.map(c => c._id === conversationId && c.lastMessage?._id === messageId
+      ? { ...c, lastMessage: undefined, lastMessageAt: undefined }
+      : c
+    ));
+  }, []);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
@@ -3569,6 +3611,7 @@ export default function SupraSpacePage() {
     if (!conversationId) return;
     pendingScrollRestoreRef.current = null;
     forceScrollToBottomRef.current = conversationId;
+    setShowJumpToLatest(false);
     setShowInfo(false);
     setActiveId(conversationId);
     setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
@@ -3581,11 +3624,9 @@ export default function SupraSpacePage() {
       scrollToBottom: true,
     });
 
-    window.setTimeout(() => {
-      const el = messageScrollRef.current;
-      if (el && activeIdRef.current === conversationId) el.scrollTop = el.scrollHeight;
-    }, 0);
-  }, [fetchConversationMessages]);
+    scrollToLatest('auto', conversationId);
+    window.setTimeout(() => scrollToLatest('auto', conversationId), 80);
+  }, [fetchConversationMessages, scrollToLatest]);
 
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
@@ -3961,6 +4002,7 @@ export default function SupraSpacePage() {
         scrollEl.scrollTop = scrollEl.scrollHeight;
         endRef.current?.scrollIntoView({ behavior: 'auto' });
         forceScrollToBottomRef.current = null;
+        setShowJumpToLatest(false);
       });
       return;
     }
@@ -3969,6 +4011,7 @@ export default function SupraSpacePage() {
     const shouldStickToBottom = activeMsgs.length <= 40 || distanceFromBottom < 220;
     if (shouldStickToBottom) {
       endRef.current?.scrollIntoView({ behavior: activeMsgs.length <= 40 ? 'auto' : 'smooth' });
+      setShowJumpToLatest(false);
     }
   }, [activeId, activeMsgs.length]);
 
@@ -4099,7 +4142,7 @@ export default function SupraSpacePage() {
   }, [activeId, isConnected, joinConversation, leaveConversation]);
 
   React.useEffect(() => {
-    setInput('');
+    syncComposerText('', true);
     setReplyTo(null);
     setPendingFiles([]);
     setPendingMeeting(null);
@@ -4153,14 +4196,15 @@ export default function SupraSpacePage() {
 
   const handleSend = async (scheduledAt?: string) => {
     if (!activeId || sending) return;
-    const hasText = Boolean(input.trim());
+    const currentComposerText = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input;
+    const hasText = Boolean(currentComposerText.trim());
     const hasPendingFiles = pendingFiles.length > 0;
     const hasPendingMeeting = !!pendingMeeting;
     const hasPendingGif = !!pendingGif;
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     const conversationId = activeId;
-    const visibleComposerText = textareaRef.current?.innerText || input;
-    const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : input.trim();
+    const visibleComposerText = textareaRef.current?.innerText || inputTextRef.current || input;
+    const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim();
     const content = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
         preserveVisiblePayloadLines(
@@ -4177,6 +4221,7 @@ export default function SupraSpacePage() {
     }
     setSending(true);
     sendTypingStop(conversationId);
+    let optimisticTextId: string | null = null;
     try {
       if (hasPendingMeeting) {
         if (hasPendingFiles || hasPendingGif) {
@@ -4190,7 +4235,7 @@ export default function SupraSpacePage() {
           optionalMessage: content,
         }, { headers: { Authorization: `Bearer ${token}` } });
         if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        setPendingMeeting(null); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingMeeting(null); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (r.data?.data?.meetingLink) {
           try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
           catch { toast.success('Meeting sent'); }
@@ -4207,7 +4252,7 @@ export default function SupraSpacePage() {
         if (replyMessageId) fd.append('replyTo', replyMessageId);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
         if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingFiles([]); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingFiles([]); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         showUploadNotice('success', pendingFiles.length === 1 ? 'Attachment sent.' : `${pendingFiles.length} attachments sent.`);
       } else if (hasPendingGif) {
         const r = await apiClient.post(
@@ -4217,22 +4262,59 @@ export default function SupraSpacePage() {
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingGif(null); setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingGif(null); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
       } else {
-        setInput(''); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
-        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/messages`, { content, replyTo: replyMessageId, scheduledAt }, { headers: { Authorization: `Bearer ${token}` } });
+        const tempId = scheduledAt ? null : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        if (tempId) {
+          optimisticTextId = tempId;
+          const member = activeConv?.members.find(m => m._id === uid);
+          appendMessageLocal(conversationId, {
+            _id: tempId,
+            conversationId,
+            sender: {
+              _id: uid,
+              fullName: me?.fullName || member?.fullName || 'You',
+              username: me?.username || member?.username || 'you',
+              avatar: me?.avatar || member?.avatar,
+            },
+            content,
+            type: 'text',
+            attachments: [],
+            reactions: [],
+            readBy: [uid],
+            replyTo: replyTo || null,
+            isEdited: false,
+            isDeleted: false,
+            createdAt: new Date().toISOString(),
+          });
+        }
+        syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        if (tempId) setSending(false);
+        const r = await apiClient.post(
+          `/api/supraspace/conversations/${conversationId}/messages`,
+          { content, replyTo: replyMessageId, scheduledAt },
+          { headers: { Authorization: `Bearer ${token}` }, _skipAuthRefresh: true } as any
+        );
         if (r.status === 202) toast.success('Message scheduled');
-        else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
+        else if (r.data?.data) {
+          if (tempId) replaceMessageLocal(conversationId, tempId, r.data.data);
+          else appendMessageLocal(conversationId, r.data.data);
+        }
       }
     } catch (error) {
       if (hasPendingFiles) showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
       else if (hasPendingMeeting) showUploadNotice('error', getErrorMessage(error, 'Failed to send meeting.'));
       else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
-      else setInput(content);
+      else {
+        if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
+        const currentDraft = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
+        if (!currentDraft.trim()) syncComposerText(content, true);
+        showUploadNotice('error', getErrorMessage(error, 'Message failed to send.'));
+      }
     } finally { setSending(false); setUploading(false); }
   };
 
-  const canScheduleSend = Boolean(input.trim() || pendingGif) && pendingFiles.length === 0 && !pendingMeeting && !sending;
+  const canScheduleSend = Boolean(composerHasText || pendingGif) && pendingFiles.length === 0 && !pendingMeeting && !sending;
   const scheduleOptions = React.useMemo(() => {
     const now = new Date();
     const today8 = new Date(now); today8.setHours(8, 0, 0, 0);
@@ -4451,13 +4533,13 @@ export default function SupraSpacePage() {
       selection.addRange(range);
     }
     composerCaretOffsetRef.current = nextOffset;
-    setInput(nextText);
+    syncComposerText(nextText, true);
     refreshActiveFormats();
-  }, [rangeFromTextOffset, refreshActiveFormats]);
+  }, [rangeFromTextOffset, refreshActiveFormats, syncComposerText]);
 
   const prepareMobileEmojiPicker = React.useCallback(() => {
     saveComposerSelection();
-    const currentText = textareaRef.current?.innerText.replace(/\n$/, '') || input;
+    const currentText = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input;
     if (currentText.length > 0 && (composerCaretOffsetRef.current == null || composerCaretOffsetRef.current <= 0)) {
       composerCaretOffsetRef.current = currentText.length;
     }
@@ -4491,27 +4573,33 @@ export default function SupraSpacePage() {
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const val = el.innerText.replace(/\n$/, '');
-    scheduleInputState(val);
-    const cursor = getCaretOffset(el);
-    saveComposerSelection();
-    composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
-    if (mentionAnchor >= 0) {
-      if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
-        setMentionQuery(null); setMentionAnchor(-1);
+    syncComposerText(val);
+    const inputEvent = e.nativeEvent as InputEvent;
+    const shouldInspectMention =
+      mentionAnchor >= 0 ||
+      inputEvent.data === '@' ||
+      inputEvent.inputType === 'insertFromPaste';
+
+    if (shouldInspectMention) {
+      const cursor = getCaretOffset(el);
+      composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
+      if (mentionAnchor >= 0) {
+        if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
+          setMentionQuery(null); setMentionAnchor(-1);
+        } else {
+          const q = val.slice(mentionAnchor + 1, cursor);
+          if (q.includes('  ')) { setMentionQuery(null); setMentionAnchor(-1); }
+          else { setMentionQuery(q); setMentionIdx(0); }
+        }
       } else {
-        const q = val.slice(mentionAnchor + 1, cursor);
-        if (q.includes('  ')) { setMentionQuery(null); setMentionAnchor(-1); }
-        else { setMentionQuery(q); setMentionIdx(0); }
+        const match = val.slice(0, cursor).match(/@(\w*)$/);
+        if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
       }
-    } else {
-      const match = val.slice(0, cursor).match(/@(\w*)$/);
-      if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
     }
     if (!activeId) return;
     sendTypingStart(activeId);
     if (typingRef.current) clearTimeout(typingRef.current);
     typingRef.current = setTimeout(() => sendTypingStop(activeId!), 2000);
-    refreshActiveFormats();
   };
 
   const insertMention = React.useCallback((name: string) => {
@@ -4526,13 +4614,13 @@ export default function SupraSpacePage() {
     document.execCommand('insertText', false, `@${name} `);
     const next = el.innerText.replace(/\n$/, '');
     const caretOffset = mentionAnchor + name.length + 2;
-    setInput(next);
+    syncComposerText(next, true);
     setMentionQuery(null);
     setMentionAnchor(-1);
     composerCaretOffsetRef.current = caretOffset;
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
-  }, [mentionAnchor, mentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection]);
+  }, [mentionAnchor, mentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, syncComposerText]);
 
   const startRecording = async () => {
     try {
@@ -4777,24 +4865,25 @@ export default function SupraSpacePage() {
 
   const handleAutrix = async (action: 'improve' | 'draft' | 'formal' | 'casual') => {
     setAutrixOpen(false); setAutrixLoading(true);
+    const currentDraft = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input;
     try {
-      if (action === 'draft' && !input.trim() && activeId) {
+      if (action === 'draft' && !currentDraft.trim() && activeId) {
         const r = await apiClient.post('/api/supraleo/draft', { conversationId: activeId }, { headers: { Authorization: `Bearer ${token}` } });
         const reply = r.data?.data?.draft || r.data?.data?.message || '';
-        if (reply.trim()) setInput(reply.trim());
+        if (reply.trim()) syncComposerText(reply.trim(), true);
         return;
       }
       const recent = activeMsgs.slice(-10).map(m => `${m.sender?.fullName || 'User'}: ${m.content || '(attachment)'}`).join('\n');
       const cName = activeConv?.name || 'this conversation';
       const prompts: Record<string, string> = {
-        improve: `Improve this draft for clarity and professionalism. Return only the improved text:\n\n"${input.trim()}"`,
-        formal: `Rewrite this message in a formal, professional tone. Return only the text:\n\n"${input.trim()}"`,
-        casual: `Rewrite this message in a friendly, casual tone. Return only the text:\n\n"${input.trim()}"`,
+        improve: `Improve this draft for clarity and professionalism. Return only the improved text:\n\n"${currentDraft.trim()}"`,
+        formal: `Rewrite this message in a formal, professional tone. Return only the text:\n\n"${currentDraft.trim()}"`,
+        casual: `Rewrite this message in a friendly, casual tone. Return only the text:\n\n"${currentDraft.trim()}"`,
         draft: `Draft a brief professional reply for "${cName}". Return only the message text.\n\nRecent:\n${recent || '(none)'}`,
       };
       const r = await apiClient.post('/api/supraleo/refine', { text: prompts[action] }, { headers: { Authorization: `Bearer ${token}` } });
       const reply = r.data?.data?.refined || '';
-      if (reply.trim()) { setInput(reply.trim()); if (textareaRef.current) textareaRef.current.innerText = reply.trim(); }
+      if (reply.trim()) { syncComposerText(reply.trim(), true); if (textareaRef.current) textareaRef.current.innerText = reply.trim(); }
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'AI service is unavailable';
       toast.error(msg);
@@ -4815,7 +4904,7 @@ export default function SupraSpacePage() {
 
     if (trimmed === '•') {
       const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
-      setInput(next);
+      syncComposerText(next, true);
       setEditableTextAndCaret(next, lineStart);
       requestAnimationFrame(refreshActiveFormats);
       return true;
@@ -4824,14 +4913,14 @@ export default function SupraSpacePage() {
       const insert = `\n${leading}• `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
       const caret = cursor + insert.length;
-      setInput(next);
+      syncComposerText(next, true);
       setEditableTextAndCaret(next, caret);
       requestAnimationFrame(refreshActiveFormats);
       return true;
     }
     if (trimmed === '>') {
       const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
-      setInput(next);
+      syncComposerText(next, true);
       setEditableTextAndCaret(next, lineStart);
       requestAnimationFrame(refreshActiveFormats);
       return true;
@@ -4840,13 +4929,13 @@ export default function SupraSpacePage() {
       const insert = `\n${leading}> `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
       const caret = cursor + insert.length;
-      setInput(next);
+      syncComposerText(next, true);
       setEditableTextAndCaret(next, caret);
       requestAnimationFrame(refreshActiveFormats);
       return true;
     }
     return false;
-  }, [refreshActiveFormats, setEditableTextAndCaret]);
+  }, [refreshActiveFormats, setEditableTextAndCaret, syncComposerText]);
 
   const applyFormat = React.useCallback((type: RichTextFormat | 'link' | 'codeblock') => {
     const el = textareaRef.current;
@@ -4875,9 +4964,9 @@ export default function SupraSpacePage() {
         document.execCommand('insertText', false, '```\n' + (selectedText || 'code') + '\n```');
         break;
     }
-    setInput(el.innerText.replace(/\n$/, ''));
+    syncComposerText(el.innerText.replace(/\n$/, ''), true);
     requestAnimationFrame(refreshActiveFormats);
-  }, [refreshActiveFormats]);
+  }, [refreshActiveFormats, syncComposerText]);
 
   const applyTextColor = React.useCallback((color: string) => {
     const el = textareaRef.current;
@@ -4886,10 +4975,10 @@ export default function SupraSpacePage() {
     restoreComposerSelection();
     document.execCommand('foreColor', false, color);
     setActiveTextColor(color);
-    setInput(el.innerText.replace(/\n$/, ''));
+    syncComposerText(el.innerText.replace(/\n$/, ''), true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
-  }, [refreshActiveFormats, restoreComposerSelection, saveComposerSelection]);
+  }, [refreshActiveFormats, restoreComposerSelection, saveComposerSelection, syncComposerText]);
 
   const handleColorBeforeInput = React.useCallback((e: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = e.nativeEvent as InputEvent;
@@ -4898,11 +4987,11 @@ export default function SupraSpacePage() {
     document.execCommand('insertHTML', false, `<span style="color:${activeTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
     const el = e.currentTarget;
     requestAnimationFrame(() => {
-      setInput(el.innerText.replace(/\n$/, ''));
+      syncComposerText(el.innerText.replace(/\n$/, ''));
       saveComposerSelection();
       refreshActiveFormats();
     });
-  }, [activeTextColor, refreshActiveFormats, saveComposerSelection]);
+  }, [activeTextColor, refreshActiveFormats, saveComposerSelection, syncComposerText]);
 
   const chooseExpandedTextColor = React.useCallback((color: string) => {
     setTextPalette(prev => {
@@ -5011,7 +5100,10 @@ export default function SupraSpacePage() {
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
-    if (!el || !activeId || !hasMore[activeId] || loadingMsgs) return;
+    if (!el || !activeId) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowJumpToLatest(distanceFromBottom > 360);
+    if (!hasMore[activeId] || loadingMsgs) return;
     if (el.scrollTop < 180) loadMore();
   }, [activeId, hasMore, loadingMsgs, loadMore]);
 
@@ -5616,12 +5708,13 @@ export default function SupraSpacePage() {
                   })()}
 
                   {/* Messages */}
-                  <div
-                    ref={messageScrollRef}
-                    onScroll={handleMessageScroll}
-                    className="flex-1 min-h-0 overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
-                    style={wallpaper ? { backgroundImage: wallpaper } : undefined}
-                  >
+                  <div className="relative flex-1 min-h-0">
+                    <div
+                      ref={messageScrollRef}
+                      onScroll={handleMessageScroll}
+                      className="h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
+                      style={wallpaper ? { backgroundImage: wallpaper } : undefined}
+                    >
                     {hasMore[activeId] && (
                       <div className="flex justify-center pb-3">
                         <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full inline-flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>
@@ -5684,7 +5777,20 @@ export default function SupraSpacePage() {
                         </div>
                       </div>
                     )}
-                    <div ref={endRef} />
+                      <div ref={endRef} />
+                    </div>
+                    {showJumpToLatest && (
+                      <button
+                        type="button"
+                        onClick={() => scrollToLatest('smooth')}
+                        className="absolute bottom-3 left-1/2 z-20 h-10 w-10 -translate-x-1/2 rounded-full shadow-xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+                        style={{ background: 'var(--accent)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}
+                        title="Jump to latest"
+                        aria-label="Jump to latest messages"
+                      >
+                        <ChevronDown className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Input */}
@@ -5857,7 +5963,7 @@ export default function SupraSpacePage() {
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
                             <button
                               onMouseDown={e => { e.preventDefault(); handleAutrix('improve'); }}
-                              disabled={autrixLoading || !input.trim()}
+                              disabled={autrixLoading || !composerHasText}
                               className="h-7 px-2.5 flex items-center gap-1.5 rounded-md font-semibold transition-colors hover:bg-(--bg-hover) disabled:opacity-40"
                               title="Refine with AI"
                             >
@@ -5882,7 +5988,7 @@ export default function SupraSpacePage() {
                               focusComposerAtSavedCaret();
                             }}
                           >
-                            {!input && <span className="ss4-composer-placeholder absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
+                            {!composerHasText && <span className="ss4-composer-placeholder absolute top-0.5 left-0 text-sm pointer-events-none select-none" style={{ color: 'var(--text-disabled)' }}>Message...</span>}
                             <div
                               ref={textareaRef}
                               contentEditable
@@ -5892,7 +5998,9 @@ export default function SupraSpacePage() {
                               onFocus={() => { saveComposerSelection(); refreshActiveFormats(); }}
                               onMouseDown={e => e.stopPropagation()}
                               onMouseUp={() => { saveComposerSelection(); refreshActiveFormats(); }}
-                              onKeyUp={() => { saveComposerSelection(); refreshActiveFormats(); }}
+                              onKeyUp={() => {
+                                if (mentionQuery !== null) refreshActiveFormats();
+                              }}
                               onKeyDown={e => {
                                 if (mentionQuery !== null && mentionOptions.length > 0) {
                                   if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
@@ -5921,7 +6029,7 @@ export default function SupraSpacePage() {
                                   document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
-                                    if (el) setInput(el.innerText.replace(/\n$/, ''));
+                                    if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true);
                                   });
                                   return;
                                 }
@@ -5939,7 +6047,7 @@ export default function SupraSpacePage() {
                                   }
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
-                                    if (el) setInput(el.innerText.replace(/\n$/, ''));
+                                    if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true);
                                   });
                                   return;
                                 }
@@ -5975,7 +6083,7 @@ export default function SupraSpacePage() {
                             </div>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            {input.trim() || pendingGif ? (
+                            {composerHasText || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
                                 onPointerUp={finishSendPress}
@@ -6066,7 +6174,7 @@ export default function SupraSpacePage() {
                               <Type className="h-4 w-4" />
                             </button>
                           </div>
-                          <button onClick={() => handleSend()} disabled={sending || (!input.trim() && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
+                          <button onClick={() => handleSend()} disabled={sending || (!composerHasText && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           </button>
                         </div>

@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,7 @@ interface EditUserForm {
   birthday: string
   gender: string
   department: string
+  screenshotExempt: boolean
 }
 
 interface FormErrors {
@@ -56,6 +58,7 @@ interface EditUserModalProps {
     birthday?: string
     gender?: string | null
     department?: string | null
+    screenshotExempt?: boolean
   } | null
   onUpdated?: () => void
 }
@@ -91,6 +94,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     birthday: "",
     gender: "",
     department: "",
+    screenshotExempt: false,
   })
 
   // Populate form when user changes
@@ -105,6 +109,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         birthday: user.birthday?.split("T")[0] ?? "",
         gender: user.gender ?? "",
         department: user.department ?? "",
+        screenshotExempt: !!user.screenshotExempt,
       })
       setErrors({})
     }
@@ -149,6 +154,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
 
           gender: form.gender || undefined,
           department: form.department,
+          screenshotExempt: form.screenshotExempt,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -335,6 +341,18 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
                 <p className="text-[11px] text-red-500">{errors.department}</p>
               )}
             </div>
+          </div>
+
+          {/* Screenshot Exemption */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Exempt from Screenshot Monitoring</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">Tray app will not capture screenshots for this account, regardless of department.</p>
+            </div>
+            <Switch
+              checked={form.screenshotExempt}
+              onCheckedChange={(checked) => setForm((p) => ({ ...p, screenshotExempt: checked }))}
+            />
           </div>
 
           {/* Role hint */}

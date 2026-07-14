@@ -13,6 +13,7 @@ import {
   ChevronRight,
   X,
   ZoomIn,
+  Loader2,
   Play,
   LogIn,
   LogOut,
@@ -31,6 +32,7 @@ interface Screenshot {
   capturedAt: string
   idleDetected: boolean
   url: string
+  isBlurred?: boolean
 }
 
 interface BreakSegment {
@@ -238,6 +240,18 @@ const Timeline = ({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   Fake perpetual "loading" placeholder — used in place of the actual <img>
+   for screenshots that are server-blurred (screenshotBlurUntilPayout). A
+   never-resolving loading state reads as an ordinary slow-loading image
+   rather than a deliberately blocked one.
+───────────────────────────────────────────────────────────────────────── */
+const FakeLoadingThumb = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+  <div className={`flex items-center justify-center bg-muted/40 animate-pulse ${className ?? ""}`} style={style}>
+    <Loader2 className="h-4 w-4 text-muted-foreground/30 animate-spin" />
+  </div>
+)
+
+/* ─────────────────────────────────────────────────────────────────────────
    Lightbox
 ───────────────────────────────────────────────────────────────────────── */
 const Lightbox = ({
@@ -310,14 +324,18 @@ const Lightbox = ({
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={s._id}
-          src={s.url}
-          alt={`Screenshot at ${fmtTime(s.capturedAt)}`}
-          className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
-          style={{ maxHeight: "calc(100vh - 140px)" }}
-        />
+        {s.isBlurred ? (
+          <FakeLoadingThumb className="w-full max-w-md rounded-lg" style={{ aspectRatio: "16/9" }} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={s._id}
+            src={s.url}
+            alt={`Screenshot at ${fmtTime(s.capturedAt)}`}
+            className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
+            style={{ maxHeight: "calc(100vh - 140px)" }}
+          />
+        )}
 
         <button
           onClick={onNext}
@@ -345,12 +363,16 @@ const Lightbox = ({
                   : "border-transparent opacity-40 hover:opacity-70"
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={ss.url}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              {ss.isBlurred ? (
+                <FakeLoadingThumb className="w-full h-full" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={ss.url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              )}
               {ss.idleDetected && (
                 <div className="absolute inset-0 bg-rose-500/30" />
               )}
@@ -907,13 +929,17 @@ export default function ScreenshotGalleryPage() {
 
                       {/* Screenshot thumbnail */}
                       <div className="relative aspect-video rounded-xl overflow-hidden border border-border/40 group-hover:border-primary/40 group-hover:shadow-lg transition-all bg-muted/20">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={s.url}
-                          alt={`Screenshot at ${fmtTime(s.capturedAt)}`}
-                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
-                          loading="lazy"
-                        />
+                        {s.isBlurred ? (
+                          <FakeLoadingThumb className="w-full h-full" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={s.url}
+                            alt={`Screenshot at ${fmtTime(s.capturedAt)}`}
+                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                            loading="lazy"
+                          />
+                        )}
 
                         {/* Idle overlay */}
                         {s.idleDetected && (
