@@ -6429,7 +6429,28 @@ export default function SupraSpacePage() {
           const pinned = isPinnedConv(sheetConv);
           const archived = isArchivedConv(sheetConv);
           const cName = getConvName(sheetConv, uid);
+          const sheetUnreadCount = manualUnread.has(sheetConv._id) ? Math.max(1, sheetConv.unreadCount || 0) : (sheetConv.unreadCount || 0);
+          const sheetIsUnread = sheetUnreadCount > 0 || manualUnread.has(sheetConv._id) || (sheetConv._id !== activeId && !!sheetConv.lastMessage && !!uid
+            && !sheetConv.lastMessage.readBy?.includes(uid)
+            && sheetConv.lastMessage.sender?._id !== uid);
+          const toggleSheetReadState = () => {
+            if (sheetIsUnread) {
+              markRead(sheetConv._id);
+              ctxMarkAsRead(sheetConv._id);
+              setManualUnread(p => { const n = new Set(p); n.delete(sheetConv._id); return n; });
+              setConvos(prev => prev.map(c => {
+                if (c._id !== sheetConv._id || !c.lastMessage) return c._id === sheetConv._id ? { ...c, unreadCount: 0 } : c;
+                const rb = c.lastMessage.readBy || [];
+                if (uid && !rb.includes(uid)) return { ...c, unreadCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+                return { ...c, unreadCount: 0 };
+              }));
+            } else {
+              setManualUnread(p => new Set([...p, sheetConv._id]));
+            }
+            setConvMobileSheet(null);
+          };
           const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
+            { icon: <MailOpen className="h-5 w-5" />, label: sheetIsUnread ? 'Mark as read' : 'Mark as unread', onClick: toggleSheetReadState },
             { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
             { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
             { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); openConversation(sheetConv._id); setConvMobileSheet(null); } },
