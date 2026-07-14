@@ -14,6 +14,7 @@ import {
   X,
   ZoomIn,
   Loader2,
+  Trash2,
   Play,
   LogIn,
   LogOut,
@@ -251,12 +252,18 @@ const Lightbox = ({
   onClose,
   onPrev,
   onNext,
+  canDelete,
+  onDelete,
+  deletingKey,
 }: {
   screenshots: Screenshot[]
   index: number
   onClose: () => void
   onPrev: () => void
   onNext: () => void
+  canDelete: boolean
+  onDelete: (s: Screenshot) => void
+  deletingKey: string | null
 }) => {
   const s = screenshots[index]
 
@@ -297,12 +304,27 @@ const Lightbox = ({
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {canDelete && !s.isBlurred && (
+            <button
+              onClick={() => onDelete(s)}
+              disabled={deletingKey === s._id}
+              title="Delete this screenshot"
+              className="h-9 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 flex items-center gap-1.5 text-rose-300 text-xs font-semibold transition-colors disabled:opacity-40"
+            >
+              {deletingKey === s._id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Trash2 className="h-3.5 w-3.5" />}
+              Delete
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Image area */}
@@ -665,6 +687,7 @@ export default function ScreenshotGalleryPage() {
   const [error, setError] = React.useState("")
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null)
   const [isLotTechMain, setIsLotTechMain] = React.useState<boolean | null>(null)
+  const [myRole, setMyRole] = React.useState<string | null>(null)
 
   const formattedDate = React.useMemo(() => {
     return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", {
@@ -705,6 +728,7 @@ export default function ScreenshotGalleryPage() {
         const cal = tpRes.data?.data?.calendar ?? {}
         const dayBreaks: ActualBreak[] = cal[dateStr]?.breaks ?? []
         setActualBreaks(dayBreaks)
+        setMyRole(tpRes.data?.data?.user?.role ?? null)
       })
       .catch((e: any) => setError(e?.response?.data?.message || "Failed to load screenshots."))
       .finally(() => setLoading(false))
@@ -719,6 +743,37 @@ export default function ScreenshotGalleryPage() {
   const prevPhoto = () => setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i))
   const nextPhoto = () =>
     setLightboxIndex((i) => (i !== null && i < screenshots.length - 1 ? i + 1 : i))
+
+  // Self-service, OR an admin/manager deleting on behalf of another user —
+  // matches the backend's ownership/role check. TEMPORARY: admin-delete was
+  // requested for a one-off need and should be removed again later.
+  const canDeleteScreenshots = !userId || myRole === "admin" || myRole === "manager"
+  const [deletingKey, setDeletingKey] = React.useState<string | null>(null)
+  const handleDeleteScreenshot = async (s: Screenshot) => {
+    const confirmMsg = userId
+      ? "Delete this screenshot? This cannot be undone, and 10 minutes will be deducted from this user's rendered hours for this day."
+      : "Delete this screenshot? This cannot be undone, and 10 minutes will be deducted from your rendered hours for this day."
+    if (!window.confirm(confirmMsg)) return
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setDeletingKey(s._id)
+    try {
+      await apiClient.delete(`/api/crm/timeproof/screenshots?key=${encodeURIComponent(s._id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setScreenshots((prev) => prev.filter((x) => x._id !== s._id))
+      setLightboxIndex((i) => {
+        if (i === null) return i
+        const remaining = screenshots.length - 1
+        if (remaining <= 0) return null
+        return Math.min(i, remaining - 1)
+      })
+    } catch (e: any) {
+      alert(e?.response?.data?.message || "Failed to delete screenshot.")
+    } finally {
+      setDeletingKey(null)
+    }
+  }
 
   // All hooks declared — conditional renders safe from here
   if (isLotTechMain === null) return null
@@ -900,10 +955,13 @@ export default function ScreenshotGalleryPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {screenshots.map((s, i) => (
-                    <button
+                    <div
                       key={s._id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => openLightbox(i)}
-                      className="group flex flex-col gap-1.5 text-left focus:outline-none"
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openLightbox(i) }}
+                      className="group flex flex-col gap-1.5 text-left focus:outline-none cursor-pointer"
                     >
                       {/* Timestamp + idle badge — outside the image, top-right */}
                       <div className="flex items-center justify-end gap-2 px-0.5">
@@ -941,8 +999,22 @@ export default function ScreenshotGalleryPage() {
                         <div className="absolute inset-0 bg-black/15 sm:bg-black/0 sm:group-hover:bg-black/30 transition-colors flex items-center justify-center">
                           <ZoomIn className="h-5 w-5 text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                         </div>
+
+                        {/* Delete icon — self-service only, one per screenshot */}
+                        {canDeleteScreenshots && !s.isBlurred && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteScreenshot(s) }}
+                            disabled={deletingKey === s._id}
+                            title="Delete this screenshot"
+                            className="absolute top-1.5 right-1.5 h-7 w-7 rounded-lg bg-black/50 hover:bg-rose-500/80 flex items-center justify-center text-white/80 hover:text-white transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-100"
+                          >
+                            {deletingKey === s._id
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -990,6 +1062,9 @@ export default function ScreenshotGalleryPage() {
           onClose={closeLightbox}
           onPrev={prevPhoto}
           onNext={nextPhoto}
+          canDelete={canDeleteScreenshots}
+          onDelete={handleDeleteScreenshot}
+          deletingKey={deletingKey}
         />
       )}
     </div>

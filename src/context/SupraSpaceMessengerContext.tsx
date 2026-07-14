@@ -137,6 +137,10 @@ function shouldNotify(pref: NotifPref, isMentioned: boolean): boolean {
   return true;
 }
 
+function defaultNotifPref(): NotifPref {
+  return { type: 'all', muted: false };
+}
+
 function authConfig(token: string, skipAuthRefresh = false): SupraSpaceRequestConfig {
   return {
     headers: { Authorization: `Bearer ${token}` },
@@ -168,6 +172,15 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const myFullNameRef  = React.useRef('');
   React.useEffect(() => { notifPrefsRef.current = notifPrefs; }, [notifPrefs]);
   React.useEffect(() => { myFullNameRef.current = myFullName; }, [myFullName]);
+
+  const resolveNotifPref = React.useCallback((conversationId: string): NotifPref => {
+    const serverPref = conversationsRef.current.find(c => c._id === conversationId)?.notificationPreference;
+    return (
+      serverPref ||
+      notifPrefsRef.current[conversationId] ||
+      defaultNotifPref()
+    );
+  }, []);
 
   // Load persisted prefs when we know who the user is
   React.useEffect(() => {
@@ -333,7 +346,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         return sortByLastMessage(updated);
       });
       if (message.sender?._id !== crmUserId) {
-        const pref: NotifPref = notifPrefsRef.current[conversationId] ?? { type: 'all', muted: false };
+        const pref = resolveNotifPref(conversationId);
         const isMentioned = isUserMentioned(message.content || '', myFullNameRef.current);
         if (shouldNotify(pref, isMentioned)) {
           playMessageSound();
@@ -352,9 +365,19 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
     // New conversation was created → prepend if not already in list
     s.on('conversation:new', (conv: SSConv) => {
+      if (conv.notificationPreference) {
+        setNotifPrefs(prev => ({ ...prev, [conv._id]: conv.notificationPreference! }));
+      }
       setConversations((prev) =>
         prev.find((c) => c._id === conv._id) ? prev : [conv, ...prev]
       );
+    });
+
+    s.on('conversation:notification-preference', ({ conversationId, preference }: { conversationId: string; preference: NotifPref }) => {
+      setNotifPrefs(prev => ({ ...prev, [conversationId]: preference }));
+      setConversations(prev => prev.map(conv =>
+        conv._id === conversationId ? { ...conv, notificationPreference: preference } : conv
+      ));
     });
 
     // Conversation moved to/from a space

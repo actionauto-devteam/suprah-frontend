@@ -364,7 +364,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
     else if (tag === 'u') inner = `__${inner}__`;
     else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
-    else if (tag === 'code') inner = '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'code') inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
 
     const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
@@ -408,16 +408,31 @@ function clipboardHtmlToPlainText(html: string): string {
 }
 
 const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
+const SERIAL_LIKE_TOKEN = /\b(?=[A-Z0-9-]{8,}\b)(?=.*[A-Z])(?=.*\d)[A-Z0-9-]{8,}\b/g;
+
+function serialLikeTokens(text: string): string[] {
+  const normalized = text.toUpperCase();
+  return [...new Set([
+    ...(normalized.match(VIN_LIKE_TOKEN) || []),
+    ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
+  ].map(token => token.replace(/-/g, '')))];
+}
+
+function isSerialLikeText(text: string): boolean {
+  const compact = text.trim().toUpperCase().replace(/-/g, '');
+  return compact.length >= 8 && /^[A-Z0-9]+$/.test(compact) && /[A-Z]/.test(compact) && /\d/.test(compact);
+}
 
 function preserveVisibleVinLines(serialized: string, visibleText: string): string {
   const visibleLines = visibleText.replace(/\r\n?/g, '\n').split('\n');
-  const vins = visibleText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  const vins = serialLikeTokens(visibleText);
   if (!vins.length) return serialized;
 
   const serializedLines = serialized.replace(/\r\n?/g, '\n').split('\n');
   vins.forEach(vin => {
-    if (serialized.toUpperCase().includes(vin)) return;
-    const visibleLineIndex = visibleLines.findIndex(line => line.toUpperCase().includes(vin));
+    const serializedSearch = serialized.toUpperCase().replace(/-/g, '');
+    if (serializedSearch.includes(vin)) return;
+    const visibleLineIndex = visibleLines.findIndex(line => line.toUpperCase().replace(/-/g, '').includes(vin));
     const sourceLine = visibleLineIndex >= 0 ? visibleLines[visibleLineIndex].trim() : vin;
     serializedLines.splice(Math.min(Math.max(visibleLineIndex, 0), serializedLines.length), 0, sourceLine || vin);
     serialized = serializedLines.join('\n');
@@ -426,9 +441,7 @@ function preserveVisibleVinLines(serialized: string, visibleText: string): strin
 }
 
 function importantVisibleTokens(line: string): string[] {
-  return [...line.toUpperCase().matchAll(/\b[A-Z0-9][A-Z0-9-]{5,}\b/g)]
-    .map(match => match[0].replace(/-/g, ''))
-    .filter(token => token.length >= 6 && /\d/.test(token));
+  return serialLikeTokens(line);
 }
 
 function preserveVisiblePayloadLines(serialized: string, visibleText: string): string {
@@ -489,9 +502,9 @@ function canonicalizeColorMarkup(value: string): string {
 
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
-  const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  const tokens = serialLikeTokens(plainText);
   if (!tokens.length) return false;
-  const htmlText = clipboardHtmlToPlainText(html).toUpperCase();
+  const htmlText = clipboardHtmlToPlainText(html).toUpperCase().replace(/-/g, '');
   return tokens.some(token => !htmlText.includes(token));
 }
 
@@ -538,7 +551,10 @@ function clipboardHtmlToEditorHtml(html: string): string {
       case 'em': case 'i': return wrapColor(`<em>${childHtml()}</em>`);
       case 'u': return wrapColor(`<u>${childHtml()}</u>`);
       case 's': case 'strike': case 'del': return wrapColor(`<s>${childHtml()}</s>`);
-      case 'code': return '`' + childHtml().replace(/<[^>]*>/g, '') + '`';
+      case 'code': {
+        const codeText = childHtml().replace(/<[^>]*>/g, '');
+        return isSerialLikeText(codeText) ? escapeHtmlText(codeText) : '`' + codeText.replace(/`/g, '') + '`';
+      }
       case 'font': return wrapColor(childHtml());
       case 'li': return `${listMarker || '\u2022 '}${childHtml()}<br>`;
       case 'ul': return Array.from(el.children).map(li => walk(li, '\u2022 ')).join('');
@@ -2974,8 +2990,8 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
     ];
 
   return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#2a2b2f', borderRadius: 12, width: '100%', maxWidth: 480, padding: '24px 24px 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
+    <div className="ss4-overlay fixed inset-0 z-200 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#2a2b2f', borderRadius: 12, width: '100%', maxWidth: 480, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', padding: '24px 24px 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e3e5e8', marginBottom: 4 }}>{convName}</h2>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>Notifications</p>
 
@@ -3309,14 +3325,26 @@ export default function SupraSpacePage() {
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
   const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => {
+    const previousPref =
+      notifPrefs[conversationId] ||
+      convos.find(conv => conv._id === conversationId)?.notificationPreference ||
+      { type: 'all' as const, muted: false };
     setNotifPrefs(prev => ({ ...prev, [conversationId]: pref }));
+    setConvos(prev => prev.map(conv => conv._id === conversationId ? { ...conv, notificationPreference: pref } : conv));
     if (!token) return;
     apiClient.patch(`/api/supraspace/conversations/${conversationId}/notifications`, pref, {
       headers: { Authorization: `Bearer ${token}` },
+      _skipAuthRefresh: true,
+    } as any).then((res) => {
+      const saved = res.data?.data || pref;
+      setNotifPrefs(prev => ({ ...prev, [conversationId]: saved }));
+      setConvos(prev => prev.map(conv => conv._id === conversationId ? { ...conv, notificationPreference: saved } : conv));
     }).catch(() => {
+      setNotifPrefs(prev => ({ ...prev, [conversationId]: previousPref }));
+      setConvos(prev => prev.map(conv => conv._id === conversationId ? { ...conv, notificationPreference: previousPref } : conv));
       toast.error('Could not save notification settings');
     });
-  }, [setNotifPrefs, token]);
+  }, [convos, notifPrefs, setNotifPrefs, token]);
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
@@ -6359,7 +6387,7 @@ export default function SupraSpacePage() {
           <NotificationSettingsModal
             conv={notifModalConv}
             convName={getConvName(notifModalConv, uid)}
-            prefs={notifPrefs[notifModalConv._id] ?? { type: 'all', muted: false }}
+            prefs={notifPrefs[notifModalConv._id] ?? notifModalConv.notificationPreference ?? { type: 'all', muted: false }}
             onSave={p => saveNotificationPref(notifModalConv._id, p)}
             onClose={() => setNotifModalConv(null)}
           />
@@ -6416,6 +6444,13 @@ export default function SupraSpacePage() {
                 </div>
                 <p className="text-center font-semibold px-4 pt-1 pb-3 truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</p>
                 <div style={{ height: 1, background: 'var(--border-2,rgba(255,255,255,0.1))', margin: '0 16px 4px' }} />
+                <button
+                  className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
+                  style={{ color: 'var(--text-primary)', fontSize: 15 }}
+                  onClick={() => { setNotifModalConv(sheetConv); setConvMobileSheet(null); }}
+                >
+                  <Bell className="h-5 w-5" /> Notification settings
+                </button>
                 {sheetActions.map(a => (
                   <button key={a.label} className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
                     style={{ color: a.danger ? 'var(--danger)' : 'var(--text-primary)', fontSize: 15 }}

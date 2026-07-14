@@ -346,16 +346,31 @@ function clipboardHtmlToPlainText(html: string): string {
 }
 
 const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
+const SERIAL_LIKE_TOKEN = /\b(?=[A-Z0-9-]{8,}\b)(?=.*[A-Z])(?=.*\d)[A-Z0-9-]{8,}\b/g;
+
+function serialLikeTokens(text: string): string[] {
+  const normalized = text.toUpperCase();
+  return [...new Set([
+    ...(normalized.match(VIN_LIKE_TOKEN) || []),
+    ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
+  ].map(token => token.replace(/-/g, '')))];
+}
+
+function isSerialLikeText(text: string): boolean {
+  const compact = text.trim().toUpperCase().replace(/-/g, '');
+  return compact.length >= 8 && /^[A-Z0-9]+$/.test(compact) && /[A-Z]/.test(compact) && /\d/.test(compact);
+}
 
 function preserveVisibleVinLines(serialized: string, visibleText: string): string {
   const visibleLines = visibleText.replace(/\r\n?/g, '\n').split('\n');
-  const vins = visibleText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  const vins = serialLikeTokens(visibleText);
   if (!vins.length) return serialized;
 
   const serializedLines = serialized.replace(/\r\n?/g, '\n').split('\n');
   vins.forEach(vin => {
-    if (serialized.toUpperCase().includes(vin)) return;
-    const visibleLineIndex = visibleLines.findIndex(line => line.toUpperCase().includes(vin));
+    const serializedSearch = serialized.toUpperCase().replace(/-/g, '');
+    if (serializedSearch.includes(vin)) return;
+    const visibleLineIndex = visibleLines.findIndex(line => line.toUpperCase().replace(/-/g, '').includes(vin));
     const sourceLine = visibleLineIndex >= 0 ? visibleLines[visibleLineIndex].trim() : vin;
     serializedLines.splice(Math.min(Math.max(visibleLineIndex, 0), serializedLines.length), 0, sourceLine || vin);
     serialized = serializedLines.join('\n');
@@ -364,9 +379,7 @@ function preserveVisibleVinLines(serialized: string, visibleText: string): strin
 }
 
 function importantVisibleTokens(line: string): string[] {
-  return [...line.toUpperCase().matchAll(/\b[A-Z0-9][A-Z0-9-]{5,}\b/g)]
-    .map(match => match[0].replace(/-/g, ''))
-    .filter(token => token.length >= 6 && /\d/.test(token));
+  return serialLikeTokens(line);
 }
 
 function preserveVisiblePayloadLines(serialized: string, visibleText: string): string {
@@ -427,9 +440,9 @@ function canonicalizeColorMarkup(value: string): string {
 
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
-  const tokens = plainText.toUpperCase().match(VIN_LIKE_TOKEN) || [];
+  const tokens = serialLikeTokens(plainText);
   if (!tokens.length) return false;
-  const htmlText = clipboardHtmlToPlainText(html).toUpperCase();
+  const htmlText = clipboardHtmlToPlainText(html).toUpperCase().replace(/-/g, '');
   return tokens.some(token => !htmlText.includes(token));
 }
 
@@ -475,7 +488,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
     else if (tag === 'u') inner = `__${inner}__`;
     else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
-    else if (tag === 'code') inner = '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'code') inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
 
     const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
@@ -515,7 +528,10 @@ function clipboardHtmlToEditorHtml(html: string): string {
       case 'em': case 'i': return wrapColor(`<em>${childHtml()}</em>`);
       case 'u': return wrapColor(`<u>${childHtml()}</u>`);
       case 's': case 'strike': case 'del': return wrapColor(`<s>${childHtml()}</s>`);
-      case 'code': return '`' + childHtml().replace(/<[^>]*>/g, '') + '`';
+      case 'code': {
+        const codeText = childHtml().replace(/<[^>]*>/g, '');
+        return isSerialLikeText(codeText) ? escapeHtmlText(codeText) : '`' + codeText.replace(/`/g, '') + '`';
+      }
       case 'font': return wrapColor(childHtml());
       case 'li': return `• ${childHtml()}<br>`;
       case 'ul': return Array.from(el.children).map(li => walk(li)).join('');
@@ -830,7 +846,7 @@ interface ChatPopupProps {
 }
 
 function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
-  const { crmUserId, crmToken, socket, markAsRead } = useSupraSpaceMessenger();
+  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
   const router = useRouter();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
   const [loading,  setLoading]  = React.useState(true);
@@ -1303,6 +1319,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, [messages, conv.members, crmUserId]);
 
   const displayName = getDisplayName(conv, crmUserId);
+  const notificationPref = notifPrefs[conv._id] || conv.notificationPreference || { type: 'all' as const, muted: false };
   const avatarSrc   = getAvatarSrc(conv, crmUserId);
   const rightPx     = POPUP_RIGHT + stackIndex * (POPUP_W + POPUP_GAP);
 
@@ -1579,6 +1596,26 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
+
+  const toggleMuteNotifications = React.useCallback(async () => {
+    if (!crmToken) return;
+    const next = { type: notificationPref.type, muted: !notificationPref.muted };
+    setNotifPrefs(prev => ({ ...prev, [conv._id]: next }));
+    try {
+      await apiClient.patch(
+        `/api/supraspace/conversations/${conv._id}/notifications`,
+        next,
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any,
+      ).then((res) => {
+        const saved = res.data?.data || next;
+        setNotifPrefs(prev => ({ ...prev, [conv._id]: saved }));
+        toast.success(saved.muted ? 'Conversation muted' : 'Conversation unmuted');
+      });
+    } catch {
+      setNotifPrefs(prev => ({ ...prev, [conv._id]: notificationPref }));
+      toast.error('Could not save notification settings');
+    }
+  }, [conv._id, crmToken, notificationPref, setNotifPrefs]);
 
   return (
     <>
@@ -2454,9 +2491,9 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 {sep}
 
                 {/* Mute notifications */}
-                <button className={row} onClick={() => { toast.info('Mute coming soon.'); close(); }}>
-                  <BellOff className={ic} style={{ color: 'rgba(255,255,255,0.5)' }} />
-                  {label('Mute notifications')}
+                <button className={row} onClick={() => { void toggleMuteNotifications(); close(); }}>
+                  <BellOff className={ic} style={{ color: notificationPref.muted ? '#f87171' : 'rgba(255,255,255,0.5)' }} />
+                  {label(notificationPref.muted ? 'Unmute notifications' : 'Mute notifications')}
                 </button>
 
                 {/* Archive chat */}
