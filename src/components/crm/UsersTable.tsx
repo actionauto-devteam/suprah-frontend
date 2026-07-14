@@ -69,6 +69,7 @@ interface CrmUserRow {
   hireDate?: string
   department?: string
   isOffboarded?: boolean
+  screenshotExempt?: boolean
 }
 
 interface PaginationMeta {

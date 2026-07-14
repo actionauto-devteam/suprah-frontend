@@ -5,6 +5,12 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+// Serwist is configured (next.config.ts) to skip generating a real /sw.js in
+// dev unless this is set — matches ServiceWorkerRegistration.tsx's gating.
+// Without this check, registering against the dev stub SW here means
+// navigator.serviceWorker.ready never resolves, and every page load logs a
+// "Service Worker timeout" warning that isn't an actual error.
+const SW_ENABLED = process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 
 export function useWebPush() {
     const [isSupported, setIsSupported] = useState(false);
@@ -20,6 +26,9 @@ export function useWebPush() {
 
         if (!hasSupport) {
             throw new Error("Web Push is not supported in this browser.");
+        }
+        if (!SW_ENABLED) {
+            throw new Error("Service Worker is disabled in this dev environment (NEXT_PUBLIC_ENABLE_SW_DEV=true to enable).");
         }
 
         const existing = await navigator.serviceWorker.getRegistration();
@@ -86,7 +95,9 @@ export function useWebPush() {
 
             return subscription;
         } catch (error) {
-            console.warn("[WebPush] Initialization error or timeout:", error);
+            // Expected in dev when the Service Worker is intentionally disabled
+            // (see SW_ENABLED above) — not a real error, so don't alarm the console.
+            if (SW_ENABLED) console.warn("[WebPush] Initialization error or timeout:", error);
         } finally {
             setIsLoading(false);
         }

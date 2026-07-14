@@ -28,6 +28,7 @@ import { isTimeEditExempt } from "@/lib/departments"
 import {
   DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
+  generateIdleLogHtml, type IdlePeriod,
 } from "@/components/crm/timeproof/shared"
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -112,6 +113,31 @@ export default function AdminUserTimeprofPage() {
     return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
   })
   const [timecardEnd, setTimecardEnd] = React.useState(() => toDateStr(new Date()))
+
+  /* ── Idle Log (read-only export) state ── */
+  const [showIdleLogForm, setShowIdleLogForm] = React.useState(false)
+  const [idleLogStart, setIdleLogStart] = React.useState(() => {
+    const d = new Date(now.getTime() - 14 * 86_400_000)
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+  })
+  const [idleLogEnd, setIdleLogEnd] = React.useState(() => toDateStr(new Date()))
+  const [idlePeriods, setIdlePeriods] = React.useState<IdlePeriod[]>([])
+  const [idleLogLoading, setIdleLogLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!showIdleLogForm || idleLogStart > idleLogEnd) return
+    let cancelled = false
+    setIdleLogLoading(true)
+    const token = localStorage.getItem("crm_token")
+    apiClient
+      .get(`/api/crm/timeproof/user/${userId}/idle-log?startDate=${idleLogStart}&endDate=${idleLogEnd}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => { if (!cancelled) setIdlePeriods(res.data?.data?.idleLog || []) })
+      .catch(() => { if (!cancelled) setIdlePeriods([]) })
+      .finally(() => { if (!cancelled) setIdleLogLoading(false) })
+    return () => { cancelled = true }
+  }, [showIdleLogForm, idleLogStart, idleLogEnd, userId])
 
   /* ── Pay state ── */
   const [isPaying, setIsPaying] = React.useState(false)
@@ -328,6 +354,23 @@ export default function AdminUserTimeprofPage() {
   const timecardPreviewRef = React.useRef<HTMLIFrameElement>(null)
   const printTimecard = React.useCallback(() => {
     timecardPreviewRef.current?.contentWindow?.print()
+  }, [])
+
+  /* ── Idle Log preview + print (read-only, not editable) ── */
+  const idleLogPreviewHtml = React.useMemo(() => {
+    if (!data || !showIdleLogForm) return ""
+    return generateIdleLogHtml({
+      fullName: data.user.fullName,
+      startDateStr: idleLogStart,
+      endDateStr: idleLogEnd,
+      periods: idlePeriods,
+      autoPrint: false,
+    })
+  }, [data, showIdleLogForm, idleLogStart, idleLogEnd, idlePeriods])
+
+  const idleLogPreviewRef = React.useRef<HTMLIFrameElement>(null)
+  const printIdleLog = React.useCallback(() => {
+    idleLogPreviewRef.current?.contentWindow?.print()
   }, [])
 
   /* ── PHP rate fetch ── */
@@ -902,6 +945,66 @@ export default function AdminUserTimeprofPage() {
                     className="w-full h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
                     <Download className="h-3.5 w-3.5" /> Confirm — Print / PDF Timecard
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Idle Log: read-only export of when the user went idle ── */}
+            <div className="rounded-2xl border border-border/40 bg-card p-4 space-y-3">
+              <button
+                onClick={() => setShowIdleLogForm((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Download className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  <span className="text-[11px] font-black tracking-tight">Idle Log (read-only)</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground/40">{showIdleLogForm ? "Hide" : "Export idle history"}</span>
+              </button>
+
+              {showIdleLogForm && (
+                <div className="space-y-2.5 pt-1">
+                  <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
+                    Date &amp; time of every tray-detected idle period for any date range — export/print only, not editable.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Date Start</label>
+                      <input
+                        type="date"
+                        value={idleLogStart}
+                        onChange={(e) => setIdleLogStart(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Date End</label>
+                      <input
+                        type="date"
+                        value={idleLogEnd}
+                        onChange={(e) => setIdleLogEnd(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                      />
+                    </div>
+                  </div>
+                  <div className="h-72 rounded-lg overflow-hidden border border-border/40 bg-white relative">
+                    {idleLogLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-xs text-muted-foreground/50">Loading…</div>
+                    )}
+                    {idleLogStart <= idleLogEnd ? (
+                      <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full" />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-xs text-muted-foreground/50">Date Start must be before Date End</div>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/40">Preview updates live as you change the dates — confirm it looks right before printing.</p>
+                  <button
+                    onClick={printIdleLog}
+                    disabled={idleLogStart > idleLogEnd || idleLogLoading}
+                    className="w-full h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Confirm — Print / PDF Idle Log
                   </button>
                 </div>
               )}
