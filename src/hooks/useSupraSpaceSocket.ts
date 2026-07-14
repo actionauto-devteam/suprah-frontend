@@ -93,6 +93,7 @@ interface UseSupraSpaceReturn {
 
 export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   const socketRef = React.useRef<Socket | null>(null);
+  const typingStartLastSentRef = React.useRef<Record<string, number>>({});
   const [socketState, setSocketState] = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected] = React.useState(false);
   const [presence, setPresence] = React.useState<PresenceMap>({});
@@ -185,9 +186,14 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socketRef.current?.emit('leave:conversation', { conversationId });
   }, []);
   const sendTypingStart = React.useCallback((conversationId: string) => {
+    const now = Date.now();
+    const lastSentAt = typingStartLastSentRef.current[conversationId] || 0;
+    if (now - lastSentAt < 1200) return;
+    typingStartLastSentRef.current[conversationId] = now;
     socketRef.current?.emit('typing:start', { conversationId });
   }, []);
   const sendTypingStop = React.useCallback((conversationId: string) => {
+    delete typingStartLastSentRef.current[conversationId];
     socketRef.current?.emit('typing:stop', { conversationId });
   }, []);
   const markRead = React.useCallback((conversationId: string) => {

@@ -1,9 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
+let currentToken: string | null = null;
 
 export const initializeSocket = (token: string): Socket => {
-  if (socket && socket.connected) {
+  // Only reuse the existing connection if it's still authenticated with the
+  // SAME token — otherwise a mode switch (e.g. CRM <-> Lot Tech) would silently
+  // keep using the old auth context instead of reconnecting with the new one.
+  if (socket && socket.connected && currentToken === token) {
     return socket;
   }
 
@@ -13,6 +17,7 @@ export const initializeSocket = (token: string): Socket => {
     socket = null;
   }
 
+  currentToken = token;
   const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   socket = io(SOCKET_URL, {
@@ -49,6 +54,7 @@ export const disconnectSocket = () => {
     socket.disconnect();
     socket = null;
   }
+  currentToken = null;
 };
 
 export const joinConversation = (conversationId: string) => {

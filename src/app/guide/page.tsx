@@ -222,6 +222,12 @@ function MacDragToApps({ lang }: { lang: Lang }) {
 
 function MacGatekeeper({ lang }: { lang: Lang }) {
   const step1 = lang === "en" ? "What you'll see — Step 1: close this pop-up" : "Ito ang makikita mo — Hakbang 1: isara ang pop-up na ito";
+  const variantNote = lang === "en"
+    ? <>Depending on your macOS version, the buttons may say <span className="font-semibold text-white">&quot;Show in Finder&quot; / &quot;OK&quot;</span> OR <span className="font-semibold text-white">&quot;Move to Trash&quot; / &quot;Cancel&quot;</span> — either is fine.</>
+    : <>Depende sa macOS version mo, maaaring &quot;Show in Finder&quot; / &quot;OK&quot; O &quot;Move to Trash&quot; / &quot;Cancel&quot; ang makikita mong buttons — pareho lang, okay lang alinman dyan.</>;
+  const dangerNote = lang === "en"
+    ? <>Never click <span className="font-semibold text-red-400">&quot;Move to Trash&quot;</span> — that deletes the app. Always click <span className="font-semibold text-emerald-400">&quot;Cancel&quot;</span> (or &quot;OK&quot;) to just close the pop-up.</>
+    : <>Huwag kailanman i-click ang <span className="font-semibold text-red-400">&quot;Move to Trash&quot;</span> — made-delete nito ang app. Laging i-click ang <span className="font-semibold text-emerald-400">&quot;Cancel&quot;</span> (o &quot;OK&quot;) para lang isara ang pop-up.</>;
   const step2 = lang === "en" ? 'Step 2: then go here and click "Open Anyway"' : 'Hakbang 2: pumunta dito at i-click ang "Open Anyway"';
   const hint = lang === "en" ? 'Click the highlighted "Open Anyway" button' : 'I-click ang naka-highlight na "Open Anyway"';
   return (
@@ -238,14 +244,18 @@ function MacGatekeeper({ lang }: { lang: Lang }) {
             </div>
           </div>
           <p className="text-[11px] font-semibold text-white leading-snug">
-            &quot;Action Auto Tray&quot; cannot be opened because it is from an unidentified developer.
+            &quot;Action Auto Tray&quot; cannot be opened because the developer cannot be verified.
           </p>
           <p className="mt-1 text-[10px] text-zinc-400">macOS cannot verify that this app is free from malware.</p>
           <div className="mt-3 flex justify-center gap-2">
-            <div className="rounded-md bg-[#3a3a3c] px-4 py-1.5 text-[10px] text-zinc-300">Show in Finder</div>
-            <div className="rounded-md bg-[#0a7aff] px-4 py-1.5 text-[10px] font-semibold text-white ring-2 ring-emerald-400">OK</div>
+            <div className="rounded-md bg-[#3a3a3c] px-4 py-1.5 text-[10px] text-zinc-300">Move to Trash</div>
+            <div className="rounded-md bg-[#3a3a3c] px-4 py-1.5 text-[10px] font-semibold text-white ring-2 ring-emerald-400">Cancel</div>
           </div>
         </div>
+      </div>
+      <p className="text-[10px] leading-relaxed text-zinc-500">{variantNote}</p>
+      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
+        <p className="text-[10px] leading-relaxed text-red-300">{dangerNote}</p>
       </div>
 
       <p className="text-[10px] font-medium uppercase tracking-widest text-zinc-600 pt-1">{step2}</p>
@@ -451,9 +461,9 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       },
       {
         title: "Open the app — your Mac will warn you (this is normal!)",
-        body: <>Go to your {b("Applications")} folder and double-click {b("Action Auto Tray")}. Your Mac will show a pop-up saying it can&apos;t be opened. Don&apos;t worry — just follow the two steps below.</>,
+        body: <>Go to your {b("Applications")} folder and double-click {b("Action Auto Tray")}. Your Mac will show a pop-up saying it can&apos;t be opened. Don&apos;t worry — just follow the two steps below. The exact button names can differ by macOS version (some say &quot;Show in Finder&quot; / &quot;OK&quot;, others say &quot;Move to Trash&quot; / &quot;Cancel&quot;) — that&apos;s normal too.</>,
         visual: <MacGatekeeper lang={lang} />,
-        warning: <>This warning is {<span className="font-semibold">normal</span>} — it appears for any app not sold through the App Store. Just follow the steps in the picture above.</>,
+        warning: <>This warning is {<span className="font-semibold">normal</span>} — it appears for any app not sold through the App Store. Just follow the steps in the picture above, and {<span className="font-semibold">never click &quot;Move to Trash&quot;</span>} — that deletes the app. Click &quot;Cancel&quot; (or &quot;OK&quot;) instead to just close the pop-up.</>,
       },
       {
         title: "Allow Screen Recording when asked",
@@ -488,9 +498,9 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
     },
     {
       title: "Buksan ang app — magwa-warning ang Mac mo (normal lang ito!)",
-      body: <>Pumunta sa {b("Applications")} folder mo at i-double-click ang {b("Action Auto Tray")}. Magpapakita ang Mac mo ng pop-up na sabing hindi ito mabuksan. Wag mag-alala — sundan lang ang dalawang hakbang sa ibaba.</>,
+      body: <>Pumunta sa {b("Applications")} folder mo at i-double-click ang {b("Action Auto Tray")}. Magpapakita ang Mac mo ng pop-up na sabing hindi ito mabuksan. Wag mag-alala — sundan lang ang dalawang hakbang sa ibaba. Maaaring magkaiba ang eksaktong pangalan ng button depende sa macOS version (may &quot;Show in Finder&quot; / &quot;OK&quot;, may &quot;Move to Trash&quot; / &quot;Cancel&quot;) — normal lang din iyon.</>,
       visual: <MacGatekeeper lang={lang} />,
-      warning: <>Normal lang ang warning na ito — lumalabas ito para sa kahit anong app na hindi binenta sa App Store. Sundan lang ang mga hakbang sa larawan sa itaas.</>,
+      warning: <>Normal lang ang warning na ito — lumalabas ito para sa kahit anong app na hindi binenta sa App Store. Sundan lang ang mga hakbang sa larawan sa itaas, at {<span className="font-semibold">huwag kailanman i-click ang &quot;Move to Trash&quot;</span>} — made-delete nito ang app. I-click na lang ang &quot;Cancel&quot; (o &quot;OK&quot;) para lang isara ang pop-up.</>,
     },
     {
       title: "Payagan ang Screen Recording kapag tinanong",

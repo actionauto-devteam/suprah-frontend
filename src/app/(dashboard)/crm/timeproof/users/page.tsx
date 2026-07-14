@@ -456,7 +456,7 @@ export default function AdminShiftBoardPage() {
       <div className="sticky top-0 z-20 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
-            onClick={() => router.push("/crm/timeproof")}
+            onClick={() => router.push("/crm/timeproof-clock")}
             className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-zinc-800/60 transition-colors text-zinc-500"
           >
             <ArrowLeft className="h-4 w-4" />

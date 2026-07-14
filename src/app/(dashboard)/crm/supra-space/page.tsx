@@ -314,6 +314,28 @@ function cssColorToHex(color: string | null | undefined): string | null {
   return `#${[rgb[1], rgb[2], rgb[3]].map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('')}`;
 }
 
+function getCopiedElementVisibleText(element: HTMLElement): string {
+  const tag = element.tagName.toLowerCase();
+  if (tag === 'input') {
+    const input = element as HTMLInputElement;
+    if (input.type === 'hidden') return '';
+    return input.value || element.getAttribute('value') || '';
+  }
+  if (tag === 'textarea') {
+    const textarea = element as HTMLTextAreaElement;
+    return textarea.value || element.getAttribute('value') || element.textContent || '';
+  }
+  if (tag === 'select') {
+    const select = element as HTMLSelectElement;
+    return select.selectedOptions?.[0]?.textContent || select.value || '';
+  }
+  return element.getAttribute('data-value')
+    || element.getAttribute('data-text')
+    || element.getAttribute('data-label')
+    || element.getAttribute('aria-valuetext')
+    || '';
+}
+
 function getActiveSelectionColor(root: HTMLElement): string {
   const commandColor = cssColorToHex(String(document.queryCommandValue('foreColor') || ''));
   if (commandColor && SS4_MORE_TEXT_COLORS.includes(commandColor)) return commandColor;
@@ -340,6 +362,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
 
     let inner = Array.from(element.childNodes).map(walk).join('');
+    if (!inner.trim()) inner = getCopiedElementVisibleText(element);
     if (tag === 'strong' || tag === 'b') inner = `**${inner}**`;
     else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
     else if (tag === 'u') inner = `__${inner}__`;
@@ -371,6 +394,8 @@ function clipboardHtmlToPlainText(html: string): string {
     const tag = el.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') return el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+    const visibleValue = getCopiedElementVisibleText(el);
+    if (visibleValue) return visibleValue;
 
     const inner = Array.from(el.childNodes).map(walk).join('');
     if (['div', 'p', 'li', 'section', 'article'].includes(tag)) return `${inner}\n`;
@@ -511,6 +536,8 @@ function clipboardHtmlToEditorHtml(html: string): string {
     if (tag === 'script' || tag === 'style') return '';
     if (tag === 'br') return '<br>';
     if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
+    const visibleValue = getCopiedElementVisibleText(el);
+    if (visibleValue) return escapeHtmlText(visibleValue);
 
     const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
     const elColor = cssColorToHex(el.style?.color || el.getAttribute('color') || '');
@@ -3287,8 +3314,23 @@ export default function SupraSpacePage() {
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputStateRafRef = React.useRef<number | null>(null);
+  const pendingInputStateRef = React.useRef('');
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+
+  const scheduleInputState = React.useCallback((value: string) => {
+    pendingInputStateRef.current = value;
+    if (inputStateRafRef.current != null) return;
+    inputStateRafRef.current = window.requestAnimationFrame(() => {
+      inputStateRafRef.current = null;
+      setInput(pendingInputStateRef.current);
+    });
+  }, []);
+
+  React.useEffect(() => () => {
+    if (inputStateRafRef.current != null) window.cancelAnimationFrame(inputStateRafRef.current);
+  }, []);
 
   // @mention state
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
@@ -4449,7 +4491,7 @@ export default function SupraSpacePage() {
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const val = el.innerText.replace(/\n$/, '');
-    setInput(val);
+    scheduleInputState(val);
     const cursor = getCaretOffset(el);
     saveComposerSelection();
     composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
