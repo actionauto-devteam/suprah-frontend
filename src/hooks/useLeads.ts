@@ -342,6 +342,9 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     page: data?.page || 1,
     pages: data?.pages || 1,
     isLoading,
+    isFetching,
+    isPlaceholderData,
+
     refetch: stableRefetch,
 
     updateLeadStatus:
@@ -374,5 +377,6 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
     isSyncing:
       syncMutation.isPending,
+      
   };
 };
