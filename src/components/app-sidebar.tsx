@@ -27,6 +27,7 @@ import {
   PlusSquare,
   Rss,
   CalendarDays,
+  Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -61,6 +62,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
+import { useWhatsNew } from "@/context/WhatsNewContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -167,6 +169,15 @@ const data = {
     },
   ] satisfies SidebarNavItem[],
 
+  // Platform — global announcements, visible to every org.
+  platform: [
+    {
+      title: "What's New",
+      url: "/whats-new",
+      icon: Megaphone,
+    },
+  ] satisfies SidebarNavItem[],
+
   premium: [
     {
       title: "Plugins",
@@ -250,6 +261,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { avatarUrl } = useProfileContext();
   const { totalUnread } = useSupraSpaceMessenger();
   const { unreadCount: pmUnread } = useProjectNotifications();
+  const { unreadCount: whatsNewUnread } = useWhatsNew();
 
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
@@ -459,6 +471,53 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </>
+        )}
+
+        {/* ── Platform (What's New — global release notes) ── */}
+        {!isCustomer && (
+          <>
+            <SectionLabel>Platform</SectionLabel>
+
+            <SidebarMenu>
+              {data.platform.map((item) => {
+                const isActive =
+                  pathname === item.url || pathname.startsWith(item.url + "/");
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      isActive={isActive}
+                      className={navItemClass}
+                    >
+                      <Link href={item.url}>
+                        {isActive && <ActiveStrip />}
+                        <item.icon
+                          className={cn(
+                            "transition-transform duration-200 group-hover/item:scale-110",
+                            whatsNewUnread > 0 && "text-amber-500",
+                          )}
+                        />
+                        <span className="tracking-widest">{item.title}</span>
+
+                        {/* What's New: count of releases this user hasn't opened yet.
+                            Comes from WhatsNewContext — drops as soon as a release's
+                            walkthrough modal is opened. */}
+                        {whatsNewUnread > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-amber-500 text-white border-none animate-pulse group-data-[collapsible=icon]:hidden"
+                          >
+                            {whatsNewUnread > 99 ? "99+" : whatsNewUnread}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
