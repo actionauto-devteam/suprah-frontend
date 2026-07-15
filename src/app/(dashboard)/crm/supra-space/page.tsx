@@ -39,6 +39,7 @@ import { EmojiReactionPicker } from '@/components/supraspace/EmojiReactionPicker
 import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
+import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -5265,12 +5266,13 @@ export default function SupraSpacePage() {
   if (loading) return (
     <div className={cn('ss4 flex items-center justify-center h-full min-h-screen')} data-theme={theme}>
       <div className="flex flex-col items-center gap-4">
-        <div className="h-14 w-14 ss4-logo-mark flex items-center justify-center"><Radio className="h-6 w-6" style={{ color: '#fff' }} /></div>
+        <SupraSpaceLogo size={56} />
         <div className="flex flex-col items-center gap-2">
           <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', letterSpacing: '0.01em' }}>The Communication Hub That Drives Every Deal</p>
           <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
         </div>
-      </div>
+</div>
     </div>
   );
 
@@ -5307,15 +5309,15 @@ export default function SupraSpacePage() {
             <div className="flex items-center gap-3">
               {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
               <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 ss4-logo-mark flex items-center justify-center shrink-0"><Radio className="h-3.5 w-3.5" style={{ color: '#fff' }} /></div>
-                <div>
-                  <div className="flex items-center gap-1.5 leading-none">
-                    <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
-                    {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
-                  </div>
-                  <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Team Messaging</p>
+                <SupraSpaceLogo size={32} className="shrink-0" />
+              <div>
+                <div className="flex items-center gap-1.5 leading-none">
+                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
+                  {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
                 </div>
+                <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
+              </div>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
@@ -5568,11 +5570,12 @@ export default function SupraSpacePage() {
               )}
               {!activeId && (
                 <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
-                  <div className="h-16 w-16 ss4-logo-mark flex items-center justify-center"><MessageSquare className="h-7 w-7" style={{ color: '#fff' }} /></div>
-                  <div className="text-center">
-                    <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: '#E55A00' }}>Space</span></p>
-                    <p className="mt-1" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Select a conversation to start messaging</p>
-                  </div>
+                <SupraSpaceLogo size={64} />
+                <div className="text-center">
+                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                  <p className="mt-1.5" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
+                  <p className="mt-0.5" style={{ fontSize: 12, color: 'var(--text-disabled)' }}>Select a conversation to start messaging</p>
+                </div>
                 </div>
               )}
 

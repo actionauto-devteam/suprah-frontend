@@ -80,21 +80,17 @@ type SidebarNavItem = {
 };
 
 const data = {
+  // Core workspace — the day-to-day CRM surfaces.
   navMain: [
-    {
-      title: "Timeproof Clock",
-      url: "/crm/timeproof-clock",
-      icon: Clock,
-    },
     {
       title: "CRM",
       url: "/crm",
       icon: Users,
     },
     {
-      title: "Dashboard",
-      url: "/",
-      icon: LayoutDashboard,
+      title: "Timeproof Clock",
+      url: "/crm/timeproof-clock",
+      icon: Clock,
     },
     {
       title: "Team Pulse",
@@ -102,14 +98,28 @@ const data = {
       icon: Activity,
     },
     {
+      title: "Team Engagement",
+      url: "/crm/hr",
+      icon: HeartHandshake,
+    },
+    {
+      title: "Dashboard",
+      url: "/",
+      icon: LayoutDashboard,
+    },
+  ] satisfies SidebarNavItem[],
+
+  // Apps — feature modules the team opens as standalone tools.
+  apps: [
+    {
+      title: "Suprah Calendar",
+      url: "/crm/suprah-calendar",
+      icon: CalendarDays,
+    },
+    {
       title: "Suprah Space",
       url: "/crm/supra-space",
       icon: MessageSquare,
-    },
-    {
-      title: "Conversations",
-      url: "/crm/conversations",
-      icon: PlusSquare,
     },
     {
       title: "Feeds",
@@ -117,36 +127,23 @@ const data = {
       icon: Rss,
     },
     {
-      title: "Team Engagement",
-      url: "/crm/hr",
-      icon: HeartHandshake,
-    },
-    {
-      title: "All Inventory",
-      url: "/inventory",
-      icon: Car,
-    },
-  ] satisfies SidebarNavItem[],
-
-  premium: [
-    {
-      title: "Plugins",
-      url: "/plugins",
-      icon: LayoutGrid,
-      isNew: true,
-    },
-  ] satisfies SidebarNavItem[],
-
-  services: [
-    {
-      title: "Suprah Calendar",
-      url: "/crm/suprah-calendar",
-      icon: CalendarDays,
+      title: "Conversations",
+      url: "/crm/conversations",
+      icon: PlusSquare,
     },
     {
       title: "Project Management",
       url: "/project",
       icon: FolderKanban,
+    },
+  ] satisfies SidebarNavItem[],
+
+  // Services — operational / logistics + money movement.
+  services: [
+    {
+      title: "All Inventory",
+      url: "/inventory",
+      icon: Car,
     },
     {
       title: "Transportation",
@@ -159,16 +156,26 @@ const data = {
       icon: User,
     },
     {
+      title: "SuprahPay",
+      url: "/billing",
+      icon: CreditCard,
+    },
+    {
       title: "Reports",
       url: "/reports",
       icon: ClipboardList,
     },
+  ] satisfies SidebarNavItem[],
+
+  premium: [
     {
-      title: "SupraPay",
-      url: "/billing",
-      icon: CreditCard,
+      title: "Plugins",
+      url: "/plugins",
+      icon: LayoutGrid,
+      isNew: true,
     },
   ] satisfies SidebarNavItem[],
+
   account: [
     {
       title: "Profile",
@@ -261,24 +268,57 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         @keyframes green-float-2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-10px,10px); } }
         @keyframes green-pulse   { 0%,100% { opacity: .07; } 50% { opacity: .16; } }
         @keyframes digital-scan  { 0% { transform: translateY(-25%); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateY(125%); opacity: 0; } }
+        @keyframes grid-drift    { 0% { background-position: 0 0, 0 0; } 100% { background-position: 24px 24px, 24px 24px; } }
+        @keyframes data-fall     { 0% { transform: translateY(-6rem); opacity: 0; } 8% { opacity: .85; } 92% { opacity: .85; } 100% { transform: translateY(120vh); opacity: 0; } }
+        @keyframes ring-spin     { to { transform: rotate(360deg); } }
+        @keyframes hud-flicker   { 0%,100% { opacity: .28; } 45% { opacity: .55; } 55% { opacity: .22; } }
         .green-glow-a      { animation: green-float 14s ease-in-out infinite, green-pulse 8s ease-in-out infinite; }
         .green-glow-b      { animation: green-float-2 16s ease-in-out infinite, green-pulse 10s ease-in-out infinite; }
         .digital-scan-line { animation: digital-scan 7s linear infinite; }
+        .grid-drift        { animation: grid-drift 22s linear infinite; }
+        .data-stream       { animation: data-fall 7s linear infinite; }
+        .hud-corner        { animation: hud-flicker 4s ease-in-out infinite; }
+        .logo-ring         { animation: ring-spin 18s linear infinite; }
         @media (prefers-reduced-motion: reduce) {
-          .green-glow-a, .green-glow-b, .digital-scan-line { animation: none; }
+          .green-glow-a, .green-glow-b, .digital-scan-line,
+          .grid-drift, .data-stream, .hud-corner, .logo-ring { animation: none; }
         }
       `}</style>
 
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-linear-to-brfrom-emerald-500/9ia-emerald-500/[0.04] to-emerald-500/12 dark:from-emerald-500/5 dark:via-emerald-500/2 dark:to-emerald-500/[0.07]" />
-        {/* digital grid */}
-        <div className="absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
+        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/9 via-emerald-500/[0.04] to-emerald-500/12 dark:from-emerald-500/5 dark:via-emerald-500/2 dark:to-emerald-500/[0.07]" />
+
+        {/* digital grid — slowly drifts so the surface feels "live" */}
+        <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
+
         {/* drifting green glows */}
         <div className="green-glow-a absolute -left-10 top-16 size-40 rounded-full bg-emerald-400 blur-3xl" />
         <div className="green-glow-b absolute -right-12 bottom-24 size-44 rounded-full bg-emerald-500 blur-3xl" />
+
+        {/* falling data streams — thin light trails, matrix-ish but restrained.
+            left / duration / delay are staggered per line for an organic feel. */}
+        <div
+          className="data-stream absolute top-0 h-20 w-px bg-linear-to-b from-transparent via-emerald-400/70 to-transparent"
+          style={{ left: "22%", animationDuration: "7s", animationDelay: "0s" }}
+        />
+        <div
+          className="data-stream absolute top-0 h-16 w-px bg-linear-to-b from-transparent via-emerald-300/60 to-transparent"
+          style={{ left: "52%", animationDuration: "9.5s", animationDelay: "2.4s" }}
+        />
+        <div
+          className="data-stream absolute top-0 h-24 w-px bg-linear-to-b from-transparent via-emerald-400/60 to-transparent"
+          style={{ left: "78%", animationDuration: "6s", animationDelay: "1.2s" }}
+        />
+
         {/* sweeping scanline */}
         <div className="digital-scan-line absolute inset-x-0 top-0 h-20 bg-linear-to-b from-transparent via-emerald-500/[0.14] to-transparent dark:via-emerald-400/10" />
+
+        {/* HUD corner ticks — subtle framing with a gentle flicker */}
+        <div className="hud-corner absolute left-1.5 top-1.5 size-3 rounded-tl-sm border-l-2 border-t-2 border-emerald-500/40" />
+        <div className="hud-corner absolute right-1.5 top-1.5 size-3 rounded-tr-sm border-r-2 border-t-2 border-emerald-500/40" style={{ animationDelay: "1s" }} />
+        <div className="hud-corner absolute bottom-1.5 left-1.5 size-3 rounded-bl-sm border-b-2 border-l-2 border-emerald-500/40" style={{ animationDelay: "2s" }} />
+        <div className="hud-corner absolute bottom-1.5 right-1.5 size-3 rounded-br-sm border-b-2 border-r-2 border-emerald-500/40" style={{ animationDelay: "0.5s" }} />
       </div>
 
       <SidebarHeader className="relative flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
@@ -287,6 +327,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary opacity-[0.10] blur-2xl"
         />
+        {/* rotating scanner ring around the logo (hidden when collapsed) */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 size-20 -translate-x-1/2 -translate-y-1/2 group-data-[collapsible=icon]:hidden"
+        >
+          <div
+            className="logo-ring size-full rounded-full opacity-40"
+            style={{
+              background:
+                "conic-gradient(from 0deg, transparent 0deg, rgba(16,185,129,0.55) 45deg, transparent 130deg)",
+              WebkitMask:
+                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
+              mask: "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
+            }}
+          />
+        </div>
         <div className="relative flex w-full items-center justify-center group-data-[collapsible=icon]:justify-center">
           <Image
             src="/favicon.png"
@@ -305,6 +361,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             Firefox      -> scrollbar-width: thin + faint scrollbar-color
             WebKit/Blink -> 6px bar, transparent track, low-opacity rounded thumb */}
       <SidebarContent className="p-2 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 [&::-webkit-scrollbar-thumb:hover]:bg-border">
+        {/* ── Main ── */}
         <SidebarMenu>
           {activeNavMain.map((item) => {
             const isActive =
@@ -315,37 +372,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   asChild
                   tooltip={item.title}
                   isActive={isActive}
-                  className={cn(
-                    navItemClass,
-                    item.isNew &&
-                    "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
-                  )}
+                  className={navItemClass}
                 >
                   <Link href={item.url}>
                     {isActive && <ActiveStrip />}
-                    <item.icon
-                      className={cn(
-                        "transition-transform duration-200 group-hover/item:scale-110",
-                        item.isNew && "animate-pulse",
-                      )}
-                    />
+                    <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                     <span className="font-medium tracking-widest">{item.title}</span>
-                    {item.isNew && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
-                      >
-                        New
-                      </Badge>
-                    )}
-                    {item.title === "Suprah Space" && totalUnread > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-500 text-white border-none group-data-[collapsible=icon]:hidden"
-                      >
-                        {totalUnread > 99 ? "99+" : totalUnread}
-                      </Badge>
-                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -353,12 +385,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           })}
         </SidebarMenu>
 
+        {/* ── Apps ── */}
         {!isCustomer && (
           <>
-            <SectionLabel>Services</SectionLabel>
+            <SectionLabel>Apps</SectionLabel>
 
             <SidebarMenu>
-              {data.services.map((item) => {
+              {data.apps.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
                 return (
@@ -373,6 +406,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
+
+                        {/* Suprah Space: unread team-chat messages. */}
+                        {item.title === "Suprah Space" && totalUnread > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-500 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            {totalUnread > 99 ? "99+" : totalUnread}
+                          </Badge>
+                        )}
+
                         {/* Project Management: unread task-activity badge.
                             Count comes from ProjectNotificationContext —
                             assignments, comments, and status changes on the
@@ -394,6 +438,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </>
         )}
 
+        {/* ── Services ── */}
+        {!isCustomer && (
+          <>
+            <SectionLabel>Services</SectionLabel>
+
+            <SidebarMenu>
+              {data.services.map((item) => {
+                const isActive =
+                  pathname === item.url || pathname.startsWith(item.url + "/");
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      isActive={isActive}
+                      className={navItemClass}
+                    >
+                      <Link href={item.url}>
+                        {isActive && <ActiveStrip />}
+                        <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
+                        <span className="tracking-widest">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </>
+        )}
+
+        {/* ── Premium ── */}
         {!isCustomer && (
           <>
             <SectionLabel>Premium</SectionLabel>
@@ -439,6 +514,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </>
         )}
 
+        {/* ── Account ── */}
         <SectionLabel>Account</SectionLabel>
 
         <SidebarMenu>
