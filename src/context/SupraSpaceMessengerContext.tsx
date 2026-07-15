@@ -69,6 +69,7 @@ interface MessengerCtxValue {
   totalUnread: number;
   crmUserId: string | null;
   crmToken: string | null;
+  myFullName: string;
   isLoadingConversations: boolean;
   conversationError: boolean;
   isConnected: boolean;
@@ -506,6 +507,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         totalUnread,
         crmUserId,
         crmToken,
+        myFullName,
         isLoadingConversations,
         conversationError,
         isConnected,

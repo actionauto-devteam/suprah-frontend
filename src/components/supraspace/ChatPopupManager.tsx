@@ -345,15 +345,18 @@ function clipboardHtmlToPlainText(html: string): string {
     .trimEnd();
 }
 
-const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
-const SERIAL_LIKE_TOKEN = /\b(?=[A-Z0-9-]{8,}\b)(?=.*[A-Z])(?=.*\d)[A-Z0-9-]{8,}\b/g;
+const VIN_LIKE_TOKEN = /[A-HJ-NPR-Z0-9]{17}/g;
+const SERIAL_LIKE_TOKEN = /[A-Z0-9][A-Z0-9-]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
-  return [...new Set([
+  const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
-  ].map(token => token.replace(/-/g, '')))];
+  ];
+  return [...new Set(rawTokens
+    .map(token => token.replace(/-/g, ''))
+    .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
 }
 
 function isSerialLikeText(text: string): boolean {

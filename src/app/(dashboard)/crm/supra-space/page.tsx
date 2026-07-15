@@ -142,6 +142,7 @@ if (typeof document !== 'undefined') {
     .ss4-chat-header { background:var(--bg-elevated); border-bottom:1px solid var(--border-1); }
     .ss4-bubble-own { background:var(--bubble-own-bg); box-shadow:var(--bubble-own-shadow); color:#fff; border-radius:18px 18px 4px 18px; }
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
+    .ss4[data-theme="light"] .ss4-bubble-other .ss4-readable-light-color { color:var(--text-primary)!important; }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:15px; line-height:1.55; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
@@ -178,6 +179,7 @@ if (typeof document !== 'undefined') {
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
+    .ss4-filter-pill { height:28px; padding:0 12px; font-size:11px; line-height:1; }
     .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; touch-action:pan-y; }
     .ss4-scroll::-webkit-scrollbar { width:4px; }
     .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
@@ -244,6 +246,7 @@ if (typeof document !== 'undefined') {
       .ss4-conv-preview { font-size:17px !important; line-height:1.35 !important; }
       .ss4-conv-time { font-size:12.5px !important; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
+      .ss4-filter-pill { height:34px; padding:0 14px; font-size:13px !important; }
       .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
     }
     @media (min-width:768px) {
@@ -407,15 +410,18 @@ function clipboardHtmlToPlainText(html: string): string {
     .trimEnd();
 }
 
-const VIN_LIKE_TOKEN = /\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=.*\d)[A-HJ-NPR-Z0-9]{17}\b/g;
-const SERIAL_LIKE_TOKEN = /\b(?=[A-Z0-9-]{8,}\b)(?=.*[A-Z])(?=.*\d)[A-Z0-9-]{8,}\b/g;
+const VIN_LIKE_TOKEN = /[A-HJ-NPR-Z0-9]{17}/g;
+const SERIAL_LIKE_TOKEN = /[A-Z0-9][A-Z0-9-]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
-  return [...new Set([
+  const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
-  ].map(token => token.replace(/-/g, '')))];
+  ];
+  return [...new Set(rawTokens
+    .map(token => token.replace(/-/g, ''))
+    .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
 }
 
 function isSerialLikeText(text: string): boolean {
@@ -761,6 +767,18 @@ function messagePreviewText(content?: string | null): string {
     .trim();
 }
 
+function isNearWhiteHexColor(color?: string): boolean {
+  const raw = color?.trim().replace(/^#/, '');
+  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
+  const expanded = raw.length === 3
+    ? raw.split('').map(ch => ch + ch).join('')
+    : raw.slice(0, 6);
+  const r = Number.parseInt(expanded.slice(0, 2), 16);
+  const g = Number.parseInt(expanded.slice(2, 4), 16);
+  const b = Number.parseInt(expanded.slice(4, 6), 16);
+  return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r >= 238 && g >= 238 && b >= 238;
+}
+
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   const result: React.ReactNode[] = [];
 
@@ -844,7 +862,11 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       const key = `${keyPrefix}-fmt-${index++}`;
       if (token.type === 'color') {
         const inner = text.slice(token.contentStart, token.contentEnd);
-        nodes.push(<span key={key} style={{ color: token.color }}>{renderInline(inner, key)}</span>);
+        nodes.push(
+          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
+            {renderInline(inner, key)}
+          </span>
+        );
       } else if (token.type === 'bold') {
         nodes.push(<strong key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</strong>);
       } else if (token.type === 'strike') {
@@ -936,6 +958,13 @@ function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; 
 }
 
 interface CrmUser { _id: string; fullName: string; username: string; email?: string; avatar?: string; role: string }
+type ConversationFilter = 'all' | 'unread' | 'read' | 'mentions';
+const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'read', label: 'Read' },
+  { key: 'mentions', label: 'Mentions' },
+];
 interface MeetingJoinRequestedPayload {
   meetingId?: string;
   requester?: { userId?: string; name?: string; email?: string };
@@ -947,6 +976,56 @@ interface MeetingAdmissionUpdatedPayload {
 interface PendingMeetingDraft {
   title: string;
   scheduledAt: string;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionAliasesForUser(fullName?: string | null, username?: string | null): string[] {
+  const aliases = new Set<string>();
+  const name = (fullName || '').trim();
+  const user = (username || '').trim().replace(/^@/, '');
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (name) aliases.add(name);
+  if (parts[0]) aliases.add(parts[0]);
+  if (parts.length >= 2) aliases.add(`${parts[0]} ${parts[parts.length - 1]}`);
+  if (user) aliases.add(user);
+  return [...aliases].filter(Boolean);
+}
+
+function contentMentionsUser(content: string | null | undefined, fullName?: string | null, username?: string | null): boolean {
+  if (!content) return false;
+  if (/(^|[^\w])@all(?=$|[^\w])/i.test(content)) return true;
+  return mentionAliasesForUser(fullName, username).some((alias) => {
+    const normalizedAlias = escapeRegExp(alias).replace(/\s+/g, '\\s+');
+    return new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'i').test(content);
+  });
+}
+
+function isConvUnreadForUser(conv: SSConversation, uid: string, manualUnread: Set<string>): boolean {
+  if (manualUnread.has(conv._id)) return true;
+  if ((conv.unreadCount || 0) > 0) return true;
+  const msg = conv.lastMessage;
+  return !!uid && !!msg && !msg.isDeleted && msg.sender?._id !== uid && !msg.readBy?.includes(uid);
+}
+
+function hasUnreadMentionForUser(
+  conv: SSConversation,
+  uid: string,
+  fullName?: string | null,
+  username?: string | null,
+  cachedMessages?: SSMessage[],
+): boolean {
+  if (!uid) return false;
+  const candidates = cachedMessages?.length ? cachedMessages : (conv.lastMessage ? [conv.lastMessage as unknown as SSMessage] : []);
+  return candidates.some((msg) =>
+    !!msg &&
+    !msg.isDeleted &&
+    msg.sender?._id !== uid &&
+    !msg.readBy?.includes(uid) &&
+    contentMentionsUser(msg.content, fullName, username)
+  );
 }
 
 function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
@@ -3210,6 +3289,7 @@ export default function SupraSpacePage() {
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
   const [q, setQ] = React.useState('');
+  const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
@@ -5065,9 +5145,19 @@ export default function SupraSpacePage() {
   }, [mentionQuery, activeConv, uid]);
   const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
-  const visibleConvos = convos.filter(c => getConvName(c, uid).toLowerCase().includes(q.toLowerCase()));
+  const matchesConversationFilter = React.useCallback((conv: SSConversation) => {
+    const unread = isConvUnreadForUser(conv, uid, manualUnread);
+    if (conversationFilter === 'unread') return unread;
+    if (conversationFilter === 'read') return !unread;
+    if (conversationFilter === 'mentions') return hasUnreadMentionForUser(conv, uid, me?.fullName, me?.username, msgs[conv._id]);
+    return true;
+  }, [conversationFilter, uid, manualUnread, me?.fullName, me?.username, msgs]);
+  const visibleConvos = convos.filter(c =>
+    getConvName(c, uid).toLowerCase().includes(q.toLowerCase()) &&
+    matchesConversationFilter(c)
+  );
   const pinnedList = visibleConvos.filter(c => isPinnedConv(c) && !isArchivedConv(c));
-  const archivedList = convos.filter(c => isArchivedConv(c));
+  const archivedList = convos.filter(c => isArchivedConv(c) && matchesConversationFilter(c));
   const normalList = visibleConvos.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
   const dmList = normalList.filter(c => c.type === 'direct');
   const channelList = React.useMemo(() => {
@@ -5108,9 +5198,7 @@ export default function SupraSpacePage() {
     const archived = isArchivedConv(conv);
     const isMuted = notifPrefs[conv._id]?.muted ?? false;
     const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
-    const isUnread = unreadCount > 0 || manualUnread.has(conv._id) || (!isAct && !!conv.lastMessage && !!uid
-      && !conv.lastMessage.readBy?.includes(uid)
-      && conv.lastMessage.sender?._id !== uid);
+    const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
     const cachedConvMsgs = msgs[conv._id];
     const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
       ? conv.lastMessage
@@ -5386,6 +5474,26 @@ export default function SupraSpacePage() {
                 <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
                 <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
               </div>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                {CONVERSATION_FILTERS.map((filter) => {
+                  const active = conversationFilter === filter.key;
+                  return (
+                    <button
+                      key={filter.key}
+                      type="button"
+                      onClick={() => setConversationFilter(filter.key)}
+                      className="ss4-filter-pill shrink-0 rounded-full font-semibold transition-colors"
+                      style={{
+                        background: active ? 'var(--accent)' : 'var(--bg-hover)',
+                        color: active ? '#fff' : 'var(--text-secondary)',
+                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="mx-4 ss4-divider" />
 
@@ -5527,7 +5635,9 @@ export default function SupraSpacePage() {
               {normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
                 <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
                   <div className="h-10 w-10 rounded-xl ss4-empty-icon flex items-center justify-center"><MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
-                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No conversations yet</p>
+                  <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                    {conversationFilter === 'all' ? 'No conversations yet' : `No ${CONVERSATION_FILTERS.find(f => f.key === conversationFilter)?.label.toLowerCase()} conversations`}
+                  </p>
                 </div>
               )}
 
@@ -6429,10 +6539,7 @@ export default function SupraSpacePage() {
           const pinned = isPinnedConv(sheetConv);
           const archived = isArchivedConv(sheetConv);
           const cName = getConvName(sheetConv, uid);
-          const sheetUnreadCount = manualUnread.has(sheetConv._id) ? Math.max(1, sheetConv.unreadCount || 0) : (sheetConv.unreadCount || 0);
-          const sheetIsUnread = sheetUnreadCount > 0 || manualUnread.has(sheetConv._id) || (sheetConv._id !== activeId && !!sheetConv.lastMessage && !!uid
-            && !sheetConv.lastMessage.readBy?.includes(uid)
-            && sheetConv.lastMessage.sender?._id !== uid);
+          const sheetIsUnread = isConvUnreadForUser(sheetConv, uid, manualUnread);
           const toggleSheetReadState = () => {
             if (sheetIsUnread) {
               markRead(sheetConv._id);

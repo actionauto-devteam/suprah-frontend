@@ -80,6 +80,24 @@ export interface SSConversation {
 export interface PresenceMap { [userId: string]: 'online' | 'offline' }
 export interface TypingMap { [conversationId: string]: Array<{ userId: string; fullName: string }> }
 
+function resolveSupraSpaceSocketUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  if (typeof window === 'undefined') return configuredUrl;
+
+  const host = window.location.hostname;
+  const isLocalBrowser = host === 'localhost' || host === '127.0.0.1';
+  const configuredIsLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(configuredUrl);
+
+  // When testing from a phone/PWA via LAN IP, "localhost" means the phone,
+  // not the dev machine. Keep desktop local behavior, but use the current
+  // network host for mobile/LAN testing.
+  if (configuredIsLocalhost && !isLocalBrowser) {
+    return `${window.location.protocol}//${host}:5000`;
+  }
+
+  return configuredUrl || window.location.origin;
+}
+
 interface UseSupraSpaceReturn {
   socket: Socket | null;
   isConnected: boolean;
@@ -103,10 +121,10 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   React.useEffect(() => {
     if (!token) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || '', {
+    const socket = io(resolveSupraSpaceSocketUrl(), {
       path: '/socket/supraspace',
       auth: { token },
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       upgrade: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
