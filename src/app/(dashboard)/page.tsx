@@ -79,8 +79,10 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [revenuePeriod, setRevenuePeriod] = React.useState<string>("1Y");
   const [leaderboardMonth, setLeaderboardMonth] = React.useState<string>("Mar");
+  const [presenceOpen, setPresenceOpen] = React.useState(false);
 
   const repsScrollRef = React.useRef<HTMLDivElement>(null);
+  const presenceRef = React.useRef<HTMLDivElement>(null);
   const dragState = React.useRef({ active: false, startX: 0, scrollLeft: 0, hasDragged: false });
 
   React.useEffect(() => {
@@ -93,6 +95,15 @@ export default function Dashboard() {
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
   }, []);
+
+  React.useEffect(() => {
+    if (!presenceOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!presenceRef.current?.contains(event.target as Node)) setPresenceOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [presenceOpen]);
 
   function onRepsDragStart(e: React.MouseEvent) {
     dragState.current = { active: true, startX: e.pageX, scrollLeft: repsScrollRef.current?.scrollLeft ?? 0, hasDragged: false };
@@ -113,6 +124,9 @@ export default function Dashboard() {
   }
 
   const { data: metrics, isLoading, error } = useDashboardStats(revenuePeriod, leaderboardMonth);
+  const activeReps = metrics?.activeReps ?? [];
+  const visibleActiveReps = activeReps.slice(0, 5);
+  const hiddenActiveRepCount = Math.max(activeReps.length - visibleActiveReps.length, 0);
 
   React.useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -175,9 +189,9 @@ export default function Dashboard() {
         </div>
 
         { }
-        <div className="flex items-center gap-2.5 sm:gap-3 bg-card/40 py-2 px-3 rounded-2xl border border-border/20 backdrop-blur-md min-w-0 w-full sm:w-auto sm:max-w-xs">
+        <div ref={presenceRef} className="relative z-50 flex items-center gap-2.5 sm:gap-3 bg-card/40 py-2 px-3 rounded-2xl border border-border/20 backdrop-blur-md min-w-0 w-full sm:w-auto sm:max-w-md lg:max-w-lg xl:max-w-xl sm:ml-auto">
           <button
-            onClick={() => router.push("/team-pulse")}
+            onClick={() => setPresenceOpen((v) => !v)}
             className="flex items-center gap-1.5 shrink-0 -my-1 py-1 group"
           >
             <Activity className="size-3.5 text-primary group-hover:text-primary/80 transition-colors" />
@@ -189,18 +203,18 @@ export default function Dashboard() {
           <TooltipProvider delayDuration={200}>
             <div
               ref={repsScrollRef}
-              className="flex gap-2.5 overflow-x-auto no-scrollbar select-none flex-1"
+              className="flex gap-2.5 overflow-hidden select-none flex-1 min-w-0"
               style={{ cursor: "grab" }}
               onMouseDown={onRepsDragStart}
               onMouseMove={onRepsDragMove}
               onMouseUp={onRepsDragEnd}
               onMouseLeave={onRepsDragEnd}
             >
-              {metrics?.activeReps?.map((rep: any, idx: number) => (
+              {visibleActiveReps.map((rep: any, idx: number) => (
                 <Tooltip key={rep._id ?? `${rep.name}-${idx}`}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => { if (!dragState.current.hasDragged) router.push("/team-pulse"); }}
+                      onClick={() => { if (!dragState.current.hasDragged) setPresenceOpen((v) => !v); }}
                       className="flex flex-col items-center gap-0.5 shrink-0 p-1 -m-1 group"
                     >
                       <div className="relative">
@@ -223,8 +237,69 @@ export default function Dashboard() {
                   </TooltipContent>
                 </Tooltip>
               ))}
+              {hiddenActiveRepCount > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setPresenceOpen((v) => !v)}
+                      className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border border-border/40 bg-muted/70 px-2 text-[10px] font-black text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
+                      +{hiddenActiveRepCount}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    <p className="font-semibold">{hiddenActiveRepCount} more live user{hiddenActiveRepCount === 1 ? "" : "s"}</p>
+                    <p className="text-muted-foreground">Open Team Pulse to view everyone</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </TooltipProvider>
+          {presenceOpen && (
+            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-100 w-[min(92vw,22rem)] overflow-hidden rounded-2xl border border-border/40 bg-background/98 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between gap-3 border-b border-border/30 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-foreground">Live users</p>
+                  <p className="text-[11px] font-medium text-muted-foreground">{activeReps.length} active right now</p>
+                </div>
+                <button
+                  onClick={() => { setPresenceOpen(false); router.push("/team-pulse"); }}
+                  className="shrink-0 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-bold text-primary transition hover:bg-primary/15"
+                >
+                  View all
+                </button>
+              </div>
+              <div className="max-h-80 overflow-y-auto p-2">
+                {activeReps.length > 0 ? activeReps.map((rep: any, idx: number) => (
+                  <button
+                    key={rep._id ?? `${rep.name}-${idx}`}
+                    onClick={() => { setPresenceOpen(false); router.push("/team-pulse"); }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-muted/60"
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar className="size-9 border-2 border-background shadow-sm">
+                        <AvatarImage src={rep.avatar} />
+                        <AvatarFallback className="text-[11px] bg-muted font-bold">
+                          {rep.name?.[0] ?? "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-background ${STATUS_DOT[rep.onlineStatus] ?? STATUS_DOT.offline}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-foreground">{rep.name}</p>
+                      <p className="truncate text-[11px] capitalize text-muted-foreground">{(rep.onlineStatus ?? "offline").replace(/_/g, " ")}</p>
+                    </div>
+                    <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+                  </button>
+                )) : (
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-sm font-semibold text-foreground">No live users yet</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Team activity will appear here once users are online.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

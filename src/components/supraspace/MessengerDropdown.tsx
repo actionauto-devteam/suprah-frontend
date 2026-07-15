@@ -20,6 +20,13 @@ import {
 
 
 interface CrmUser { _id: string; fullName: string; username: string; avatar?: string }
+type ConversationFilter = 'all' | 'unread' | 'read' | 'mentions';
+const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'read', label: 'Read' },
+  { key: 'mentions', label: 'Mentions' },
+];
 
 
 function getDisplayName(conv: SSConv, myId: string | null): string {
@@ -74,6 +81,36 @@ function previewText(conv: SSConv): string {
   return icons[msg.type] ?? cleanPreviewContent(msg.content) ?? '';
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionAliasesForUser(fullName?: string | null, username?: string | null): string[] {
+  const aliases = new Set<string>();
+  const name = (fullName || '').trim();
+  const user = (username || '').trim().replace(/^@/, '');
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (name) aliases.add(name);
+  if (parts[0]) aliases.add(parts[0]);
+  if (parts.length >= 2) aliases.add(`${parts[0]} ${parts[parts.length - 1]}`);
+  if (user) aliases.add(user);
+  return [...aliases].filter(Boolean);
+}
+
+function contentMentionsUser(content: string | null | undefined, fullName?: string | null, username?: string | null): boolean {
+  if (!content) return false;
+  if (/(^|[^\w])@all(?=$|[^\w])/i.test(content)) return true;
+  return mentionAliasesForUser(fullName, username).some((alias) => {
+    const normalizedAlias = escapeRegExp(alias).replace(/\s+/g, '\\s+');
+    return new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'i').test(content);
+  });
+}
+
+function isConvUnread(conv: SSConv, userId: string | null): boolean {
+  const msg = conv.lastMessage;
+  return (conv.unreadCount || 0) > 0 || (!!msg && !msg.isDeleted && msg.sender?._id !== userId && !msg.readBy?.includes(userId || ''));
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MessengerDropdown() {
@@ -82,6 +119,7 @@ export function MessengerDropdown() {
     totalUnread,
     crmUserId,
     crmToken,
+    myFullName,
     isLoadingConversations,
     conversationError,
     openChatPopup,
@@ -102,6 +140,26 @@ export function MessengerDropdown() {
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [groupName, setGroupName] = React.useState('');
   const [creating, setCreating] = React.useState(false);
+  const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
+
+  const myUsername = React.useMemo(() => {
+    for (const conv of conversations) {
+      const member = conv.members.find((m) => m._id === crmUserId);
+      if (member?.username) return member.username;
+    }
+    return '';
+  }, [conversations, crmUserId]);
+
+  const filteredConversations = React.useMemo(() => conversations.filter((conv) => {
+    const unread = isConvUnread(conv, crmUserId);
+    if (conversationFilter === 'unread') return unread;
+    if (conversationFilter === 'read') return !unread;
+    if (conversationFilter === 'mentions') {
+      const msg = conv.lastMessage;
+      return unread && !!msg && !msg.isDeleted && msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId || '') && contentMentionsUser(msg.content, myFullName, myUsername);
+    }
+    return true;
+  }), [conversations, conversationFilter, crmUserId, myFullName, myUsername]);
 
   const resetCreate = () => {
     setView('list');
@@ -262,6 +320,27 @@ export function MessengerDropdown() {
 
         {view === 'list' ? (
           /* ── Conversation list ── */
+          <>
+          <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 border-b border-border/40 bg-card/80">
+            {CONVERSATION_FILTERS.map((filter) => {
+              const isActive = conversationFilter === filter.key;
+              return (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() => setConversationFilter(filter.key)}
+                  className={cn(
+                    'h-7 shrink-0 rounded-full border px-3 text-[11px] font-semibold transition-colors',
+                    isActive
+                      ? 'border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-300'
+                      : 'border-border/55 bg-muted/25 text-muted-foreground hover:border-green-500/35 hover:text-foreground'
+                  )}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="flex-1 overflow-y-auto min-h-0 bg-card/80" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}>
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
@@ -296,10 +375,20 @@ export function MessengerDropdown() {
                   </>
                 )}
               </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
+                <p className="text-[12px] font-semibold text-foreground/80">
+                  No {CONVERSATION_FILTERS.find((filter) => filter.key === conversationFilter)?.label.toLowerCase()} conversations
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Try another filter or open Suprah Space.
+                </p>
+              </div>
             ) : (
-              conversations.map((conv) => {
+              filteredConversations.map((conv) => {
                 const msg = conv.lastMessage;
-                const isUnread = (conv.unreadCount || 0) > 0 || (!!msg && !msg.isDeleted && msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId || ''));
+                const isUnread = isConvUnread(conv, crmUserId);
                 const name = getDisplayName(conv, crmUserId);
                 const avatarSrc = getAvatarSrc(conv, crmUserId);
                 return (
@@ -332,6 +421,7 @@ export function MessengerDropdown() {
               })
             )}
           </div>
+          </>
         ) : (
           /* ── Create view ── */
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">

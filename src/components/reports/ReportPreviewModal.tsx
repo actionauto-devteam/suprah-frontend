@@ -454,7 +454,8 @@ export function ReportPreviewModal({
     >
       <DialogContent
         showCloseButton={false}
-        className="w-[96vw] max-w-300 p-0 gap-0 overflow-hidden max-h-[92dvh] flex flex-col rounded-2xl"
+        overlayClassName="bg-black/80 backdrop-blur-sm"
+        className={`${isDriver ? "max-w-300" : "max-w-2xl"} w-[94vw] p-0 gap-0 overflow-hidden max-h-[92dvh] flex flex-col rounded-2xl border-border/70 shadow-2xl ring-1 ring-white/10`}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">

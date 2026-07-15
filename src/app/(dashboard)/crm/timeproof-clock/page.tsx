@@ -736,6 +736,22 @@ export default function TimeprofClockPage() {
     }
   }
 
+  // Checks whether the tray app is reachable/online via the BACKEND's own
+  // heartbeat record, not a direct browser fetch to 127.0.0.1 — modern Chrome
+  // blocks that outright (Private Network Access), regardless of whether the
+  // tray is genuinely running, so a direct loopback fetch always fails on a
+  // real HTTPS deployment and falsely reports "not detected".
+  const isTrayOnline = async (): Promise<boolean> => {
+    const t = localStorage.getItem("crm_token")
+    if (!t) return false
+    try {
+      const res = await apiClient.get("/api/crm/timeproof/my-agent", { headers: { Authorization: `Bearer ${t}` } })
+      return !!res.data?.data?.isOnline
+    } catch {
+      return false
+    }
+  }
+
   const checkTrayAndStartShift = React.useCallback(async () => {
     const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
@@ -761,8 +777,8 @@ export default function TimeprofClockPage() {
     }
     setTrayChecking(true)
     try {
-      const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) })
-      if (res.status < 600) {
+      const online = await isTrayOnline()
+      if (online) {
         setShowTrayModal(false)
         try {
           const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
@@ -1881,12 +1897,15 @@ export default function TimeprofClockPage() {
                   <Download className="h-4 w-4" /> Download Tray App ({isMacDesktop() ? ".dmg" : ".exe"})
                 </a>
                 <button onClick={async () => {
+                  // Custom protocol navigation, NOT a fetch — this is the one path
+                  // that actually reaches the tray even when the browser blocks
+                  // direct loopback fetches (Private Network Access).
                   try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
                   await new Promise((r) => setTimeout(r, 3000))
                   setTrayChecking(true)
                   try {
-                    const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) })
-                    if (res.status < 600) { setShowTrayModal(false); handleClock("time-in") }
+                    const online = await isTrayOnline()
+                    if (online) { setShowTrayModal(false); handleClock("time-in") }
                   } catch { } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}
                   className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50">
@@ -1895,8 +1914,8 @@ export default function TimeprofClockPage() {
                 <button onClick={async () => {
                   setTrayChecking(true)
                   try {
-                    const res = await fetch("http://127.0.0.1:18642/", { method: "GET", signal: AbortSignal.timeout(2000) })
-                    if (res.status < 600) { setShowTrayModal(false); handleClock("time-in") }
+                    const online = await isTrayOnline()
+                    if (online) { setShowTrayModal(false); handleClock("time-in") }
                     else toast.error("Tray app not detected. Make sure it is running.")
                   } catch { toast.error("Tray app not detected. Make sure it is running.") } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}
