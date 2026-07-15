@@ -315,6 +315,7 @@ function getCopiedElementVisibleText(element: HTMLElement): string {
     const select = element as HTMLSelectElement;
     return select.selectedOptions?.[0]?.textContent || select.value || '';
   }
+  if (element.textContent?.trim()) return '';
   return element.getAttribute('data-value')
     || element.getAttribute('data-text')
     || element.getAttribute('data-label')
@@ -347,15 +348,19 @@ function clipboardHtmlToPlainText(html: string): string {
 
 const VIN_LIKE_TOKEN = /[A-HJ-NPR-Z0-9]{17}/g;
 const SERIAL_LIKE_TOKEN = /[A-Z0-9][A-Z0-9-]{6,}[A-Z0-9]/g;
+const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B-\u200D\uFEFF]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
+  const compact = normalized.replace(/[^A-Z0-9]/g, '');
   const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
+    ...(normalized.match(SERIAL_WORD_TOKEN) || []),
+    ...(compact.match(VIN_LIKE_TOKEN) || []),
   ];
   return [...new Set(rawTokens
-    .map(token => token.replace(/-/g, ''))
+    .map(token => token.replace(/[^A-Z0-9]/g, ''))
     .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
 }
 
@@ -403,6 +408,31 @@ function preserveVisiblePayloadLines(serialized: string, visibleText: string): s
   });
 
   return serializedLines.join('\n');
+}
+
+function normalizeSerialSearchText(text: string): string {
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function restoreMissingSerialsFromSources(serialized: string, sources: Array<string | null | undefined>): string {
+  const sourceText = sources.filter(Boolean).join('\n');
+  const tokens = serialLikeTokens(sourceText);
+  if (!tokens.length) return serialized;
+
+  const sourceLines = sourceText.replace(/\r\n?/g, '\n').split('\n');
+  const restoredLines = serialized.replace(/\r\n?/g, '\n').split('\n');
+  let serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+
+  tokens.forEach(token => {
+    if (serializedSearch.includes(token)) return;
+    const sourceLine = sourceLines.find(line => normalizeSerialSearchText(line).includes(token))?.trim();
+    const fallback = sourceLine && sourceLine.length <= token.length + 24 ? sourceLine : token;
+    if (!fallback) return;
+    restoredLines.push(fallback);
+    serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+  });
+
+  return restoredLines.join('\n');
 }
 
 function canonicalizeColorMarkup(value: string): string {
@@ -856,6 +886,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [fetchError, setFetchError] = React.useState(false);
   const [input,    setInput]    = React.useState('');
   const inputTextRef = React.useRef('');
+  const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
   const [sending,  setSending]  = React.useState(false);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
@@ -1477,9 +1508,18 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
     const text = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
-        preserveVisiblePayloadLines(
-          preserveVisibleVinLines(serializedComposerText, visibleComposerText),
-          visibleComposerText,
+        restoreMissingSerialsFromSources(
+          preserveVisiblePayloadLines(
+            preserveVisibleVinLines(serializedComposerText, visibleComposerText),
+            visibleComposerText,
+          ),
+          [
+            visibleComposerText,
+            inputTextRef.current,
+            pastedPlainTextRef.current,
+            inputRef.current?.textContent || '',
+            serializedComposerText,
+          ],
         ),
       ),
     );
@@ -1511,6 +1551,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       createdAt: new Date().toISOString(),
     }]);
     syncComposerText('', true);
+    pastedPlainTextRef.current = '';
     if (inputRef.current) inputRef.current.innerHTML = '';
     setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null);
     try {
@@ -2111,6 +2152,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     onPaste={e => {
                       const text = e.clipboardData?.getData('text/plain') || '';
                       const html = e.clipboardData?.getData('text/html') || '';
+                      if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
                       const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
                       if (html && hasRichFormatting(html) && !shouldUsePlainText) {
                         e.preventDefault();

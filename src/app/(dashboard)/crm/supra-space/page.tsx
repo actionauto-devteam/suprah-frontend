@@ -331,6 +331,7 @@ function getCopiedElementVisibleText(element: HTMLElement): string {
     const select = element as HTMLSelectElement;
     return select.selectedOptions?.[0]?.textContent || select.value || '';
   }
+  if (element.textContent?.trim()) return '';
   return element.getAttribute('data-value')
     || element.getAttribute('data-text')
     || element.getAttribute('data-label')
@@ -414,15 +415,19 @@ function clipboardHtmlToPlainText(html: string): string {
 
 const VIN_LIKE_TOKEN = /[A-HJ-NPR-Z0-9]{17}/g;
 const SERIAL_LIKE_TOKEN = /[A-Z0-9][A-Z0-9-]{6,}[A-Z0-9]/g;
+const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B-\u200D\uFEFF]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
+  const compact = normalized.replace(/[^A-Z0-9]/g, '');
   const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
+    ...(normalized.match(SERIAL_WORD_TOKEN) || []),
+    ...(compact.match(VIN_LIKE_TOKEN) || []),
   ];
   return [...new Set(rawTokens
-    .map(token => token.replace(/-/g, ''))
+    .map(token => token.replace(/[^A-Z0-9]/g, ''))
     .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
 }
 
@@ -470,6 +475,31 @@ function preserveVisiblePayloadLines(serialized: string, visibleText: string): s
   });
 
   return serializedLines.join('\n');
+}
+
+function normalizeSerialSearchText(text: string): string {
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function restoreMissingSerialsFromSources(serialized: string, sources: Array<string | null | undefined>): string {
+  const sourceText = sources.filter(Boolean).join('\n');
+  const tokens = serialLikeTokens(sourceText);
+  if (!tokens.length) return serialized;
+
+  const sourceLines = sourceText.replace(/\r\n?/g, '\n').split('\n');
+  const restoredLines = serialized.replace(/\r\n?/g, '\n').split('\n');
+  let serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+
+  tokens.forEach(token => {
+    if (serializedSearch.includes(token)) return;
+    const sourceLine = sourceLines.find(line => normalizeSerialSearchText(line).includes(token))?.trim();
+    const fallback = sourceLine && sourceLine.length <= token.length + 24 ? sourceLine : token;
+    if (!fallback) return;
+    restoredLines.push(fallback);
+    serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+  });
+
+  return restoredLines.join('\n');
 }
 
 function canonicalizeColorMarkup(value: string): string {
@@ -3251,6 +3281,7 @@ export default function SupraSpacePage() {
 
   const [input, setInput] = React.useState('');
   const inputTextRef = React.useRef('');
+  const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
   const [sending, setSending] = React.useState(false);
@@ -4223,9 +4254,18 @@ export default function SupraSpacePage() {
     const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim();
     const content = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
-        preserveVisiblePayloadLines(
-          preserveVisibleVinLines(serializedComposerText, visibleComposerText),
-          visibleComposerText,
+        restoreMissingSerialsFromSources(
+          preserveVisiblePayloadLines(
+            preserveVisibleVinLines(serializedComposerText, visibleComposerText),
+            visibleComposerText,
+          ),
+          [
+            visibleComposerText,
+            inputTextRef.current,
+            pastedPlainTextRef.current,
+            textareaRef.current?.textContent || '',
+            serializedComposerText,
+          ],
         ),
       ),
     );
@@ -4251,7 +4291,7 @@ export default function SupraSpacePage() {
           optionalMessage: content,
         }, { headers: { Authorization: `Bearer ${token}` } });
         if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        setPendingMeeting(null); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingMeeting(null); pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (r.data?.data?.meetingLink) {
           try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
           catch { toast.success('Meeting sent'); }
@@ -4268,7 +4308,7 @@ export default function SupraSpacePage() {
         if (replyMessageId) fd.append('replyTo', replyMessageId);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
         if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingFiles([]); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingFiles([]); pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         showUploadNotice('success', pendingFiles.length === 1 ? 'Attachment sent.' : `${pendingFiles.length} attachments sent.`);
       } else if (hasPendingGif) {
         const r = await apiClient.post(
@@ -4278,7 +4318,7 @@ export default function SupraSpacePage() {
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingGif(null); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingGif(null); pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
       } else {
         const tempId = scheduledAt ? null : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         if (tempId) {
@@ -4304,7 +4344,7 @@ export default function SupraSpacePage() {
             createdAt: new Date().toISOString(),
           });
         }
-        syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (tempId) setSending(false);
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
@@ -6056,6 +6096,7 @@ export default function SupraSpacePage() {
                                 const items = e.clipboardData?.items;
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
+                                if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
 
                                 const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
                                 if (html && hasRichFormatting(html) && !shouldUsePlainText) {
