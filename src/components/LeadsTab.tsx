@@ -44,9 +44,6 @@ import {
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 
-injectSS4Styles();
-injectLeadDetailsPanelStyles();
-
 // Constants
 const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
 const LEADS_PER_PAGE = 20;
@@ -79,6 +76,13 @@ export function LeadsTab({
 } = {}) {
   const { getToken } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  // Inject base styles first, then the Leads workspace overrides.
+  // This keeps the CSS order stable after hydration and navigation.
+  React.useEffect(() => {
+    injectSS4Styles();
+    injectLeadDetailsPanelStyles();
+  }, []);
 
   // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);

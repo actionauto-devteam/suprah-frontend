@@ -978,6 +978,106 @@ export const LEAD_DETAILS_PANEL_CSS = `
   .suprah-activity-card time { color: var(--text-tertiary); font-size: 10px; }
   .suprah-timeline-dot { position: absolute; width: 8px; height: 8px; left: -17px; top: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--bg-elevated); }
 
+
+  /* ── Production-safe conversation alignment fix ─────── */
+  .ss4 .suprah-message-area {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 26px clamp(18px, 4vw, 44px);
+    background: var(--bg-base);
+  }
+
+  .ss4 .suprah-message-area > .suprah-conversation-start {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 4px auto 34px !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+    text-align: center !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--text-secondary);
+  }
+
+  .ss4 .suprah-message-area > .suprah-conversation-start .suprah-phone-icon {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 44px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.22);
+  }
+
+  .ss4 .suprah-message-area > .suprah-conversation-start h3 {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 11px 0 4px !important;
+    padding: 0 !important;
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center !important;
+  }
+
+  .ss4 .suprah-message-area > .suprah-conversation-start p {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.35;
+    text-align: center !important;
+  }
+
+  .ss4 .suprah-message-row {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .ss4 .suprah-message-row.inbound {
+    justify-content: flex-start;
+  }
+
+  .ss4 .suprah-message-row.outbound {
+    justify-content: flex-end;
+  }
+
+  .ss4 .suprah-message-column {
+    width: fit-content;
+    min-width: 0;
+    max-width: min(78%, 680px);
+  }
+
+  .ss4 .suprah-message-bubble {
+    width: 100%;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   @media (min-width: 1280px) { .suprah-details-panel { display: flex; flex-direction: column; } }
   @media (max-width: 639px) {
     .suprah-conversation-header { min-height: 62px; padding: 0 10px; }
@@ -989,13 +1089,18 @@ export const LEAD_DETAILS_PANEL_CSS = `
 `;
 
 export function injectLeadDetailsPanelStyles() {
-  if (
-    typeof document === "undefined" ||
-    document.getElementById("lead-details-panel-styles")
-  )
-    return;
-  const style = document.createElement("style");
-  style.id = "lead-details-panel-styles";
+  if (typeof document === "undefined") return;
+
+  let style = document.getElementById(
+    "lead-details-panel-styles",
+  ) as HTMLStyleElement | null;
+
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "lead-details-panel-styles";
+  }
+
+  // Always refresh the current CSS and move this override after SS4_CSS.
   style.textContent = LEAD_DETAILS_PANEL_CSS;
   document.head.appendChild(style);
 }
