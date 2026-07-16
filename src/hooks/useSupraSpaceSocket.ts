@@ -72,6 +72,7 @@ export interface SSConversation {
   lastMessage?: SSMessage;
   lastMessageAt?: string;
   unreadCount?: number;
+  unreadMentionCount?: number;
   notificationPreference?: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
   createdBy: string;
   spaceId?: string | null;

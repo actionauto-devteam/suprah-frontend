@@ -148,7 +148,7 @@ if (typeof document !== 'undefined') {
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
     .ss4[data-theme="light"] .ss4-bubble-other .ss4-readable-light-color { color:var(--text-primary)!important; }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
-    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:15px; line-height:1.55; }
+    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:16px; line-height:1.55; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-composer-main { display:flex!important; flex-direction:column; width:100%; max-width:100%; min-width:0; }
@@ -223,7 +223,7 @@ if (typeof document !== 'undefined') {
     @media (max-width:767px) {
       .ss4 input, .ss4 textarea { font-size: 16px !important; }
       .ss4-msg-column { max-width:min(82%,22rem); }
-      .ss4-msg-bubble { font-size:17px !important; line-height:1.55 !important; }
+      .ss4-msg-bubble { font-size:18px !important; line-height:1.55 !important; }
       .ss4-msg-sender { font-size:14px !important; }
       .ss4-date-chip { font-size:12px; }
       .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; height:auto!important; }
@@ -1065,6 +1065,7 @@ function hasUnreadMentionForUser(
   cachedMessages?: SSMessage[],
 ): boolean {
   if (!uid) return false;
+  if ((conv.unreadMentionCount || 0) > 0) return true;
   const candidates = cachedMessages?.length ? cachedMessages : (conv.lastMessage ? [conv.lastMessage as unknown as SSMessage] : []);
   return candidates.some((msg) =>
     !!msg &&
@@ -3536,6 +3537,7 @@ export default function SupraSpacePage() {
     setUploadNotice({ kind, text });
     uploadNoticeTimerRef.current = setTimeout(() => setUploadNotice(null), 3500);
   }, []);
+  const me = React.useMemo(() => allUsers.find(u => u._id === uid), [allUsers, uid]);
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
     setMsgs(p => {
@@ -3554,15 +3556,17 @@ export default function SupraSpacePage() {
     setConvos(p => p.map(c => {
       if (c._id !== conversationId) return c;
       const isIncomingUnread = message.sender?._id !== uid && !message.readBy?.includes(uid) && conversationId !== activeIdRef.current;
+      const isIncomingUnreadMention = isIncomingUnread && contentMentionsUser(message.content, me?.fullName, me?.username);
       return {
         ...c,
         lastMessage: message,
         lastMessageAt: message.createdAt,
         unreadCount: isIncomingUnread ? (c.unreadCount || 0) + 1 : 0,
+        unreadMentionCount: isIncomingUnreadMention ? (c.unreadMentionCount || 0) + 1 : (conversationId === activeIdRef.current ? 0 : c.unreadMentionCount || 0),
       };
     })
       .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
-  }, [uid]);
+  }, [uid, me?.fullName, me?.username]);
 
   const replaceMessageLocal = React.useCallback((conversationId: string, tempId: string, message: SSMessage) => {
     setMsgs(p => {
@@ -3605,8 +3609,6 @@ export default function SupraSpacePage() {
       socket.off('call:recording-stopped', onStopped);
     };
   }, [socket]);
-  const me = React.useMemo(() => allUsers.find(u => u._id === uid), [allUsers, uid]);
-
   const handleStartCall = React.useCallback(async (conv: SSConversation) => {
     try { setActiveMeeting(await call.startCall(conv._id)); }
     catch (e) { showUploadNotice('error', getErrorMessage(e, 'Could not start the call.')); }
@@ -3926,7 +3928,7 @@ export default function SupraSpacePage() {
           if (c._id !== conversationId || !c.lastMessage) return c;
           const rb = c.lastMessage.readBy || [];
           if (rb.includes(uid)) return c;
-          return { ...c, unreadCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+          return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
         }));
       }
     };
@@ -4012,7 +4014,7 @@ export default function SupraSpacePage() {
     socket.on('call:ended', onCallEnded);
     const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       if (userId === uid) {
-        setConvos(prev => prev.map(c => c._id === conversationId ? { ...c, unreadCount: 0 } : c));
+        setConvos(prev => prev.map(c => c._id === conversationId ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
       }
       setMsgs((prev) => {
         const convMsgs = prev[conversationId];
@@ -4194,8 +4196,8 @@ export default function SupraSpacePage() {
     setConvos(prev => prev.map(c => {
       if (c._id !== activeId || !c.lastMessage) return c;
       const rb = c.lastMessage.readBy || [];
-      if (rb.includes(uid)) return { ...c, unreadCount: 0 };
-      return { ...c, unreadCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+      if (rb.includes(uid)) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
+      return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
     }));
     call.refreshStatus(activeId);
   }, [activeId, token, activeMsgsMissing, fetchConversationMessages]); // eslint-disable-line
@@ -5364,6 +5366,7 @@ export default function SupraSpacePage() {
                     if (isUnread) {
                       markRead(conv._id);
                       setManualUnread(p => { const n = new Set(p); n.delete(conv._id); return n; });
+                      setConvos(prev => prev.map(c => c._id === conv._id ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
                     } else {
                       setManualUnread(p => new Set([...p, conv._id]));
                     }
@@ -6671,10 +6674,10 @@ export default function SupraSpacePage() {
               ctxMarkAsRead(sheetConv._id);
               setManualUnread(p => { const n = new Set(p); n.delete(sheetConv._id); return n; });
               setConvos(prev => prev.map(c => {
-                if (c._id !== sheetConv._id || !c.lastMessage) return c._id === sheetConv._id ? { ...c, unreadCount: 0 } : c;
+                if (c._id !== sheetConv._id || !c.lastMessage) return c._id === sheetConv._id ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c;
                 const rb = c.lastMessage.readBy || [];
-                if (uid && !rb.includes(uid)) return { ...c, unreadCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
-                return { ...c, unreadCount: 0 };
+                if (uid && !rb.includes(uid)) return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+                return { ...c, unreadCount: 0, unreadMentionCount: 0 };
               }));
             } else {
               setManualUnread(p => new Set([...p, sheetConv._id]));
