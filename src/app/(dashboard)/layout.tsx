@@ -19,6 +19,7 @@ import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
+import { DepartmentsProvider } from "@/context/DepartmentsContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl, cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
@@ -324,14 +325,16 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ProfileProvider>
-      <ProfileToastProvider>
-        <NotificationProvider>
-          <SupraSpaceMessengerProvider>
-            <DashboardLayoutContent>{children}</DashboardLayoutContent>
-          </SupraSpaceMessengerProvider>
-        </NotificationProvider>
-      </ProfileToastProvider>
-    </ProfileProvider>
+    <DepartmentsProvider>
+      <ProfileProvider>
+        <ProfileToastProvider>
+          <NotificationProvider>
+            <SupraSpaceMessengerProvider>
+              <DashboardLayoutContent>{children}</DashboardLayoutContent>
+            </SupraSpaceMessengerProvider>
+          </NotificationProvider>
+        </ProfileToastProvider>
+      </ProfileProvider>
+    </DepartmentsProvider>
   );
 }

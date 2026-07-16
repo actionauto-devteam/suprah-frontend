@@ -20,12 +20,13 @@ import {
     Plus,
     X,
     Loader2,
-    AlertCircle
+    AlertCircle,
+    Lock
 } from 'lucide-react';
 import { PersonalInfo, SocialLink } from '@/types/user';
 import { cn } from '@/lib/utils';
 import { languageOptions } from './profile-constants';
-import { DEPARTMENTS } from '@/lib/departments';
+import { deptLabel } from '@/lib/departments';
 
 interface PersonalInfoTabProps {
     personalInfo: PersonalInfo;
@@ -78,54 +79,6 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
     updateSocialLink,
     removeSocialLink,
 }) => {
-    // ── Department "Other" state ──────────────────────────────────────────────
-    // `deptMode`  — what the Select displays (a dept key, '__other__', or '__none__')
-    // `customDeptText` — free-text when mode is '__other__'
-    //
-    // We cannot derive deptMode from personalInfo.department on every render because
-    // handleDeptSelect sets department = undefined when user first picks "Other"
-    // (no text yet), which would immediately flip the Select back to "Not set".
-    // Instead we own the display state here and sync from props only while NOT editing.
-
-    const [deptMode, setDeptMode] = React.useState<string>('__none__');
-    const [customDeptText, setCustomDeptText] = React.useState<string>('');
-
-    // Sync from props when the profile loads OR when editing is cancelled/saved.
-    // Guard skips the sync while the user is actively editing so their in-progress
-    // changes aren't overwritten by the parent's personalInfo updates.
-    React.useEffect(() => {
-        if (editingPersonalInfo) return;
-        const dept = personalInfo.department;
-        if (!dept) {
-            setDeptMode('__none__');
-            setCustomDeptText('');
-        } else if (DEPARTMENTS.some((d) => d.key === dept)) {
-            setDeptMode(dept);
-            setCustomDeptText('');
-        } else {
-            setDeptMode('__other__');
-            setCustomDeptText(dept);
-        }
-    }, [personalInfo.department, editingPersonalInfo]);
-
-    function handleDeptSelect(value: string) {
-        setDeptMode(value);
-        if (value === '__none__') {
-            setPersonalInfo({ ...personalInfo, department: undefined });
-        } else if (value === '__other__') {
-            // Leave department as whatever is in customDeptText (may be empty for now —
-            // the input below lets the user fill it in)
-            setPersonalInfo({ ...personalInfo, department: customDeptText || undefined });
-        } else {
-            setPersonalInfo({ ...personalInfo, department: value });
-        }
-    }
-
-    function handleCustomDeptText(text: string) {
-        setCustomDeptText(text);
-        setPersonalInfo({ ...personalInfo, department: text || undefined });
-    }
-
     return (
         <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
@@ -252,36 +205,17 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
                     </div>
 
                     <div className="space-y-3">
-                        <Label htmlFor="department" className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
+                        <Label className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
                             <Building2 className="size-4 text-emerald-600 dark:text-emerald-400" />Department
                         </Label>
-                        <Select
-                            value={deptMode}
-                            onValueChange={handleDeptSelect}
-                            disabled={!editingPersonalInfo}
-                        >
-                            <SelectTrigger className="rounded-lg border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors disabled:bg-gray-50 dark:disabled:bg-gray-900 font-medium h-12">
-                                <SelectValue placeholder="Select your department" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="__none__">— Not set —</SelectItem>
-                                {DEPARTMENTS.map((d) => (
-                                    <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
-                                ))}
-                                <SelectItem value="__other__">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        {deptMode === '__other__' && (
-                            <Input
-                                value={customDeptText}
-                                onChange={(e) => handleCustomDeptText(e.target.value)}
-                                disabled={!editingPersonalInfo}
-                                placeholder="Please specify your department…"
-                                maxLength={100}
-                                className="rounded-lg border-2 border-amber-300 dark:border-amber-700 focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors disabled:bg-gray-50 dark:disabled:bg-gray-900 font-medium p-3"
-                            />
-                        )}
+                        <div className="flex items-center h-12 px-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                                {deptLabel(personalInfo.department)}
+                            </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                            <Lock className="size-3" />Managed by Team Engagement — contact an admin to change
+                        </p>
                     </div>
 
                     <div className="space-y-3">
