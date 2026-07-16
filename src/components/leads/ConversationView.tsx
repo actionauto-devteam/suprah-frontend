@@ -503,7 +503,7 @@ export function ConversationView({
   }, [lead?._id]);
 
   return (
-    <section className="suprah-conversation-shell flex flex-1 min-h-0 flex-col overflow-hidden">
+    <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden">
       {!hideConversationChrome && (
         <>
           <header className="suprah-conversation-header">

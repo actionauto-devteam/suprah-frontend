@@ -895,13 +895,12 @@ const fetchThread = React.useCallback(
           <InboundCallsTab />
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 overflow-hidden relative bg-[var(--bg-base)]">
+        <div className="suprah-workspace-scroll flex-1 min-h-0 bg-[var(--bg-base)]">
+          <div className="suprah-workspace-track">
           {/* PODIUM-LIKE LEFT CONVERSATION SIDEBAR */}
           <aside
             className={cn(
-              "flex flex-col shrink-0 min-h-0 border-r",
-              "w-full lg:w-[330px] xl:w-[360px]",
-              selectedLead ? "hidden lg:flex" : "flex",
+              "suprah-leads-panel flex flex-col shrink-0 min-h-0 border-r",
             )}
             style={{
               background: "var(--bg-elevated)",
@@ -1075,7 +1074,7 @@ const fetchThread = React.useCallback(
           {/* PODIUM-LIKE CENTER CONVERSATION PANEL */}
           <main
             className={cn(
-              "relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden",
+              "suprah-center-panel relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden",
               !selectedLead ? "hidden lg:flex" : "flex",
             )}
             style={{
@@ -1243,33 +1242,36 @@ const fetchThread = React.useCallback(
 
           {/* PODIUM-LIKE RIGHT DETAILS PANEL */}
           {selectedLead && showLeadDetails && (
-            <LeadDetailsPanel
-              lead={selectedLead}
-              sourceEmail={LEADS_SOURCE_EMAIL}
-              onClose={() =>
-                setShowLeadDetails(false)
-              }
-              onStatusChange={handleStatus}
-              onAppointment={() =>
-                setApptOpen(true)
-              }
-              onQuote={() =>
-                setShippingOpen(true)
-              }
-              onAddNote={async (note) => {
-                if (!selectedLead?._id) {
-                  throw new Error(
-                    "No lead selected",
-                  );
+            <div className="suprah-details-slot">
+              <LeadDetailsPanel
+                lead={selectedLead}
+                sourceEmail={LEADS_SOURCE_EMAIL}
+                onClose={() =>
+                  setShowLeadDetails(false)
                 }
+                onStatusChange={handleStatus}
+                onAppointment={() =>
+                  setApptOpen(true)
+                }
+                onQuote={() =>
+                  setShippingOpen(true)
+                }
+                onAddNote={async (note) => {
+                  if (!selectedLead?._id) {
+                    throw new Error(
+                      "No lead selected",
+                    );
+                  }
 
-                await addLeadNote({
-                  id: selectedLead._id,
-                  note,
-                });
-              }}
-            />
+                  await addLeadNote({
+                    id: selectedLead._id,
+                    note,
+                  });
+                }}
+              />
+            </div>
           )}
+          </div>
         </div>
       )}
 
