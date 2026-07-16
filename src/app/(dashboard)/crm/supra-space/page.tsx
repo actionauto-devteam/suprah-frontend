@@ -245,12 +245,14 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
       .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
+      .ss4-section-label { font-size:11px; letter-spacing:.08em; }
+      .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
+    }
+    @media (max-width:767px) and (pointer:coarse) {
       .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
       .ss4-conv-preview { font-size:17px !important; line-height:1.35 !important; }
       .ss4-conv-time { font-size:12.5px !important; }
-      .ss4-section-label { font-size:11px; letter-spacing:.08em; }
       .ss4-filter-pill { height:34px; padding:0 14px; font-size:13px !important; }
-      .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
     }
     @media (min-width:768px) {
       .ss4-mobile-composer-shell { display:none; }
