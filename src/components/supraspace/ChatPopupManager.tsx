@@ -356,16 +356,19 @@ const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B-\u200D\uFEFF]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
-  const compact = normalized.replace(/[^A-Z0-9]/g, '');
   const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_WORD_TOKEN) || []),
-    ...(compact.match(VIN_LIKE_TOKEN) || []),
   ];
   return [...new Set(rawTokens
     .map(token => token.replace(/[^A-Z0-9]/g, ''))
-    .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
+    .filter(token => {
+      if (token.length < 8 || !/[A-Z]/.test(token) || !/\d/.test(token)) return false;
+      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(token)) return true;
+      const digitCount = (token.match(/\d/g) || []).length;
+      return digitCount >= 4;
+    }))];
 }
 
 function isSerialLikeText(text: string): boolean {
@@ -418,6 +421,10 @@ function normalizeSerialSearchText(text: string): string {
   return text.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+function isEmptyVinLabelLine(line: string): boolean {
+  return /^\s*VIN\s*#?\s*:\s*$/i.test(line);
+}
+
 function restoreMissingSerialsFromSources(serialized: string, sources: Array<string | null | undefined>): string {
   const sourceText = sources.filter(Boolean).join('\n');
   const tokens = serialLikeTokens(sourceText);
@@ -429,6 +436,12 @@ function restoreMissingSerialsFromSources(serialized: string, sources: Array<str
 
   tokens.forEach(token => {
     if (serializedSearch.includes(token)) return;
+    const emptyVinLineIndex = restoredLines.findIndex(isEmptyVinLabelLine);
+    if (emptyVinLineIndex >= 0 && /^[A-HJ-NPR-Z0-9]{17}$/.test(token)) {
+      restoredLines[emptyVinLineIndex] = restoredLines[emptyVinLineIndex].replace(/:\s*$/, `: ${token}`);
+      serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+      return;
+    }
     const sourceLine = sourceLines.find(line => normalizeSerialSearchText(line).includes(token))?.trim();
     const fallback = sourceLine && sourceLine.length <= token.length + 24 ? sourceLine : token;
     if (!fallback) return;
@@ -1523,6 +1536,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             pastedPlainTextRef.current,
             inputRef.current?.textContent || '',
             serializedComposerText,
+            pendingAttachments.map(item => item.file.name).join('\n'),
           ],
         ),
       ),
