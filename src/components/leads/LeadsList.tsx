@@ -48,11 +48,8 @@ export const LeadsList = React.memo(
     const listRef = React.useRef<HTMLDivElement>(null);
 
     return (
-      <div
-        className={`ss4-sidebar flex h-full min-h-0 w-full shrink-0 flex-col z-10 lg:w-75 xl:w-80 ${
-          selectedLeadId ? "hidden lg:flex" : "flex"
-        }`}
-      >
+      <div className="ss4-sidebar flex h-full min-h-0 w-full flex-col overflow-hidden">
+
         {/* Header */}
         <div
           className="shrink-0 space-y-3 px-4 pb-3 pt-4"
@@ -92,7 +89,7 @@ export const LeadsList = React.memo(
         {/* Scrollable lead list */}
         <div
           ref={listRef}
-          className="ss4-scroll min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2"
+          className="ss4-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2 py-2"
         >
           {isLoading ? (
             <div className="flex flex-col space-y-2 p-3">

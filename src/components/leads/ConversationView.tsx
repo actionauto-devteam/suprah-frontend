@@ -488,16 +488,22 @@ export function ConversationView({
 
   const leadName = getLeadName(lead);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const element = messageAreaRef.current;
 
-    if (element) {
+    if (!element) return;
+
+    const frameId = window.requestAnimationFrame(() => {
       element.scrollTop = element.scrollHeight;
-    }
-  }, [threads, lead?._id]);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [lead?._id]);
 
   return (
-    <section className="suprah-conversation-shell">
+    <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden">
       {!hideConversationChrome && (
         <>
           <header className="suprah-conversation-header">
@@ -560,9 +566,10 @@ export function ConversationView({
 
       <div
         ref={messageAreaRef}
-        className="suprah-message-area"
+        className="suprah-message-area flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
       >
-        <div className="suprah-conversation-start">
+        <div className="mx-auto w-full max-w-5xl">
+          <div className="suprah-conversation-start">
           <div className="suprah-phone-icon">
             <MessageSquare className="h-5 w-5" />
           </div>
@@ -669,6 +676,7 @@ export function ConversationView({
             })}
           </div>
         )}
+        </div>
       </div>
     </section>
   );

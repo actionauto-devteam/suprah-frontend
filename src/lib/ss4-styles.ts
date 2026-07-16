@@ -978,106 +978,6 @@ export const LEAD_DETAILS_PANEL_CSS = `
   .suprah-activity-card time { color: var(--text-tertiary); font-size: 10px; }
   .suprah-timeline-dot { position: absolute; width: 8px; height: 8px; left: -17px; top: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--bg-elevated); }
 
-
-  /* ── Production-safe conversation alignment fix ─────── */
-  .ss4 .suprah-message-area {
-    position: relative;
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    flex-direction: column;
-    align-items: stretch;
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding: 26px clamp(18px, 4vw, 44px);
-    background: var(--bg-base);
-  }
-
-  .ss4 .suprah-message-area > .suprah-conversation-start {
-    width: 100% !important;
-    max-width: none !important;
-    min-width: 0 !important;
-    margin: 4px auto 34px !important;
-    padding: 0 !important;
-    display: flex !important;
-    flex: 0 0 auto !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: stretch !important;
-    text-align: center !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    color: var(--text-secondary);
-  }
-
-  .ss4 .suprah-message-area > .suprah-conversation-start .suprah-phone-icon {
-    width: 44px;
-    height: 44px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 44px;
-    border-radius: 999px;
-    background: var(--accent);
-    color: #ffffff;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.22);
-  }
-
-  .ss4 .suprah-message-area > .suprah-conversation-start h3 {
-    width: 100% !important;
-    max-width: none !important;
-    margin: 11px 0 4px !important;
-    padding: 0 !important;
-    color: var(--text-primary);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1.35;
-    text-align: center !important;
-  }
-
-  .ss4 .suprah-message-area > .suprah-conversation-start p {
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 1.35;
-    text-align: center !important;
-  }
-
-  .ss4 .suprah-message-row {
-    width: 100%;
-    min-width: 0;
-    flex: 0 0 auto;
-  }
-
-  .ss4 .suprah-message-row.inbound {
-    justify-content: flex-start;
-  }
-
-  .ss4 .suprah-message-row.outbound {
-    justify-content: flex-end;
-  }
-
-  .ss4 .suprah-message-column {
-    width: fit-content;
-    min-width: 0;
-    max-width: min(78%, 680px);
-  }
-
-  .ss4 .suprah-message-bubble {
-    width: 100%;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
   @media (min-width: 1280px) { .suprah-details-panel { display: flex; flex-direction: column; } }
   @media (max-width: 639px) {
     .suprah-conversation-header { min-height: 62px; padding: 0 10px; }
@@ -1086,6 +986,237 @@ export const LEAD_DETAILS_PANEL_CSS = `
     .suprah-message-area { padding: 20px 12px; }
     .suprah-message-column { max-width: 82%; }
   }
+  /* ── Conversation Scrollbar Fix ───────────────────────── */
+  .suprah-conversation-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .suprah-message-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .suprah-message-area::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .suprah-message-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .suprah-message-area::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 999px;
+  }
+
+  .suprah-message-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 120, 120, 0.75);
+  }
+
+  /* ── Responsive horizontal Leads workspace ───────────── */
+  .suprah-workspace-scroll {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+    background: var(--bg-base);
+  }
+
+  .suprah-workspace-scroll::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .suprah-workspace-scroll::-webkit-scrollbar-track {
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-1);
+  }
+
+  .suprah-workspace-scroll::-webkit-scrollbar-thumb {
+    min-width: 72px;
+    border: 3px solid var(--bg-elevated);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-secondary) 44%, transparent);
+  }
+
+  .suprah-workspace-scroll::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-secondary) 70%, transparent);
+  }
+
+  .suprah-workspace-track {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    height: 100%;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .suprah-leads-panel {
+    width: 340px;
+    min-width: 340px;
+    max-width: 340px;
+    height: 100%;
+    flex: 0 0 340px;
+  }
+
+  .suprah-center-panel {
+    width: clamp(720px, 58vw, 980px);
+    min-width: 720px;
+    height: 100%;
+    flex: 1 0 clamp(720px, 58vw, 980px);
+  }
+
+  .suprah-center-conversation-content {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .suprah-details-slot {
+    width: 370px;
+    min-width: 370px;
+    max-width: 370px;
+    height: 100%;
+    min-height: 0;
+    flex: 0 0 370px;
+  }
+
+  .suprah-details-slot > .suprah-details-panel {
+    display: flex !important;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  /*
+   * The reply composer stays inside the center panel.
+   * Expanding it reduces the vertical message viewport without
+   * moving the horizontal workspace scrollbar.
+   */
+  .suprah-reply-section {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .suprah-reply-expand-button{
+    position:absolute;
+    top:8px;
+    right:9px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    width:34px;
+    height:34px;
+
+    padding:0;
+
+    border:1px solid var(--border-2);
+    border-radius:8px;
+
+    background:var(--bg-overlay);
+    color:var(--text-secondary);
+
+    transition:all .2s ease;
+}
+
+  .suprah-reply-expand-button:hover {
+    border-color: var(--border-3);
+    background: var(--bg-active);
+    color: var(--text-primary);
+  }
+
+  .suprah-reply-textarea {
+    overflow-y: auto;
+  }
+
+  @media (max-width: 1279px) {
+    .suprah-workspace-track {
+      min-width: 1430px;
+    }
+
+    .suprah-leads-panel {
+      width: 320px;
+      min-width: 320px;
+      max-width: 320px;
+      flex-basis: 320px;
+    }
+
+    .suprah-center-panel {
+      width: 740px;
+      min-width: 740px;
+      flex-basis: 740px;
+    }
+
+    .suprah-details-slot {
+      width: 370px;
+      min-width: 370px;
+      max-width: 370px;
+      flex-basis: 370px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .suprah-workspace-scroll::-webkit-scrollbar {
+      height: 10px;
+    }
+
+    .suprah-workspace-track {
+      min-width: 1340px;
+    }
+
+    .suprah-leads-panel {
+      width: 300px;
+      min-width: 300px;
+      max-width: 300px;
+      flex-basis: 300px;
+    }
+
+    .suprah-center-panel {
+      width: 680px;
+      min-width: 680px;
+      flex-basis: 680px;
+    }
+
+    .suprah-details-slot {
+      width: 360px;
+      min-width: 360px;
+      max-width: 360px;
+      flex-basis: 360px;
+    }
+
+    .suprah-reply-expand-button {
+      min-width: 36px;
+      width: 36px;
+      padding: 0;
+    }
+
+    .suprah-reply-expand-button span {
+      display: none;
+    }
+  }
+
 `;
 
 export function injectLeadDetailsPanelStyles() {
@@ -1100,7 +1231,9 @@ export function injectLeadDetailsPanelStyles() {
     style.id = "lead-details-panel-styles";
   }
 
-  // Always refresh the current CSS and move this override after SS4_CSS.
   style.textContent = LEAD_DETAILS_PANEL_CSS;
+
+  // Appending an existing style element moves it to the end of <head>,
+  // ensuring these workspace overrides win after the base SS4 styles.
   document.head.appendChild(style);
 }

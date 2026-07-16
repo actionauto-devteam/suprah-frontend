@@ -15,6 +15,8 @@ import {
   FileText,
   Image as ImageIcon,
   X,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -118,6 +120,7 @@ export const ReplySection = React.memo(
     const [attachments, setAttachments] = React.useState<File[]>([]);
     const [attachmentError, setAttachmentError] = React.useState("");
     const [emojiOpen, setEmojiOpen] = React.useState(false);
+    const [isExpanded, setIsExpanded] = React.useState(false);
 
     const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -252,6 +255,7 @@ export const ReplySection = React.memo(
         setAttachments([]);
         setAttachmentError("");
         setEmojiOpen(false);
+        setIsExpanded(false);
       } catch {
         // Keep the selected files so the user can retry.
       }
@@ -307,13 +311,28 @@ export const ReplySection = React.memo(
 
     return (
       <div
-        className="shrink-0 px-3 py-2 sm:px-4"
+        className="suprah-reply-section shrink-0 px-3 py-2 sm:px-4"
+        data-expanded={isExpanded ? "true" : "false"}
         style={{
           borderTop: "1px solid var(--border-1)",
           background: "var(--bg-elevated)",
         }}
       >
-        <div className="ss4-input-wrap overflow-visible">
+        <div className="ss4-input-wrap relative overflow-visible">
+          <button
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+            className="suprah-reply-expand-button ss4-icon-btn"
+            aria-label={isExpanded ? "Expand less" : "Expand more"}
+            title={isExpanded ? "Expand less" : "Expand more"}
+          >
+            {isExpanded ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </button>
+
           <textarea
             ref={textareaRef}
             value={replyMessage}
@@ -329,7 +348,11 @@ export const ReplySection = React.memo(
                 void handleSendReply();
               }
             }}
-            className="max-h-24 w-full resize-none bg-transparent px-4 pb-1.5 pt-2.5 leading-snug outline-none sm:max-h-28"
+            className={`suprah-reply-textarea w-full resize-none bg-transparent px-4 pb-1.5 pt-10 leading-snug outline-none transition-[height] duration-200 ${
+              isExpanded
+                ? "h-[240px] max-h-[42vh]"
+                : "h-[76px] max-h-24 sm:max-h-28"
+            }`}
             style={{
               fontSize: 14,
               color: "var(--text-primary)",

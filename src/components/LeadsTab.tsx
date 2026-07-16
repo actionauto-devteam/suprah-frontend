@@ -44,6 +44,7 @@ import {
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 
+
 // Constants
 const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
 const LEADS_PER_PAGE = 20;
@@ -77,8 +78,7 @@ export function LeadsTab({
   const { getToken } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  // Inject base styles first, then the Leads workspace overrides.
-  // This keeps the CSS order stable after hydration and navigation.
+  // Load the base styles first, then the Leads workspace overrides.
   React.useEffect(() => {
     injectSS4Styles();
     injectLeadDetailsPanelStyles();
@@ -895,13 +895,12 @@ const fetchThread = React.useCallback(
           <InboundCallsTab />
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 overflow-hidden relative bg-[var(--bg-base)]">
+        <div className="suprah-workspace-scroll flex-1 min-h-0 bg-[var(--bg-base)]">
+          <div className="suprah-workspace-track">
           {/* PODIUM-LIKE LEFT CONVERSATION SIDEBAR */}
           <aside
             className={cn(
-              "flex flex-col shrink-0 min-h-0 border-r",
-              "w-full lg:w-[330px] xl:w-[360px]",
-              selectedLead ? "hidden lg:flex" : "flex",
+              "suprah-leads-panel flex flex-col shrink-0 min-h-0 border-r",
             )}
             style={{
               background: "var(--bg-elevated)",
@@ -1075,8 +1074,7 @@ const fetchThread = React.useCallback(
           {/* PODIUM-LIKE CENTER CONVERSATION PANEL */}
           <main
             className={cn(
-              "relative flex-1 flex flex-col min-w-0 min-h-0",
-              !selectedLead ? "hidden lg:flex" : "flex",
+              "suprah-center-panel relative flex flex-col min-w-0 min-h-0 overflow-hidden",
             )}
             style={{
               background: "var(--bg-base)",
@@ -1243,33 +1241,36 @@ const fetchThread = React.useCallback(
 
           {/* PODIUM-LIKE RIGHT DETAILS PANEL */}
           {selectedLead && showLeadDetails && (
-            <LeadDetailsPanel
-              lead={selectedLead}
-              sourceEmail={LEADS_SOURCE_EMAIL}
-              onClose={() =>
-                setShowLeadDetails(false)
-              }
-              onStatusChange={handleStatus}
-              onAppointment={() =>
-                setApptOpen(true)
-              }
-              onQuote={() =>
-                setShippingOpen(true)
-              }
-              onAddNote={async (note) => {
-                if (!selectedLead?._id) {
-                  throw new Error(
-                    "No lead selected",
-                  );
+            <div className="suprah-details-slot">
+              <LeadDetailsPanel
+                lead={selectedLead}
+                sourceEmail={LEADS_SOURCE_EMAIL}
+                onClose={() =>
+                  setShowLeadDetails(false)
                 }
+                onStatusChange={handleStatus}
+                onAppointment={() =>
+                  setApptOpen(true)
+                }
+                onQuote={() =>
+                  setShippingOpen(true)
+                }
+                onAddNote={async (note) => {
+                  if (!selectedLead?._id) {
+                    throw new Error(
+                      "No lead selected",
+                    );
+                  }
 
-                await addLeadNote({
-                  id: selectedLead._id,
-                  note,
-                });
-              }}
-            />
+                  await addLeadNote({
+                    id: selectedLead._id,
+                    note,
+                  });
+                }}
+              />
+            </div>
           )}
+          </div>
         </div>
       )}
 
