@@ -182,7 +182,7 @@ if (typeof document !== 'undefined') {
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
-    .ss4-filter-pill { height:26px; padding:0 10px; font-size:10.5px; line-height:1; }
+    .ss4-filter-pill { height:26px!important; padding:0 10px!important; font-size:10.5px!important; line-height:1; }
     .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; touch-action:pan-y; }
     .ss4-scroll::-webkit-scrollbar { width:4px; }
     .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
@@ -248,11 +248,10 @@ if (typeof document !== 'undefined') {
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
       .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
     }
-    @media (max-width:767px) and (pointer:coarse) {
+    @media (max-width:767px) and (hover:none) and (pointer:coarse) {
       .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
       .ss4-conv-preview { font-size:17px !important; line-height:1.35 !important; }
       .ss4-conv-time { font-size:12.5px !important; }
-      .ss4-filter-pill { height:34px; padding:0 14px; font-size:13px !important; }
     }
     @media (min-width:768px) {
       .ss4-mobile-composer-shell { display:none; }
