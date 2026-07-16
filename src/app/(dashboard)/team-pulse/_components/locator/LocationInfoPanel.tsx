@@ -299,7 +299,7 @@ export function LocationInfoPanel({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-black truncate">{name}</p>
-            {!isSelf && <DepartmentBadge department={loc?.department ?? member?.personalInfo?.department} />}
+            {!isSelf && <DepartmentBadge department={member?.personalInfo?.department} />}
             {!isSelf && sharing && (
               place ? (
                 <span className="text-[8px] font-black text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1 rounded uppercase tracking-wide shrink-0">On-Site</span>
