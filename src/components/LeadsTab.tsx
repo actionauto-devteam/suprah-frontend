@@ -998,7 +998,7 @@ const fetchThread = React.useCallback(
               )}
             </button>
 
-            <div className="hidden sm:block">
+            <div className="shrink-0 max-[380px]:scale-90 max-[380px]:origin-right">
               <SupraLeoAI variant="toolbar" />
             </div>
           </div>
