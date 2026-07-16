@@ -44,8 +44,6 @@ import {
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 
-injectSS4Styles();
-injectLeadDetailsPanelStyles();
 
 // Constants
 const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
@@ -79,6 +77,12 @@ export function LeadsTab({
 } = {}) {
   const { getToken } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  // Load the base styles first, then the Leads workspace overrides.
+  React.useEffect(() => {
+    injectSS4Styles();
+    injectLeadDetailsPanelStyles();
+  }, []);
 
   // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
@@ -1071,7 +1075,7 @@ const fetchThread = React.useCallback(
           {/* PODIUM-LIKE CENTER CONVERSATION PANEL */}
           <main
             className={cn(
-              "relative flex-1 flex flex-col min-w-0 min-h-0",
+              "relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden",
               !selectedLead ? "hidden lg:flex" : "flex",
             )}
             style={{

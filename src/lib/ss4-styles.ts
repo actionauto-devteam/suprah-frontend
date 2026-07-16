@@ -986,6 +986,40 @@ export const LEAD_DETAILS_PANEL_CSS = `
     .suprah-message-area { padding: 20px 12px; }
     .suprah-message-column { max-width: 82%; }
   }
+  /* ── Conversation Scrollbar Fix ───────────────────────── */
+  .suprah-conversation-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .suprah-message-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .suprah-message-area::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .suprah-message-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .suprah-message-area::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 999px;
+  }
+
+  .suprah-message-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 120, 120, 0.75);
+  }
 `;
 
 export function injectLeadDetailsPanelStyles() {
