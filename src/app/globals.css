@@ -1347,3 +1347,127 @@ body.theme-switching *::after {
     right: var(--supra-leo-side) !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   CRM Leads: small viewport height and scrolling safeguards
+   ───────────────────────────────────────────────────────────── */
+
+/*
+ * Use the visible mobile viewport when supported. This avoids extra page
+ * height caused by browser address bars and keeps the lead list usable.
+ */
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/*
+ * Prevent flex children inside the application shell from forcing the page
+ * taller than the viewport. Individual modules should own their scrolling.
+ */
+body > div,
+main {
+  min-height: 0;
+}
+
+/*
+ * Scope these rules to the Leads workspace so other modules retain their
+ * existing scrolling behavior.
+ */
+.ss4 {
+  min-height: 0;
+  max-width: 100%;
+}
+
+.ss4 .suprah-responsive-workspace {
+  min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ss4 .suprah-leads-panel,
+.ss4 .suprah-center-panel,
+.ss4 .suprah-details-panel,
+.ss4 .ss4-sidebar,
+.ss4 .ss4-scroll {
+  min-height: 0;
+}
+
+/* Better momentum scrolling inside the lead list on touch devices. */
+.ss4 .ss4-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/*
+ * Keep mobile controls responsive to taps and avoid the delayed double-tap
+ * zoom behavior on browsers that still apply it.
+ */
+.ss4 button,
+.ss4 [role="button"],
+.ss4 input,
+.ss4 select,
+.ss4 textarea {
+  touch-action: manipulation;
+}
+
+/*
+ * Prevent horizontal overflow from long lead names, emails, vehicle details,
+ * or status labels.
+ */
+.ss4,
+.ss4 * {
+  box-sizing: border-box;
+}
+
+.ss4 .ss4-sidebar,
+.ss4 .ss4-conv,
+.ss4 .ss4-conv > *,
+.ss4 .ss4-conv-name,
+.ss4 .ss4-conv-preview {
+  min-width: 0;
+}
+
+@supports (height: 100dvh) {
+  .ss4 {
+    max-height: 100dvh;
+  }
+}
+
+@media (max-width: 639px) {
+  /*
+   * Preserve room for phone safe areas without adding unnecessary space on
+   * normal desktop browsers.
+   */
+  .ss4 {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /*
+   * The lead list remains the scroll owner. This prevents accidental page
+   * movement while the user browses conversations.
+   */
+  .ss4 .suprah-responsive-workspace,
+  .ss4 .suprah-leads-panel,
+  .ss4 .ss4-sidebar {
+    overflow: hidden;
+  }
+
+  .ss4 .ss4-scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /*
+   * Avoid text-size inflation when rotating phones, which can unexpectedly
+   * make lead cards taller.
+   */
+  .ss4 {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}

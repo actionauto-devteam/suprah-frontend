@@ -349,7 +349,7 @@ export const ReplySection = React.memo(
 
     return (
       <div
-        className="suprah-reply-section shrink-0 px-3 py-2 sm:px-4"
+        className="suprah-reply-section shrink-0 px-2 py-2 sm:px-4"
         style={{
           borderTop: "1px solid var(--border-1)",
           background: "var(--bg-elevated)",
@@ -374,9 +374,9 @@ export const ReplySection = React.memo(
                 void handleSendReply();
               }
             }}
-            className="suprah-reply-textarea block w-full resize-none bg-transparent px-4 pb-2 pt-3 leading-snug outline-none"
+            className="suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 leading-snug outline-none sm:px-4"
             style={{
-              minHeight: 60,
+              minHeight: 56,
               maxHeight: "34vh",
               fontSize: 14,
               color: "var(--text-primary)",
@@ -453,15 +453,15 @@ export const ReplySection = React.memo(
           )}
 
           <div
-            className="flex flex-wrap items-center gap-2 px-2.5 py-2.5 sm:py-2"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2 sm:flex sm:flex-wrap sm:items-center"
             style={{ borderTop: "1px solid var(--border-1)" }}
           >
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 sm:gap-1.5">
+            <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:flex sm:flex-1 sm:flex-wrap sm:items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="ss4-pill-btn flex h-9 shrink-0 items-center gap-1.5 px-2.5 text-[12px] font-medium sm:h-7"
+                    className="ss4-pill-btn flex h-9 min-w-0 items-center justify-center gap-1.5 px-2 text-[11px] font-medium sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
                   >
                     <Circle className="h-3 w-3" />
                     Status
@@ -501,7 +501,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={onApptOpen}
-                className="ss4-pill-btn flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 text-[12px] font-medium sm:h-7"
+                className="ss4-pill-btn flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-[11px] font-medium sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <Calendar className="h-3 w-3" />
                 Schedule
@@ -510,7 +510,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={onQuoteShipping}
-                className="ss4-pill-btn flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 text-[12px] font-medium sm:h-7"
+                className="ss4-pill-btn flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-[11px] font-medium sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <Truck className="h-3 w-3" />
                 Quote
@@ -519,7 +519,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={() => setReasonModal("close")}
-                className="flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[12px] font-medium transition-all sm:h-7"
+                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] font-medium transition-all sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
                 style={{
                   color: "var(--danger)",
                   opacity: 0.7,
@@ -530,7 +530,7 @@ export const ReplySection = React.memo(
               </button>
             </div>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center justify-end gap-1 self-stretch sm:ml-auto sm:self-auto">
               <div ref={emojiMenuRef} className="relative">
                 <button
                   type="button"

@@ -1269,6 +1269,199 @@ export const LEAD_DETAILS_PANEL_CSS = `
       display: none;
     }
   }
+
+  /* ── Compact Leads list and small-viewport improvements ──────────────── */
+  /*
+   * These rules are intentionally limited to the Leads workspace. They make
+   * the list consume the remaining height rather than expanding the page.
+   */
+  .suprah-responsive-workspace,
+  .suprah-leads-panel,
+  .suprah-center-panel,
+  .ss4-sidebar {
+    min-height: 0;
+  }
+
+  .suprah-leads-panel {
+    overflow: hidden;
+  }
+
+  .ss4-sidebar {
+    contain: layout paint;
+  }
+
+  .ss4-sidebar .ss4-scroll {
+    min-height: 0;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ss4-sidebar button,
+  .ss4-sidebar [role="button"],
+  .ss4-topbar button {
+    touch-action: manipulation;
+  }
+
+  .ss4-sidebar .ss4-conv {
+    isolation: isolate;
+    min-width: 0;
+  }
+
+  .ss4-sidebar .ss4-conv-name,
+  .ss4-sidebar .ss4-conv-preview {
+    min-width: 0;
+  }
+
+  .ss4-sidebar .ss4-search-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /*
+   * Prevent status/channel badges and the SupraLeo action from forcing a lead
+   * row wider than its panel.
+   */
+  .ss4-sidebar .ss4-conv > div:last-child,
+  .ss4-sidebar .ss4-conv > div:last-child > div {
+    min-width: 0;
+  }
+
+  .ss4-sidebar .ss4-badge {
+    max-width: 100%;
+  }
+
+  /* Keep the workspace tied to the visible mobile viewport. */
+  @supports (height: 100dvh) {
+    .ss4 {
+      min-height: 0;
+    }
+
+    .suprah-responsive-workspace {
+      max-height: 100dvh;
+    }
+  }
+
+  @media (max-width: 639px) {
+    /*
+     * The topbar and list controls use less space, leaving more room for lead
+     * rows while retaining comfortable touch targets.
+     */
+    .ss4-topbar {
+      position: relative;
+      z-index: 20;
+    }
+
+    .ss4-topbar .ss4-logo-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+    }
+
+    .ss4-sidebar {
+      border-right: 0;
+    }
+
+    .ss4-sidebar .ss4-section-label {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      line-height: 1;
+    }
+
+    .ss4-sidebar .ss4-badge {
+      min-width: 22px;
+      height: 20px;
+      padding: 0 7px;
+      font-size: 10px;
+      line-height: 20px;
+    }
+
+    .ss4-sidebar .ss4-search-input {
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .ss4-sidebar .ss4-conv {
+      border-radius: 8px;
+      min-height: 82px;
+    }
+
+    .ss4-sidebar .ss4-conv-active::before {
+      width: 2px;
+      height: 68%;
+    }
+
+    .ss4-sidebar .ss4-scroll {
+      padding-bottom: 4px;
+    }
+
+    /*
+     * Long labels remain single-line so they cannot increase each row's
+     * height unexpectedly.
+     */
+    .ss4-sidebar .ss4-conv-name,
+    .ss4-sidebar .ss4-conv-preview {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /*
+     * Use a thin scrollbar on mobile-capable browsers without permanently
+     * occupying horizontal space.
+     */
+    .ss4-sidebar .ss4-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .ss4-sidebar .ss4-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .ss4-sidebar .ss4-scroll::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: var(--scrollbar);
+    }
+  }
+
+  @media (max-width: 374px) {
+    /*
+     * Extra-small phones need another small reduction, but interactive
+     * buttons remain at least 32px high.
+     */
+    .ss4-sidebar .ss4-conv {
+      min-height: 76px;
+      padding-top: 7px;
+      padding-bottom: 7px;
+    }
+
+    .ss4-sidebar .ss4-conv-name {
+      font-size: 12px !important;
+    }
+
+    .ss4-sidebar .ss4-conv-preview {
+      font-size: 11px !important;
+    }
+
+    .ss4-sidebar .ss4-badge {
+      padding-right: 6px;
+      padding-left: 6px;
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .suprah-leads-panel {
+      width: min(100%, 420px);
+      min-width: 300px;
+      max-width: 420px;
+      flex-basis: min(100%, 420px);
+    }
+
+    .ss4-sidebar .ss4-scroll {
+      overscroll-behavior-y: contain;
+    }
+  }
+
 `;
 
 export function injectLeadDetailsPanelStyles() {
