@@ -5583,6 +5583,10 @@ export default function SupraSpacePage() {
                         background: active ? 'var(--accent)' : 'var(--bg-hover)',
                         color: active ? '#fff' : 'var(--text-secondary)',
                         border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                        height: 26,
+                        padding: '0 10px',
+                        fontSize: 10.5,
+                        lineHeight: 1,
                       }}
                     >
                       {filter.label}
