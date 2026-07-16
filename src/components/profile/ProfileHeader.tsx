@@ -32,6 +32,7 @@ import { apiClient } from "@/lib/api-client";
 import ProfileImageCropper from "@/components/ProfileImageCropper";
 import { onlineStatusOptions, languageOptions } from "./profile-constants";
 import { toast } from "sonner";
+import { PresenceAvatarDot } from "@/app/(dashboard)/team-pulse/_components/StatusDot";
 
 const AVATAR_COLORS = [
   "from-rose-500 to-pink-600",
@@ -427,6 +428,13 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <Camera className="size-6 sm:size-8 text-white drop-shadow-lg" />
             </div>
           </div>
+
+          <PresenceAvatarDot
+            status={onlineStatus}
+            deviceType={profile?.lastDeviceType}
+            sizeClass="size-4 sm:size-5"
+            positionClass="absolute bottom-1 right-1 sm:bottom-1.5 sm:right-1.5"
+          />
 
           <ProfileImageCropper
             isOpen={isCropperOpen}

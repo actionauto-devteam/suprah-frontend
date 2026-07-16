@@ -1,24 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Plus, Trash2, Pencil, Loader2, Building2, Warehouse, Car, Wrench, ParkingCircle, Crosshair, Search, Users } from "lucide-react";
+import { MapPin, Plus, Trash2, Pencil, Loader2, Crosshair, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { usePlaces, useCreatePlace, useUpdatePlace, useDeletePlace, useActiveEmployeeLocations, type Place } from "@/hooks/useLocator";
+import { PLACE_ICON_PRESETS as ICON_PRESETS, PLACE_ICON_NAMES as ICON_NAMES } from "./placeIcons";
 
 const COLOR_PRESETS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
-const ICON_PRESETS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
-  MapPin, Building2, Warehouse, Car, Wrench, ParkingCircle,
-};
-const ICON_NAMES = Object.keys(ICON_PRESETS);
 
 interface FormState {
   name: string;
   address: string;
+  description: string;
   lat: string;
   lng: string;
   radiusM: number;
@@ -26,7 +25,7 @@ interface FormState {
   icon: string;
 }
 
-const EMPTY_FORM: FormState = { name: "", address: "", lat: "", lng: "", radiusM: 100, color: COLOR_PRESETS[0], icon: ICON_NAMES[0] };
+const EMPTY_FORM: FormState = { name: "", address: "", description: "", lat: "", lng: "", radiusM: 100, color: COLOR_PRESETS[0], icon: ICON_NAMES[0] };
 
 interface Props {
   pickMode?: boolean;
@@ -80,7 +79,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
     onDraftChange({
       _id: "__draft__", organizationId: "", name: form.name || "New Place",
       coords: { lat, lng }, radiusM: form.radiusM, icon: form.icon, color: form.color,
-      address: form.address, isActive: true, createdBy: "", createdAt: "", updatedAt: "",
+      address: form.address, description: form.description, isActive: true, createdBy: "", createdAt: "", updatedAt: "",
     });
   }, [dialogOpen, form, onDraftChange]);
 
@@ -100,6 +99,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
     setForm({
       name: place.name,
       address: place.address || "",
+      description: place.description || "",
       lat: String(place.coords.lat),
       lng: String(place.coords.lng),
       radiusM: place.radiusM,
@@ -117,7 +117,11 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       return;
     }
 
-    const payload = { name: form.name.trim(), lat, lng, radiusM: form.radiusM, color: form.color, icon: form.icon, address: form.address.trim() || undefined };
+    const payload = {
+      name: form.name.trim(), lat, lng, radiusM: form.radiusM, color: form.color, icon: form.icon,
+      address: form.address.trim() || undefined,
+      description: form.description.trim() || undefined,
+    };
 
     if (editing) {
       updatePlace({ id: editing._id, ...payload }, {
@@ -198,6 +202,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
                   )}
                 </div>
                 {place.address && <p className="text-[10px] text-muted-foreground/60 truncate">{place.address}</p>}
+                {place.description && <p className="text-[10px] text-muted-foreground/50 mt-0.5 line-clamp-2">{place.description}</p>}
                 <p className="text-[9px] text-muted-foreground/40 mt-0.5">{place.radiusM}m radius</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -222,6 +227,9 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm font-black">{editing ? "Edit Place" : "New Place"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {editing ? "Edit this company place's details and geofence" : "Add a new company place and geofence"}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
@@ -233,6 +241,16 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">Address (optional)</label>
               <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="123 Main St" className="h-8 text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">Notes (optional)</label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value.slice(0, 300) }))}
+                placeholder="Gate code, parking instructions, hours…"
+                className="text-xs min-h-16 resize-none"
+              />
             </div>
 
             {onStartPick && (

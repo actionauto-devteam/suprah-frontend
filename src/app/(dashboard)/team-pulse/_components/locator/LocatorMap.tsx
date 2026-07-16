@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Minus, LocateFixed, MapPinOff, Crosshair, Navigation, ArrowRight } from "lucide-react";
+import { Plus, Minus, LocateFixed, MapPinOff, Crosshair, Navigation, ArrowRight, Maximize2, Minimize2, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +31,10 @@ interface LocatorMapProps {
   jumpTarget?: string;
   onJumpTargetChange?: (id: string) => void;
   onJump?: () => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
+  bearing?: number;
+  onResetNorth?: () => void;
 }
 
 export function LocatorMap({
@@ -49,11 +53,21 @@ export function LocatorMap({
   jumpTarget = "",
   onJumpTargetChange,
   onJump,
+  isMaximized,
+  onToggleMaximize,
+  bearing = 0,
+  onResetNorth,
 }: LocatorMapProps) {
   return (
-    <Card className="border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0">
+    <Card className={cn("border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0", isMaximized && "fixed inset-0 z-100 rounded-none border-0")}>
       <CardContent className="p-0">
-        <div className="relative h-[65vh] min-h-90 max-h-120 sm:h-135 lg:h-175 lg:max-h-none overflow-hidden touch-none" style={{ background: "#e5e7eb" }}>
+        <div
+          className={cn(
+            "relative overflow-hidden touch-none",
+            isMaximized ? "h-dvh" : "h-[65vh] min-h-90 max-h-120 sm:h-135 lg:h-175 lg:max-h-none",
+          )}
+          style={{ background: "#e5e7eb" }}
+        >
           {mapboxToken ? (
             <div
               ref={mapRef}
@@ -121,6 +135,18 @@ export function LocatorMap({
           <TooltipProvider>
             <div className="absolute top-2.5 sm:top-4 right-2.5 sm:right-4 flex flex-col gap-1.5">
               {[
+                ...(onToggleMaximize ? [{
+                  action: onToggleMaximize,
+                  icon: isMaximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />,
+                  label: isMaximized ? "Exit fullscreen" : "Maximize map",
+                  disabled: false,
+                }] : []),
+                ...(onResetNorth ? [{
+                  action: onResetNorth,
+                  icon: <Compass className="size-4 transition-transform" style={{ transform: `rotate(${-bearing}deg)` }} />,
+                  label: "Reset north (drag or pinch to rotate)",
+                  disabled: false,
+                }] : []),
                 { action: onZoomIn, icon: <Plus className="size-4" />, label: "Zoom in", disabled: zoomInDisabled },
                 { action: onZoomOut, icon: <Minus className="size-4" />, label: "Zoom out", disabled: zoomOutDisabled },
                 { action: onCenter, icon: <LocateFixed className="size-4" />, label: "Center on me", disabled: false },

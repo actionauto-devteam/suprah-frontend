@@ -76,6 +76,7 @@ export interface UserProfile {
   role: 'user' | 'admin' | 'super_admin' | 'driver' | 'customer';
   onlineStatus: OnlineStatus;
   customStatus?: string;
+  lastDeviceType?: 'mobile' | 'desktop';
   personalInfo?: PersonalInfo;
   securityStatus?: SecurityStatus;
   accountStatus?: AccountStatus;

@@ -24,6 +24,7 @@ import {
   MapPin,
   MonitorDot,
   Play,
+  Power,
   Radio,
   RefreshCw,
   Scissors,
@@ -34,6 +35,10 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { apiClient } from "@/lib/api-client"
 import { initializeSocket } from "@/lib/socket.client"
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
@@ -134,19 +139,25 @@ function getTrayDownloadUrl() {
 }
 
 const LOCATOR_STATE_COLORS: Record<LocatorSharingState, { dot: string; text: string; pill: string }> = {
-  sharing:             { dot: "bg-green-500",  text: "text-green-500",  pill: "border-green-500/20 bg-green-500/10" },
-  paused_break:        { dot: "bg-orange-500", text: "text-orange-500", pill: "border-orange-500/20 bg-orange-500/10" },
-  paused_manual:       { dot: "bg-amber-500",  text: "text-amber-500",  pill: "border-amber-500/20 bg-amber-500/10" },
-  declined_permission: { dot: "bg-red-500",    text: "text-red-500",    pill: "border-red-500/20 bg-red-500/10" },
-  off_duty:            { dot: "bg-gray-400",   text: "text-gray-500",   pill: "border-gray-400/20 bg-gray-400/10" },
+  sharing: { dot: "bg-green-500", text: "text-green-500", pill: "border-green-500/20 bg-green-500/10" },
+  paused_break: { dot: "bg-orange-500", text: "text-orange-500", pill: "border-orange-500/20 bg-orange-500/10" },
+  paused_manual: { dot: "bg-amber-500", text: "text-amber-500", pill: "border-amber-500/20 bg-amber-500/10" },
+  declined_permission: { dot: "bg-red-500", text: "text-red-500", pill: "border-red-500/20 bg-red-500/10" },
+  off_duty: { dot: "bg-gray-400", text: "text-gray-500", pill: "border-gray-400/20 bg-gray-400/10" },
 }
 
-function locatorStateMeta(state: LocatorSharingState, error: string | null) {
+function locatorStateMeta(state: LocatorSharingState, error: string | null, awaitingFirstFix?: boolean) {
+  if (awaitingFirstFix) {
+    return {
+      label: "Turning on…", detail: "Getting your location — this can take a few seconds",
+      dot: "bg-blue-500", text: "text-blue-500", pill: "border-blue-500/20 bg-blue-500/10",
+    }
+  }
   if (error) return { label: "Needs attention", detail: error, ...LOCATOR_STATE_COLORS.declined_permission }
   const meta = sharingMeta(state)
   const detail = state === "sharing" ? "Sharing to Team Pulse Beacon"
     : state === "off_duty" ? "Starts automatically on shift"
-    : meta.description
+      : meta.description
   return { label: meta.label, detail, ...LOCATOR_STATE_COLORS[state] }
 }
 
@@ -190,11 +201,11 @@ function ShiftGauge({ progress, accent, glow = false, children }: {
   const dash = CIRC * pct
   const accentText = accent === "amber" ? "text-amber-500 dark:text-amber-400"
     : accent === "red" ? "text-red-500 dark:text-red-400"
-    : accent === "zinc" ? "text-zinc-300 dark:text-zinc-700"
-    : "text-emerald-500 dark:text-emerald-400"
+      : accent === "zinc" ? "text-zinc-300 dark:text-zinc-700"
+        : "text-emerald-500 dark:text-emerald-400"
   const glowColor = accent === "amber" ? "rgba(245,158,11,0.45)"
     : accent === "red" ? "rgba(239,68,68,0.45)"
-    : "rgba(16,185,129,0.5)"
+      : "rgba(16,185,129,0.5)"
 
   return (
     <div className="relative h-44 w-44 shrink-0 sm:h-52 sm:w-52">
@@ -258,9 +269,9 @@ function ActivityTimer({ todayTotalActiveMs, activityStartAt, isOnShift, isOnBre
       <div className="flex flex-col items-center gap-2 text-center">
         <span className={cn("text-[9px] font-black uppercase tracking-[0.25em]",
           accent === "amber" ? "text-amber-500 dark:text-amber-400"
-          : accent === "red" ? "text-red-500 dark:text-red-400"
-          : accent === "emerald" ? "text-emerald-500 dark:text-emerald-400"
-          : "text-zinc-400 dark:text-zinc-600")}>
+            : accent === "red" ? "text-red-500 dark:text-red-400"
+              : accent === "emerald" ? "text-emerald-500 dark:text-emerald-400"
+                : "text-zinc-400 dark:text-zinc-600")}>
           {stateLabel}
         </span>
         <div className="flex items-end gap-0.5 font-mono font-black leading-none tracking-tighter">
@@ -482,6 +493,10 @@ export default function TimeprofClockPage() {
   }, [getCrmLocatorHeaders])
 
   const [autoShareSaving, setAutoShareSaving] = React.useState(false)
+  const [pendingAutoShareValue, setPendingAutoShareValue] = React.useState<boolean | null>(null)
+  const [stopSharingConfirmOpen, setStopSharingConfirmOpen] = React.useState(false)
+  const [stopSharingSaving, setStopSharingSaving] = React.useState(false)
+
   const handleAutoShareToggle = React.useCallback(async (checked: boolean) => {
     setAutoShareSaving(true)
     try {
@@ -496,15 +511,45 @@ export default function TimeprofClockPage() {
     }
   }, [getCrmLocatorHeaders, refreshLocatorStatus])
 
+  const confirmAutoShareToggle = React.useCallback(async () => {
+    if (pendingAutoShareValue === null) return
+    await handleAutoShareToggle(pendingAutoShareValue)
+    setPendingAutoShareValue(null)
+  }, [pendingAutoShareValue, handleAutoShareToggle])
+
+  const handleStopSharingNow = React.useCallback(async () => {
+    setStopSharingSaving(true)
+    try {
+      const headers = await getCrmLocatorHeaders()
+      await apiClient.setLocationConsent({ granted: false }, headers)
+      toast.message("Location sharing turned off")
+      await refreshLocatorStatus()
+    } catch {
+      toast.error("Could not turn off location sharing")
+    } finally {
+      setStopSharingSaving(false)
+      setStopSharingConfirmOpen(false)
+    }
+  }, [getCrmLocatorHeaders, refreshLocatorStatus])
+
   React.useEffect(() => { refreshLocatorStatus() }, [refreshLocatorStatus])
 
   const {
-    sharingState: locatorState, lastPingAt: locatorLastPingAt, error: locatorError,
+    sharingState: locatorState, lastPingAt: locatorLastPingAt, error: locatorError, awaitingFirstFix: locatorAwaitingFirstFix,
   } = useLocationSharing({
     eligible: !!locatorStatus?.consentGranted,
     onBreak: isOnBreak,
     getAuthHeaders: getCrmLocatorHeaders,
   })
+
+  const wasAwaitingLocatorFix = React.useRef(false)
+  React.useEffect(() => {
+    if (wasAwaitingLocatorFix.current && !locatorAwaitingFirstFix) {
+      if (locatorState === "sharing") toast.success("Location sharing is now on")
+      else if (locatorError) toast.error(locatorError)
+    }
+    wasAwaitingLocatorFix.current = locatorAwaitingFirstFix
+  }, [locatorAwaitingFirstFix, locatorState, locatorError])
 
   const refreshShiftState = React.useCallback(async () => {
     if (authModeRef.current === 'main') {
@@ -859,8 +904,8 @@ export default function TimeprofClockPage() {
   const timeIn = [...sortedLogs].reverse().find((l) => l.type === "time-in")
   const timeOut = timeIn
     ? [...sortedLogs].reverse().find(
-        (l) => l.type === "time-out" && new Date(l.timestamp).getTime() >= new Date(timeIn.timestamp).getTime()
-      )
+      (l) => l.type === "time-out" && new Date(l.timestamp).getTime() >= new Date(timeIn.timestamp).getTime()
+    )
     : undefined
 
   const hasClockedIn = !!timeIn || (serverIsOnShift && (serverIsShiftFromToday || locallyResumedShift || activityStartAt !== null))
@@ -871,7 +916,10 @@ export default function TimeprofClockPage() {
   React.useEffect(() => {
     if (!isActive) {
       if (locatorWasEligibleRef.current) {
-        getCrmLocatorHeaders().then((headers) => apiClient.stopLocationSharing(headers)).catch(() => null)
+        getCrmLocatorHeaders()
+          .then((headers) => apiClient.setLocationConsent({ granted: false }, headers))
+          .then(() => refreshLocatorStatus())
+          .catch(() => null)
       }
       locatorWasEligibleRef.current = false
       return
@@ -1192,455 +1240,472 @@ export default function TimeprofClockPage() {
       <div className="w-full px-4 sm:px-6 py-5">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4 items-start">
 
-        <div className="space-y-4 lg:sticky lg:top-[57px] lg:self-start">
+          <div className="space-y-4 lg:sticky lg:top-14.25 lg:self-start">
 
-        <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
-          <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500">Time Clock</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className={cn("h-2 w-2 rounded-full transition-colors duration-500",
-                isOnBreak ? "animate-pulse bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)] motion-reduce:animate-none"
-                : isActive ? "animate-pulse bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] motion-reduce:animate-none"
-                : isComplete ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                : "bg-zinc-300 dark:bg-zinc-700")} />
-              <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors duration-500",
-                isOnBreak ? "text-amber-500" : isActive ? "text-emerald-500 dark:text-emerald-400"
-                : isComplete ? "text-emerald-500" : "text-zinc-400 dark:text-zinc-600")}>
-                {isOnBreak ? "On Break" : isActive ? "On Shift" : isComplete ? "Completed" : "Off Clock"}
-              </span>
-            </div>
-          </div>
-
-          {(isActive || isComplete) && (
-            <div className="flex flex-1 items-center justify-center px-4 py-8 sm:px-8">
-              {isActive && (
-                <ActivityTimer
-                  todayTotalActiveMs={todayTotalActiveMs}
-                  activityStartAt={activityStartAt}
-                  isOnShift={isActive}
-                  isOnBreak={isOnBreak}
-                  breakTotalMs={breakAccumulatedMs}
-                  currentBreakStartAt={currentBreakStartAt}
-                />
-              )}
-              {isComplete && (
-                <ShiftGauge progress={1} accent="emerald" glow>
-                  <div className="flex flex-col items-center gap-1.5 text-center">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
-                    <p className="font-mono text-2xl font-black tracking-tighter text-zinc-900 dark:text-white sm:text-3xl">{finalHours}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">Shift Complete</p>
-                  </div>
-                </ShiftGauge>
-              )}
-            </div>
-          )}
-
-          <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-4 dark:border-zinc-800/60 dark:bg-zinc-900/20">
-            <div className="mb-4 grid grid-cols-2 gap-3">
-              {[
-                {
-                  label: "Time In",
-                  value: resumeOriginalClockIn ? fmt(new Date(resumeOriginalClockIn))
-                    : timeIn ? fmt(new Date(timeIn.timestamp))
-                    : serverShiftStartedAt ? fmt(new Date(serverShiftStartedAt)) : "——",
-                },
-                { label: "Time Out", value: timeOut ? fmt(new Date(timeOut.timestamp)) : "——" },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl border border-zinc-200/70 bg-white/60 px-3 py-2.5 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/50">
-                  <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">{item.label}</p>
-                  <p className="font-mono text-xl font-black leading-none tabular-nums text-zinc-900 dark:text-white">{item.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {!isActive && (
-              (isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main') ? (
-                <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
-                  <MonitorDot className="h-4 w-4 text-zinc-500 shrink-0" />
-                  <p className="text-[11px] text-zinc-500 font-bold text-center">Shift tracking requires the desktop app</p>
-                </div>
-              ) : (
-                <Button
-                  onClick={checkTrayAndStartShift}
-                  disabled={isClocking || trayChecking}
-                  className="h-12 w-full gap-2 rounded-xl border-0 bg-linear-to-r from-emerald-600 to-emerald-500 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-emerald-500 hover:to-emerald-400 active:translate-y-0 motion-reduce:transform-none"
-                >
-                  {isClocking || trayChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Start Shift <ArrowRight className="ml-auto h-4 w-4 opacity-60" /></>}
-                </Button>
-              )
-            )}
-            {isActive && (() => {
-              const isPausedOnShift = !isOnBreak && activityStartAt === null
-              const showMobileEndShiftHint = isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main'
-              return (
-                <div className="grid grid-cols-2 gap-2">
-                  {showMobileEndShiftHint && (
-                    <p className="col-span-2 -mt-1 mb-1 text-center text-[10px] text-zinc-500">
-                      Forgot to clock out on your computer? You can safely end this shift from your phone — it will stop the desktop app too.
-                    </p>
-                  )}
-                  {isPausedOnShift ? (
-                    <Button onClick={() => { setActivityStartAt(Date.now()); handleClock("time-in") }} disabled={isClocking}
-                      className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400">
-                      <Play className="h-4 w-4" /> Resume Shift
-                    </Button>
-                  ) : (
-                    <Button onClick={handleBreak}
-                      className={cn("h-11 gap-2 rounded-xl border text-sm font-bold transition-all duration-200",
-                        isOnBreak ? "border-amber-500/30 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
-                        : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-amber-500/30 hover:bg-zinc-100 hover:text-amber-600 dark:border-zinc-700/60 dark:bg-zinc-800/40 dark:text-zinc-300")}>
-                      {isOnBreak ? <><Play className="h-4 w-4" /> Resume</> : <><Coffee className="h-4 w-4" /> Break</>}
-                    </Button>
-                  )}
-                  <Button onClick={handleEndShiftClick} disabled={isClocking || isOnBreak}
-                    className="h-11 gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-500 hover:border-red-300 hover:bg-red-100 disabled:opacity-30 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
-                    {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> End Shift</>}
-                  </Button>
-                </div>
-              )
-            })()}
-            {clockMsg && <p className="mt-2 text-center font-mono text-[11px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
-          </div>
-        </div>
-
-        {(() => {
-          const meta = locatorStateMeta(locatorState, locatorError)
-          return (
-            <div className="w-full rounded-2xl border border-border/40 bg-card">
-              <div className="flex items-center justify-between gap-3 px-5 py-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                    {locatorState === "sharing" ? <Radio className="h-4 w-4 text-emerald-500" /> : <MapPin className="h-4 w-4 text-emerald-500" />}
-                  </div>
-                  <div className="min-w-0 text-left">
-                    <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
-                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/50">{meta.detail}</p>
-                    {locatorLastPingAt && (
-                      <p className="mt-1 font-mono text-[9px] text-muted-foreground/40">
-                        Last ping {fmt(new Date(locatorLastPingAt))}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
-                    <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, locatorState === "sharing" && "animate-pulse motion-reduce:animate-none")} />
-                    {meta.label}
-                  </span>
-                  <Button
-                    size="sm" variant="outline"
-                    onClick={() => router.push("/team-pulse?tab=activity")}
-                    className="h-7 gap-1.5 rounded-full border-border/50 px-2.5 text-[10px] font-bold"
-                  >
-                    <Eye className="h-3 w-3" /> View
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
-                {locatorStatus?.isMandatoryDept ? (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
-                    <Lock className="h-3 w-3 shrink-0" />
-                    Auto-share is required for your department — always on during your shift.
-                  </div>
-                ) : (
-                  <>
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold text-foreground">Auto-share when I start my shift</p>
-                      <p className="mt-0.5 text-[9px] text-muted-foreground/50">Turns location sharing on the moment you clock in.</p>
-                    </div>
-                    <Switch
-                      checked={!locatorStatus?.locationSharingOptOut}
-                      disabled={autoShareSaving || !locatorStatus}
-                      onCheckedChange={handleAutoShareToggle}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          )
-        })()}
-
-        {!isMobile && (
-          <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
-                <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
-              </div>
-              <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
-            </div>
-
-            <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
-              {[
-                "Download and install the tray app",
-                "Launch it — it appears in your system tray",
-                "Return here and click Start Shift",
-              ].map((step, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                  <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-border/30 p-3 space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
+              <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                    <MonitorDot className="h-3.5 w-3.5 text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold">Windows</p>
-                    <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
-                  </div>
+                  <Clock className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500">Time Clock</span>
                 </div>
-                <a
-                  href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
-                >
-                  <Download className="h-3 w-3" /> Download (.exe)
-                </a>
-              </div>
-
-              <div className="rounded-xl border border-border/30 p-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
-                    <MonitorDot className="h-3.5 w-3.5 text-zinc-400" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold">macOS</p>
-                    <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon</p>
-                  </div>
-                </div>
-                <a
-                  href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[10px] font-bold transition-colors"
-                >
-                  <Download className="h-3 w-3" /> Download (.dmg)
-                </a>
-              </div>
-            </div>
-
-            <a
-              href="/guide"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 h-10 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px] font-bold transition-colors"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              View Instructions — How to Download &amp; Use
-            </a>
-          </div>
-        )}
-
-        </div>
-        <div className="space-y-4">
-
-        {tpError && (
-          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-600">{tpError}</div>
-        )}
-
-        {tpData && (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Today" value={fmtHuman(tpData.summary.today.totalSeconds)}
-                sub={tpData.isLive ? "🟢 Live session" : tpData.summary.today.totalSeconds > 0 ? "Completed" : "Not clocked in"}
-                icon={Timer} accent={tpData.summary.today.totalSeconds > 0} />
-              <StatCard label="Cut-off" value={fmtHHMM(currentCutoffSeconds)}
-                sub={`${currentCutoffLabel} · ${currentPayoutDue}`} icon={Scissors} accent={currentCutoffSeconds > 0} />
-              <StatCard label={monthLabel.split(" ")[0]} value={fmtHHMM(monthSummary.seconds)}
-                sub={`${monthSummary.days} day${monthSummary.days !== 1 ? "s" : ""} active`} icon={Calendar} />
-              <StatCard label="Streak" value={`${tpData.streak}d`} sub={`Best: ${tpData.longestStreak} days`} icon={Flame} amber />
-            </div>
-
-            <div className="rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
-                <h2 className="text-base font-black tracking-tight">{monthLabel}</h2>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={prevMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button onClick={nextMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button onClick={goToday} disabled={isCurrentMonth} className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
-                    Today
-                  </button>
-                  <button onClick={() => setShowIdleLogModal(true)} title="Export Idle Log"
-                    className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors text-muted-foreground flex items-center gap-1.5">
-                    <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Idle Log</span>
-                  </button>
+                  <span className={cn("h-2 w-2 rounded-full transition-colors duration-500",
+                    isOnBreak ? "animate-pulse bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)] motion-reduce:animate-none"
+                      : isActive ? "animate-pulse bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] motion-reduce:animate-none"
+                        : isComplete ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                          : "bg-zinc-300 dark:bg-zinc-700")} />
+                  <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors duration-500",
+                    isOnBreak ? "text-amber-500" : isActive ? "text-emerald-500 dark:text-emerald-400"
+                      : isComplete ? "text-emerald-500" : "text-zinc-400 dark:text-zinc-600")}>
+                    {isOnBreak ? "On Break" : isActive ? "On Shift" : isComplete ? "Completed" : "Off Clock"}
+                  </span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-2.5 border-b border-border/20 bg-muted/10">
-                <span className="text-[10px] text-muted-foreground/50">Total: <strong className="text-foreground/70 font-mono">{fmtHHMM(monthSummary.seconds)}</strong></span>
-                <span className="text-[10px] text-muted-foreground/50">Active days: <strong className="text-foreground/70">{monthSummary.days}</strong></span>
-                <div className="ml-auto hidden sm:flex items-center gap-3 flex-wrap">
-                  {[{ label: "< 2h", cls: "bg-rose-500" }, { label: "2–4h", cls: "bg-sky-700" }, { label: "4–6h", cls: "bg-sky-600" }, { label: "6–9h", cls: "bg-emerald-600" }, { label: "9h+", cls: "bg-emerald-500" }].map((c) => (
-                    <span key={c.label} className="flex items-center gap-1">
-                      <span className={`h-2.5 w-5 rounded-[3px] ${c.cls}`} />
-                      <span className="text-[8px] text-muted-foreground/35">{c.label}</span>
-                    </span>
+
+              {(isActive || isComplete) && (
+                <div className="flex flex-1 items-center justify-center px-4 py-8 sm:px-8">
+                  {isActive && (
+                    <ActivityTimer
+                      todayTotalActiveMs={todayTotalActiveMs}
+                      activityStartAt={activityStartAt}
+                      isOnShift={isActive}
+                      isOnBreak={isOnBreak}
+                      breakTotalMs={breakAccumulatedMs}
+                      currentBreakStartAt={currentBreakStartAt}
+                    />
+                  )}
+                  {isComplete && (
+                    <ShiftGauge progress={1} accent="emerald" glow>
+                      <div className="flex flex-col items-center gap-1.5 text-center">
+                        <CheckCircle2 className="h-8 w-8 text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
+                        <p className="font-mono text-2xl font-black tracking-tighter text-zinc-900 dark:text-white sm:text-3xl">{finalHours}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">Shift Complete</p>
+                      </div>
+                    </ShiftGauge>
+                  )}
+                </div>
+              )}
+
+              <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-4 dark:border-zinc-800/60 dark:bg-zinc-900/20">
+                <div className="mb-4 grid grid-cols-2 gap-3">
+                  {[
+                    {
+                      label: "Time In",
+                      value: resumeOriginalClockIn ? fmt(new Date(resumeOriginalClockIn))
+                        : timeIn ? fmt(new Date(timeIn.timestamp))
+                          : serverShiftStartedAt ? fmt(new Date(serverShiftStartedAt)) : "——",
+                    },
+                    { label: "Time Out", value: timeOut ? fmt(new Date(timeOut.timestamp)) : "——" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-zinc-200/70 bg-white/60 px-3 py-2.5 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/50">
+                      <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">{item.label}</p>
+                      <p className="font-mono text-xl font-black leading-none tabular-nums text-zinc-900 dark:text-white">{item.value}</p>
+                    </div>
                   ))}
                 </div>
+
+                {!isActive && (
+                  (isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main') ? (
+                    <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
+                      <MonitorDot className="h-4 w-4 text-zinc-500 shrink-0" />
+                      <p className="text-[11px] text-zinc-500 font-bold text-center">Shift tracking requires the desktop app</p>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={checkTrayAndStartShift}
+                      disabled={isClocking || trayChecking}
+                      className="h-12 w-full gap-2 rounded-xl border-0 bg-linear-to-r from-emerald-600 to-emerald-500 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-emerald-500 hover:to-emerald-400 active:translate-y-0 motion-reduce:transform-none"
+                    >
+                      {isClocking || trayChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Start Shift <ArrowRight className="ml-auto h-4 w-4 opacity-60" /></>}
+                    </Button>
+                  )
+                )}
+                {isActive && (() => {
+                  const isPausedOnShift = !isOnBreak && activityStartAt === null
+                  const showMobileEndShiftHint = isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main'
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {showMobileEndShiftHint && (
+                        <p className="col-span-2 -mt-1 mb-1 text-center text-[10px] text-zinc-500">
+                          Forgot to clock out on your computer? You can safely end this shift from your phone — it will stop the desktop app too.
+                        </p>
+                      )}
+                      {isPausedOnShift ? (
+                        <Button onClick={() => { setActivityStartAt(Date.now()); handleClock("time-in") }} disabled={isClocking}
+                          className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400">
+                          <Play className="h-4 w-4" /> Resume Shift
+                        </Button>
+                      ) : (
+                        <Button onClick={handleBreak}
+                          className={cn("h-11 gap-2 rounded-xl border text-sm font-bold transition-all duration-200",
+                            isOnBreak ? "border-amber-500/30 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-amber-500/30 hover:bg-zinc-100 hover:text-amber-600 dark:border-zinc-700/60 dark:bg-zinc-800/40 dark:text-zinc-300")}>
+                          {isOnBreak ? <><Play className="h-4 w-4" /> Resume</> : <><Coffee className="h-4 w-4" /> Break</>}
+                        </Button>
+                      )}
+                      <Button onClick={handleEndShiftClick} disabled={isClocking || isOnBreak}
+                        className="h-11 gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-500 hover:border-red-300 hover:bg-red-100 disabled:opacity-30 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
+                        {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> End Shift</>}
+                      </Button>
+                    </div>
+                  )
+                })()}
+                {clockMsg && <p className="mt-2 text-center font-mono text-[11px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
               </div>
-              {isMobile ? (
-                <MobileCalendarList
-                  year={viewYear} month={viewMonth} calendar={tpData.calendar}
-                  onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
-                  isLive={tpData.isLive}
-                />
-              ) : (
-                <MonthCalendar
-                  year={viewYear} month={viewMonth} calendar={tpData.calendar}
-                  onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
-                  isLive={tpData.isLive}
-                />
-              )}
             </div>
 
-            {!showPayoutCalculator ? (
-              <div className="rounded-2xl border border-border/40 bg-card p-5">
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <p className="text-xs font-black tracking-tight">Payout Calculator</p>
-                    <p className="text-[10px] text-muted-foreground/40 mt-0.5">Estimate your earnings for a cut-off period</p>
-                  </div>
-                  <DollarSign className="h-4 w-4 text-muted-foreground/20" />
-                </div>
-                <div className="flex flex-col items-center gap-3 py-5">
-                  <div className="h-14 w-14 rounded-2xl bg-muted/30 border border-border/30 flex items-center justify-center">
-                    <Lock className="h-6 w-6 text-muted-foreground/40" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-muted-foreground/60">Calculator Locked</p>
-                    <p className="text-[11px] text-muted-foreground/40 mt-1">Available starting {payoutWindow.nextUnlockLabel}</p>
-                    {payoutWindow.daysUntil > 0 && <p className="text-[10px] text-muted-foreground/30 mt-0.5">{payoutWindow.daysUntil} day{payoutWindow.daysUntil !== 1 ? "s" : ""} from now</p>}
-                  </div>
-                  <div className="w-full rounded-xl bg-muted/10 border border-border/20 px-4 py-3 mt-1 space-y-2">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/30 text-center">Pay Schedule</p>
-                    <div className="grid grid-cols-2 gap-3 text-center">
-                      <div className="rounded-lg bg-muted/10 px-2 py-2">
-                        <p className="text-[10px] font-bold text-muted-foreground/50">1st – 15th</p>
-                        <p className="text-[9px] text-muted-foreground/30 mt-0.5">Payday: 21st</p>
+            {(() => {
+              const meta = locatorStateMeta(locatorState, locatorError, locatorAwaitingFirstFix)
+              const shiftGoverned = isActive && !isOnBreak && locatorState === "sharing"
+              return (
+                <div className="w-full rounded-2xl border border-border/40 bg-card">
+                  <div className="flex items-center justify-between gap-3 px-5 py-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                        {locatorAwaitingFirstFix ? <Loader2 className="h-4 w-4 text-emerald-500 animate-spin" />
+                          : locatorState === "sharing" ? <Radio className="h-4 w-4 text-emerald-500" /> : <MapPin className="h-4 w-4 text-emerald-500" />}
                       </div>
-                      <div className="rounded-lg bg-muted/10 px-2 py-2">
-                        <p className="text-[10px] font-bold text-muted-foreground/50">16th – end</p>
-                        <p className="text-[9px] text-muted-foreground/30 mt-0.5">Payday: 6th (next mo.)</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black tracking-tight">Payout Calculator</p>
-                    <p className="text-[10px] text-muted-foreground/40 mt-0.5">Estimate your earnings for a cut-off period</p>
-                  </div>
-                  <DollarSign className="h-4 w-4 text-muted-foreground/20" />
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Period</p>
-                  <div className="flex gap-2">
-                    {([1, 2] as const).map((p) => {
-                      const label = p === 1 ? `${calcMonthShort} 1–15` : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
-                      return (
-                        <button key={p} onClick={() => setPayoutPeriod(p)}
-                          className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300" : "border-border/40 text-muted-foreground hover:bg-muted/30"}`}>
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Your Hourly Rate</p>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">$</span>
-                    <input type="number" min="0" step="0.01" placeholder="0.00" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)}
-                      className="w-full h-9 pl-7 pr-12 rounded-xl border border-border/40 bg-muted/10 text-sm font-bold font-mono focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/5 transition-all" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">/ hr</span>
-                  </div>
-                </div>
-                <div className="pt-1 border-t border-border/20 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <span className="text-[11px] text-muted-foreground/50">Hours rendered ({calcPeriodLabel})</span>
-                      {calcRemainderMins > 0 && <p className="text-[9px] text-muted-foreground/35 mt-0.5">{calcRemainderMins}m not counted — whole hours only</p>}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-[11px] font-bold font-mono text-foreground/80">{fmtHHMM(calcSeconds)}</span>
-                      <p className="text-[9px] font-bold font-mono text-muted-foreground/40">{calcWholeHours}h billed</p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-muted/15 border border-border/20 px-4 py-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Estimated Payout</p>
-                      <div className="flex items-center gap-1">
-                        <button onClick={togglePhp} disabled={fetchingPhp}
-                          className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400" : "border-border/30 text-muted-foreground/40 hover:border-border/60"}`}>
-                          {fetchingPhp ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : showPhp ? "PHP ✓" : "PHP"}
-                        </button>
-                        {showPhp && phpRate && (
-                          <button onClick={fetchPhpRate} disabled={fetchingPhp} title="Refresh rate"
-                            className="h-9 w-9 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
-                            <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {rateNum > 0 ? (
-                      <div className="space-y-1">
-                        <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
-                          ${payoutUSD.toFixed(2)}<span className="text-xs font-bold text-muted-foreground/40 ml-1">USD</span>
-                        </p>
-                        {showPhp && payoutPHP !== null && (
-                          <p className="text-base font-bold text-sky-700 dark:text-sky-400">
-                            ₱{payoutPHP.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            <span className="text-[9px] font-semibold text-muted-foreground/35 ml-1.5">1 USD = ₱{phpRate?.toFixed(2)}</span>
+                      <div className="min-w-0 text-left">
+                        <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
+                        <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/50">{meta.detail}</p>
+                        {locatorLastPingAt && (
+                          <p className="mt-1 font-mono text-[9px] text-muted-foreground/40">
+                            Last ping {fmt(new Date(locatorLastPingAt))}
                           </p>
                         )}
                       </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, (locatorState === "sharing" || locatorAwaitingFirstFix) && "animate-pulse motion-reduce:animate-none")} />
+                        {meta.label}
+                      </span>
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => router.push("/team-pulse?tab=activity")}
+                        className="h-7 gap-1.5 rounded-full border-border/50 px-2.5 text-[10px] font-bold"
+                      >
+                        <Eye className="h-3 w-3" /> View
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
+                    {locatorStatus?.isMandatoryDept ? (
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                        <Lock className="h-3 w-3 shrink-0" />
+                        Auto-share is required for your department — always on during your shift.
+                      </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground/30 font-medium">Enter your hourly rate above</p>
+                      <>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-foreground">Auto-share when I start my shift</p>
+                          <p className="mt-0.5 text-[9px] text-muted-foreground/50">Turns location sharing on the moment you clock in.</p>
+                        </div>
+                        <Switch
+                          checked={!locatorStatus?.locationSharingOptOut}
+                          disabled={autoShareSaving || !locatorStatus}
+                          onCheckedChange={(checked) => setPendingAutoShareValue(checked)}
+                        />
+                      </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15">
-                    <Scissors className="h-3 w-3 text-amber-500 shrink-0" />
-                    <span className="text-[10px] text-muted-foreground/50 flex-1">{payoutPeriod === 1 ? "1st–15th" : `16th–${cutoffSummary.lastDay}th`} cut-off</span>
-                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">Released {calcPayoutDate}</span>
-                  </div>
-                  {isPayDayReached ? (
-                    <button onClick={printPayslip} disabled={rateNum <= 0}
-                      className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                      <Download className="h-3.5 w-3.5" /> Download Payslip (PDF)
-                    </button>
-                  ) : (
-                    <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
-                      <Lock className="h-3.5 w-3.5" /> Payslip available on {payDayLabel}
+
+                  {shiftGoverned && (
+                    <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-foreground">Sharing via your active shift</p>
+                        <p className="mt-0.5 text-[9px] text-muted-foreground/50">Turns off automatically when your shift ends — or stop it now.</p>
+                      </div>
+                      <Button
+                        size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
+                        className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
+                      >
+                        <Power className="h-3 w-3" /> Stop Sharing
+                      </Button>
                     </div>
                   )}
-                  <button onClick={() => setShowTimecardModal(true)}
-                    className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 hover:bg-muted/20 text-foreground/70 text-[11px] font-bold flex items-center justify-center gap-2 transition-all">
-                    <Download className="h-3.5 w-3.5" /> Download Timecard (any date range)
-                  </button>
                 </div>
+              )
+            })()}
+
+            {!isMobile && (
+              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
+                    <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
+                  </div>
+                  <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
+                </div>
+
+                <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
+                  {[
+                    "Download and install the tray app",
+                    "Launch it — it appears in your system tray",
+                    "Return here and click Start Shift",
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                      <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-border/30 p-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                        <MonitorDot className="h-3.5 w-3.5 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold">Windows</p>
+                        <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
+                      </div>
+                    </div>
+                    <a
+                      href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
+                    >
+                      <Download className="h-3 w-3" /> Download (.exe)
+                    </a>
+                  </div>
+
+                  <div className="rounded-xl border border-border/30 p-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
+                        <MonitorDot className="h-3.5 w-3.5 text-zinc-400" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold">macOS</p>
+                        <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon</p>
+                      </div>
+                    </div>
+                    <a
+                      href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[10px] font-bold transition-colors"
+                    >
+                      <Download className="h-3 w-3" /> Download (.dmg)
+                    </a>
+                  </div>
+                </div>
+
+                <a
+                  href="/guide"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 h-10 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px] font-bold transition-colors"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  View Instructions — How to Download &amp; Use
+                </a>
               </div>
             )}
-          </>
-        )}
 
-        </div>
+          </div>
+          <div className="space-y-4">
+
+            {tpError && (
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-600">{tpError}</div>
+            )}
+
+            {tpData && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <StatCard label="Today" value={fmtHuman(tpData.summary.today.totalSeconds)}
+                    sub={tpData.isLive ? "🟢 Live session" : tpData.summary.today.totalSeconds > 0 ? "Completed" : "Not clocked in"}
+                    icon={Timer} accent={tpData.summary.today.totalSeconds > 0} />
+                  <StatCard label="Cut-off" value={fmtHHMM(currentCutoffSeconds)}
+                    sub={`${currentCutoffLabel} · ${currentPayoutDue}`} icon={Scissors} accent={currentCutoffSeconds > 0} />
+                  <StatCard label={monthLabel.split(" ")[0]} value={fmtHHMM(monthSummary.seconds)}
+                    sub={`${monthSummary.days} day${monthSummary.days !== 1 ? "s" : ""} active`} icon={Calendar} />
+                  <StatCard label="Streak" value={`${tpData.streak}d`} sub={`Best: ${tpData.longestStreak} days`} icon={Flame} amber />
+                </div>
+
+                <div className="rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
+                    <h2 className="text-base font-black tracking-tight">{monthLabel}</h2>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={prevMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button onClick={nextMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <button onClick={goToday} disabled={isCurrentMonth} className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
+                        Today
+                      </button>
+                      <button onClick={() => setShowIdleLogModal(true)} title="Export Idle Log"
+                        className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors text-muted-foreground flex items-center gap-1.5">
+                        <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Idle Log</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-2.5 border-b border-border/20 bg-muted/10">
+                    <span className="text-[10px] text-muted-foreground/50">Total: <strong className="text-foreground/70 font-mono">{fmtHHMM(monthSummary.seconds)}</strong></span>
+                    <span className="text-[10px] text-muted-foreground/50">Active days: <strong className="text-foreground/70">{monthSummary.days}</strong></span>
+                    <div className="ml-auto hidden sm:flex items-center gap-3 flex-wrap">
+                      {[{ label: "< 2h", cls: "bg-rose-500" }, { label: "2–4h", cls: "bg-sky-700" }, { label: "4–6h", cls: "bg-sky-600" }, { label: "6–9h", cls: "bg-emerald-600" }, { label: "9h+", cls: "bg-emerald-500" }].map((c) => (
+                        <span key={c.label} className="flex items-center gap-1">
+                          <span className={`h-2.5 w-5 rounded-[3px] ${c.cls}`} />
+                          <span className="text-[8px] text-muted-foreground/35">{c.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {isMobile ? (
+                    <MobileCalendarList
+                      year={viewYear} month={viewMonth} calendar={tpData.calendar}
+                      onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
+                      isLive={tpData.isLive}
+                    />
+                  ) : (
+                    <MonthCalendar
+                      year={viewYear} month={viewMonth} calendar={tpData.calendar}
+                      onSelectDay={(ds) => router.push(`/crm/timeproof/${ds}?t=${tpData?.calendar[ds]?.totalSeconds ?? 0}`)}
+                      isLive={tpData.isLive}
+                    />
+                  )}
+                </div>
+
+                {!showPayoutCalculator ? (
+                  <div className="rounded-2xl border border-border/40 bg-card p-5">
+                    <div className="flex items-center justify-between mb-5">
+                      <div>
+                        <p className="text-xs font-black tracking-tight">Payout Calculator</p>
+                        <p className="text-[10px] text-muted-foreground/40 mt-0.5">Estimate your earnings for a cut-off period</p>
+                      </div>
+                      <DollarSign className="h-4 w-4 text-muted-foreground/20" />
+                    </div>
+                    <div className="flex flex-col items-center gap-3 py-5">
+                      <div className="h-14 w-14 rounded-2xl bg-muted/30 border border-border/30 flex items-center justify-center">
+                        <Lock className="h-6 w-6 text-muted-foreground/40" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-muted-foreground/60">Calculator Locked</p>
+                        <p className="text-[11px] text-muted-foreground/40 mt-1">Available starting {payoutWindow.nextUnlockLabel}</p>
+                        {payoutWindow.daysUntil > 0 && <p className="text-[10px] text-muted-foreground/30 mt-0.5">{payoutWindow.daysUntil} day{payoutWindow.daysUntil !== 1 ? "s" : ""} from now</p>}
+                      </div>
+                      <div className="w-full rounded-xl bg-muted/10 border border-border/20 px-4 py-3 mt-1 space-y-2">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/30 text-center">Pay Schedule</p>
+                        <div className="grid grid-cols-2 gap-3 text-center">
+                          <div className="rounded-lg bg-muted/10 px-2 py-2">
+                            <p className="text-[10px] font-bold text-muted-foreground/50">1st – 15th</p>
+                            <p className="text-[9px] text-muted-foreground/30 mt-0.5">Payday: 21st</p>
+                          </div>
+                          <div className="rounded-lg bg-muted/10 px-2 py-2">
+                            <p className="text-[10px] font-bold text-muted-foreground/50">16th – end</p>
+                            <p className="text-[9px] text-muted-foreground/30 mt-0.5">Payday: 6th (next mo.)</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-black tracking-tight">Payout Calculator</p>
+                        <p className="text-[10px] text-muted-foreground/40 mt-0.5">Estimate your earnings for a cut-off period</p>
+                      </div>
+                      <DollarSign className="h-4 w-4 text-muted-foreground/20" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Period</p>
+                      <div className="flex gap-2">
+                        {([1, 2] as const).map((p) => {
+                          const label = p === 1 ? `${calcMonthShort} 1–15` : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
+                          return (
+                            <button key={p} onClick={() => setPayoutPeriod(p)}
+                              className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300" : "border-border/40 text-muted-foreground hover:bg-muted/30"}`}>
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Your Hourly Rate</p>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">$</span>
+                        <input type="number" min="0" step="0.01" placeholder="0.00" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)}
+                          className="w-full h-9 pl-7 pr-12 rounded-xl border border-border/40 bg-muted/10 text-sm font-bold font-mono focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/5 transition-all" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">/ hr</span>
+                      </div>
+                    </div>
+                    <div className="pt-1 border-t border-border/20 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground/50">Hours rendered ({calcPeriodLabel})</span>
+                          {calcRemainderMins > 0 && <p className="text-[9px] text-muted-foreground/35 mt-0.5">{calcRemainderMins}m not counted — whole hours only</p>}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[11px] font-bold font-mono text-foreground/80">{fmtHHMM(calcSeconds)}</span>
+                          <p className="text-[9px] font-bold font-mono text-muted-foreground/40">{calcWholeHours}h billed</p>
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-muted/15 border border-border/20 px-4 py-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Estimated Payout</p>
+                          <div className="flex items-center gap-1">
+                            <button onClick={togglePhp} disabled={fetchingPhp}
+                              className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400" : "border-border/30 text-muted-foreground/40 hover:border-border/60"}`}>
+                              {fetchingPhp ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : showPhp ? "PHP ✓" : "PHP"}
+                            </button>
+                            {showPhp && phpRate && (
+                              <button onClick={fetchPhpRate} disabled={fetchingPhp} title="Refresh rate"
+                                className="h-9 w-9 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                                <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {rateNum > 0 ? (
+                          <div className="space-y-1">
+                            <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
+                              ${payoutUSD.toFixed(2)}<span className="text-xs font-bold text-muted-foreground/40 ml-1">USD</span>
+                            </p>
+                            {showPhp && payoutPHP !== null && (
+                              <p className="text-base font-bold text-sky-700 dark:text-sky-400">
+                                ₱{payoutPHP.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <span className="text-[9px] font-semibold text-muted-foreground/35 ml-1.5">1 USD = ₱{phpRate?.toFixed(2)}</span>
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground/30 font-medium">Enter your hourly rate above</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15">
+                        <Scissors className="h-3 w-3 text-amber-500 shrink-0" />
+                        <span className="text-[10px] text-muted-foreground/50 flex-1">{payoutPeriod === 1 ? "1st–15th" : `16th–${cutoffSummary.lastDay}th`} cut-off</span>
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">Released {calcPayoutDate}</span>
+                      </div>
+                      {isPayDayReached ? (
+                        <button onClick={printPayslip} disabled={rateNum <= 0}
+                          className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                          <Download className="h-3.5 w-3.5" /> Download Payslip (PDF)
+                        </button>
+                      ) : (
+                        <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
+                          <Lock className="h-3.5 w-3.5" /> Payslip available on {payDayLabel}
+                        </div>
+                      )}
+                      <button onClick={() => setShowTimecardModal(true)}
+                        className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 hover:bg-muted/20 text-foreground/70 text-[11px] font-bold flex items-center justify-center gap-2 transition-all">
+                        <Download className="h-3.5 w-3.5" /> Download Timecard (any date range)
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>
         </div>
 
       </div>
@@ -1936,6 +2001,43 @@ export default function TimeprofClockPage() {
         </div>
       )}
 
+      <AlertDialog open={pendingAutoShareValue !== null} onOpenChange={(open) => !open && setPendingAutoShareValue(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAutoShareValue ? "Turn on auto-share?" : "Turn off auto-share?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAutoShareValue
+                ? "Your location will automatically share with the team the moment you clock in for a shift, and turns off automatically when you clock out. If you don't turn this on, you'll need to share manually from Team Pulse Beacon each time."
+                : "Your location will no longer be shared automatically when you clock in. If you leave this off, nobody will see your location during your shift unless you manually share it from Team Pulse Beacon."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={autoShareSaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAutoShareToggle} disabled={autoShareSaving}>
+              {autoShareSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={stopSharingConfirmOpen} onOpenChange={setStopSharingConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop sharing your location?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You're currently sharing because of your active shift. Stopping now turns it off for the rest of this shift — it won't automatically turn back on unless you clock in again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={stopSharingSaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStopSharingNow} disabled={stopSharingSaving} className="bg-red-500 hover:bg-red-600">
+              {stopSharingSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Stop Sharing"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -25,7 +25,9 @@ import {
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
-import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupraSpaceSocket';
+import { useSupraSpaceSocket, SSConversation, SSMessage, PresenceMap } from '@/hooks/useSupraSpaceSocket';
+import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
+import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
 import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -175,7 +177,6 @@ if (typeof document !== 'undefined') {
     .ss4-ava-accent { background:linear-gradient(140deg,#3a5ce0,#5b7cf6); }
     .ss4-ava-purple { background:linear-gradient(140deg,#7038c0,#9b6fd6); }
     .ss4-ava-teal { background:linear-gradient(140deg,#0e7c6a,#22b060); }
-    .ss4-online-dot { background:var(--positive); box-shadow:0 0 0 2px var(--sidebar-bg),0 0 6px rgba(52,201,125,0.6); }
     @keyframes ss4-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4;} 40%{transform:translateY(-4px);opacity:1;} }
     .ss4-typing-dot { animation:ss4-dot-bounce 1.4s ease-in-out infinite; }
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
@@ -1489,7 +1490,7 @@ function Bubble({
         code: false,
       });
       setEditTextColor(getActiveSelectionColor(root));
-    } catch {}
+    } catch { }
   }, []);
 
   const focusEditComposer = React.useCallback(() => {
@@ -3012,7 +3013,7 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           await apiClient.post(`/api/supraspace/conversations/${convId}/messages`, { content: message.content }, { headers: { Authorization: `Bearer ${token}` } });
         }
         ok++;
-      } catch {  }
+      } catch { }
     }
     setSending(false);
     if (ok > 0) toast.success(ok === 1 ? 'Message forwarded.' : `Message forwarded to ${ok} people.`);
@@ -3146,25 +3147,28 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
 }
 
 function ActiveUsersModal({ users, presence, uid, onClose }: {
-  users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void;
+  users: CrmUser[]; presence: PresenceMap; uid: string; onClose: () => void;
 }) {
-  const online = users.filter(u => u._id !== uid && presence[u._id] === 'online');
-  const offline = users.filter(u => u._id !== uid && presence[u._id] !== 'online');
-  const Row = (u: CrmUser, isOn: boolean) => (
-    <div key={u._id} className="w-full flex items-center gap-3 px-4 py-2.5">
-      <div className="relative shrink-0">
-        <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
-          {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+  const online = users.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
+  const offline = users.filter(u => u._id !== uid && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
+  const Row = (u: CrmUser, isOn: boolean) => {
+    const status = presence[u._id]?.onlineStatus ?? 'offline';
+    return (
+      <div key={u._id} className="w-full flex items-center gap-3 px-4 py-2.5">
+        <div className="relative shrink-0">
+          <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
+            {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+          </div>
+          {isOn && <PresenceAvatarDot status={status} deviceType={presence[u._id]?.lastDeviceType ?? undefined} />}
         </div>
-        {isOn && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+          <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? S.label[status] : u.role || 'Offline'}</p>
+        </div>
+        <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', S.dot[status])} />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-        <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? 'Active now' : u.role || 'Offline'}</p>
-      </div>
-      <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', isOn ? 'bg-(--positive)' : 'bg-[#6b7280]')} />
-    </div>
-  );
+    );
+  };
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ maxHeight: '80vh' }}>
@@ -3721,7 +3725,7 @@ export default function SupraSpacePage() {
           return [...fresh, ...localOnly];
         });
       })
-      .catch(() => {  });
+      .catch(() => { });
   }, []);
 
   React.useEffect(() => {
@@ -3757,7 +3761,7 @@ export default function SupraSpacePage() {
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
           }
-        } catch {  }
+        } catch { }
       }
 
       if (!t) {
@@ -5233,7 +5237,8 @@ export default function SupraSpacePage() {
   const ConvRow = ({ conv, compact, draggable: isDraggable }: { conv: SSConversation; compact?: boolean; draggable?: boolean }) => {
     const isAct = conv._id === activeId;
     const other = safeMembers(conv).find(m => m._id !== uid);
-    const online = other ? presence[other._id] === 'online' : false;
+    const otherPresence = other ? presence[other._id] : undefined;
+    const online = !!otherPresence?.onlineStatus && otherPresence.onlineStatus !== 'offline';
     const cName = getConvName(conv, uid);
     const cAvatar = getConvAvatar(conv, uid);
     const pinned = isPinnedConv(conv);
@@ -5247,12 +5252,12 @@ export default function SupraSpacePage() {
       : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
     const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
       : !effectiveLastMsg ? 'No messages yet'
-      : effectiveLastMsg.isDeleted ? 'Message deleted'
-        : effectiveLastMsg.type === 'voice' ? '🎙️ Voice message'
-          : effectiveLastMsg.type === 'gif' ? 'GIF'
-            : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
-              : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
-                : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
+        : effectiveLastMsg.isDeleted ? 'Message deleted'
+          : effectiveLastMsg.type === 'voice' ? '🎙️ Voice message'
+            : effectiveLastMsg.type === 'gif' ? 'GIF'
+              : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const [ddOpen, setDdOpen] = React.useState(false);
@@ -5284,7 +5289,7 @@ export default function SupraSpacePage() {
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
             {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
           </div>
-          {conv.type === 'direct' && online ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
+          {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
             : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
         </div>
         <div className="min-w-0 flex-1">
@@ -5453,7 +5458,7 @@ export default function SupraSpacePage() {
               <MountainTimeClock compact />
               <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
                 <Wifi className="h-3.5 w-3.5" />
-                <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
+                <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
               </button>
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
             </div>
@@ -5495,7 +5500,7 @@ export default function SupraSpacePage() {
                       <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
                     </button>
                     {meetingMenuOpen && (
-                      <div className="absolute right-0 top-full mt-2 z-50 w-[236px] max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                      <div className="absolute right-0 top-full mt-2 z-50 w-59 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
                         <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
                           <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                           Create a meeting link for later
@@ -5744,7 +5749,12 @@ export default function SupraSpacePage() {
                       <div className="min-w-0 flex-1">
                         <p className="ss4-display font-bold leading-tight truncate text-[17px] lg:text-sm" style={{ color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
                         <p className="mt-0.5 leading-tight text-[13px] lg:mt-1 lg:text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
-                          {activeConv.type === 'group' ? `${safeMembers(activeConv).length} members` : (() => { const o = safeMembers(activeConv).find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
+                          {activeConv.type === 'group' ? `${safeMembers(activeConv).length} members` : (() => {
+                            const o = safeMembers(activeConv).find(m => m._id !== uid);
+                            const status = o ? presence[o._id]?.onlineStatus : undefined;
+                            if (!status || status === 'offline') return 'Offline';
+                            return <span style={{ color: status === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>● {S.label[status]}</span>;
+                          })()}
                         </p>
                       </div>
                     </button>
@@ -6258,7 +6268,7 @@ export default function SupraSpacePage() {
                       <p className="px-1" style={{ fontSize: 11, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</p>
                     )}
                     {scheduleOpen && (
-                      <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 md:items-center" onClick={() => setScheduleOpen(false)}>
+                      <div className="fixed inset-0 z-80 flex items-end justify-center bg-black/45 md:items-center" onClick={() => setScheduleOpen(false)}>
                         <div
                           className="w-full max-w-md rounded-t-3xl border px-0 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-2xl md:rounded-2xl"
                           style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-2)' }}
@@ -6385,7 +6395,8 @@ export default function SupraSpacePage() {
                       {infoTab === 'members' && (
                         <div className="space-y-0.5">
                           {safeMembers(activeConv).map(m => {
-                            const isOnline = presence[m._id] === 'online';
+                            const memberPresence = presence[m._id];
+                            const isOnline = !!memberPresence?.onlineStatus && memberPresence.onlineStatus !== 'offline';
                             const memberIsAdmin = (activeConv.admins || []).map(String).includes(m._id);
                             return (
                               <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
@@ -6393,7 +6404,7 @@ export default function SupraSpacePage() {
                                   <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
                                     {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
                                   </div>
-                                  {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+                                  {isOnline && <PresenceAvatarDot status={memberPresence!.onlineStatus} deviceType={memberPresence?.lastDeviceType ?? undefined} />}
                                 </button>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{m.fullName}{m._id === uid ? ' (You)' : ''}</p>
@@ -6551,7 +6562,8 @@ export default function SupraSpacePage() {
         { }
         {memberCard && (() => {
           const m = memberCard.member;
-          const isOnline = presence[m._id] === 'online';
+          const memberCardPresence = presence[m._id];
+          const isOnline = !!memberCardPresence?.onlineStatus && memberCardPresence.onlineStatus !== 'offline';
           return (
             <div className="ss4-overlay fixed inset-0 z-100 flex items-center justify-center p-4" onClick={() => setMemberCard(null)}>
               <div id="ss4-member-card" className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -6560,11 +6572,11 @@ export default function SupraSpacePage() {
                     <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
                       {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
                     </div>
-                    {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full" />}
+                    {isOnline && <PresenceAvatarDot status={memberCardPresence!.onlineStatus} deviceType={memberCardPresence?.lastDeviceType ?? undefined} sizeClass="size-3" />}
                   </div>
                   <div className="text-center">
                     <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{m.fullName}</p>
-                    <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : 'Offline'}</p>
+                    <p style={{ fontSize: 11, color: isOnline && memberCardPresence?.onlineStatus === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? `● ${S.label[memberCardPresence!.onlineStatus]}` : 'Offline'}</p>
                   </div>
                   {m._id !== uid && (
                     <button onClick={() => { setMemberCard(null); handleDM(m._id); }} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>

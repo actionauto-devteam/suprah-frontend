@@ -14,6 +14,7 @@ export interface TeamMember {
     profileImage: string | Blob | undefined;
     _id: string;
     name: string;
+    email?: string;
     avatar?: string;
     onlineStatus: OnlineStatus;
     customStatus?: string;

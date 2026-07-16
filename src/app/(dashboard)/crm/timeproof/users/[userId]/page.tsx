@@ -516,8 +516,8 @@ export default function AdminUserTimeprofPage() {
               onClick={copyProof}
               disabled={!data}
               className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied
-                  ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
-                  : "border-border/40 hover:bg-muted/30 text-muted-foreground"
+                ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
+                : "border-border/40 hover:bg-muted/30 text-muted-foreground"
                 } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -642,8 +642,8 @@ export default function AdminUserTimeprofPage() {
                         key={p}
                         onClick={() => setPayoutPeriod(p)}
                         className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p
-                            ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
-                            : "border-border/40 text-muted-foreground hover:bg-muted/30"
+                          ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
+                          : "border-border/40 text-muted-foreground hover:bg-muted/30"
                           }`}
                       >
                         {label}
@@ -696,8 +696,8 @@ export default function AdminUserTimeprofPage() {
                         onClick={togglePhp}
                         disabled={fetchingPhp}
                         className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp
-                            ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                            : "border-border/30 text-muted-foreground/40 hover:border-border/60"
+                          ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                          : "border-border/30 text-muted-foreground/40 hover:border-border/60"
                           }`}
                       >
                         {fetchingPhp ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : showPhp ? "PHP ✓" : "PHP"}
@@ -1011,7 +1011,7 @@ export default function AdminUserTimeprofPage() {
             </div>
 
             {/* ── Verified footer ── */}
-            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
+            <div className="rounded-2xl border border-emerald-500/20 bg-linear-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-xl bg-emerald-600/10 flex items-center justify-center shrink-0">
                   <Shield className="h-3.5 w-3.5 text-emerald-600" />

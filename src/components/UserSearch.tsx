@@ -60,13 +60,13 @@ export function UserSearch({
     try {
       setIsLoading(true)
       setError(null)
-      
+
       console.log('[UserSearch] Searching for:', query)
-      
+
       const token = await getToken()
       const response = await apiClient.get('/api/users/search', {
-        params: { 
-          q: query.trim(), 
+        params: {
+          q: query.trim(),
           limit: 10,
           excludeSelf: excludeCurrentUser ? 'true' : 'false'
         },
@@ -74,16 +74,15 @@ export function UserSearch({
           Authorization: `Bearer ${token}`
         }
       })
-      
+
       console.log('[UserSearch] Response:', response.data)
-      
+
       const data = response.data?.data || response.data
       const usersList = Array.isArray(data) ? data : data.users || []
-      
+
       console.log('[UserSearch] Found users:', usersList.length)
-      
       setUsers(usersList)
-      
+
       if (usersList.length === 0) {
         setError(`No users found matching "${query}"`)
       }
@@ -137,7 +136,7 @@ export function UserSearch({
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium">{label}</label>
-      
+
       {/* Selected users badges */}
       {selectedUserObjects.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
@@ -169,8 +168,8 @@ export function UserSearch({
               {selectedUsers.length === 0
                 ? placeholder
                 : multiple
-                ? `${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''} selected`
-                : selectedUserObjects[0]?.fullName || selectedUserObjects[0]?.name
+                  ? `${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''} selected`
+                  : selectedUserObjects[0]?.fullName || selectedUserObjects[0]?.name
               }
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
