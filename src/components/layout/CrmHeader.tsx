@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { apiClient } from '@/lib/api-client';
 import { useCrmUser } from '@/hooks/useCrmUser';
+import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { CrmNotificationBell } from '@/components/notifications';
 import { MessengerDropdown } from '@/components/supraspace/MessengerDropdown';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
@@ -76,12 +77,17 @@ export function CrmHeader({ showMessenger = false }: CrmHeaderProps) {
                 size="sm"
                 className="h-9 gap-2 pl-1.5 pr-3 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-zinc-100/85 dark:bg-zinc-900/60 hover:bg-zinc-200/80 dark:hover:bg-zinc-800/80 hover:border-zinc-300/60 dark:hover:border-zinc-600/60 backdrop-blur-sm transition-all duration-200"
               >
-                <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
-                  <AvatarImage src={user?.avatarSrc} />
-                  <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
-                    {user ? ini(user.fullName) : 'AA'}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="h-6 w-6 ring-1 ring-emerald-500/30">
+                    <AvatarImage src={user?.avatarSrc} />
+                    <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-[9px] font-black">
+                      {user ? ini(user.fullName) : 'AA'}
+                    </AvatarFallback>
+                  </Avatar>
+                  {user?.onlineStatus && (
+                    <PresenceAvatarDot status={user.onlineStatus} deviceType={user.lastDeviceType} sizeClass="size-2" />
+                  )}
+                </div>
                 <span className="hidden sm:inline text-xs font-semibold text-zinc-700 dark:text-zinc-200 max-w-25 truncate">
                   {user?.fullName || ''}
                 </span>
@@ -94,12 +100,17 @@ export function CrmHeader({ showMessenger = false }: CrmHeaderProps) {
             >
               <div className="p-4 bg-linear-to-br from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 ring-2 ring-emerald-500/20">
-                    <AvatarImage src={user?.avatarSrc} />
-                    <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-xs font-black">
-                      {user ? ini(user.fullName) : 'AA'}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative shrink-0">
+                    <Avatar className="h-10 w-10 ring-2 ring-emerald-500/20">
+                      <AvatarImage src={user?.avatarSrc} />
+                      <AvatarFallback className="bg-linear-to-br from-emerald-600 to-emerald-800 text-white text-xs font-black">
+                        {user ? ini(user.fullName) : 'AA'}
+                      </AvatarFallback>
+                    </Avatar>
+                    {user?.onlineStatus && (
+                      <PresenceAvatarDot status={user.onlineStatus} deviceType={user.lastDeviceType} sizeClass="size-2.5" />
+                    )}
+                  </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
                       {user?.fullName}

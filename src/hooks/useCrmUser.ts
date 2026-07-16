@@ -9,6 +9,8 @@ export interface CrmHeaderUser {
   email: string;
   role: string;
   avatarSrc?: string;
+  onlineStatus?: 'online' | 'idle' | 'away' | 'busy' | 'offline' | 'do_not_disturb';
+  lastDeviceType?: 'mobile' | 'desktop';
 }
 
 function withAvatarCacheBust(avatar?: string | null) {
@@ -56,6 +58,8 @@ export function useCrmUser() {
           avatarSrc: resolveImageUrl(
             withAvatarCacheBust(profileAvatar || data.avatarUrl || data.avatar),
           ),
+          onlineStatus: profile?.onlineStatus,
+          lastDeviceType: profile?.lastDeviceType,
         });
       } catch {
         // Read-only: leave user null, let each page's own auth guard handle redirects.

@@ -195,6 +195,10 @@ function normalizeMessageMarkdownText(text: string): string {
     .trim();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function normalizeMessageMarkdownForDisplay(text: string): string {
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(text))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
@@ -352,16 +356,19 @@ const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B-\u200D\uFEFF]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
-  const compact = normalized.replace(/[^A-Z0-9]/g, '');
   const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_WORD_TOKEN) || []),
-    ...(compact.match(VIN_LIKE_TOKEN) || []),
   ];
   return [...new Set(rawTokens
     .map(token => token.replace(/[^A-Z0-9]/g, ''))
-    .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
+    .filter(token => {
+      if (token.length < 8 || !/[A-Z]/.test(token) || !/\d/.test(token)) return false;
+      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(token)) return true;
+      const digitCount = (token.match(/\d/g) || []).length;
+      return digitCount >= 4;
+    }))];
 }
 
 function isSerialLikeText(text: string): boolean {
@@ -414,6 +421,10 @@ function normalizeSerialSearchText(text: string): string {
   return text.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+function isEmptyVinLabelLine(line: string): boolean {
+  return /^\s*VIN\s*#?\s*:\s*$/i.test(line);
+}
+
 function restoreMissingSerialsFromSources(serialized: string, sources: Array<string | null | undefined>): string {
   const sourceText = sources.filter(Boolean).join('\n');
   const tokens = serialLikeTokens(sourceText);
@@ -425,6 +436,12 @@ function restoreMissingSerialsFromSources(serialized: string, sources: Array<str
 
   tokens.forEach(token => {
     if (serializedSearch.includes(token)) return;
+    const emptyVinLineIndex = restoredLines.findIndex(isEmptyVinLabelLine);
+    if (emptyVinLineIndex >= 0 && /^[A-HJ-NPR-Z0-9]{17}$/.test(token)) {
+      restoredLines[emptyVinLineIndex] = restoredLines[emptyVinLineIndex].replace(/:\s*$/, `: ${token}`);
+      serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+      return;
+    }
     const sourceLine = sourceLines.find(line => normalizeSerialSearchText(line).includes(token))?.trim();
     const fallback = sourceLine && sourceLine.length <= token.length + 24 ? sourceLine : token;
     if (!fallback) return;
@@ -1519,6 +1536,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             pastedPlainTextRef.current,
             inputRef.current?.textContent || '',
             serializedComposerText,
+            pendingAttachments.map(item => item.file.name).join('\n'),
           ],
         ),
       ),
@@ -1621,6 +1639,38 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
     }
   };
+
+  const inspectMentionAnywhere = React.useCallback((value: string) => {
+    const aliases = [
+      ...(conv.type === 'group' ? ['all'] : []),
+      ...conv.members
+        .filter(m => m._id !== crmUserId)
+        .flatMap(m => {
+          const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+        }),
+    ];
+
+    const candidates: Array<{ anchor: number; query: string; length: number }> = [];
+    aliases.forEach(alias => {
+      const normalizedAlias = escapeRegExp(alias.trim()).replace(/\s+/g, '\\s+');
+      const re = new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'gi');
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(value)) !== null) {
+        const anchor = match.index + match[1].length;
+        const matched = value.slice(anchor + 1, re.lastIndex).trim();
+        candidates.push({ anchor, query: matched, length: matched.length });
+      }
+    });
+
+    const best = candidates.sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
+    if (!best) return false;
+    setMentionQuery(best.query);
+    setMentionAnchor(best.anchor);
+    setMentionIdx(0);
+    return true;
+  }, [conv.members, conv.type, crmUserId]);
 
   const handleColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = e.nativeEvent as InputEvent;
@@ -2158,7 +2208,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         e.preventDefault();
                         const editorHtml = clipboardHtmlToEditorHtml(html);
                         document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
-                        requestAnimationFrame(() => { const el = inputRef.current; if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true); });
+                        requestAnimationFrame(() => {
+                          const el = inputRef.current;
+                          if (el) {
+                            const nextText = el.innerText.replace(/\n$/, '');
+                            syncComposerText(nextText, true);
+                            inspectMentionAnywhere(nextText);
+                          }
+                        });
                         return;
                       }
                       const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
@@ -2169,7 +2226,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         } else {
                           document.execCommand('insertText', false, richText);
                         }
-                        requestAnimationFrame(() => { const el = inputRef.current; if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true); });
+                        requestAnimationFrame(() => {
+                          const el = inputRef.current;
+                          if (el) {
+                            const nextText = el.innerText.replace(/\n$/, '');
+                            syncComposerText(nextText, true);
+                            inspectMentionAnywhere(nextText);
+                          }
+                        });
                       }
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}

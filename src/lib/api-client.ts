@@ -602,12 +602,16 @@ class ApiClient {
     return this.get("/api/locator/active", config);
   }
 
+  async requestLocationShare(userId: string, config?: AxiosRequestConfig) {
+    return this.post(`/api/locator/request/${userId}`, {}, config);
+  }
+
   async getPlaces(config?: AxiosRequestConfig) {
     return this.get("/api/locator/places", config);
   }
 
   async createPlace(
-    data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string },
+    data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string; description?: string },
     config?: AxiosRequestConfig
   ) {
     return this.post("/api/locator/places", data, config);

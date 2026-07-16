@@ -83,6 +83,7 @@ export default function AdminUserTimeprofPage() {
   const router = useRouter()
   const { user: currentUser } = useCrmUser()
   const isAdmin = currentUser?.role === "admin"
+  const isAdminOrManager = currentUser?.role === "admin" || currentUser?.role === "manager"
 
   const [data, setData] = React.useState<TimeprofData | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -191,6 +192,36 @@ export default function AdminUserTimeprofPage() {
       setCorrectSubmitting(false)
     }
   }, [correctDate, correctTime, correctReason, alsoExcludeScreenshots, userId])
+
+  /* ── Force clock-out state (admin/manager power for an idle agent) ── */
+  const [clockOutConfirm, setClockOutConfirm] = React.useState(false)
+  const [clockingOut, setClockingOut] = React.useState(false)
+  const [clockOutError, setClockOutError] = React.useState("")
+  const [clockOutSuccess, setClockOutSuccess] = React.useState("")
+
+  const handleClockOutUser = React.useCallback(async () => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setClockingOut(true)
+    setClockOutError("")
+    try {
+      await apiClient.post(`/api/crm/timeproof/users/${userId}/clock-out`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setClockOutConfirm(false)
+      setClockOutSuccess("Clocked out. Reloading…")
+      const res = await apiClient.get(`/api/crm/timeproof/user/${userId}?range=365`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setData(res.data?.data)
+      setTimeout(() => setClockOutSuccess(""), 2000)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setClockOutError(err?.response?.data?.message || "Failed to clock out user.")
+    } finally {
+      setClockingOut(false)
+    }
+  }, [userId])
 
   // Payout calculator follows the calendar month navigation — no separate nav needed
   const calcMonthDate = new Date(Date.UTC(viewYear, viewMonth, 1))
@@ -516,8 +547,8 @@ export default function AdminUserTimeprofPage() {
               onClick={copyProof}
               disabled={!data}
               className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied
-                  ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
-                  : "border-border/40 hover:bg-muted/30 text-muted-foreground"
+                ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700"
+                : "border-border/40 hover:bg-muted/30 text-muted-foreground"
                 } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -642,8 +673,8 @@ export default function AdminUserTimeprofPage() {
                         key={p}
                         onClick={() => setPayoutPeriod(p)}
                         className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p
-                            ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
-                            : "border-border/40 text-muted-foreground hover:bg-muted/30"
+                          ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
+                          : "border-border/40 text-muted-foreground hover:bg-muted/30"
                           }`}
                       >
                         {label}
@@ -696,8 +727,8 @@ export default function AdminUserTimeprofPage() {
                         onClick={togglePhp}
                         disabled={fetchingPhp}
                         className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp
-                            ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                            : "border-border/30 text-muted-foreground/40 hover:border-border/60"
+                          ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                          : "border-border/30 text-muted-foreground/40 hover:border-border/60"
                           }`}
                       >
                         {fetchingPhp ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : showPhp ? "PHP ✓" : "PHP"}
@@ -808,6 +839,58 @@ export default function AdminUserTimeprofPage() {
                 </div>
               </div>
             </div>
+
+            {/* ── Force Clock-Out: admin/manager power for an idle agent ── */}
+            {isAdminOrManager && data.isLive && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/15 p-4 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Radio className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-[11px] font-black tracking-tight">Force Clock-Out</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
+                  {data.user.fullName.split(" ")[0]} is currently clocked in. If they&apos;ve been idle and stepped away without ending their shift, you can clock them out now.
+                </p>
+
+                {clockOutError && (
+                  <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{clockOutError}</p>
+                )}
+                {clockOutSuccess && (
+                  <p className="text-[10px] text-emerald-600 bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2">{clockOutSuccess}</p>
+                )}
+
+                {clockOutConfirm ? (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-amber-100/50 dark:bg-amber-950/30 border border-amber-500/25">
+                    <p className="text-[10px] text-muted-foreground/70 flex-1 leading-snug">
+                      Clock out <strong className="text-amber-700 dark:text-amber-300">{data.user.fullName}</strong> right now?
+                    </p>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => setClockOutConfirm(false)}
+                        disabled={clockingOut}
+                        className="h-7 px-2 rounded-lg text-[10px] font-semibold text-muted-foreground/50 hover:text-muted-foreground transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleClockOutUser}
+                        disabled={clockingOut}
+                        className="h-7 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold transition-colors disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {clockingOut && <RefreshCw className="h-3 w-3 animate-spin" />}
+                        {clockingOut ? "Clocking Out…" : "Confirm"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setClockOutConfirm(true)}
+                    className="w-full h-9 rounded-lg border border-amber-500/40 bg-amber-600/10 hover:bg-amber-600/15 text-amber-700 dark:text-amber-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors"
+                  >
+                    Clock Out {data.user.fullName.split(" ")[0]} Now
+                  </button>
+                )}
+              </div>
+            )}
 
             { }
             {isAdmin && (
@@ -1011,7 +1094,7 @@ export default function AdminUserTimeprofPage() {
             </div>
 
             {/* ── Verified footer ── */}
-            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
+            <div className="rounded-2xl border border-emerald-500/20 bg-linear-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20 p-4">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-xl bg-emerald-600/10 flex items-center justify-center shrink-0">
                   <Shield className="h-3.5 w-3.5 text-emerald-600" />

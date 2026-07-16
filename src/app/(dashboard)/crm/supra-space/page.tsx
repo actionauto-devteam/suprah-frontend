@@ -25,7 +25,9 @@ import {
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
-import { useSupraSpaceSocket, SSConversation, SSMessage } from '@/hooks/useSupraSpaceSocket';
+import { useSupraSpaceSocket, SSConversation, SSMessage, PresenceMap } from '@/hooks/useSupraSpaceSocket';
+import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
+import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
 import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -175,13 +177,12 @@ if (typeof document !== 'undefined') {
     .ss4-ava-accent { background:linear-gradient(140deg,#3a5ce0,#5b7cf6); }
     .ss4-ava-purple { background:linear-gradient(140deg,#7038c0,#9b6fd6); }
     .ss4-ava-teal { background:linear-gradient(140deg,#0e7c6a,#22b060); }
-    .ss4-online-dot { background:var(--positive); box-shadow:0 0 0 2px var(--sidebar-bg),0 0 6px rgba(52,201,125,0.6); }
     @keyframes ss4-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4;} 40%{transform:translateY(-4px);opacity:1;} }
     .ss4-typing-dot { animation:ss4-dot-bounce 1.4s ease-in-out infinite; }
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
-    .ss4-filter-pill { height:28px; padding:0 12px; font-size:11px; line-height:1; }
+    .ss4-filter-pill { height:26px!important; padding:0 10px!important; font-size:10.5px!important; line-height:1; }
     .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; touch-action:pan-y; }
     .ss4-scroll::-webkit-scrollbar { width:4px; }
     .ss4-scroll::-webkit-scrollbar-track { background:transparent; }
@@ -244,12 +245,13 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
       .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
+      .ss4-section-label { font-size:11px; letter-spacing:.08em; }
+      .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
+    }
+    @media (max-width:767px) and (hover:none) and (pointer:coarse) {
       .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
       .ss4-conv-preview { font-size:17px !important; line-height:1.35 !important; }
       .ss4-conv-time { font-size:12.5px !important; }
-      .ss4-section-label { font-size:11px; letter-spacing:.08em; }
-      .ss4-filter-pill { height:34px; padding:0 14px; font-size:13px !important; }
-      .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
     }
     @media (min-width:768px) {
       .ss4-mobile-composer-shell { display:none; }
@@ -419,16 +421,19 @@ const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B-\u200D\uFEFF]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
-  const compact = normalized.replace(/[^A-Z0-9]/g, '');
   const rawTokens = [
     ...(normalized.match(VIN_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_LIKE_TOKEN) || []),
     ...(normalized.match(SERIAL_WORD_TOKEN) || []),
-    ...(compact.match(VIN_LIKE_TOKEN) || []),
   ];
   return [...new Set(rawTokens
     .map(token => token.replace(/[^A-Z0-9]/g, ''))
-    .filter(token => token.length >= 8 && /[A-Z]/.test(token) && /\d/.test(token)))];
+    .filter(token => {
+      if (token.length < 8 || !/[A-Z]/.test(token) || !/\d/.test(token)) return false;
+      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(token)) return true;
+      const digitCount = (token.match(/\d/g) || []).length;
+      return digitCount >= 4;
+    }))];
 }
 
 function isSerialLikeText(text: string): boolean {
@@ -481,6 +486,10 @@ function normalizeSerialSearchText(text: string): string {
   return text.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+function isEmptyVinLabelLine(line: string): boolean {
+  return /^\s*VIN\s*#?\s*:\s*$/i.test(line);
+}
+
 function restoreMissingSerialsFromSources(serialized: string, sources: Array<string | null | undefined>): string {
   const sourceText = sources.filter(Boolean).join('\n');
   const tokens = serialLikeTokens(sourceText);
@@ -492,6 +501,12 @@ function restoreMissingSerialsFromSources(serialized: string, sources: Array<str
 
   tokens.forEach(token => {
     if (serializedSearch.includes(token)) return;
+    const emptyVinLineIndex = restoredLines.findIndex(isEmptyVinLabelLine);
+    if (emptyVinLineIndex >= 0 && /^[A-HJ-NPR-Z0-9]{17}$/.test(token)) {
+      restoredLines[emptyVinLineIndex] = restoredLines[emptyVinLineIndex].replace(/:\s*$/, `: ${token}`);
+      serializedSearch = normalizeSerialSearchText(restoredLines.join('\n'));
+      return;
+    }
     const sourceLine = sourceLines.find(line => normalizeSerialSearchText(line).includes(token))?.trim();
     const fallback = sourceLine && sourceLine.length <= token.length + 24 ? sourceLine : token;
     if (!fallback) return;
@@ -1489,7 +1504,7 @@ function Bubble({
         code: false,
       });
       setEditTextColor(getActiveSelectionColor(root));
-    } catch {}
+    } catch { }
   }, []);
 
   const focusEditComposer = React.useCallback(() => {
@@ -3012,7 +3027,7 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           await apiClient.post(`/api/supraspace/conversations/${convId}/messages`, { content: message.content }, { headers: { Authorization: `Bearer ${token}` } });
         }
         ok++;
-      } catch {  }
+      } catch { }
     }
     setSending(false);
     if (ok > 0) toast.success(ok === 1 ? 'Message forwarded.' : `Message forwarded to ${ok} people.`);
@@ -3146,25 +3161,28 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
 }
 
 function ActiveUsersModal({ users, presence, uid, onClose }: {
-  users: CrmUser[]; presence: Record<string, 'online' | 'offline'>; uid: string; onClose: () => void;
+  users: CrmUser[]; presence: PresenceMap; uid: string; onClose: () => void;
 }) {
-  const online = users.filter(u => u._id !== uid && presence[u._id] === 'online');
-  const offline = users.filter(u => u._id !== uid && presence[u._id] !== 'online');
-  const Row = (u: CrmUser, isOn: boolean) => (
-    <div key={u._id} className="w-full flex items-center gap-3 px-4 py-2.5">
-      <div className="relative shrink-0">
-        <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
-          {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+  const online = users.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
+  const offline = users.filter(u => u._id !== uid && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
+  const Row = (u: CrmUser, isOn: boolean) => {
+    const status = presence[u._id]?.onlineStatus ?? 'offline';
+    return (
+      <div key={u._id} className="w-full flex items-center gap-3 px-4 py-2.5">
+        <div className="relative shrink-0">
+          <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
+            {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+          </div>
+          {isOn && <PresenceAvatarDot status={status} deviceType={presence[u._id]?.lastDeviceType ?? undefined} />}
         </div>
-        {isOn && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+          <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? S.label[status] : u.role || 'Offline'}</p>
+        </div>
+        <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', S.dot[status])} />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-        <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? 'Active now' : u.role || 'Offline'}</p>
-      </div>
-      <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', isOn ? 'bg-(--positive)' : 'bg-[#6b7280]')} />
-    </div>
-  );
+    );
+  };
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ maxHeight: '80vh' }}>
@@ -3721,7 +3739,7 @@ export default function SupraSpacePage() {
           return [...fresh, ...localOnly];
         });
       })
-      .catch(() => {  });
+      .catch(() => { });
   }, []);
 
   React.useEffect(() => {
@@ -3757,7 +3775,7 @@ export default function SupraSpacePage() {
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
           }
-        } catch {  }
+        } catch { }
       }
 
       if (!t) {
@@ -4265,6 +4283,7 @@ export default function SupraSpacePage() {
             pastedPlainTextRef.current,
             textareaRef.current?.textContent || '',
             serializedComposerText,
+            pendingFiles.map(file => file.name).join('\n'),
           ],
         ),
       ),
@@ -4657,6 +4676,39 @@ export default function SupraSpacePage() {
     if (typingRef.current) clearTimeout(typingRef.current);
     typingRef.current = setTimeout(() => sendTypingStop(activeId!), 2000);
   };
+
+  const inspectMentionAnywhere = React.useCallback((value: string) => {
+    if (!activeConv) return false;
+    const aliases = [
+      ...(activeConv.type === 'group' ? ['all'] : []),
+      ...activeConv.members
+        .filter(m => m._id !== uid)
+        .flatMap(m => {
+          const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+        }),
+    ];
+
+    const candidates: Array<{ anchor: number; query: string; length: number }> = [];
+    aliases.forEach(alias => {
+      const normalizedAlias = escapeRegExp(alias.trim()).replace(/\s+/g, '\\s+');
+      const re = new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'gi');
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(value)) !== null) {
+        const anchor = match.index + match[1].length;
+        const matched = value.slice(anchor + 1, re.lastIndex).trim();
+        candidates.push({ anchor, query: matched, length: matched.length });
+      }
+    });
+
+    const best = candidates.sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
+    if (!best) return false;
+    setMentionQuery(best.query);
+    setMentionAnchor(best.anchor);
+    setMentionIdx(0);
+    return true;
+  }, [activeConv, uid]);
 
   const insertMention = React.useCallback((name: string) => {
     const el = textareaRef.current;
@@ -5233,7 +5285,8 @@ export default function SupraSpacePage() {
   const ConvRow = ({ conv, compact, draggable: isDraggable }: { conv: SSConversation; compact?: boolean; draggable?: boolean }) => {
     const isAct = conv._id === activeId;
     const other = safeMembers(conv).find(m => m._id !== uid);
-    const online = other ? presence[other._id] === 'online' : false;
+    const otherPresence = other ? presence[other._id] : undefined;
+    const online = !!otherPresence?.onlineStatus && otherPresence.onlineStatus !== 'offline';
     const cName = getConvName(conv, uid);
     const cAvatar = getConvAvatar(conv, uid);
     const pinned = isPinnedConv(conv);
@@ -5247,12 +5300,12 @@ export default function SupraSpacePage() {
       : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
     const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
       : !effectiveLastMsg ? 'No messages yet'
-      : effectiveLastMsg.isDeleted ? 'Message deleted'
-        : effectiveLastMsg.type === 'voice' ? '🎙️ Voice message'
-          : effectiveLastMsg.type === 'gif' ? 'GIF'
-            : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
-              : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
-                : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
+        : effectiveLastMsg.isDeleted ? 'Message deleted'
+          : effectiveLastMsg.type === 'voice' ? '🎙️ Voice message'
+            : effectiveLastMsg.type === 'gif' ? 'GIF'
+              : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const [ddOpen, setDdOpen] = React.useState(false);
@@ -5284,17 +5337,17 @@ export default function SupraSpacePage() {
           <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
             {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
           </div>
-          {conv.type === 'direct' && online ? <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />
+          {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
             : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
             {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
-            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 14 }}>{cName}</p>
+            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
             {!rowHov && <span className="ss4-conv-time shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
           </div>
-          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 13, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
+          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
           <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov || ddOpen ? 1 : 0 }}>
@@ -5453,7 +5506,7 @@ export default function SupraSpacePage() {
               <MountainTimeClock compact />
               <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
                 <Wifi className="h-3.5 w-3.5" />
-                <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id] === 'online').length} active</span>
+                <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
               </button>
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
             </div>
@@ -5495,7 +5548,7 @@ export default function SupraSpacePage() {
                       <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
                     </button>
                     {meetingMenuOpen && (
-                      <div className="absolute right-0 top-full mt-2 z-50 w-[236px] max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                      <div className="absolute right-0 top-full mt-2 z-50 w-59 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
                         <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
                           <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                           Create a meeting link for later
@@ -5525,11 +5578,23 @@ export default function SupraSpacePage() {
                       key={filter.key}
                       type="button"
                       onClick={() => setConversationFilter(filter.key)}
-                      className="ss4-filter-pill shrink-0 rounded-full font-semibold transition-colors"
+                      className="shrink-0 rounded-full transition-colors"
                       style={{
                         background: active ? 'var(--accent)' : 'var(--bg-hover)',
                         color: active ? '#fff' : 'var(--text-secondary)',
                         border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '26px',
+                        minHeight: '26px',
+                        maxHeight: '26px',
+                        padding: '0 10px',
+                        fontFamily: 'Geist, sans-serif',
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        lineHeight: 1,
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {filter.label}
@@ -5744,7 +5809,12 @@ export default function SupraSpacePage() {
                       <div className="min-w-0 flex-1">
                         <p className="ss4-display font-bold leading-tight truncate text-[17px] lg:text-sm" style={{ color: 'var(--text-primary)' }}>{getConvName(activeConv, uid)}</p>
                         <p className="mt-0.5 leading-tight text-[13px] lg:mt-1 lg:text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
-                          {activeConv.type === 'group' ? `${safeMembers(activeConv).length} members` : (() => { const o = safeMembers(activeConv).find(m => m._id !== uid); return o && presence[o._id] === 'online' ? <span style={{ color: 'var(--positive)' }}>● Active now</span> : 'Offline'; })()}
+                          {activeConv.type === 'group' ? `${safeMembers(activeConv).length} members` : (() => {
+                            const o = safeMembers(activeConv).find(m => m._id !== uid);
+                            const status = o ? presence[o._id]?.onlineStatus : undefined;
+                            if (!status || status === 'offline') return 'Offline';
+                            return <span style={{ color: status === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>● {S.label[status]}</span>;
+                          })()}
                         </p>
                       </div>
                     </button>
@@ -6105,7 +6175,11 @@ export default function SupraSpacePage() {
                                   document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
-                                    if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true);
+                                    if (el) {
+                                      const nextText = el.innerText.replace(/\n$/, '');
+                                      syncComposerText(nextText, true);
+                                      inspectMentionAnywhere(nextText);
+                                    }
                                   });
                                   return;
                                 }
@@ -6120,7 +6194,11 @@ export default function SupraSpacePage() {
                                   }
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
-                                    if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true);
+                                    if (el) {
+                                      const nextText = el.innerText.replace(/\n$/, '');
+                                      syncComposerText(nextText, true);
+                                      inspectMentionAnywhere(nextText);
+                                    }
                                   });
                                   return;
                                 }
@@ -6258,7 +6336,7 @@ export default function SupraSpacePage() {
                       <p className="px-1" style={{ fontSize: 11, color: uploadNotice.kind === 'error' ? 'var(--danger)' : uploadNotice.kind === 'success' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{uploadNotice.text}</p>
                     )}
                     {scheduleOpen && (
-                      <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 md:items-center" onClick={() => setScheduleOpen(false)}>
+                      <div className="fixed inset-0 z-80 flex items-end justify-center bg-black/45 md:items-center" onClick={() => setScheduleOpen(false)}>
                         <div
                           className="w-full max-w-md rounded-t-3xl border px-0 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-2xl md:rounded-2xl"
                           style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-2)' }}
@@ -6385,7 +6463,8 @@ export default function SupraSpacePage() {
                       {infoTab === 'members' && (
                         <div className="space-y-0.5">
                           {safeMembers(activeConv).map(m => {
-                            const isOnline = presence[m._id] === 'online';
+                            const memberPresence = presence[m._id];
+                            const isOnline = !!memberPresence?.onlineStatus && memberPresence.onlineStatus !== 'offline';
                             const memberIsAdmin = (activeConv.admins || []).map(String).includes(m._id);
                             return (
                               <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
@@ -6393,7 +6472,7 @@ export default function SupraSpacePage() {
                                   <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
                                     {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
                                   </div>
-                                  {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" />}
+                                  {isOnline && <PresenceAvatarDot status={memberPresence!.onlineStatus} deviceType={memberPresence?.lastDeviceType ?? undefined} />}
                                 </button>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{m.fullName}{m._id === uid ? ' (You)' : ''}</p>
@@ -6551,7 +6630,8 @@ export default function SupraSpacePage() {
         { }
         {memberCard && (() => {
           const m = memberCard.member;
-          const isOnline = presence[m._id] === 'online';
+          const memberCardPresence = presence[m._id];
+          const isOnline = !!memberCardPresence?.onlineStatus && memberCardPresence.onlineStatus !== 'offline';
           return (
             <div className="ss4-overlay fixed inset-0 z-100 flex items-center justify-center p-4" onClick={() => setMemberCard(null)}>
               <div id="ss4-member-card" className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -6560,11 +6640,11 @@ export default function SupraSpacePage() {
                     <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
                       {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
                     </div>
-                    {isOnline && <span className="ss4-online-dot absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full" />}
+                    {isOnline && <PresenceAvatarDot status={memberCardPresence!.onlineStatus} deviceType={memberCardPresence?.lastDeviceType ?? undefined} sizeClass="size-3" />}
                   </div>
                   <div className="text-center">
                     <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{m.fullName}</p>
-                    <p style={{ fontSize: 11, color: isOnline ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? '● Active now' : 'Offline'}</p>
+                    <p style={{ fontSize: 11, color: isOnline && memberCardPresence?.onlineStatus === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? `● ${S.label[memberCardPresence!.onlineStatus]}` : 'Offline'}</p>
                   </div>
                   {m._id !== uid && (
                     <button onClick={() => { setMemberCard(null); handleDM(m._id); }} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>

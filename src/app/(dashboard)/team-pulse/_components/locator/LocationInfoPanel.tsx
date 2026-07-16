@@ -7,13 +7,13 @@ import { fmtTimeMDT, todayStrMDT } from "@/lib/timezone";
 import {
   X, Building2, Navigation, Pause, Play, Power, MapPinOff, Crosshair,
   BatteryFull, BatteryLow, Gauge, History, Clock, MapPin, Loader2, Smartphone, Monitor,
-  Car, Anchor, Map as MapIcon, Lock, ChevronDown,
+  Car, Anchor, Map as MapIcon, ChevronDown, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { TeamMember } from "@/hooks/useTeamPulse";
 import {
   useMyLocatorStatus, useSetLocationConsent, usePlaces,
@@ -187,15 +187,6 @@ export function LocationInfoPanel({
   const { mutate: setConsent, isPending: consentPending } = useSetLocationConsent();
   const { data: places = [] } = usePlaces();
   const consentGranted = !!myStatus?.locationConsent?.granted;
-  const isMandatory = !!myStatus?.isMandatoryDept;
-  const isOnShift = !!myStatus?.isOnShift;
-  const isOnBreak = !!myStatus?.isOnBreak;
-  // Mandatory-department sharing can't be manually paused/stopped mid-shift — only a break
-  // (handled automatically below via onBreak) pauses it. Optional departments keep Pause, but
-  // Stop mirrors TimeProof shift state for everyone: once your shift starts sharing, only
-  // ending the shift or starting a break (both driven from TimeProof) can turn it off here.
-  const controlsLocked = isMandatory && isOnShift && !isOnBreak;
-  const stopLocked = !isMandatory && isOnShift && !isOnBreak;
   const [segmentsVisibleCount, setSegmentsVisibleCount] = React.useState(SEGMENTS_PAGE_SIZE);
   const [routeMapOpen, setRouteMapOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
@@ -232,6 +223,14 @@ export function LocationInfoPanel({
   const meta = sharingMeta(effectiveState);
   const sharing = effectiveState === "sharing";
   const isPaused = effectiveState === "paused_manual" || effectiveState === "paused_break";
+  // A 3rd status on top of Sharing/Not Sharing: sharing that's currently driven by an active
+  // TimeProof shift rather than your own manual toggle. While this is true, Beacon's own
+  // Pause/Stop are read-only — TimeProof owns turning it off (either its own Stop Sharing
+  // button, or automatically when the shift ends/breaks) — so the two surfaces never fight
+  // over who's in control. The moment the shift ends or you go on break, control returns to
+  // Beacon automatically; there's always a working way to stop it from TimeProof itself, so
+  // this can never become the "no way out" trap the always-locked version used to be.
+  const isShiftGoverned = isSelf && sharing && !!myStatus?.isOnShift && !myStatus?.isOnBreak;
   // Not sharing right now but we still have their last known coords (never cleared on
   // stop) — show that as a Life360-style "last seen" instead of just a flat "Not Sharing".
   const isLastSeen = !isSelf && effectiveState === "off_duty" && !!loc?.coords;
@@ -317,6 +316,11 @@ export function LocationInfoPanel({
             </span>
             <WhereIcon className="size-3 text-muted-foreground/70 shrink-0" />
             <span className="text-[11px] font-bold truncate" style={place ? { color: place.color || undefined } : undefined}>{where}</span>
+            {isShiftGoverned && (
+              <span className="text-[8px] font-black text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1 rounded uppercase tracking-wide shrink-0">
+                Via Shift
+              </span>
+            )}
           </div>
         </div>
 
@@ -327,19 +331,19 @@ export function LocationInfoPanel({
             ) : awaitingFirstFix ? (
               <>
                 <ShareToggleButton icon={Loader2} pending iconClassName="animate-spin" title="Getting your location…" />
-                <StopButton locked={stopLocked} pending={consentPending} onClick={stopSharing} />
+                <StopButton pending={consentPending} onClick={stopSharing} />
               </>
-            ) : controlsLocked ? (
-              <ShareToggleButton icon={Lock} disabled title="Required for your department during your shift — pauses automatically on break" />
+            ) : isShiftGoverned ? (
+              <ShareToggleButton icon={Lock} disabled title="Controlled by your active TimeProof shift — stop it there, or it turns off automatically when your shift ends" />
             ) : isPaused ? (
               <>
                 <ShareToggleButton icon={Play} pending={sharingBusy} onClick={resumeSharing} variant="resume" title="Resume sharing" />
-                <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
+                <StopButton pending={consentPending || sharingBusy} onClick={stopSharing} />
               </>
             ) : (
               <>
                 <ShareToggleButton icon={Pause} pending={sharingBusy} onClick={pauseManually} title="Pause sharing" />
-                <StopButton locked={stopLocked} pending={consentPending || sharingBusy} onClick={stopSharing} />
+                <StopButton pending={consentPending || sharingBusy} onClick={stopSharing} />
               </>
             )}
           </div>
@@ -353,14 +357,16 @@ export function LocationInfoPanel({
       {/* short status description */}
       <AnimatePresence mode="wait">
         <motion.p
-          key={meta.description}
+          key={isShiftGoverned ? "shift-governed" : meta.description}
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.15 }}
           className="px-3.5 pt-2 text-[10px] text-muted-foreground/60 leading-snug shrink-0"
         >
-          {meta.description}
+          {isShiftGoverned
+            ? "Sharing because your shift is active — stop it from TimeProof, or it turns off automatically when your shift ends."
+            : meta.description}
         </motion.p>
       </AnimatePresence>
 
@@ -569,6 +575,7 @@ export function LocationInfoPanel({
                 <DialogTitle className="text-sm font-black flex items-center gap-1.5">
                   <MapIcon className="size-4" /> {name}&apos;s Route
                 </DialogTitle>
+                <DialogDescription className="sr-only">Breadcrumb route replay map for the selected date range</DialogDescription>
               </DialogHeader>
               <RouteReplayMap route={history} />
             </DialogContent>
@@ -608,9 +615,8 @@ function ShareToggleButton({
 }
 
 function StopButton({
-  locked, pending, onClick,
+  pending, onClick,
 }: {
-  locked: boolean;
   pending: boolean;
   onClick: () => void;
 }) {
@@ -618,17 +624,12 @@ function StopButton({
     <Button
       size="icon"
       variant="outline"
-      disabled={pending || locked}
+      disabled={pending}
       onClick={onClick}
-      title={locked ? "Stop is locked during your shift — end your shift or start a break in TimeProof" : "Stop sharing"}
-      className={cn(
-        "size-9 shrink-0",
-        locked
-          ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 disabled:opacity-100"
-          : "border-border/50 text-muted-foreground hover:text-foreground",
-      )}
+      title="Stop sharing"
+      className="size-9 shrink-0 border-border/50 text-muted-foreground hover:text-foreground"
     >
-      {pending ? <Loader2 className="size-4 animate-spin" /> : locked ? <Lock className="size-4" /> : <Power className="size-4" />}
+      {pending ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />}
     </Button>
   );
 }

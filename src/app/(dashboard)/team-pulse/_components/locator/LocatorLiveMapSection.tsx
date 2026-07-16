@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { formatDistanceToNowStrict, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
@@ -13,19 +14,20 @@ import {
 } from "@/hooks/useLocator";
 import { sharingMeta, signalMeta, isNotablyStationary, stationaryMinutes, formatStationaryDuration } from "./LocatorMapLegend";
 import { LocatorMap } from "./LocatorMap";
+import { PLACE_ICON_PRESETS } from "./placeIcons";
 import { deptLabel } from "@/lib/departments";
 import { haversineMi, formatDistanceMi } from "@/lib/geo";
 
-const PLACE_ICON_GLYPH: Record<string, string> = {
-  MapPin: "📍", Building2: "🏢", Warehouse: "🏬", Car: "🚗", Wrench: "🔧", ParkingCircle: "🅿️",
-};
-function placeGlyph(icon?: string) {
-  return PLACE_ICON_GLYPH[icon || ""] || PLACE_ICON_GLYPH.MapPin;
+// Real Lucide SVG icon (same set the admin picker uses) instead of an emoji glyph — emoji
+// renders inconsistently (font, color, even presence) across OS/browsers, an actual SVG
+// looks identical everywhere and matches the rest of the app's icon language.
+function placeIconSvg(icon?: string) {
+  const Icon = PLACE_ICON_PRESETS[icon || ""] || PLACE_ICON_PRESETS.MapPin;
+  return renderToStaticMarkup(React.createElement(Icon, { style: { width: 15, height: 15, color: "#ffffff" } }));
 }
 
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
-const ZOOM_OFFSET_THRESHOLD = 14;
 
 function popupSharingDuration(sinceIso?: string) {
   if (!sinceIso) return "";
@@ -42,10 +44,60 @@ function popupSharingDuration(sinceIso?: string) {
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 const PLACES_SOURCE_ID = "locator-places";
 const TRAIL_SOURCE_ID = "locator-trail";
-const OVERLAP_METERS = 12;
-const SPIRAL_OFFSETS_M: [number, number][] = [
-  [0, 0], [3.5, 0], [-3.5, 0], [0, -3.5], [3.5, -3.5], [-3.5, -3.5], [0, 3.5], [3.5, 3.5], [-3.5, 3.5],
-];
+const CLUSTER_RADIUS_PX = 45;
+const CLUSTER_AVATAR_SIZE = 26;
+const CLUSTER_AVATAR_OVERLAP = 10;
+const CLUSTER_STACK_MAX = 3;
+// A "last known spot" pin is only useful while recent — a days-old pin (stale device,
+// abandoned test account, dead ping loop) is just clutter, especially paired with a name
+// that can never resolve. Keeps the live map map to what's actually still relevant; the
+// roster's own "Last seen X ago" text is unaffected — this only trims map markers.
+const MAP_PIN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Deterministic, purely-local pixel-distance clustering — no dependency on Mapbox's async
+// tile/worker pipeline (the previous cluster:true GeoJSON source + querySourceFeatures
+// approach could report an empty result before its internal tiles finished building, which
+// hid every single marker until it settled — this can't have that failure mode since
+// map.project() is synchronous camera math, never tied to tile/style loading). Grouping
+// self-adjusts with zoom for free: at low zoom, far-apart people become pixel-close and
+// merge into a stack; at high zoom the same real-world distance spreads back out in pixels
+// and they separate again, with no manual max-zoom cutoff needed.
+function groupByPixelDistance(
+  visible: ActiveEmployeeLocation[],
+  project: (lngLat: [number, number]) => { x: number; y: number },
+  pinnedIds: Set<string>,
+): ActiveEmployeeLocation[][] {
+  const sorted = [...visible].sort((a, b) => a.userId.localeCompare(b.userId));
+  const points = new Map(sorted.map((l) => [l.userId, project([l.coords.lng, l.coords.lat])]));
+  const assigned = new Set<string>();
+  const groups: ActiveEmployeeLocation[][] = [];
+
+  for (const loc of sorted) {
+    if (pinnedIds.has(loc.userId)) {
+      groups.push([loc]);
+      assigned.add(loc.userId);
+    }
+  }
+
+  for (const loc of sorted) {
+    if (assigned.has(loc.userId)) continue;
+    const p1 = points.get(loc.userId)!;
+    const group = [loc];
+    assigned.add(loc.userId);
+    for (const other of sorted) {
+      if (assigned.has(other.userId)) continue;
+      const p2 = points.get(other.userId)!;
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      if (Math.sqrt(dx * dx + dy * dy) <= CLUSTER_RADIUS_PX) {
+        group.push(other);
+        assigned.add(other.userId);
+      }
+    }
+    groups.push(group);
+  }
+  return groups;
+}
 
 export type MapFocus = (lat: number, lng: number) => void;
 
@@ -59,12 +111,6 @@ function circlePolygon(lat: number, lng: number, radiusM: number, points = 48): 
     coords.push([lng + (dx * 180) / Math.PI, lat + (dy * 180) / Math.PI]);
   }
   return coords;
-}
-
-function metersToLngLatDelta(lat: number, dxM: number, dyM: number): [number, number] {
-  const dLat = dyM / 111320;
-  const dLng = dxM / (111320 * Math.cos((lat * Math.PI) / 180));
-  return [dLng, dLat];
 }
 
 const MATCH_CHUNK_SIZE = 100;
@@ -96,29 +142,6 @@ async function matchToRoads(coords: [number, number][], token: string): Promise<
   return matchedChunks.flat();
 }
 
-function approxMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const dLat = (a.lat - b.lat) * 111320;
-  const dLng = (a.lng - b.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180);
-  return Math.sqrt(dLat * dLat + dLng * dLng);
-}
-
-function computeOffsets(locs: ActiveEmployeeLocation[]): Map<string, [number, number]> {
-  const offsets = new Map<string, [number, number]>();
-  const sorted = [...locs].sort((a, b) => a.userId.localeCompare(b.userId));
-  const assigned = new Set<string>();
-  sorted.forEach((loc) => {
-    if (assigned.has(loc.userId) || !loc.coords) return;
-    const group = sorted.filter(
-      (l) => !assigned.has(l.userId) && l.coords && approxMeters(l.coords, loc.coords) <= OVERLAP_METERS,
-    );
-    group.forEach((g, i) => {
-      offsets.set(g.userId, SPIRAL_OFFSETS_M[i % SPIRAL_OFFSETS_M.length]);
-      assigned.add(g.userId);
-    });
-  });
-  return offsets;
-}
-
 function haloScale(accuracyM?: number): number | null {
   if (typeof accuracyM !== "number" || accuracyM <= 0) return null;
   if (accuracyM <= 15) return 1.15;
@@ -142,6 +165,30 @@ function initialsOf(name: string) {
 const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
+function stackAvatarBadge(member: { userAvatar?: string; userName: string }, size: number) {
+  return member.userAvatar
+    ? `<img src="${escapeHtml(member.userAvatar)}" style="width:${size}px;height:${size}px;border-radius:9999px;object-fit:cover;border:2px solid #ffffff;display:block;background:#e5e7eb" />`
+    : `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#64748b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.4)}px;font-weight:900;border:2px solid #ffffff">${escapeHtml(initialsOf(member.userName || "?"))}</div>`;
+}
+
+// Renders a Slack/Discord-style overlapping avatar stack for a Mapbox cluster bubble instead
+// of a plain numbered circle — the boss's own feedback ("stack their icons rather than
+// number") for people who are grouped together on the map at the current zoom.
+function buildClusterStackHtml(members: { userAvatar?: string; userName: string }[], totalCount: number) {
+  const shown = members.slice(0, CLUSTER_STACK_MAX);
+  const step = CLUSTER_AVATAR_SIZE - CLUSTER_AVATAR_OVERLAP;
+  const avatarsHtml = shown
+    .map((m, i) => `<div style="position:absolute;left:${i * step}px;top:0;z-index:${shown.length - i}">${stackAvatarBadge(m, CLUSTER_AVATAR_SIZE)}</div>`)
+    .join("");
+  const extra = totalCount - shown.length;
+  const badgeLeft = shown.length * step;
+  const extraHtml = extra > 0
+    ? `<div style="position:absolute;left:${badgeLeft}px;top:0;height:${CLUSTER_AVATAR_SIZE}px;min-width:${CLUSTER_AVATAR_SIZE}px;padding:0 4px;border-radius:9999px;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;border:2px solid #ffffff;box-sizing:border-box">+${extra}</div>`
+    : "";
+  const width = badgeLeft + (extra > 0 ? CLUSTER_AVATAR_SIZE + 4 : CLUSTER_AVATAR_SIZE);
+  return `<div style="position:relative;height:${CLUSTER_AVATAR_SIZE}px;width:${width}px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))">${avatarsHtml}${extraHtml}</div>`;
 }
 
 const POPUP_PALETTE = {
@@ -251,6 +298,36 @@ function buildPopupHtml(
     </div>`;
 }
 
+function buildPlacePopupHtml(place: Place, hereNow: number, theme: "light" | "dark") {
+  const pal = POPUP_PALETTE[theme];
+  const color = place.color || "#3b82f6";
+  const safeName = escapeHtml(place.name);
+  const safeAddress = place.address ? escapeHtml(place.address) : "";
+  const safeDescription = place.description ? escapeHtml(place.description) : "";
+
+  return `
+    <div style="font-family:inherit;font-size:12px;line-height:1.4;min-width:190px;max-width:240px;background:${pal.bg};color:${pal.text};border-radius:14px;overflow:hidden;box-shadow:${pal.shadow};border:1px solid ${pal.border}">
+      <div style="height:4px;background:${color}"></div>
+      <div style="padding:10px 12px 9px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:30px;height:30px;border-radius:9999px;background:${color};display:flex;align-items:center;justify-content:center;flex-shrink:0">${placeIconSvg(place.icon)}</div>
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeName}</div>
+            ${safeAddress ? `<div style="color:${pal.muted};font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeAddress}</div>` : ""}
+          </div>
+        </div>
+
+        ${safeDescription ? `<div style="margin-top:7px;color:${pal.muted};font-size:10.5px;line-height:1.4">${safeDescription}</div>` : ""}
+
+        <div style="display:flex;align-items:center;gap:5px;margin-top:8px;background:${color}14;border:1px solid ${color}33;border-radius:8px;padding:4px 8px">
+          <span style="color:${color};font-weight:700;font-size:11px">${hereNow > 0 ? `${hereNow} here now` : "Nobody here right now"}</span>
+        </div>
+
+        <div style="margin-top:7px;padding-top:6px;border-top:1px solid ${pal.divider};color:${pal.muted};font-size:9.5px">${place.radiusM}m geofence radius</div>
+      </div>
+    </div>`;
+}
+
 interface Props {
   selectedUserId?: string | null;
   onSelectUser?: (userId: string) => void;
@@ -273,6 +350,9 @@ export function LocatorLiveMapSection({
   const { data: places = [] } = usePlaces();
   const [jumpTarget, setJumpTarget] = React.useState("");
   const [zoom, setZoom] = React.useState(4);
+  const [bearing, setBearing] = React.useState(0);
+  const [isMaximized, setIsMaximized] = React.useState(false);
+  const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
 
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<any>(null);
@@ -280,10 +360,26 @@ export function LocatorLiveMapSection({
     marker: any; popup: any; circleEl: HTMLDivElement; haloEl: HTMLDivElement;
     lastState: string; lastSelected: boolean; lastHaloScale: number | null; isSelf: boolean;
   }>>(new Map());
-  const placeMarkersRef = React.useRef<Map<string, { marker: any; badgeEl: HTMLDivElement }>>(new Map());
+  const placeMarkersRef = React.useRef<Map<string, { marker: any; badgeEl: HTMLDivElement; popup: any }>>(new Map());
+  const locationsRef = React.useRef(locations);
+  locationsRef.current = locations;
+  const clusterMarkersRef = React.useRef<Map<string, { marker: any; el: HTMLDivElement }>>(new Map());
   const hasAutoFitRef = React.useRef(false);
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
+  const [viewGeneration, setViewGeneration] = React.useState(0);
+  const viewUpdateRafRef = React.useRef<number | null>(null);
+  // Coalesces the many zoom/move ticks a single drag or pinch gesture fires into at most one
+  // regroup per animation frame — recomputing only on zoomend/moveend (gesture-end) made
+  // clustering visibly "pop" into place only after you let go, instead of tracking the
+  // gesture live.
+  const scheduleViewUpdate = React.useCallback(() => {
+    if (viewUpdateRafRef.current !== null) return;
+    viewUpdateRafRef.current = requestAnimationFrame(() => {
+      viewUpdateRafRef.current = null;
+      setViewGeneration((g) => g + 1);
+    });
+  }, []);
 
   const selectRef = React.useRef(onSelectUser);
   selectRef.current = onSelectUser;
@@ -360,6 +456,19 @@ export function LocatorLiveMapSection({
       map.on("idle", () => setMapNotice(null));
       map.on("error", (e: any) => setMapNotice(e?.error?.message || "Map failed to load"));
       map.on("zoom", () => setZoom(map.getZoom()));
+      map.on("rotate", () => setBearing(map.getBearing()));
+      map.on("zoom", scheduleViewUpdate);
+      map.on("move", scheduleViewUpdate);
+
+      // Container size can change without the window resizing (maximize toggle, device
+      // rotation, sidebar collapse) — Mapbox only auto-detects the very first layout, so
+      // without this the canvas keeps rendering at its old size until something else
+      // happens to call resize().
+      if (typeof ResizeObserver !== "undefined" && mapRef.current) {
+        const observer = new ResizeObserver(() => map.resize());
+        observer.observe(mapRef.current);
+        resizeObserverRef.current = observer;
+      }
 
       map.on("click", (e: any) => {
         if (placePickModeRef.current) {
@@ -381,12 +490,27 @@ export function LocatorLiveMapSection({
     return () => {
       cancelled = true;
       if (focusRef) focusRef.current = null;
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
+      if (viewUpdateRafRef.current !== null) {
+        cancelAnimationFrame(viewUpdateRafRef.current);
+        viewUpdateRafRef.current = null;
+      }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, scheduleViewUpdate]);
+
+  React.useEffect(() => {
+    document.body.style.overflow = isMaximized ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [isMaximized]);
+
+  const resetNorth = () => {
+    mapInstanceRef.current?.easeTo({ bearing: 0, pitch: 0, duration: 300 });
+  };
 
   React.useEffect(() => {
     const map = mapInstanceRef.current;
@@ -409,7 +533,9 @@ export function LocatorLiveMapSection({
         return;
       }
 
-      const visible = locations.filter((l) => l.coords);
+      const visible = locations.filter(
+        (l) => l.coords && Date.now() - new Date(l.lastSeenAt).getTime() <= MAP_PIN_MAX_AGE_MS,
+      );
 
       if (!hasAutoFitRef.current) {
         const fitPoints: [number, number][] = [
@@ -426,7 +552,6 @@ export function LocatorLiveMapSection({
           }
         }
       }
-      const offsets = computeOffsets(visible);
       const nextIds = new Set(visible.map((l) => l.userId));
       const viewerCoords = myLocation?.coords ?? null;
 
@@ -449,9 +574,7 @@ export function LocatorLiveMapSection({
         const isSelected = loc.userId === selectedUserId;
         const isSelf = !!myUserId && loc.userId === myUserId;
         const isLastSeen = loc.sharingState === "off_duty";
-        const offsetM = zoomRef.current >= ZOOM_OFFSET_THRESHOLD ? (offsets.get(loc.userId) ?? [0, 0]) : [0, 0];
-        const [dLng, dLat] = metersToLngLatDelta(loc.coords.lat, offsetM[0], offsetM[1]);
-        const lngLat: [number, number] = [loc.coords.lng + dLng, loc.coords.lat + dLat];
+        const lngLat: [number, number] = [loc.coords.lng, loc.coords.lat];
         const place = loc.currentPlaceId ? placesRef.current.find((p) => p._id === loc.currentPlaceId) : undefined;
         const existing = markers.get(loc.userId);
 
@@ -590,10 +713,59 @@ export function LocatorLiveMapSection({
         if (userId === selectedUserId) entry.popup.addTo(map);
         else entry.popup.remove();
       });
+
+      const pinnedIds = new Set<string>();
+      if (selectedUserId) pinnedIds.add(selectedUserId);
+      if (myUserId) pinnedIds.add(myUserId);
+      const groups = groupByPixelDistance(visible, (lngLat) => map.project(lngLat), pinnedIds);
+      const clusterGroups = groups.filter((g) => g.length > 1);
+
+      const hiddenIds = new Set<string>();
+      for (const g of clusterGroups) for (const l of g) hiddenIds.add(l.userId);
+      markers.forEach((entry, userId) => {
+        entry.marker.getElement().style.display = hiddenIds.has(userId) ? "none" : "";
+      });
+
+      const clusterMarkers = clusterMarkersRef.current;
+      const nextClusterKeys = new Set(clusterGroups.map((g) => g.map((l) => l.userId).sort().join("|")));
+      clusterMarkers.forEach((entry, key) => {
+        if (!nextClusterKeys.has(key)) {
+          entry.marker.remove();
+          clusterMarkers.delete(key);
+        }
+      });
+
+      clusterGroups.forEach((group) => {
+        const sortedGroup = [...group].sort((a, b) => a.userId.localeCompare(b.userId));
+        const key = sortedGroup.map((l) => l.userId).join("|");
+        const anchor = sortedGroup[0];
+        const lngLat: [number, number] = [anchor.coords.lng, anchor.coords.lat];
+        const html = buildClusterStackHtml(
+          sortedGroup.slice(0, CLUSTER_STACK_MAX).map((l) => ({ userAvatar: l.userAvatar, userName: l.userName })),
+          sortedGroup.length,
+        );
+
+        const existingCluster = clusterMarkers.get(key);
+        if (existingCluster) {
+          existingCluster.marker.setLngLat(lngLat);
+          existingCluster.el.innerHTML = html;
+          return;
+        }
+
+        const el = document.createElement("div");
+        el.style.cursor = "pointer";
+        el.innerHTML = html;
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          map.easeTo({ center: lngLat, zoom: Math.min(MAX_ZOOM, map.getZoom() + 3) });
+        });
+        const marker = new mapboxgl.Marker({ element: el, anchor: "center" }).setLngLat(lngLat).addTo(map);
+        clusterMarkers.set(key, { marker, el });
+      });
     };
 
     run();
-  }, [locations, places, selectedUserId, myUserId, myLocation, theme]);
+  }, [locations, places, selectedUserId, myUserId, myLocation, theme, viewGeneration]);
 
   const trailGeojsonRef = React.useRef<any>(null);
 
@@ -730,9 +902,13 @@ export function LocatorLiveMapSection({
         placeMarkers.forEach((entry, id) => {
           if (!nextIds.has(id)) {
             entry.marker.remove();
+            entry.popup.remove();
             placeMarkers.delete(id);
           }
         });
+
+        const hereNowFor = (placeId: string) =>
+          locationsRef.current.filter((l) => l.sharingState === "sharing" && l.currentPlaceId === placeId).length;
 
         overlayPlacesRef.current.forEach((p) => {
           const color = p.color || "#3b82f6";
@@ -741,7 +917,8 @@ export function LocatorLiveMapSection({
             existing.marker.setLngLat([p.coords.lng, p.coords.lat]);
             existing.badgeEl.style.background = color;
             existing.badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
-            existing.badgeEl.textContent = placeGlyph(p.icon);
+            existing.badgeEl.innerHTML = placeIconSvg(p.icon);
+            existing.popup.setLngLat([p.coords.lng, p.coords.lat]);
             const labelEl = existing.badgeEl.nextElementSibling as HTMLDivElement | null;
             if (labelEl) labelEl.textContent = p.name;
             return;
@@ -762,11 +939,10 @@ export function LocatorLiveMapSection({
           badgeEl.style.display = "flex";
           badgeEl.style.alignItems = "center";
           badgeEl.style.justifyContent = "center";
-          badgeEl.style.fontSize = "15px";
           badgeEl.style.background = color;
           badgeEl.style.border = "2.5px solid white";
           badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
-          badgeEl.textContent = placeGlyph(p.icon);
+          badgeEl.innerHTML = placeIconSvg(p.icon);
           wrapper.appendChild(badgeEl);
 
           const labelEl = document.createElement("div");
@@ -783,6 +959,15 @@ export function LocatorLiveMapSection({
           labelEl.textContent = p.name;
           wrapper.appendChild(labelEl);
 
+          const popup = new mapboxgl.Popup({ offset: [0, -34], closeButton: false, closeOnClick: false, className: "locator-popup" })
+            .setLngLat([p.coords.lng, p.coords.lat]);
+
+          wrapper.addEventListener("mouseenter", () => {
+            popup.setHTML(buildPlacePopupHtml(overlayPlacesRef.current.find((op) => op._id === p._id) ?? p, hereNowFor(p._id), mapThemeRef.current ?? "light"));
+            popup.addTo(map);
+          });
+          wrapper.addEventListener("mouseleave", () => popup.remove());
+
           wrapper.addEventListener("click", (e) => {
             e.stopPropagation();
             map.flyTo({ center: [p.coords.lng, p.coords.lat], zoom: 16, essential: true });
@@ -792,7 +977,7 @@ export function LocatorLiveMapSection({
             .setLngLat([p.coords.lng, p.coords.lat])
             .addTo(map);
 
-          placeMarkers.set(p._id, { marker, badgeEl });
+          placeMarkers.set(p._id, { marker, badgeEl, popup });
         });
       };
       run();
@@ -801,7 +986,7 @@ export function LocatorLiveMapSection({
     renderPlaces();
     map.on("styledata", renderPlaces);
     return () => map.off("styledata", renderPlaces);
-  }, [overlayPlaces, mapNotice]);
+  }, [overlayPlaces, mapNotice, theme]);
 
   const zoomMap = (delta: number) => {
     const map = mapInstanceRef.current;
@@ -846,6 +1031,10 @@ export function LocatorLiveMapSection({
         jumpTarget={jumpTarget}
         onJumpTargetChange={setJumpTarget}
         onJump={handleJumpToPlace}
+        isMaximized={isMaximized}
+        onToggleMaximize={() => setIsMaximized((v) => !v)}
+        bearing={bearing}
+        onResetNorth={resetNorth}
       />
 
       {!isLoading && locations.filter((l) => l.sharingState !== "off_duty").length === 0 && (

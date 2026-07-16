@@ -7,7 +7,7 @@ import {
   WifiOff, Clock, Flame, BellOff, Minus,
   Activity, Users, TrendingUp, Map as MapIcon,
   MapPin, MapPinOff, AlertTriangle, ShieldCheck, Car, CarFront, TriangleAlert,
-  Navigation, Pause, BatteryLow, Building2, Coffee, Radio, Play, X, Anchor,
+  Navigation, Pause, BatteryLow, Building2, Coffee, Radio, Play, X, Anchor, ChevronDown,
 } from "lucide-react";
 import { formatDistanceToNowStrict, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ import { EmploymentTypeToggle } from "./locator/EmploymentTypeToggle";
 import { LocatorLiveMapSection, type MapFocus } from "./locator/LocatorLiveMapSection";
 import { PlacesAdminPanel } from "./locator/PlacesAdminPanel";
 import { DrivingSessionsPanel } from "./locator/DrivingSessionsPanel";
-import { MyStatusQuickSet } from "./locator/MyStatusQuickSet";
+import { RequestLocationButton } from "./locator/RequestLocationButton";
 import { LocationInfoPanel } from "./locator/LocationInfoPanel";
 import {
   sharingMeta, DepartmentBadge, isNotablyStationary, stationaryMinutes, formatStationaryDuration,
@@ -33,8 +33,9 @@ import {
 } from "@/hooks/useLocator";
 import { useLocationSharing } from "@/hooks/useLocationSharing";
 import { useLocatorSocket } from "@/hooks/useLocatorSocket";
-import { isMandatoryLocationDept } from "@/lib/departments";
 import { haversineMi, formatDistanceMi } from "@/lib/geo";
+import { DEPARTMENTS } from "@/lib/departments";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Props {
   members: TeamMember[];
@@ -42,7 +43,7 @@ interface Props {
   isAdmin?: boolean;
 }
 
-type RosterFilter = "all" | "active" | "sharing" | "offline" | "lot_tech";
+type RosterFilter = "all" | "active" | "offline";
 type StreamFilter = "all" | "status" | "location" | "driving";
 
 const EVENT_META: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
@@ -131,16 +132,8 @@ function memberToRosterPerson(
   };
 }
 
-function locToRosterPerson(loc: ActiveEmployeeLocation, place: Place | undefined, distanceMi: number | null): RosterPerson {
-  return {
-    id: loc.userId, name: loc.userName, avatar: loc.userAvatar, isMe: false, hasPresence: false,
-    jobTitle: loc.jobTitle, department: loc.department, employmentLocationType: loc.employmentLocationType,
-    loc, place, distanceMi,
-  };
-}
-
-function RosterCard({ person, isAdmin, isSelected, onSelect }: {
-  person: RosterPerson; isAdmin?: boolean; isSelected: boolean; onSelect: () => void;
+function RosterCard({ person, isAdmin, isSelected, onSelect, isShiftGoverned }: {
+  person: RosterPerson; isAdmin?: boolean; isSelected: boolean; onSelect: () => void; isShiftGoverned?: boolean;
 }) {
   const { loc, place } = person;
   const sharing = loc?.sharingState === "sharing";
@@ -150,15 +143,17 @@ function RosterCard({ person, isAdmin, isSelected, onSelect }: {
   const canSelect = !!loc?.coords && loc.sharingState !== "off_duty";
   const isOffline = person.hasPresence && person.onlineStatus === "offline";
   const initials = person.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const meta = loc ? sharingMeta(loc.sharingState) : null;
+  // sharingMeta() safely falls back to the "Not Sharing" state for undefined/off_duty, so
+  // this row always shows a clear sharing status even for people who've never shared at all.
+  const meta = sharingMeta(loc?.sharingState);
   const WhereIcon = !loc
-    ? null
+    ? MapPinOff
     : loc.sharingState === "sharing"
       ? (loc.drivingSessionId ? Car : place ? Building2 : Navigation)
       : isLastSeen ? Clock
         : loc.sharingState === "declined_permission" ? MapPinOff
           : Pause;
-  const where = loc ? (isLastSeen ? `Last seen ${timeAgo(loc.lastSeenAt)}` : whereText(loc, place)) : null;
+  const where = !loc ? "Not Sharing" : (isLastSeen ? `Last seen ${timeAgo(loc.lastSeenAt)}` : whereText(loc, place));
   const stationary = !!loc && isNotablyStationary(loc);
 
   return (
@@ -228,39 +223,42 @@ function RosterCard({ person, isAdmin, isSelected, onSelect }: {
           <span className="text-[9px] text-muted-foreground/50 truncate block mt-0.5">{person.jobTitle}</span>
         ) : null}
 
-        {loc && meta && (
-          <div className="flex items-center gap-x-2 gap-y-1 mt-1.5 flex-wrap">
-            <span className="flex items-center gap-1.5 min-w-0">
-              <span className="relative flex size-2 shrink-0">
-                {meta.pulse && <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-50", meta.color)} />}
-                <span className={cn("relative inline-flex size-2 rounded-full", meta.color)} />
-              </span>
-              {WhereIcon && <WhereIcon className="size-3 shrink-0 text-muted-foreground/60" />}
-              <span className="text-[10px] font-bold truncate text-foreground/80" style={place && !isLastSeen ? { color: place.color || undefined } : undefined}>
-                {where}
-              </span>
+        <div className="flex items-center gap-x-2 gap-y-1 mt-1.5 flex-wrap">
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="relative flex size-2 shrink-0">
+              {meta.pulse && <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-50", meta.color)} />}
+              <span className={cn("relative inline-flex size-2 rounded-full", meta.color)} />
             </span>
-            {!isLastSeen && <span className="text-[9px] text-muted-foreground/40 shrink-0">{timeAgo(loc.lastSeenAt)}</span>}
-            {typeof person.distanceMi === "number" && (
-              <span className="text-[9px] text-muted-foreground/40 font-semibold shrink-0">{formatDistanceMi(person.distanceMi)}</span>
-            )}
-            {typeof loc.batteryLevel === "number" && loc.batteryLevel <= 20 && (
-              <span className="text-[9px] flex items-center gap-0.5 font-semibold text-red-500 shrink-0">
-                <BatteryLow className="size-2.5" /> {loc.batteryLevel}%
+            <WhereIcon className="size-3 shrink-0 text-muted-foreground/60" />
+            <span className="text-[10px] font-bold truncate text-foreground/80" style={place && !isLastSeen ? { color: place.color || undefined } : undefined}>
+              {where}
+            </span>
+            {isShiftGoverned && sharing && (
+              <span className="text-[8px] font-black text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1 rounded uppercase tracking-wide shrink-0">
+                Via Shift
               </span>
             )}
-            {loc.connectivity === "offline" && (
-              <span className="text-[9px] text-red-500 flex items-center gap-0.5 font-semibold shrink-0">
-                <WifiOff className="size-2.5" /> Offline
-              </span>
-            )}
-            {stationary && (
-              <span className="text-[9px] flex items-center gap-0.5 font-semibold text-sky-600 dark:text-sky-400 shrink-0">
-                <Anchor className="size-2.5" /> {formatStationaryDuration(stationaryMinutes(loc)!)}
-              </span>
-            )}
-          </div>
-        )}
+          </span>
+          {loc && !isLastSeen && <span className="text-[9px] text-muted-foreground/40 shrink-0">{timeAgo(loc.lastSeenAt)}</span>}
+          {typeof person.distanceMi === "number" && (
+            <span className="text-[9px] text-muted-foreground/40 font-semibold shrink-0">{formatDistanceMi(person.distanceMi)}</span>
+          )}
+          {loc && typeof loc.batteryLevel === "number" && loc.batteryLevel <= 20 && (
+            <span className="text-[9px] flex items-center gap-0.5 font-semibold text-red-500 shrink-0">
+              <BatteryLow className="size-2.5" /> {loc.batteryLevel}%
+            </span>
+          )}
+          {loc?.connectivity === "offline" && (
+            <span className="text-[9px] text-red-500 flex items-center gap-0.5 font-semibold shrink-0">
+              <WifiOff className="size-2.5" /> Offline
+            </span>
+          )}
+          {stationary && (
+            <span className="text-[9px] flex items-center gap-0.5 font-semibold text-sky-600 dark:text-sky-400 shrink-0">
+              <Anchor className="size-2.5" /> {formatStationaryDuration(stationaryMinutes(loc!)!)}
+            </span>
+          )}
+        </div>
 
         {canSelect && (
           <p className="text-[9px] font-bold text-primary/70 mt-1.5 flex items-center gap-1">
@@ -269,13 +267,11 @@ function RosterCard({ person, isAdmin, isSelected, onSelect }: {
         )}
       </div>
 
-      {person.hasPresence && (person.isMe || isAdmin) && (
+      {person.hasPresence && isAdmin && (
         <div className="flex flex-col items-end gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {person.isMe && person.onlineStatus && (
-            <MyStatusQuickSet currentStatus={person.onlineStatus} currentCustom={person.customStatus} />
-          )}
-          {isAdmin && person.employmentLocationType && (
-            <EmploymentTypeToggle userId={person.id} employmentLocationType={person.employmentLocationType} />
+          <EmploymentTypeToggle userId={person.id} employmentLocationType={person.employmentLocationType} />
+          {!person.isMe && !sharing && (
+            <RequestLocationButton userId={person.id} userName={person.name} />
           )}
         </div>
       )}
@@ -352,9 +348,7 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
 const FILTER_LABELS: Record<RosterFilter, string> = {
   all: "All",
   active: "Active",
-  sharing: "Sharing",
   offline: "Offline",
-  lot_tech: "Lot Tech",
 };
 
 function SectionHeading({
@@ -381,10 +375,11 @@ function SectionHeading({
   );
 }
 
-const LIST_HEIGHT = "sm:h-160";
+const LIST_HEIGHT = "h-[60vh] sm:h-160";
 
 export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const [rosterFilter, setRosterFilter] = React.useState<RosterFilter>("all");
+  const [departmentFilter, setDepartmentFilter] = React.useState<string>("all");
   const [streamFilter, setStreamFilter] = React.useState<StreamFilter>("all");
   const [search, setSearch] = React.useState("");
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
@@ -394,6 +389,8 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const [placePickMode, setPlacePickMode] = React.useState(false);
   const [pickedCoords, setPickedCoords] = React.useState<{ lat: number; lng: number } | null>(null);
   const [draftPlace, setDraftPlace] = React.useState<Place | null>(null);
+  const [mobilePanel, setMobilePanel] = React.useState<"roster" | "stream">("roster");
+  const [placesOpen, setPlacesOpen] = React.useState(false);
   const streamEndRef = React.useRef<HTMLDivElement | null>(null);
 
   const {
@@ -402,6 +399,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   } = useActivityFeed(selectedUserId ?? undefined);
   const events = React.useMemo(() => eventPages?.pages.flat() ?? [], [eventPages]);
   const { data: myStatus } = useMyLocatorStatus();
+  const myShiftGoverned = !!myStatus?.isOnShift && !myStatus?.isOnBreak;
 
   useLocatorSocket();
   useLocationSharing({
@@ -412,15 +410,36 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const { data: activeLocations = [] } = useActiveEmployeeLocations(true);
   const { data: places = [] } = usePlaces();
   const locationByUserId = React.useMemo(() => new Map(activeLocations.map((l) => [l.userId, l])), [activeLocations]);
+  const locationByEmail = React.useMemo(
+    () => new Map(activeLocations.filter((l) => l.email).map((l) => [l.email!.toLowerCase(), l])),
+    [activeLocations],
+  );
+  const memberEmailById = React.useMemo(
+    () => new Map(members.filter((m) => m.email).map((m) => [m._id, m.email!.toLowerCase()])),
+    [members],
+  );
+  // A physical person can have both a main-site User account (this roster) and a separate
+  // CrmUser account (e.g. TimeProof) — their location ping may land under either account's
+  // _id. Fall back to matching by email so someone sharing via the "other" account still
+  // shows as sharing here instead of reading as "Not Sharing".
+  const resolveLocation = React.useCallback(
+    (id: string): ActiveEmployeeLocation | undefined => {
+      const direct = locationByUserId.get(id);
+      if (direct) return direct;
+      const email = memberEmailById.get(id);
+      return email ? locationByEmail.get(email) : undefined;
+    },
+    [locationByUserId, locationByEmail, memberEmailById],
+  );
   const placeById = React.useMemo(() => new Map(places.map((p) => [p._id, p])), [places]);
-  const myCoords = myUserId ? locationByUserId.get(myUserId)?.coords : undefined;
+  const myCoords = myUserId ? resolveLocation(myUserId)?.coords : undefined;
   const distanceMiFor = React.useCallback(
     (userId: string) => {
       if (!myCoords || userId === myUserId) return null;
-      const loc = locationByUserId.get(userId);
+      const loc = resolveLocation(userId);
       return loc?.coords ? haversineMi(myCoords, loc.coords) : null;
     },
-    [myCoords, myUserId, locationByUserId],
+    [myCoords, myUserId, resolveLocation],
   );
 
   const viewingUserId = selectedUserId ?? myUserId ?? null;
@@ -447,65 +466,52 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
 
   const handleSelect = React.useCallback((userId: string) => {
     setSelectedUserId(userId);
-    const loc = locationByUserId.get(userId);
+    const loc = resolveLocation(userId);
     if (loc?.coords) focusRef.current?.(loc.coords.lat, loc.coords.lng);
-  }, [locationByUserId]);
+  }, [resolveLocation]);
 
   const handleClosePanel = React.useCallback(() => setSelectedUserId(null), []);
 
   const handleLocateViewing = React.useCallback(() => {
     if (!viewingUserId) return;
-    const loc = locationByUserId.get(viewingUserId);
+    const loc = resolveLocation(viewingUserId);
     if (loc?.coords) focusRef.current?.(loc.coords.lat, loc.coords.lng);
-  }, [viewingUserId, locationByUserId]);
+  }, [viewingUserId, resolveLocation]);
 
-  const lotTechLocations = React.useMemo(
-    () => activeLocations.filter((l) => isMandatoryLocationDept(l.department)),
-    [activeLocations],
-  );
+  const availableDepartments = React.useMemo(() => {
+    const present = new Set(members.map((m) => m.personalInfo?.department).filter((d): d is string => !!d));
+    return DEPARTMENTS.filter((d) => present.has(d.key));
+  }, [members]);
 
   const rosterPeople = React.useMemo<RosterPerson[]>(() => {
-    if (rosterFilter === "lot_tech") {
-      return lotTechLocations.map((loc) => locToRosterPerson(
-        loc, loc.currentPlaceId ? placeById.get(loc.currentPlaceId) : undefined, distanceMiFor(loc.userId),
-      ));
-    }
     const q = search.toLowerCase();
     let list = members.filter((m) => !q || m.name.toLowerCase().includes(q));
     if (rosterFilter === "active") list = list.filter((m) => m.onlineStatus !== "offline");
-    else if (rosterFilter === "sharing") list = list.filter((m) => locationByUserId.get(m._id)?.sharingState === "sharing");
     else if (rosterFilter === "offline") list = list.filter((m) => m.onlineStatus === "offline");
+    if (departmentFilter !== "all") list = list.filter((m) => m.personalInfo?.department === departmentFilter);
     const sorted = [...list].sort((a, b) => {
       if (a._id === myUserId) return -1;
       if (b._id === myUserId) return 1;
-      const aShare = locationByUserId.get(a._id)?.sharingState === "sharing" ? 1 : 0;
-      const bShare = locationByUserId.get(b._id)?.sharingState === "sharing" ? 1 : 0;
+      const aShare = resolveLocation(a._id)?.sharingState === "sharing" ? 1 : 0;
+      const bShare = resolveLocation(b._id)?.sharingState === "sharing" ? 1 : 0;
       return bShare - aShare;
     });
     return sorted.map((m) => {
-      const loc = locationByUserId.get(m._id);
+      const loc = resolveLocation(m._id);
       return memberToRosterPerson(
         m, m._id === myUserId, loc, loc?.currentPlaceId ? placeById.get(loc.currentPlaceId) : undefined, distanceMiFor(m._id),
       );
     });
-  }, [members, search, rosterFilter, myUserId, locationByUserId, lotTechLocations, placeById, distanceMiFor]);
+  }, [members, search, rosterFilter, departmentFilter, myUserId, resolveLocation, placeById, distanceMiFor]);
 
-  const rosterGroups = React.useMemo(() => {
-    if (rosterFilter !== "all") return [{ key: "flat", label: "", people: rosterPeople }];
-    const sharing: RosterPerson[] = [];
-    const active: RosterPerson[] = [];
-    const offline: RosterPerson[] = [];
-    for (const p of rosterPeople) {
-      if (p.loc?.sharingState === "sharing") sharing.push(p);
-      else if (p.onlineStatus === "offline") offline.push(p);
-      else active.push(p);
-    }
-    return [
-      { key: "sharing", label: "Sharing", people: sharing },
-      { key: "active", label: "Active", people: active },
-      { key: "offline", label: "Offline", people: offline },
-    ].filter((g) => g.people.length > 0);
-  }, [rosterPeople, rosterFilter]);
+  const sharingRosterPeople = React.useMemo(
+    () => rosterPeople.filter((p) => p.loc?.sharingState === "sharing"),
+    [rosterPeople],
+  );
+  const restRosterPeople = React.useMemo(
+    () => rosterPeople.filter((p) => p.loc?.sharingState !== "sharing"),
+    [rosterPeople],
+  );
 
   const filteredEvents = React.useMemo(() => {
     if (streamFilter === "all") return events;
@@ -523,7 +529,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
     return groups;
   }, [filteredEvents]);
 
-  const viewingLoc = viewingUserId ? locationByUserId.get(viewingUserId) : undefined;
+  const viewingLoc = viewingUserId ? resolveLocation(viewingUserId) : undefined;
   const viewingMember = viewingUserId ? members.find((m) => m._id === viewingUserId) : undefined;
   const viewingPlace = viewingLoc?.currentPlaceId ? placeById.get(viewingLoc.currentPlaceId) : undefined;
   const isSelf = !selectedUserId || selectedUserId === myUserId;
@@ -613,8 +619,28 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
         </div>
       </div>
 
+      <div className="flex items-center gap-1.5 lg:hidden">
+        {([
+          { key: "roster" as const, label: "Live Roster", icon: Users },
+          { key: "stream" as const, label: "Activity Stream", icon: TrendingUp },
+        ]).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setMobilePanel(key)}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-xl border transition-all",
+              mobilePanel === key
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border/40 text-muted-foreground/60 hover:border-border hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4">
-        <div className="space-y-3">
+        <div className={cn("space-y-3", mobilePanel === "roster" ? "block" : "hidden", "lg:block")}>
           <SectionHeading icon={Users} label="Live Roster"
             right={<span className="text-[10px] text-muted-foreground/40 tabular-nums">{rosterPeople.length} shown</span>}
           />
@@ -629,58 +655,90 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                 className="pl-7 h-8 text-xs bg-background border-border/50"
               />
             </div>
-            <div className="flex gap-1 flex-wrap">
-              {(Object.keys(FILTER_LABELS) as RosterFilter[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setRosterFilter(f)}
-                  className={cn(
-                    "text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0",
-                    rosterFilter === f
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border/40 text-muted-foreground/60 hover:border-border hover:text-foreground",
-                  )}
-                >
-                  {FILTER_LABELS[f]}
-                </button>
-              ))}
-            </div>
+            {availableDepartments.length > 0 && (
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger size="sm" className="h-8 text-[11px] font-semibold w-auto min-w-28 bg-background border-border/50">
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">All Departments</SelectItem>
+                  {availableDepartments.map((d) => (
+                    <SelectItem key={d.key} value={d.key} className="text-xs">{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          <div className={cn("space-y-2 pr-0.5", LIST_HEIGHT, "sm:overflow-y-auto")}>
+          <div className="flex gap-1 flex-wrap">
+            {(Object.keys(FILTER_LABELS) as RosterFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setRosterFilter(f)}
+                className={cn(
+                  "text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0",
+                  rosterFilter === f
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border/40 text-muted-foreground/60 hover:border-border hover:text-foreground",
+                )}
+              >
+                {FILTER_LABELS[f]}
+              </button>
+            ))}
+          </div>
+
+          <div className={cn("space-y-2 pr-0.5 overflow-y-auto", LIST_HEIGHT)}>
             {rosterPeople.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
-                {rosterFilter === "lot_tech" ? <MapPinOff className="size-8" /> : <User2 className="size-8" />}
-                <p className="text-xs">
-                  {rosterFilter === "lot_tech" ? "No Lot Tech employees on shift" : "No members match this filter"}
-                </p>
+                <User2 className="size-8" />
+                <p className="text-xs">No members match this filter</p>
               </div>
             ) : (
-              rosterGroups.map((group) => (
-                <div key={group.key} className="space-y-2">
-                  {group.label && (
+              <>
+                {sharingRosterPeople.length > 0 && (
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-background/95 backdrop-blur-sm py-1 z-10">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{group.label}</span>
-                      <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">{group.people.length}</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Currently Sharing</span>
+                      <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">{sharingRosterPeople.length}</span>
+                      <span className="flex-1 h-px bg-border/30" />
+                    </div>
+                    {sharingRosterPeople.map((person) => (
+                      <RosterCard
+                        key={person.id}
+                        person={person}
+                        isAdmin={isAdmin}
+                        isSelected={selectedUserId === person.id}
+                        onSelect={() => handleSelect(person.id)}
+                        isShiftGoverned={person.isMe && myShiftGoverned}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {sharingRosterPeople.length > 0 && (
+                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-background/95 backdrop-blur-sm py-1 z-10">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Everyone Else</span>
+                      <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">{restRosterPeople.length}</span>
                       <span className="flex-1 h-px bg-border/30" />
                     </div>
                   )}
-                  {group.people.map((person) => (
+                  {restRosterPeople.map((person) => (
                     <RosterCard
                       key={person.id}
                       person={person}
                       isAdmin={isAdmin}
                       isSelected={selectedUserId === person.id}
                       onSelect={() => handleSelect(person.id)}
+                      isShiftGoverned={person.isMe && myShiftGoverned}
                     />
                   ))}
                 </div>
-              ))
+              </>
             )}
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className={cn("space-y-3", mobilePanel === "stream" ? "block" : "hidden", "lg:block")}>
           <SectionHeading icon={TrendingUp} label="Activity Stream"
             right={<span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Live</span></span>}
           />
@@ -737,10 +795,10 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="px-3 sm:overflow-y-auto sm:flex-1">
+              <div className="px-3 overflow-y-auto flex-1">
                 {eventGroups.map((group) => (
                   <div key={group.label} className="divide-y divide-border/30">
-                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-card/95 backdrop-blur-sm py-1.5 z-10">
+                    <div className="flex items-center gap-2 sticky top-0 bg-card/95 backdrop-blur-sm py-1.5 z-10">
                       <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{group.label}</span>
                       <span className="flex-1 h-px bg-border/30" />
                     </div>
@@ -768,28 +826,40 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
 
       <div className="space-y-3">
         <SectionHeading icon={Car} label="Operations" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {isAdmin && (
-            <div className="space-y-2.5">
-              <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
-                <MapPin className="size-3" /> Company Places
-              </p>
-              <PlacesAdminPanel
-                pickMode={placePickMode}
-                onStartPick={() => setPlacePickMode(true)}
-                onCancelPick={() => setPlacePickMode(false)}
-                pickedCoords={pickedCoords}
-                onPickConsumed={() => setPickedCoords(null)}
-                onDraftChange={setDraftPlace}
-              />
-            </div>
-          )}
-          <div className={cn("space-y-2.5", !isAdmin && "lg:col-span-2")}>
-            <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
-              <Car className="size-3" /> Test-Drive Safety
-            </p>
-            <DrivingSessionsPanel myUserId={myUserId} />
+
+        {isAdmin && (
+          <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
+            <button
+              onClick={() => setPlacesOpen((v) => !v)}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5"
+            >
+              <div className="flex items-center justify-center size-6 rounded-lg bg-muted/60 shrink-0">
+                <MapPin className="size-3.5 text-muted-foreground/60" />
+              </div>
+              <span className="text-[11px] font-bold">Company Places</span>
+              <span className="text-[10px] text-muted-foreground/40 tabular-nums">{places.length}</span>
+              <ChevronDown className={cn("size-3.5 text-muted-foreground/50 ml-auto transition-transform", placesOpen && "rotate-180")} />
+            </button>
+            {placesOpen && (
+              <div className="px-3.5 pb-3.5 pt-1 border-t border-border/30">
+                <PlacesAdminPanel
+                  pickMode={placePickMode}
+                  onStartPick={() => setPlacePickMode(true)}
+                  onCancelPick={() => setPlacePickMode(false)}
+                  pickedCoords={pickedCoords}
+                  onPickConsumed={() => setPickedCoords(null)}
+                  onDraftChange={setDraftPlace}
+                />
+              </div>
+            )}
           </div>
+        )}
+
+        <div className="space-y-2.5">
+          <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
+            <Car className="size-3" /> Test-Drive Safety
+          </p>
+          <DrivingSessionsPanel myUserId={myUserId} />
         </div>
       </div>
     </div>

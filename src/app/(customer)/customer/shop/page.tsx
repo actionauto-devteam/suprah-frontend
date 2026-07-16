@@ -535,81 +535,81 @@ function ShopVehiclesContent() {
           </div>
 
           <div className="relative px-5 py-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2.5 min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2.5 min-w-0">
 
-              {/* Eyebrow label */}
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                </span>
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
-                  Marketplace
-                </span>
+                {/* Eyebrow label */}
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
+                    Marketplace
+                  </span>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
+                    Shop{" "}
+                    <span className="text-primary">Vehicles</span>
+                  </h1>
+                  <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                    Member-exclusive pricing on every listing
+                  </p>
+                </div>
+
+                {/* Stat pills */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
+                    {isLoading ? (
+                      <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
+                    ) : total}
+                    {" "}available
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-semibold text-primary dark:bg-primary/12">
+                    <Star className="h-3 w-3" />
+                    Member Pricing
+                  </span>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+                    <Package className="h-3 w-3" />
+                    Shipping Quotes
+                  </span>
+                </div>
               </div>
 
-              {/* Title */}
-              <div>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
-                  Shop{" "}
-                  <span className="text-primary">Vehicles</span>
-                </h1>
-                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
-                  Member-exclusive pricing on every listing
-                </p>
-              </div>
-
-              {/* Stat pills */}
-              <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
-                  {isLoading ? (
-                    <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
-                  ) : total}
-                  {" "}available
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-semibold text-primary dark:bg-primary/12">
-                  <Star className="h-3 w-3" />
-                  Member Pricing
-                </span>
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border/50 px-3 py-1 text-xs font-medium text-muted-foreground">
-                  <Package className="h-3 w-3" />
-                  Shipping Quotes
+              {/* Right: Actions + Live indicator */}
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs h-8 rounded-xl border-border/50"
+                    onClick={() => setIsTradeInOpen(true)}
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Trade-In</span>
+                  </Button>
+                  <button
+                    onClick={fetchVehicles}
+                    disabled={isLoading}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all",
+                      "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
+                    )}
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  {isLoading ? "Updating..." : lastUpdated
+                    ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}`
+                    : "Live"}
                 </span>
               </div>
             </div>
-
-            {/* Right: Actions + Live indicator */}
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs h-8 rounded-xl border-border/50"
-                  onClick={() => setIsTradeInOpen(true)}
-                >
-                  <ArrowLeftRight className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Trade-In</span>
-                </Button>
-                <button
-                  onClick={fetchVehicles}
-                  disabled={isLoading}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all",
-                    "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
-                  )}
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-                  <span className="hidden sm:inline">Refresh</span>
-                </button>
-              </div>
-              <span className="text-[10px] font-medium text-muted-foreground">
-                {isLoading ? "Updating..." : lastUpdated
-                  ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}`
-                  : "Live"}
-              </span>
-            </div>
-          </div>
           </div>
         </div>
       </div>

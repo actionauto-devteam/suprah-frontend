@@ -77,7 +77,13 @@ export interface SSConversation {
   spaceId?: string | null;
 }
 
-export interface PresenceMap { [userId: string]: 'online' | 'offline' }
+export type SSOnlineStatus = 'online' | 'idle' | 'away' | 'busy' | 'offline' | 'do_not_disturb';
+export interface SSPresenceEntry {
+  onlineStatus: SSOnlineStatus;
+  customStatus?: string | null;
+  lastDeviceType?: 'mobile' | 'desktop' | null;
+}
+export interface PresenceMap { [userId: string]: SSPresenceEntry }
 export interface TypingMap { [conversationId: string]: Array<{ userId: string; fullName: string }> }
 
 function resolveSupraSpaceSocketUrl(): string {
@@ -139,7 +145,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       console.log('[SupraSpace] ✅ Connected via', socket.io.engine.transport.name, '| id:', socket.id);
       setIsConnected(true);
       setSocketState(socket);
-      socket.emit('presence:request'); // ask for the current online roster
+      socket.emit('presence:status_request'); // ask for the whole org's real online/away/busy/DND status
     });
 
     socket.io.engine.on('upgrade', (transport: any) => {
@@ -155,15 +161,23 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       console.error('[SupraSpace] Connection error:', err.message);
     });
 
-    // NEW: full online roster seeded on connect
-    socket.on('presence:sync', (userIds: string[]) => {
+    // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend —
+    // resolved from each CrmUser's linked main-site User account).
+    socket.on('presence:status_sync', (entries: Array<{ userId: string; onlineStatus: SSOnlineStatus; customStatus?: string | null; lastDeviceType?: 'mobile' | 'desktop' | null }>) => {
       const next: PresenceMap = {};
-      (userIds || []).forEach((id) => { next[id] = 'online'; });
+      (entries || []).forEach(({ userId, onlineStatus, customStatus, lastDeviceType }) => {
+        next[userId] = { onlineStatus, customStatus, lastDeviceType };
+      });
       setPresence(next);
     });
 
-    socket.on('presence:update', ({ userId, status }: { userId: string; status: 'online' | 'offline' }) => {
-      setPresence((prev) => ({ ...prev, [userId]: status }));
+    // Live relay of the same system-wide presence_update TeamPulse/profile use, translated
+    // to this user's CrmUser id server-side.
+    socket.on('presence_update', ({ userId, onlineStatus, customStatus, lastDeviceType }: {
+      userId: string; onlineStatus?: SSOnlineStatus; customStatus?: string | null; lastDeviceType?: 'mobile' | 'desktop' | null;
+    }) => {
+      if (!onlineStatus) return;
+      setPresence((prev) => ({ ...prev, [userId]: { onlineStatus, customStatus, lastDeviceType } }));
     });
 
     socket.on('typing:start', ({ conversationId, userId, fullName }: any) => {

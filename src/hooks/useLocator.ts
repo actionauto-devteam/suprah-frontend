@@ -30,6 +30,7 @@ export interface Place {
     icon?: string;
     color?: string;
     address?: string;
+    description?: string;
     isActive: boolean;
     createdBy: string;
     createdAt: string;
@@ -39,6 +40,7 @@ export interface Place {
 export interface ActiveEmployeeLocation {
     userId: string;
     userModel?: 'User' | 'CrmUser';
+    email?: string;
     userName: string;
     userAvatar?: string;
     jobTitle?: string;
@@ -152,7 +154,7 @@ export function useCreatePlace() {
     const getHeaders = useAuthHeaders();
 
     return useMutation({
-        mutationFn: async (data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string }) => {
+        mutationFn: async (data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string; description?: string }) => {
             const headers = await getHeaders();
             const response = await apiClient.createPlace(data, headers);
             return response.data?.data || response.data;
@@ -375,6 +377,18 @@ export function useActiveSosAlerts(enabled: boolean) {
         enabled: !!isLoaded && !!isSignedIn && enabled,
         refetchInterval: 10_000,
         staleTime: 5_000,
+    });
+}
+
+export function useRequestLocationShare() {
+    const getHeaders = useAuthHeaders();
+
+    return useMutation({
+        mutationFn: async (userId: string) => {
+            const headers = await getHeaders();
+            const response = await apiClient.requestLocationShare(userId, headers);
+            return response.data?.data || response.data;
+        },
     });
 }
 
