@@ -195,6 +195,10 @@ function normalizeMessageMarkdownText(text: string): string {
     .trim();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function normalizeMessageMarkdownForDisplay(text: string): string {
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(text))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
@@ -1622,6 +1626,38 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     }
   };
 
+  const inspectMentionAnywhere = React.useCallback((value: string) => {
+    const aliases = [
+      ...(conv.type === 'group' ? ['all'] : []),
+      ...conv.members
+        .filter(m => m._id !== crmUserId)
+        .flatMap(m => {
+          const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+        }),
+    ];
+
+    const candidates: Array<{ anchor: number; query: string; length: number }> = [];
+    aliases.forEach(alias => {
+      const normalizedAlias = escapeRegExp(alias.trim()).replace(/\s+/g, '\\s+');
+      const re = new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'gi');
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(value)) !== null) {
+        const anchor = match.index + match[1].length;
+        const matched = value.slice(anchor + 1, re.lastIndex).trim();
+        candidates.push({ anchor, query: matched, length: matched.length });
+      }
+    });
+
+    const best = candidates.sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
+    if (!best) return false;
+    setMentionQuery(best.query);
+    setMentionAnchor(best.anchor);
+    setMentionIdx(0);
+    return true;
+  }, [conv.members, conv.type, crmUserId]);
+
   const handleColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = e.nativeEvent as InputEvent;
     if (selectedTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
@@ -2158,7 +2194,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         e.preventDefault();
                         const editorHtml = clipboardHtmlToEditorHtml(html);
                         document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
-                        requestAnimationFrame(() => { const el = inputRef.current; if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true); });
+                        requestAnimationFrame(() => {
+                          const el = inputRef.current;
+                          if (el) {
+                            const nextText = el.innerText.replace(/\n$/, '');
+                            syncComposerText(nextText, true);
+                            inspectMentionAnywhere(nextText);
+                          }
+                        });
                         return;
                       }
                       const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
@@ -2169,7 +2212,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         } else {
                           document.execCommand('insertText', false, richText);
                         }
-                        requestAnimationFrame(() => { const el = inputRef.current; if (el) syncComposerText(el.innerText.replace(/\n$/, ''), true); });
+                        requestAnimationFrame(() => {
+                          const el = inputRef.current;
+                          if (el) {
+                            const nextText = el.innerText.replace(/\n$/, '');
+                            syncComposerText(nextText, true);
+                            inspectMentionAnywhere(nextText);
+                          }
+                        });
                       }
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}

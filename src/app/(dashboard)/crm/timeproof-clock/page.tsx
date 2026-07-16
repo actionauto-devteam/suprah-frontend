@@ -549,6 +549,20 @@ export default function TimeprofClockPage() {
         const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000
         const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0
         const shiftStartedRecently = shiftStartedMs > 0 && (Date.now() - shiftStartedMs) < SHIFT_AUTO_RESUME_MS
+        // Reconcile isOnBreak/currentBreakStartAt from this SAME snapshot that
+        // drives activityStartAt below. Previously isOnBreak was only ever set
+        // by the optimistic click handlers and socket events, never by this
+        // poll — so a poll landing between "user clicked to end break" and
+        // "break-out TimeLog actually committed" could read a stale
+        // s.isOnBreak=true, null out activityStartAt (since the updater below
+        // keys off s.isOnBreak), while local isOnBreak stayed false from the
+        // optimistic update. That combination (not on break, not tracking) is
+        // the impossible "Paused / Resume Shift" stuck state users hit after
+        // ending a break — coupling both fields to the same snapshot means
+        // they can only ever be inconsistent for one poll cycle, and always
+        // self-correct on the next one instead of getting stuck permanently.
+        setIsOnBreak(!!s.isOnBreak)
+        setCurrentBreakStartAt(s.isOnBreak && s.breakStartedAt ? new Date(s.breakStartedAt).getTime() : null)
         setActivityStartAt((prev) => {
           if (!s.isOnShift || s.isOnBreak) return null
           if (s.currentIntervalStartAt) return new Date(s.currentIntervalStartAt).getTime()
