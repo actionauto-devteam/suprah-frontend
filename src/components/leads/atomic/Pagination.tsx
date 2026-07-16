@@ -1,55 +1,77 @@
-import * as React from "react"
-import { ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react"
+import * as React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface PaginationProps {
-  currentPage: number
-  totalPages: number
-  totalItems: number
-  onPageChange: (p: number) => void
-  itemsPerPage: number
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+  itemsPerPage: number;
 }
 
-export const Pagination = React.memo(({ 
-  currentPage, 
-  totalPages, 
-  totalItems, 
-  onPageChange,
-  itemsPerPage
-}: PaginationProps) => {
-  if (totalPages <= 1) return null
-  
-  const start = (currentPage - 1) * itemsPerPage + 1
-  const end = Math.min(currentPage * itemsPerPage, totalItems)
-  const pages: (number | '…')[] = []
-  
-  if (totalPages <= 7) { 
-    for (let i = 1; i <= totalPages; i++) pages.push(i) 
-  } else {
-    pages.push(1)
-    if (currentPage > 3) pages.push('…')
-    for (let p = Math.max(2, currentPage - 1); p <= Math.min(totalPages - 1, currentPage + 1); p++) pages.push(p)
-    if (currentPage < totalPages - 2) pages.push('…')
-    pages.push(totalPages)
-  }
-  
-  const btn = 'h-8 w-8 sm:h-6 sm:w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-25 disabled:cursor-not-allowed transition-colors'
+export const Pagination = React.memo(
+  ({
+    currentPage,
+    totalPages,
+    totalItems,
+    onPageChange,
+    itemsPerPage,
+  }: PaginationProps) => {
+    if (totalPages <= 1) return null;
 
-  return (
-    <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 border-t border-border/40 shrink-0">
-      <span className="hidden xs:inline text-[11px] text-muted-foreground/80 tabular-nums">{start}–{end} of {totalItems}</span>
-      <div className="flex items-center gap-0.5 mx-auto xs:mx-0">
-        <button onClick={() => onPageChange(1)} disabled={currentPage === 1} className={btn}><ChevronsLeft className="h-3.5 w-3.5 sm:h-3 sm:w-3" /></button>
-        <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className={btn}><ChevronLeft className="h-3.5 w-3.5 sm:h-3 sm:w-3" /></button>
-        {pages.map((p, i) => p === '…'
-          ? <span key={`el${i}`} className="px-1 text-[11px] text-muted-foreground/80">…</span>
-          : <button key={p} onClick={() => onPageChange(p as number)}
-              className={`h-8 min-w-8 sm:h-6 sm:min-w-6 px-1.5 rounded-md text-[11px] font-medium transition-colors ${currentPage === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}>{p}</button>
-        )}
-        <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className={btn}><ChevronRight className="h-3.5 w-3.5 sm:h-3 sm:w-3" /></button>
-        <button onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages} className={btn}><ChevronsRight className="h-3.5 w-3.5 sm:h-3 sm:w-3" /></button>
-      </div>
-    </div>
-  )
-})
+    const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (safeCurrentPage - 1) * itemsPerPage + 1;
+    const end = Math.min(safeCurrentPage * itemsPerPage, totalItems);
 
-Pagination.displayName = "Pagination"
+    const goToPage = (page: number) => {
+      const nextPage = Math.min(Math.max(page, 1), totalPages);
+
+      if (nextPage !== safeCurrentPage) {
+        onPageChange(nextPage);
+      }
+    };
+
+    return (
+      <nav
+        className="shrink-0 border-t border-border/40 bg-background/95 px-2 py-2 backdrop-blur"
+        aria-label="Lead list pagination"
+      >
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+          <button
+            type="button"
+            onClick={() => goToPage(safeCurrentPage - 1)}
+            disabled={safeCurrentPage === 1}
+            className="flex h-11 min-w-0 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-border/60 px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-30"
+            aria-label="Go to previous page"
+          >
+            <ChevronLeft className="h-4 w-4 shrink-0" />
+            <span className="truncate">Previous</span>
+          </button>
+
+          <div className="min-w-[76px] shrink-0 text-center">
+            <p className="whitespace-nowrap text-[12px] font-bold tabular-nums text-foreground">
+              {safeCurrentPage} / {totalPages}
+            </p>
+
+            <p className="mt-0.5 whitespace-nowrap text-[9px] tabular-nums text-muted-foreground">
+              {start}–{end} of {totalItems}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => goToPage(safeCurrentPage + 1)}
+            disabled={safeCurrentPage === totalPages}
+            className="flex h-11 min-w-0 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-border/60 px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-30"
+            aria-label="Go to next page"
+          >
+            <span className="truncate">Next</span>
+            <ChevronRight className="h-4 w-4 shrink-0" />
+          </button>
+        </div>
+      </nav>
+    );
+  },
+);
+
+Pagination.displayName = "Pagination";

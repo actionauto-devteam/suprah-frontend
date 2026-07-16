@@ -94,6 +94,8 @@ export function LeadsTab({
   const [isChatHovered, setIsChatHovered] = React.useState(false);
   const [viewportMode, setViewportMode] =
     React.useState<LeadsViewportMode>("wide");
+  const [isInboxSummaryExpanded, setIsInboxSummaryExpanded] =
+    React.useState(false);
 
   React.useEffect(() => {
     const updateViewportMode = () => {
@@ -119,6 +121,12 @@ export function LeadsTab({
       window.removeEventListener("resize", updateViewportMode);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (viewportMode === "narrow") {
+      setIsInboxSummaryExpanded(false);
+    }
+  }, [viewportMode]);
 
   const {
     leads,
@@ -857,36 +865,78 @@ const fetchThread = React.useCallback(
       />
 
       {/* ── TOPBAR ── */}
-      {/* On mobile/tablet, the open conversation shows its own header — collapse
-          the inbox topbar + tab strip so the conversation gets near-full height. */}
+      {/* The mobile version stays compact by default. Full sync information is
+          available on demand instead of permanently taking vertical space. */}
       <header
-        className={cn("ss4-topbar shrink-0", selectedLead && "hidden lg:block")}
-        style={{ minHeight: 52 }}
+        className={cn(
+          "ss4-topbar shrink-0",
+          selectedLead && "hidden lg:block",
+        )}
       >
-        {/* Title + actions */}
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-3 pb-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 ss4-logo-mark flex shrink-0 items-center justify-center">
+        <div className="flex min-h-12 items-center justify-between gap-2 px-3 py-2 sm:min-h-[52px] sm:gap-3 sm:px-5 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+            <div className="ss4-logo-mark flex h-8 w-8 shrink-0 items-center justify-center">
               <Mail className="h-3.5 w-3.5" style={{ color: "#fff" }} />
             </div>
+
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <h1
-                  className="ss4-display font-bold leading-tight tracking-tight"
-                  style={{ fontSize: 16, color: "var(--text-primary)" }}
+                  className="ss4-display truncate font-bold leading-tight tracking-tight"
+                  style={{ fontSize: 15, color: "var(--text-primary)" }}
                 >
                   Lead Inbox
                 </h1>
+
                 {total > 0 && (
                   <span
-                    className="ss4-badge inline-flex items-center tabular-nums"
+                    className="ss4-badge inline-flex shrink-0 items-center tabular-nums"
                     style={{ borderRadius: 10 }}
                   >
                     {total}
                   </span>
                 )}
               </div>
-              <div className="mt-0.5">
+
+              {/* Compact status on phones */}
+              <button
+                type="button"
+                onClick={() =>
+                  setIsInboxSummaryExpanded((expanded) => !expanded)
+                }
+                className="mt-0.5 flex max-w-full items-center gap-1.5 text-left sm:hidden"
+                aria-expanded={isInboxSummaryExpanded}
+                aria-label="Show lead inbox sync information"
+              >
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{
+                    background: centralConnected
+                      ? "var(--accent)"
+                      : "var(--text-tertiary)",
+                  }}
+                />
+                <span
+                  className="truncate text-[10px] font-medium"
+                  style={{
+                    color: centralConnected
+                      ? "var(--accent-text)"
+                      : "var(--text-tertiary)",
+                  }}
+                >
+                  {centralConnected ? "Live sync" : "Sync unavailable"}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 shrink-0 transition-transform",
+                    isInboxSummaryExpanded && "rotate-180",
+                  )}
+                  style={{ color: "var(--text-tertiary)" }}
+                />
+              </button>
+
+              {/* Full status remains visible from the sm breakpoint upward */}
+              <div className="mt-0.5 hidden sm:block">
                 <SyncStatus
                   connected={centralConnected}
                   email={centralEmail}
@@ -899,15 +949,16 @@ const fetchThread = React.useCallback(
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
             <button
               onClick={toggleSelectMode}
-              className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[11px] font-medium transition-all"
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[11px] font-medium transition-all sm:h-7 sm:w-auto sm:gap-1.5 sm:px-2.5"
               style={
                 selectMode
                   ? { color: "var(--accent)", borderColor: "var(--accent)" }
                   : undefined
               }
+              title={selectMode ? "Cancel selection" : "Select conversations"}
             >
               {selectMode ? (
                 <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
@@ -918,33 +969,59 @@ const fetchThread = React.useCallback(
                 {selectMode ? "Cancel" : "Select"}
               </span>
             </button>
+
             <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
-              className="ss4-pill-btn flex items-center gap-1.5 px-2.5 h-9 sm:h-7 text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-30 sm:h-7 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              title="Refresh leads"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 sm:h-3 sm:w-3 ${isWorkerSyncing || localIsSyncing ? "animate-spin" : ""}`}
+                className={`h-3.5 w-3.5 sm:h-3 sm:w-3 ${
+                  isWorkerSyncing || localIsSyncing ? "animate-spin" : ""
+                }`}
               />
               <span className="hidden sm:inline">
                 {isWorkerSyncing || localIsSyncing ? "Syncing…" : "Refresh"}
               </span>
             </button>
+
             <button
               onClick={toggleTheme}
-              className="ss4-theme-btn h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center shrink-0"
+              className="ss4-theme-btn flex h-8 w-8 shrink-0 items-center justify-center sm:h-7 sm:w-7"
               title="Toggle theme"
             >
               {theme === "dark" ? (
-                <Sun className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <Sun className="h-3.5 w-3.5" />
               ) : (
-                <Moon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <Moon className="h-3.5 w-3.5" />
               )}
             </button>
-            <SupraLeoAI variant="toolbar" />
+
+            <div className="hidden sm:block">
+              <SupraLeoAI variant="toolbar" />
+            </div>
           </div>
         </div>
 
+        {/* Expandable sync information for small screens */}
+        {isInboxSummaryExpanded && (
+          <div
+            className="border-t px-3 py-2 sm:hidden"
+            style={{
+              borderColor: "var(--border-1)",
+              background: "var(--bg-elevated)",
+            }}
+          >
+            <SyncStatus
+              connected={centralConnected}
+              email={centralEmail}
+              sourceEmail={LEADS_SOURCE_EMAIL}
+              lastSyncTime={lastSyncTime}
+              statusLoaded={centralStatusLoaded}
+            />
+          </div>
+        )}
       </header>
 
       {/* ── BODY ── */}
@@ -967,20 +1044,32 @@ const fetchThread = React.useCallback(
               borderColor: "var(--border-1)",
             }}
           >
-            {/* Sidebar title like Podium's "All Conversations" */}
+            {/* Compact conversations heading */}
             <div
-              className="flex items-center justify-between px-4 py-4 border-b"
+              className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-3 py-2 sm:min-h-[58px] sm:px-4 sm:py-3"
               style={{ borderColor: "var(--border-1)" }}
             >
-              <div>
-                <h2
-                  className="font-bold tracking-tight"
-                  style={{ color: "var(--text-primary)", fontSize: 17 }}
-                >
-                  All Conversations
-                </h2>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2
+                    className="truncate font-bold tracking-tight"
+                    style={{ color: "var(--text-primary)", fontSize: 15 }}
+                  >
+                    All Conversations
+                  </h2>
+
+                  {!isLoading && total > 0 && (
+                    <span
+                      className="ss4-badge inline-flex shrink-0 items-center tabular-nums sm:hidden"
+                      style={{ borderRadius: 10 }}
+                    >
+                      {total}
+                    </span>
+                  )}
+                </div>
+
                 <p
-                  className="text-xs mt-0.5"
+                  className="mt-0.5 hidden text-[11px] sm:block"
                   style={{ color: "var(--text-tertiary)" }}
                 >
                   Lead Inbox
@@ -989,22 +1078,22 @@ const fetchThread = React.useCallback(
 
               <button
                 onClick={toggleSelectMode}
-                className="ss4-pill-btn h-9 w-9 flex items-center justify-center"
+                className="ss4-pill-btn flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9"
                 title={
                   selectMode ? "Cancel select mode" : "Select conversations"
                 }
               >
                 {selectMode ? (
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 ) : (
-                  <CheckSquare className="h-4 w-4" />
+                  <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 )}
               </button>
             </div>
 
             {/* Podium-style status and sorting filters */}
             <div
-              className="grid grid-cols-2 gap-2 px-3 py-3 shrink-0"
+              className="grid shrink-0 grid-cols-2 gap-1.5 px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
               style={{
                 borderBottom: "1px solid var(--border-1)",
                 background: "var(--bg-elevated)",
@@ -1012,7 +1101,7 @@ const fetchThread = React.useCallback(
             >
               <label className="relative min-w-0">
                 <Filter
-                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
                   style={{ color: "var(--text-tertiary)" }}
                 />
 
@@ -1024,7 +1113,7 @@ const fetchThread = React.useCallback(
                     setCurrentPage(1);
                     setSelectedLead(null);
                   }}
-                  className="h-9 w-full appearance-none rounded-lg pl-9 pr-8 text-xs font-medium outline-none"
+                  className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
                   style={{
                     background: "var(--input-bg)",
                     border: "1px solid var(--input-border)",
@@ -1040,14 +1129,14 @@ const fetchThread = React.useCallback(
                 </select>
 
                 <ChevronDown
-                  className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
                   style={{ color: "var(--text-tertiary)" }}
                 />
               </label>
 
               <label className="relative min-w-0">
                 <ArrowUpDown
-                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
                   style={{ color: "var(--text-tertiary)" }}
                 />
 
@@ -1057,7 +1146,7 @@ const fetchThread = React.useCallback(
                     setSortBy(event.target.value as LeadSortOption);
                     setCurrentPage(1);
                   }}
-                  className="h-9 w-full appearance-none rounded-lg pl-9 pr-8 text-xs font-medium outline-none"
+                  className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
                   style={{
                     background: "var(--input-bg)",
                     border: "1px solid var(--input-border)",
@@ -1071,7 +1160,7 @@ const fetchThread = React.useCallback(
                 </select>
 
                 <ChevronDown
-                  className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
                   style={{ color: "var(--text-tertiary)" }}
                 />
               </label>
@@ -1079,7 +1168,7 @@ const fetchThread = React.useCallback(
 
             {isFetching && !isLoading && (
               <div
-                className="px-3 pb-2 text-xs"
+                className="shrink-0 px-3 py-1 text-[10px]"
                 style={{
                   color: "var(--text-tertiary)",
                 }}
@@ -1119,7 +1208,10 @@ const fetchThread = React.useCallback(
               currentPage={currentPage}
               selectedLeadId={selectedLead?._id}
               searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
+              onSearchChange={(query) => {
+                setSearchQuery(query);
+                setCurrentPage(1);
+              }}
               onPageChange={setCurrentPage}
               onLeadSelect={setSelectedLead}
               highlightedLeadIds={highlightedLeadIds}
