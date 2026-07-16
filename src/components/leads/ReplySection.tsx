@@ -15,8 +15,6 @@ import {
   FileText,
   Image as ImageIcon,
   X,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -120,11 +118,52 @@ export const ReplySection = React.memo(
     const [attachments, setAttachments] = React.useState<File[]>([]);
     const [attachmentError, setAttachmentError] = React.useState("");
     const [emojiOpen, setEmojiOpen] = React.useState(false);
-    const [isExpanded, setIsExpanded] = React.useState(false);
 
     const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
     const emojiMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+    const resizeTextarea = React.useCallback(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const computedStyle = window.getComputedStyle(textarea);
+      const lineHeight =
+        Number.parseFloat(computedStyle.lineHeight) || 20;
+      const minHeight = lineHeight * 2 + 20;
+      const maxHeight = Math.min(
+        Math.max(window.innerHeight * 0.34, 160),
+        320,
+      );
+
+      textarea.style.height = "auto";
+
+      const nextHeight = Math.min(
+        Math.max(textarea.scrollHeight, minHeight),
+        maxHeight,
+      );
+
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY =
+        textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+
+      window.dispatchEvent(
+        new CustomEvent("crm-leads:keep-conversation-bottom"),
+      );
+    }, []);
+
+    React.useLayoutEffect(() => {
+      resizeTextarea();
+    }, [replyMessage, resizeTextarea]);
+
+    React.useEffect(() => {
+      const handleResize = () => resizeTextarea();
+      window.addEventListener("resize", handleResize);
+
+      return () => {
+        window.removeEventListener("resize", handleResize);
+      };
+    }, [resizeTextarea]);
 
     const handleReasonConfirm = (reason: string) => {
       if (reasonModal === "close") {
@@ -255,7 +294,6 @@ export const ReplySection = React.memo(
         setAttachments([]);
         setAttachmentError("");
         setEmojiOpen(false);
-        setIsExpanded(false);
       } catch {
         // Keep the selected files so the user can retry.
       }
@@ -312,31 +350,19 @@ export const ReplySection = React.memo(
     return (
       <div
         className="suprah-reply-section shrink-0 px-3 py-2 sm:px-4"
-        data-expanded={isExpanded ? "true" : "false"}
         style={{
           borderTop: "1px solid var(--border-1)",
           background: "var(--bg-elevated)",
         }}
       >
         <div className="ss4-input-wrap relative overflow-visible">
-          <button
-            type="button"
-            onClick={() => setIsExpanded((current) => !current)}
-            className="suprah-reply-expand-button ss4-icon-btn"
-            aria-label={isExpanded ? "Expand less" : "Expand more"}
-            title={isExpanded ? "Expand less" : "Expand more"}
-          >
-            {isExpanded ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </button>
-
           <textarea
             ref={textareaRef}
             value={replyMessage}
-            onChange={(event) => setReplyMessage(event.target.value)}
+            onChange={(event) => {
+              setReplyMessage(event.target.value);
+              window.requestAnimationFrame(resizeTextarea);
+            }}
             placeholder="Write a reply…"
             rows={2}
             onKeyDown={(event) => {
@@ -348,14 +374,13 @@ export const ReplySection = React.memo(
                 void handleSendReply();
               }
             }}
-            className={`suprah-reply-textarea w-full resize-none bg-transparent px-4 pb-1.5 pt-10 leading-snug outline-none transition-[height] duration-200 ${
-              isExpanded
-                ? "h-[240px] max-h-[42vh]"
-                : "h-[76px] max-h-24 sm:max-h-28"
-            }`}
+            className="suprah-reply-textarea block w-full resize-none bg-transparent px-4 pb-2 pt-3 leading-snug outline-none"
             style={{
+              minHeight: 60,
+              maxHeight: "34vh",
               fontSize: 14,
               color: "var(--text-primary)",
+              overflowY: "hidden",
             }}
           />
 
@@ -428,10 +453,10 @@ export const ReplySection = React.memo(
           )}
 
           <div
-            className="flex items-center justify-between gap-2 px-2.5 py-2.5 sm:py-2"
+            className="flex flex-wrap items-center gap-2 px-2.5 py-2.5 sm:py-2"
             style={{ borderTop: "1px solid var(--border-1)" }}
           >
-            <div className="flex min-w-0 shrink items-center gap-1 overflow-x-auto [scrollbar-width:none] sm:gap-0.5 [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 sm:gap-1.5">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -505,7 +530,7 @@ export const ReplySection = React.memo(
               </button>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               <div ref={emojiMenuRef} className="relative">
                 <button
                   type="button"
