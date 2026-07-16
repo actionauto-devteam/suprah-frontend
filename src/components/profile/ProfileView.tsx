@@ -211,7 +211,6 @@ export const ProfileView: React.FC = () => {
     const fieldsToCheck = [
       personalInfo.bio,
       personalInfo.jobTitle,
-      personalInfo.department,
       customStatus,
     ].filter(Boolean);
     for (const field of fieldsToCheck) {
@@ -226,8 +225,9 @@ export const ProfileView: React.FC = () => {
       const cleanLinks = socialLinks.filter(
         (l) => l.label?.trim() || l.url?.trim(),
       );
+      const { department: _ignoredDepartment, ...restPersonalInfo } = personalInfo;
       const updatedInfo = {
-        ...personalInfo,
+        ...restPersonalInfo,
         phoneCountryCode,
         socialLinks: cleanLinks,
       };

@@ -494,7 +494,7 @@ export default function CrmProfilePage() {
   const resolvedAvatar = isOwnProfile && mainAvatar ? mainAvatar : user?.avatar;
   const editPreviewSrc =
     editAvatarPreview ?? (mainAvatar || currentUser?.avatar);
-  const department = user?.personalInfo?.department;
+  const department = user?.department;
 
   return (
     <div className="h-[calc(100dvh-5rem)] flex flex-col bg-background overflow-hidden">

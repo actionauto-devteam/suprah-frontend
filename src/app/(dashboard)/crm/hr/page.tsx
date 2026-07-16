@@ -16,6 +16,7 @@ import {
   UserCheck,
   Zap,
   CheckCircle2,
+  Building2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -639,6 +640,16 @@ export default function TeamEngagementPage() {
                   <div className="flex items-center gap-2.5">
                     <Users className="h-3.5 w-3.5" />
                     User Management
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
+                </button>
+                <button
+                  onClick={() => router.push("/crm/settings/departments")}
+                  className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Departments
                   </div>
                   <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                 </button>

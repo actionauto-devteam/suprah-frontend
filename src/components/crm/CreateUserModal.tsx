@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
+import { DEPARTMENTS } from "@/lib/departments";
 
 
 interface CreateUserForm {
@@ -444,20 +445,9 @@ export function CreateUserModal({
                   <SelectValue placeholder="Select dept." />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="Sales & Finance" className="rounded-lg text-sm">Sales & Finance</SelectItem>
-                  <SelectItem value="Accounting" className="rounded-lg text-sm">Accounting</SelectItem>
-                  <SelectItem value="Recon" className="rounded-lg text-sm">Recon</SelectItem>
-                  <SelectItem value="Marketing" className="rounded-lg text-sm">Marketing</SelectItem>
-                  <SelectItem value="Online Team" className="rounded-lg text-sm">Online Team</SelectItem>
-                  <SelectItem value="Web Dev" className="rounded-lg text-sm">Web Dev</SelectItem>
-                  <SelectItem value="Wholesale" className="rounded-lg text-sm">Wholesale</SelectItem>
-                  <SelectItem value="Buying" className="rounded-lg text-sm">Buying</SelectItem>
-                  <SelectItem value="Operations" className="rounded-lg text-sm">Operations</SelectItem>
-                  <SelectItem value="Lot Tech" className="rounded-lg text-sm">Lot Tech</SelectItem>
-                  <SelectItem value="Funding" className="rounded-lg text-sm">Funding</SelectItem>
-                  <SelectItem value="Prospects" className="rounded-lg text-sm">Prospects</SelectItem>
-                  <SelectItem value="Price Check" className="rounded-lg text-sm">Price Check</SelectItem>
-                  <SelectItem value="Other" className="rounded-lg text-sm">Other</SelectItem>
+                  {DEPARTMENTS.map((d) => (
+                    <SelectItem key={d.key} value={d.key} className="rounded-lg text-sm">{d.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.department && (
