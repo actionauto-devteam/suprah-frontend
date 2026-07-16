@@ -1021,65 +1021,38 @@ export const LEAD_DETAILS_PANEL_CSS = `
     background: rgba(120, 120, 120, 0.75);
   }
 
-
-  /* ── Responsive horizontal Leads workspace ───────────── */
-  .suprah-workspace-scroll {
+  /* ── Suprah Space-style responsive Leads workspace ───── */
+  .suprah-responsive-workspace {
     position: relative;
     width: 100%;
     height: 100%;
     min-width: 0;
     min-height: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar) transparent;
-    background: var(--bg-base);
-  }
-
-  .suprah-workspace-scroll::-webkit-scrollbar {
-    height: 12px;
-  }
-
-  .suprah-workspace-scroll::-webkit-scrollbar-track {
-    background: var(--bg-elevated);
-    border-top: 1px solid var(--border-1);
-  }
-
-  .suprah-workspace-scroll::-webkit-scrollbar-thumb {
-    min-width: 72px;
-    border: 3px solid var(--bg-elevated);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--text-secondary) 44%, transparent);
-  }
-
-  .suprah-workspace-scroll::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--text-secondary) 70%, transparent);
-  }
-
-  .suprah-workspace-track {
     display: flex;
-    width: max-content;
-    min-width: 100%;
-    height: 100%;
-    min-height: 0;
     align-items: stretch;
+    overflow: hidden;
+    background: var(--bg-base);
   }
 
   .suprah-leads-panel {
     width: 340px;
-    min-width: 340px;
-    max-width: 340px;
+    min-width: 300px;
+    max-width: 360px;
     height: 100%;
+    min-height: 0;
     flex: 0 0 340px;
+    overflow: hidden;
+    background: var(--bg-elevated);
   }
 
   .suprah-center-panel {
-    width: clamp(720px, 58vw, 980px);
-    min-width: 720px;
+    position: relative;
     height: 100%;
-    flex: 1 0 clamp(720px, 58vw, 980px);
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    background: var(--bg-base);
   }
 
   .suprah-center-conversation-content {
@@ -1090,11 +1063,14 @@ export const LEAD_DETAILS_PANEL_CSS = `
 
   .suprah-details-slot {
     width: 370px;
-    min-width: 370px;
-    max-width: 370px;
+    min-width: 330px;
+    max-width: 390px;
     height: 100%;
     min-height: 0;
     flex: 0 0 370px;
+    overflow: hidden;
+    background: var(--bg-elevated);
+    border-left: 1px solid var(--border-1);
   }
 
   .suprah-details-slot > .suprah-details-panel {
@@ -1102,14 +1078,115 @@ export const LEAD_DETAILS_PANEL_CSS = `
     width: 100%;
     min-width: 0;
     height: 100%;
+    min-height: 0;
     flex: 1 1 auto;
     flex-direction: column;
   }
 
   /*
-   * The reply composer stays inside the center panel.
-   * Expanding it reduces the vertical message viewport without
-   * moving the horizontal workspace scrollbar.
+   * Wide viewport:
+   * Leads List + Conversation View + Lead Details.
+   */
+  .ss4[data-viewport-mode="wide"] .suprah-leads-panel {
+    display: flex;
+  }
+
+  .ss4[data-viewport-mode="wide"] .suprah-center-panel {
+    display: flex;
+  }
+
+  .ss4[data-viewport-mode="wide"] .suprah-details-slot {
+    display: flex;
+  }
+
+  /*
+   * Compact viewport:
+   * - No active lead: Leads List only.
+   * - Active lead: Conversation View + Lead Details.
+   */
+  .ss4[data-viewport-mode="compact"][data-has-active-lead="false"]
+    .suprah-leads-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .ss4[data-viewport-mode="compact"][data-has-active-lead="true"]
+    .suprah-center-panel {
+    min-width: 520px;
+    flex: 1 1 auto;
+  }
+
+  .ss4[data-viewport-mode="compact"][data-has-active-lead="true"]
+    .suprah-details-slot {
+    width: 340px;
+    min-width: 310px;
+    max-width: 360px;
+    flex-basis: 340px;
+  }
+
+  /*
+   * Narrow viewport:
+   * - No active lead: Leads List only.
+   * - Active lead: Conversation View.
+   * - Lead Details opens as an overlay/drawer when manually expanded.
+   */
+  .ss4[data-viewport-mode="narrow"][data-has-active-lead="false"]
+    .suprah-leads-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .ss4[data-viewport-mode="narrow"][data-has-active-lead="true"]
+    .suprah-center-panel {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .suprah-details-slot-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 70;
+    width: min(88vw, 370px);
+    min-width: min(88vw, 320px);
+    max-width: 370px;
+    height: 100%;
+    flex: none;
+    overflow: hidden;
+    border-left: 1px solid var(--border-2);
+    box-shadow: -18px 0 50px rgba(0, 0, 0, 0.38);
+    animation: suprah-details-slide-in 180ms ease-out;
+  }
+
+  .suprah-details-slot-overlay::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: rgba(0, 0, 0, 0.28);
+    pointer-events: none;
+  }
+
+  @keyframes suprah-details-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /*
+   * Reply composer stays attached to the bottom of the center panel.
+   * Expanding it only changes the available vertical chat space.
    */
   .suprah-reply-section {
     position: relative;
@@ -1119,28 +1196,26 @@ export const LEAD_DETAILS_PANEL_CSS = `
     flex: 0 0 auto;
   }
 
-  .suprah-reply-expand-button{
-    position:absolute;
-    top:8px;
-    right:9px;
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-
-    width:34px;
-    height:34px;
-
-    padding:0;
-
-    border:1px solid var(--border-2);
-    border-radius:8px;
-
-    background:var(--bg-overlay);
-    color:var(--text-secondary);
-
-    transition:all .2s ease;
-}
+  .suprah-reply-expand-button {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    z-index: 8;
+    display: flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    background: var(--bg-overlay);
+    color: var(--text-secondary);
+    transition:
+      background 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
+  }
 
   .suprah-reply-expand-button:hover {
     border-color: var(--border-3);
@@ -1152,73 +1227,48 @@ export const LEAD_DETAILS_PANEL_CSS = `
     overflow-y: auto;
   }
 
-  @media (max-width: 1279px) {
-    .suprah-workspace-track {
-      min-width: 1430px;
-    }
-
+  @media (max-width: 1439px) {
     .suprah-leads-panel {
       width: 320px;
-      min-width: 320px;
-      max-width: 320px;
+      min-width: 280px;
+      max-width: 340px;
       flex-basis: 320px;
     }
 
-    .suprah-center-panel {
-      width: 740px;
-      min-width: 740px;
-      flex-basis: 740px;
-    }
-
     .suprah-details-slot {
-      width: 370px;
-      min-width: 370px;
-      max-width: 370px;
-      flex-basis: 370px;
+      width: 340px;
+      min-width: 300px;
+      max-width: 360px;
+      flex-basis: 340px;
     }
   }
 
-  @media (max-width: 767px) {
-    .suprah-workspace-scroll::-webkit-scrollbar {
-      height: 10px;
-    }
-
-    .suprah-workspace-track {
-      min-width: 1340px;
-    }
-
-    .suprah-leads-panel {
-      width: 300px;
-      min-width: 300px;
-      max-width: 300px;
-      flex-basis: 300px;
+  @media (max-width: 1023px) {
+    .suprah-responsive-workspace {
+      width: 100%;
     }
 
     .suprah-center-panel {
-      width: 680px;
-      min-width: 680px;
-      flex-basis: 680px;
+      width: 100%;
     }
 
-    .suprah-details-slot {
-      width: 360px;
-      min-width: 360px;
-      max-width: 360px;
-      flex-basis: 360px;
+    .suprah-details-slot-overlay {
+      width: min(92vw, 370px);
+      min-width: min(92vw, 300px);
+    }
+  }
+
+  @media (max-width: 639px) {
+    .suprah-details-slot-overlay {
+      width: 100%;
+      min-width: 0;
+      max-width: none;
     }
 
-    .suprah-reply-expand-button {
-      min-width: 36px;
-      width: 36px;
-      padding: 0;
-    }
-
-    .suprah-reply-expand-button span {
+    .suprah-details-slot-overlay::before {
       display: none;
     }
   }
-
-
 `;
 
 export function injectLeadDetailsPanelStyles() {

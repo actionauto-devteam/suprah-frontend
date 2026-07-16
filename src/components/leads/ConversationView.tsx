@@ -502,6 +502,29 @@ export function ConversationView({
     };
   }, [lead?._id]);
 
+  React.useEffect(() => {
+    const keepConversationAtBottom = () => {
+      const element = messageAreaRef.current;
+      if (!element) return;
+
+      window.requestAnimationFrame(() => {
+        element.scrollTop = element.scrollHeight;
+      });
+    };
+
+    window.addEventListener(
+      "crm-leads:keep-conversation-bottom",
+      keepConversationAtBottom,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "crm-leads:keep-conversation-bottom",
+        keepConversationAtBottom,
+      );
+    };
+  }, []);
+
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden">
       {!hideConversationChrome && (

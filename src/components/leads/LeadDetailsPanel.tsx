@@ -273,7 +273,10 @@ export function LeadDetailsPanel({
   };
 
   return (
-    <aside className="suprah-details-panel">
+  <aside
+    className="suprah-details-panel"
+    data-panel="lead-details"
+  >
       <div className="suprah-profile-header">
         <Avatar
           first={lead?.firstName}
@@ -295,9 +298,9 @@ export function LeadDetailsPanel({
         <button
           type="button"
           onClick={onClose}
-          className="ss4-icon-btn h-8 w-8"
-          aria-label="Hide lead details"
-          title="Hide lead details"
+          className="ss4-icon-btn h-9 w-9 shrink-0"
+          aria-label="Collapse lead details"
+          title="Collapse lead details"
         >
           <PanelRightClose className="h-4 w-4" />
         </button>
@@ -553,7 +556,15 @@ export function LeadDetailsPanel({
         </button>
       </div>
 
-      <div className="suprah-details-scroll">
+      <div
+        className="suprah-details-scroll"
+        style={{
+          minWidth: 0,
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+        }}
+      >
         {tab === "details" ? (
           <>
             <section className="suprah-detail-section">

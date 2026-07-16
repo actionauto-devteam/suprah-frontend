@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  ArrowLeft,
   ArrowRight,
   ArrowUpDown,
   CheckSquare,
@@ -62,6 +63,7 @@ const TABS = [
 ] as const;
 
 type LeadSortOption = "newest" | "oldest" | "waiting_longest";
+type LeadsViewportMode = "narrow" | "compact" | "wide";
 
 export interface LeadsTabPendingNav {
   leadId?: string;
@@ -90,6 +92,33 @@ export function LeadsTab({
   const [searchQuery, setSearchQuery] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const [isChatHovered, setIsChatHovered] = React.useState(false);
+  const [viewportMode, setViewportMode] =
+    React.useState<LeadsViewportMode>("wide");
+
+  React.useEffect(() => {
+    const updateViewportMode = () => {
+      const width = window.innerWidth;
+
+      if (width < 1024) {
+        setViewportMode("narrow");
+        return;
+      }
+
+      if (width < 1440) {
+        setViewportMode("compact");
+        return;
+      }
+
+      setViewportMode("wide");
+    };
+
+    updateViewportMode();
+    window.addEventListener("resize", updateViewportMode);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportMode);
+    };
+  }, []);
 
   const {
     leads,
@@ -161,6 +190,23 @@ export function LeadsTab({
   // -- Local UI State --
   const [selectedLead, _setSelectedLead] = React.useState<Lead | null>(null);
   const [showLeadDetails, setShowLeadDetails] = React.useState(true);
+
+  /*
+   * Match Suprah Space panel priority:
+   * - Wide: list + conversation + details
+   * - Compact with active lead: conversation + details
+   * - Narrow with active lead: conversation first; details starts collapsed
+   *
+   * The user can still expand/collapse details after the automatic change.
+   */
+  React.useEffect(() => {
+    if (!selectedLead) {
+      setShowLeadDetails(false);
+      return;
+    }
+
+    setShowLeadDetails(viewportMode !== "narrow");
+  }, [selectedLead?._id, viewportMode]);
   const [localIsSyncing, setLocalIsSyncing] = React.useState(false);
   const [centralConnected, setCentralConnected] = React.useState(false);
   const [centralStatusLoaded, setCentralStatusLoaded] = React.useState(false);
@@ -642,7 +688,7 @@ const fetchThread = React.useCallback(
     });
 
     _setSelectedLead(lead);
-    setShowLeadDetails(true);
+    setShowLeadDetails(viewportMode !== "narrow");
     setIsClosed(lead.status === "Closed");
 
     // Run this in the background so it cannot delay opening.
@@ -788,8 +834,23 @@ const fetchThread = React.useCallback(
     "Inbound Calls": "bg-teal-500",
   };
 
+  const showLeadsPanel =
+    !selectedLead || viewportMode === "wide";
+
+  const showConversationPanel =
+    Boolean(selectedLead) || viewportMode === "wide";
+
+  const showDetailsPanel =
+    Boolean(selectedLead) && showLeadDetails;
+
   return (
-    <div className={cn("ss4 flex flex-col h-full min-h-0")} data-theme={theme}>
+    <div
+      className={cn("ss4 flex h-full min-h-0 flex-col")}
+      data-theme={theme}
+      data-viewport-mode={viewportMode}
+      data-has-active-lead={selectedLead ? "true" : "false"}
+      data-details-expanded={showLeadDetails ? "true" : "false"}
+    >
       <ToastStack
         toasts={toasts}
         dismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))}
@@ -895,13 +956,12 @@ const fetchThread = React.useCallback(
           <InboundCallsTab />
         </div>
       ) : (
-        <div className="suprah-workspace-scroll flex-1 min-h-0 bg-[var(--bg-base)]">
-          <div className="suprah-workspace-track">
+        <div className="suprah-responsive-workspace relative flex min-h-0 flex-1 overflow-hidden bg-[var(--bg-base)]">
           {/* PODIUM-LIKE LEFT CONVERSATION SIDEBAR */}
+          {showLeadsPanel && (
           <aside
-            className={cn(
-              "suprah-leads-panel flex flex-col shrink-0 min-h-0 border-r",
-            )}
+            className="suprah-leads-panel flex min-h-0 shrink-0 flex-col border-r"
+
             style={{
               background: "var(--bg-elevated)",
               borderColor: "var(--border-1)",
@@ -1070,19 +1130,35 @@ const fetchThread = React.useCallback(
               onToggleSelect={toggleLeadSelected}
             />
           </aside>
+          )}
 
           {/* PODIUM-LIKE CENTER CONVERSATION PANEL */}
+          {showConversationPanel && (
           <main
-            className={cn(
-              "suprah-center-panel relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden",
-              !selectedLead ? "hidden lg:flex" : "flex",
-            )}
+            className="suprah-center-panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
             style={{
               background: "var(--bg-base)",
             }}
             onMouseEnter={() => setIsChatHovered(true)}
             onMouseLeave={() => setIsChatHovered(false)}
           >
+            {selectedLead && viewportMode !== "wide" && (
+              <button
+                type="button"
+                onClick={() => setSelectedLead(null)}
+                className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
+                style={{
+                  background: "var(--bg-elevated)",
+                  borderColor: "var(--border-2)",
+                  color: "var(--text-secondary)",
+                }}
+                title="Back to leads"
+                aria-label="Back to leads"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+
             {selectedLead && !showLeadDetails && (
               <button
                 type="button"
@@ -1239,10 +1315,17 @@ const fetchThread = React.useCallback(
               </div>
             )}
           </main>
+          )}
 
           {/* PODIUM-LIKE RIGHT DETAILS PANEL */}
-          {selectedLead && showLeadDetails && (
-            <div className="suprah-details-slot">
+          {showDetailsPanel && (
+            <div
+              className={cn(
+                "suprah-details-slot",
+                viewportMode === "narrow" &&
+                  "suprah-details-slot-overlay",
+              )}
+            >
               <LeadDetailsPanel
                 lead={selectedLead}
                 sourceEmail={LEADS_SOURCE_EMAIL}
@@ -1271,7 +1354,6 @@ const fetchThread = React.useCallback(
               />
             </div>
           )}
-          </div>
         </div>
       )}
 
