@@ -5344,10 +5344,10 @@ export default function SupraSpacePage() {
           <div className="flex items-center gap-1">
             {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
             {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
-            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 12.5 }}>{cName}</p>
+            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
             {!rowHov && <span className="ss4-conv-time shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
           </div>
-          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 11.5, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
+          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
         </div>
         {!compact && (
           <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov || ddOpen ? 1 : 0 }}>
@@ -5578,15 +5578,23 @@ export default function SupraSpacePage() {
                       key={filter.key}
                       type="button"
                       onClick={() => setConversationFilter(filter.key)}
-                      className="ss4-filter-pill shrink-0 rounded-full font-semibold transition-colors"
+                      className="shrink-0 rounded-full transition-colors"
                       style={{
                         background: active ? 'var(--accent)' : 'var(--bg-hover)',
                         color: active ? '#fff' : 'var(--text-secondary)',
                         border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
-                        height: 26,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '26px',
+                        minHeight: '26px',
+                        maxHeight: '26px',
                         padding: '0 10px',
-                        fontSize: 10.5,
+                        fontFamily: 'Geist, sans-serif',
+                        fontSize: '10.5px',
+                        fontWeight: 600,
                         lineHeight: 1,
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {filter.label}
