@@ -8,18 +8,6 @@ import { useCrmToken } from "@/hooks/useCrmToken";
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const CRM_SUBSCRIBE_URL = "/api/crm/timeproof/push/subscribe";
 
-function decodeCrmUserId(token: string | null): string {
-  if (!token) return "unknown";
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return "unknown";
-    const padded = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
-    return JSON.parse(window.atob(padded))?.id || "unknown";
-  } catch {
-    return "unknown";
-  }
-}
-
 function getDeviceHint() {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent || "";
@@ -90,18 +78,12 @@ export function useCrmWebPush() {
       // Auto-sync existing subscription to CRM backend (once per session)
       if (subscription) {
         const token = crmToken || localStorage.getItem("crm_token");
-        const crmUserId = decodeCrmUserId(token);
-        const syncKey = `crm_push_sync_${crmUserId}_${subscription.endpoint}`;
-        const lastSync = sessionStorage.getItem(syncKey);
-        if (!lastSync && token) {
+        if (token) {
           apiClient
             .post(CRM_SUBSCRIBE_URL, {
               subscription,
               deviceHint: getDeviceHint(),
             }, { headers: { Authorization: `Bearer ${token}` } })
-            .then(() => {
-              sessionStorage.setItem(syncKey, Date.now().toString());
-            })
             .catch(() => {});
         }
       }
