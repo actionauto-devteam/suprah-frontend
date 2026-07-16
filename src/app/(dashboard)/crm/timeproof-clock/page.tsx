@@ -223,8 +223,8 @@ function ShiftGauge({ progress, accent, glow = false, children }: {
   )
 }
 
-function ActivityTimer({ todayTotalActiveMs, activityStartAt, isOnShift, isOnBreak, breakTotalMs, currentBreakStartAt }: {
-  todayTotalActiveMs: number; activityStartAt: number | null; isOnShift: boolean
+function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak, breakTotalMs, currentBreakStartAt }: {
+  wallClockBaseMs: number; wallClockBaseAt: number | null; isOnShift: boolean
   isOnBreak: boolean; breakTotalMs: number; currentBreakStartAt: number | null
 }) {
   const [now, setNow] = React.useState(() => Date.now())
@@ -233,9 +233,12 @@ function ActivityTimer({ todayTotalActiveMs, activityStartAt, isOnShift, isOnBre
     return () => clearInterval(id)
   }, [])
 
-  const liveMs = activityStartAt ? Math.max(0, now - activityStartAt) : 0
-  const totalMs = todayTotalActiveMs + liveMs
-  const isActive = activityStartAt !== null
+  // Authoritative wall-clock baseline (see wallClockBaseMs state declaration)
+  // plus a smooth client-side tick since it was last fetched — never regresses
+  // or resets, unlike the old ActivityInterval+heartbeat-derived mechanism.
+  const liveMs = wallClockBaseAt ? Math.max(0, now - wallClockBaseAt) : 0
+  const totalMs = wallClockBaseMs + liveMs
+  const isActive = wallClockBaseAt !== null
   const breakLiveMs = currentBreakStartAt ? Math.max(0, now - currentBreakStartAt) : 0
   const totalBreakMs = breakTotalMs + breakLiveMs
   const BREAK_LIMIT_MS = 65 * 60 * 1000
@@ -411,6 +414,16 @@ export default function TimeprofClockPage() {
   const [serverShiftStartedAt, setServerShiftStartedAt] = React.useState<string | null>(null)
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0)
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(null)
+  // Authoritative rendered-hours baseline — same wall-clock (TimeLog-based)
+  // figure that already powers the Today card and calendar, which is why
+  // those never show the "resets to zero" bug this live ticker was prone to.
+  // wallClockBaseAt marks when this baseline was fetched; the display adds
+  // (now - wallClockBaseAt) on top for smooth client-side ticking, then
+  // resyncs to a fresh authoritative baseline on every poll — so even if
+  // something is briefly off, it self-corrects within one poll cycle instead
+  // of getting stuck at a wrong, frozen, or reset value.
+  const [wallClockBaseMs, setWallClockBaseMs] = React.useState(0)
+  const [wallClockBaseAt, setWallClockBaseAt] = React.useState<number | null>(null)
   const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<number | null>(null)
   const [resumeModal, setResumeModal] = React.useState(false)
   const [resumeOriginalClockIn, setResumeOriginalClockIn] = React.useState<string | null>(null)
@@ -591,6 +604,13 @@ export default function TimeprofClockPage() {
         setServerIsShiftFromToday(!!s.isShiftFromToday)
         setServerShiftStartedAt(s.shiftStartedAt ?? null)
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000)
+        // Authoritative baseline for the displayed number — see the state
+        // declaration above for why this exists. Always trust this fresh
+        // value from the server; wallClockBaseAt is only non-null while
+        // actively on shift and not on break, so the client-side tick (see
+        // ActivityTimer) only runs when it should.
+        setWallClockBaseMs((s.wallClockRenderedSeconds ?? 0) * 1000)
+        setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? Date.now() : null)
         const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000
         const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0
         const shiftStartedRecently = shiftStartedMs > 0 && (Date.now() - shiftStartedMs) < SHIFT_AUTO_RESUME_MS
@@ -860,10 +880,10 @@ export default function TimeprofClockPage() {
   }, [isMobile, user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEndShiftClick = React.useCallback(() => {
-    const currentTotalMs = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0)
+    const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
     if (currentTotalMs < EIGHT_HOURS_MS) setShowEarlyEndModal(true)
     else setShowConfirmEndModal(true)
-  }, [todayTotalActiveMs, activityStartAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wallClockBaseMs, wallClockBaseAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEarlyEndSubmit = async () => {
     if (!earlyEndReason) return
@@ -1280,8 +1300,8 @@ export default function TimeprofClockPage() {
                 <div className="flex flex-1 items-center justify-center px-4 py-8 sm:px-8">
                   {isActive && (
                     <ActivityTimer
-                      todayTotalActiveMs={todayTotalActiveMs}
-                      activityStartAt={activityStartAt}
+                      wallClockBaseMs={wallClockBaseMs}
+                      wallClockBaseAt={wallClockBaseAt}
                       isOnShift={isActive}
                       isOnBreak={isOnBreak}
                       breakTotalMs={breakAccumulatedMs}
@@ -1744,7 +1764,7 @@ export default function TimeprofClockPage() {
               <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-4 py-3 flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Time Worked</span>
                 <span className="font-mono text-sm font-black text-zinc-200">
-                  {(() => { const ms = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return `${h}h ${m}m` })()}
+                  {(() => { const ms = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return `${h}h ${m}m` })()}
                 </span>
               </div>
               <div className="space-y-2">
@@ -1797,7 +1817,7 @@ export default function TimeprofClockPage() {
                   <p className="text-base font-black text-white">End your shift?</p>
                   <p className="text-xs text-zinc-400 mt-1 leading-relaxed">You have worked{" "}
                     <span className="text-white font-semibold">
-                      {(() => { const ms = todayTotalActiveMs + (activityStartAt ? Date.now() - activityStartAt : 0); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return `${h}h ${m}m` })()}
+                      {(() => { const ms = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return `${h}h ${m}m` })()}
                     </span>{" "}today. Are you sure you want to clock out?
                   </p>
                 </div>

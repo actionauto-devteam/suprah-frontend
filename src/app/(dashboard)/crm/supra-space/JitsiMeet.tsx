@@ -73,7 +73,7 @@ export function JitsiMeet({
           if (avatarUrl) {
             try {
               externalApi.executeCommand('avatarUrl', avatarUrl);
-            } catch {
+            } catch {nag start si user ng 4:500
             }
           }
           externalApi.addEventListeners({
