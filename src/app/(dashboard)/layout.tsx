@@ -42,6 +42,8 @@ import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import { CrmHeader } from "@/components/layout/CrmHeader";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
+import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
+import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +63,7 @@ function DashboardLayoutContent({
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { avatarUrl } = useProfileContext();
+  useCrmWebPush();
   usePresence();
   usePresenceSocket();
   const { organization, isLoaded, isSuperAdmin, isDriver, userRole } = useOrg();
@@ -77,6 +80,11 @@ function DashboardLayoutContent({
     pathname === "/crm/conversations" ||
     pathname === "/crm/feeds" ||
     pathname === "/crm/hr";
+  const showCrmPushPrompt =
+    isCrmRoute &&
+    !isSupraSpaceRoute &&
+    pathname !== "/crm/dashboard" &&
+    !pathname.startsWith("/crm/timeproof-clock");
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
 
@@ -298,6 +306,8 @@ function DashboardLayoutContent({
 
       { }
       <ChatPopupManager />
+
+      {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent size="sm">

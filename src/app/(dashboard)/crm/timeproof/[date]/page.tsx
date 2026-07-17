@@ -682,6 +682,7 @@ export default function ScreenshotGalleryPage() {
   const totalSecondsFromParam = parseInt(searchParams.get("t") ?? "0", 10) || 0
 
   const [screenshots, setScreenshots] = React.useState<Screenshot[]>([])
+  const [deletionNotices, setDeletionNotices] = React.useState<{ reason: string; at: string }[]>([])
   const [actualBreaks, setActualBreaks] = React.useState<ActualBreak[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
@@ -725,6 +726,7 @@ export default function ScreenshotGalleryPage() {
         const list: Screenshot[] = ssRes.data?.data?.screenshots ?? []
         list.sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())
         setScreenshots(list)
+        setDeletionNotices(ssRes.data?.data?.deletionNotices ?? [])
         const cal = tpRes.data?.data?.calendar ?? {}
         const dayBreaks: ActualBreak[] = cal[dateStr]?.breaks ?? []
         setActualBreaks(dayBreaks)
@@ -749,14 +751,21 @@ export default function ScreenshotGalleryPage() {
   // requested for a one-off need and should be removed again later.
   const canDeleteScreenshots = !userId || myRole === "admin" || myRole === "manager"
   const [deletingKey, setDeletingKey] = React.useState<string | null>(null)
-  const handleDeleteScreenshot = async (s: Screenshot) => {
-    const confirmMsg = userId
-      ? "Delete this screenshot? This cannot be undone, and 10 minutes will be deducted from this user's rendered hours for this day."
-      : "Delete this screenshot? This cannot be undone, and 10 minutes will be deducted from your rendered hours for this day."
-    if (!window.confirm(confirmMsg)) return
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = React.useState<Screenshot | null>(null)
+  const [deleteError, setDeleteError] = React.useState("")
+
+  const handleDeleteScreenshot = (s: Screenshot) => {
+    setDeleteError("")
+    setConfirmDeleteTarget(s)
+  }
+
+  const confirmDeleteScreenshot = async () => {
+    const s = confirmDeleteTarget
+    if (!s) return
     const token = localStorage.getItem("crm_token")
     if (!token) return
     setDeletingKey(s._id)
+    setDeleteError("")
     try {
       await apiClient.delete(`/api/crm/timeproof/screenshots?key=${encodeURIComponent(s._id)}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -768,8 +777,9 @@ export default function ScreenshotGalleryPage() {
         if (remaining <= 0) return null
         return Math.min(i, remaining - 1)
       })
+      setConfirmDeleteTarget(null)
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Failed to delete screenshot.")
+      setDeleteError(e?.response?.data?.message || "Failed to delete screenshot.")
     } finally {
       setDeletingKey(null)
     }
@@ -934,6 +944,27 @@ export default function ScreenshotGalleryPage() {
               </div>
             )}
 
+            {/* ── Deletion notices: persistent record when an admin deleted a
+                screenshot on this user's behalf — the push notification sent
+                at delete-time is easy to miss, this stays visible in-app. ── */}
+            {deletionNotices.length > 0 && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-2">
+                {deletionNotices.map((n, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <Trash2 className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">{n.reason}</p>
+                      <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                        {new Date(n.at).toLocaleString("en-US", {
+                          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* ── Screenshot Grid ── */}
             {screenshots.length === 0 ? (
               <div className="rounded-2xl border border-border/40 bg-card flex flex-col items-center justify-center py-20 gap-3">
@@ -1066,6 +1097,48 @@ export default function ScreenshotGalleryPage() {
           onDelete={handleDeleteScreenshot}
           deletingKey={deletingKey}
         />
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {confirmDeleteTarget && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget && deletingKey === null) setConfirmDeleteTarget(null) }}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl p-5 space-y-4">
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-black text-zinc-100">Delete this screenshot?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                This cannot be undone, and 10 minutes will be deducted from{" "}
+                {userId ? "this user's" : "your"} rendered hours for this day.
+              </p>
+            </div>
+
+            {deleteError && (
+              <p className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteTarget(null)}
+                disabled={deletingKey !== null}
+                className="flex-1 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteScreenshot}
+                disabled={deletingKey !== null}
+                className="flex-1 h-10 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                {deletingKey !== null ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

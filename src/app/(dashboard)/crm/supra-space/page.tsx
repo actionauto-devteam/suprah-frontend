@@ -1057,7 +1057,7 @@ function isConvUnreadForUser(conv: SSConversation, uid: string, manualUnread: Se
   return !!uid && !!msg && !msg.isDeleted && msg.sender?._id !== uid && !msg.readBy?.includes(uid);
 }
 
-function hasMentionForUser(
+function hasUnreadMentionForUser(
   conv: SSConversation,
   uid: string,
   fullName?: string | null,
@@ -1065,13 +1065,13 @@ function hasMentionForUser(
   cachedMessages?: SSMessage[],
 ): boolean {
   if (!uid) return false;
-  if ((conv.mentionCount || 0) > 0) return true;
   if ((conv.unreadMentionCount || 0) > 0) return true;
   const candidates = cachedMessages?.length ? cachedMessages : (conv.lastMessage ? [conv.lastMessage as unknown as SSMessage] : []);
   return candidates.some((msg) =>
     !!msg &&
     !msg.isDeleted &&
     msg.sender?._id !== uid &&
+    !msg.readBy?.includes(uid) &&
     contentMentionsUser(msg.content, fullName, username)
   );
 }
@@ -5247,7 +5247,7 @@ export default function SupraSpacePage() {
     const unread = isConvUnreadForUser(conv, uid, manualUnread);
     if (conversationFilter === 'unread') return unread;
     if (conversationFilter === 'read') return !unread;
-    if (conversationFilter === 'mentions') return hasMentionForUser(conv, uid, me?.fullName, me?.username, msgs[conv._id]);
+    if (conversationFilter === 'mentions') return hasUnreadMentionForUser(conv, uid, me?.fullName, me?.username, msgs[conv._id]);
     return true;
   }, [conversationFilter, uid, manualUnread, me?.fullName, me?.username, msgs]);
   const visibleConvos = convos.filter(c =>

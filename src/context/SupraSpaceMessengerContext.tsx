@@ -115,7 +115,7 @@ function sortByLastMessage(convs: SSConv[]): SSConv[] {
 function mentionBoundaryRegex(alias: string): RegExp | null {
   const normalized = alias.trim().replace(/\s+/g, ' ');
   if (!normalized) return null;
-  return new RegExp(`(^|\\s)@${normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s.,!?;:)\\]])`, 'i');
+  return new RegExp(`(^|[^\\w@])@${normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\\w])`, 'i');
 }
 
 function mentionAliasesForName(fullName: string): string[] {
@@ -128,7 +128,7 @@ function mentionAliasesForName(fullName: string): string[] {
 }
 
 function isUserMentioned(content: string, fullName: string): boolean {
-  if (/(^|\s)@all(?=$|[\s.,!?;:)\]])/i.test(content)) return true;
+  if (/(^|[^\w@])@all(?=$|[^\w])/i.test(content)) return true;
   return mentionAliasesForName(fullName).some((alias) => mentionBoundaryRegex(alias)?.test(content));
 }
 
