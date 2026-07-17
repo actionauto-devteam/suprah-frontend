@@ -21,9 +21,12 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     const { showAlert, alert, hideAlert } = useAlert()
 
     const vehicle = quote.vehicleId
+
     const vehicleName = vehicle
         ? `${vehicle.year} ${vehicle.make} ${vehicle.modelName}`
         : quote.vehicleName || 'N/A'
+
+    const isAlreadyConverted = quote.status === "booked"
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -36,22 +39,35 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
 
 
     const handleConvertToLoad = async () => {
+        if (isAlreadyConverted) {
+            showAlert({
+                type: "success",
+                title: "Already Converted",
+                message:
+                    "This quote has already been converted into a load."
+            })
+
+            return
+        }
+
         showAlert({
             type: "confirm",
             title: "Convert to Load",
-            message: `Convert this quote for ${quote.firstName} ${quote.lastName} into a dispatachable load? The quote will remain in your history.`,
+            message: `Convert this quote for ${quote.firstName} ${quote.lastName} into a dispatchable load? The quote will remain in your history.`,
             confirmText: "Yes, Convert to Load",
             cancelText: "No, Cancel",
             onConfirm: async () => {
                 setIsConvertingToLoad(true)
+
                 try {
                     await onConvertToLoad(quote._id)
                 } catch (error) {
-                    console.error('Error converting quote to load:', error)
-                    setIsConvertingToLoad(false)
+                    console.error("Error converting quote to load:", error)
                     throw error
+                } finally {
+                    setIsConvertingToLoad(false)
                 }
-            }
+            },
         })
     }
 
@@ -192,8 +208,14 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                             <span className="font-medium text-foreground">{quote.organization.name}</span>
                                         </div>
                                     )}
-                                    <Badge className="bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900 border border-yellow-200 dark:border-yellow-700">
-                                        Pending Assignment
+                                    <Badge
+                                        className={
+                                            isAlreadyConverted
+                                                ? "bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-700"
+                                                : "bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700"
+                                        }
+                                    >
+                                        {isAlreadyConverted ? "Converted to Load" : "Pending Assignment"}   
                                     </Badge>
                                 </div>
                             </div>
@@ -288,12 +310,29 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                 {/* Action Buttons */}
                                 <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 pt-2">
                                     <Button
-                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white shadow-sm h-9 sm:h-10 text-xs sm:text-sm"
+                                        className={`flex-1 shadow-sm h-9 sm:h-10 text-xs sm:text-sm ${
+                                            isAlreadyConverted
+                                                ? "bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-not-allowed"
+                                                : "bg-green-500 hover:bg-green-600 text-white"
+                                        }`}
                                         onClick={handleConvertToLoad}
-                                        disabled={isConvertingToLoad || isConvertingToLoad || isDeleting}
+                                        disabled={
+                                            isAlreadyConverted ||
+                                            isConvertingToLoad ||
+                                            isDeleting
+                                        }
                                     >
-                                        <Truck className="w-3.5 h-3.5 mr-1.5" />
-                                        {isConvertingToLoad ? 'Converting...' : 'Convert to Load'}
+                                        {isAlreadyConverted ? (
+                                            <Check className="w-3.5 h-3.5 mr-1.5" />
+                                        ) : (
+                                            <Truck className="w-3.5 h-3.5 mr-1.5" />
+                                        )}
+
+                                        {isAlreadyConverted
+                                            ? "Converted to Load"
+                                            : isConvertingToLoad
+                                                ? "Converting..."
+                                                : "Convert to Load"}
                                     </Button>
                                     <Button
                                         variant="outline"
