@@ -13,6 +13,7 @@ import {
   FolderKanban,
   HeartHandshake,
   LayoutDashboard,
+  Mail,
   MessageSquare,
   Settings,
   Truck,
@@ -122,6 +123,12 @@ const data = {
       title: "Suprah Space",
       url: "/crm/supra-space",
       icon: MessageSquare,
+    },
+    {
+      title: "Suprah Mail",
+      url: "/crm/suprah-mail",
+      icon: Mail,
+      isNew: true,
     },
     {
       title: "Feeds",
@@ -426,6 +433,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-500 text-white border-none group-data-[collapsible=icon]:hidden"
                           >
                             {totalUnread > 99 ? "99+" : totalUnread}
+                          </Badge>
+                        )}
+
+                        {/* Suprah Mail: fresh module — "New" tag until the team
+                            has lived with it for a release or two. */}
+                        {item.title === "Suprah Mail" && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            New
                           </Badge>
                         )}
 
