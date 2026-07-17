@@ -6,12 +6,16 @@ import {
   ArrowRight,
   ArrowUpDown,
   CheckSquare,
+  CircleDollarSign,
   ChevronDown,
+  CreditCard,
   Filter,
   Inbox,
   Mail,
   MessageSquare,
   Moon,
+  Plus,
+  Loader2,
   PanelRightOpen,
   RefreshCw,
   Search,
@@ -27,6 +31,13 @@ import { Vehicle } from "@/types/inventory"
 import { useTheme } from "@/context/ThemeContext"
 import { injectLeadDetailsPanelStyles, injectSS4Styles } from "@/lib/ss4-styles"
 import { cn } from "@/lib/utils"
+import type { CreatePaymentData } from "@/types/billing"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus";
@@ -64,6 +75,18 @@ const TABS = [
 
 type LeadSortOption = "newest" | "oldest" | "waiting_longest";
 type LeadsViewportMode = "narrow" | "compact" | "wide";
+
+type LeadPaymentForm = CreatePaymentData & { customerPhone?: string };
+
+const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
+  customerName: "",
+  customerEmail: "",
+  customerPhone: "",
+  amount: 0,
+  description: "",
+  dueDate: "",
+  notes: "",
+};
 
 export interface LeadsTabPendingNav {
   leadId?: string;
@@ -235,6 +258,45 @@ export function LeadsTab({
     Set<string>
   >(new Set());
   const [shippingOpen, setShippingOpen] = React.useState(false);
+  const [paymentOpen, setPaymentOpen] = React.useState(false);
+  const [isCreatingPayment, setIsCreatingPayment] = React.useState(false);
+  const [paymentForm, setPaymentForm] =
+    React.useState<LeadPaymentForm>(EMPTY_PAYMENT_FORM);
+
+  // The shipping modal expects inventory-style Vehicle objects with an `id`.
+  // A CRM lead usually stores only a partial vehicle snapshot, so normalize it
+  // before passing it to the quote dropdown.
+  const quoteVehicle = React.useMemo<Vehicle | null>(() => {
+    const vehicle = selectedLead?.vehicle as any;
+    if (!vehicle) return null;
+
+    const id = String(
+      vehicle.id ||
+        vehicle._id ||
+        vehicle.stockNumber ||
+        vehicle.stock ||
+        `lead-vehicle-${selectedLead?._id || "unknown"}`,
+    );
+
+    return {
+      ...vehicle,
+      id,
+      _id: vehicle._id || id,
+      year: Number(vehicle.year) || new Date().getFullYear(),
+      make: vehicle.make || "Unknown",
+      model: vehicle.model || "Vehicle",
+      stockNumber: vehicle.stockNumber || vehicle.stock || "N/A",
+      vin: vehicle.vin || "N/A",
+      location: vehicle.location || "Action Auto - Orem, UT",
+      image: vehicle.image || vehicle.imageUrl || "",
+      price: Number(vehicle.price) || 0,
+    } as Vehicle;
+  }, [selectedLead?._id, selectedLead?.vehicle]);
+
+  const quoteVehicles = React.useMemo<Vehicle[]>(
+    () => (quoteVehicle ? [quoteVehicle] : []),
+    [quoteVehicle],
+  );
 
   // -- Bulk reply: select mode + selection --
   const [selectMode, setSelectMode] = React.useState(false);
@@ -811,6 +873,154 @@ const fetchThread = React.useCallback(
     }
   };
 
+  const openQuoteModal = () => {
+    if (!selectedLead) {
+      addToast("error", "Please select a lead first");
+      return;
+    }
+
+    setShippingOpen(true);
+  };
+
+  const openPaymentRequest = () => {
+    if (!selectedLead) {
+      addToast("error", "Please select a lead first");
+      return;
+    }
+
+    const customerName =
+      [selectedLead.firstName, selectedLead.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      selectedLead.senderName ||
+      "";
+
+    const customerEmail =
+      selectedLead.email || selectedLead.senderEmail || "";
+
+    if (!customerEmail) {
+      addToast("error", "This lead does not have an email address");
+      return;
+    }
+
+    const vehicleDescription = [
+      selectedLead.vehicle?.year,
+      selectedLead.vehicle?.make,
+      selectedLead.vehicle?.model,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    setPaymentForm({
+      customerName,
+      customerEmail,
+      customerPhone: selectedLead.phone || "",
+      amount: 0,
+      description: vehicleDescription
+        ? `Payment for ${vehicleDescription}`
+        : "Payment request",
+      dueDate: "",
+      notes: selectedLead._id
+        ? `Created from CRM lead ${selectedLead._id}`
+        : "Created from CRM Leads",
+    });
+    setPaymentOpen(true);
+  };
+
+  const handleCreateAndRequestPayment = async () => {
+    if (isCreatingPayment) return;
+
+    const customerName = paymentForm.customerName.trim();
+    const customerEmail = paymentForm.customerEmail.trim();
+    const description = paymentForm.description.trim();
+    const amount = Number(paymentForm.amount);
+
+    if (!customerName || !customerEmail || !description || amount <= 0) {
+      addToast(
+        "error",
+        "Customer name, email, amount, and description are required",
+      );
+      return;
+    }
+
+    setIsCreatingPayment(true);
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Authentication required");
+
+      const createResponse = await apiClient.post(
+        "/api/payments",
+        {
+          customerName,
+          customerEmail,
+          customerPhone: paymentForm.customerPhone?.trim() || undefined,
+          amount,
+          currency: "usd",
+          description,
+          dueDate: paymentForm.dueDate || undefined,
+          notes: paymentForm.notes?.trim() || undefined,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      const payment = createResponse.data?.data;
+      const paymentId = payment?._id || payment?.id;
+
+      if (!paymentId) {
+        throw new Error("Payment was created without an ID");
+      }
+
+      try {
+        await apiClient.post(
+          `/api/payments/${paymentId}/request`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        addToast("success", "Payment created and request sent");
+      } catch (requestError: any) {
+        const status = requestError?.response?.status;
+
+        const requestMessage =
+          requestError?.response?.data?.message ||
+          requestError?.response?.data?.data?.message ||
+          "The payment was created, but the request could not be sent";
+
+        if (status === 404 || status === 409) {
+          addToast(
+            "error",
+            "Payment created successfully, but the customer does not have a registered account yet. Ask them to sign up before sending the payment request.",
+          );
+        } else {
+          addToast(
+            "error",
+            `Payment created, but request not sent: ${requestMessage}`,
+          );
+        }
+      }
+
+      setPaymentOpen(false);
+      setPaymentForm(EMPTY_PAYMENT_FORM);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.data?.message ||
+        error?.message ||
+        "Failed to create payment";
+
+      addToast("error", message);
+    } finally {
+      setIsCreatingPayment(false);
+    }
+  };
+
   const handleCalculateQuote = async (formData: any) => {
     try {
       const token = await getToken();
@@ -1302,7 +1512,7 @@ const fetchThread = React.useCallback(
                   isSending={isSending}
                   onStatusChange={handleStatus}
                   onApptOpen={() => setApptOpen(true)}
-                  onQuoteShipping={() => setShippingOpen(true)}
+                  onQuoteShipping={openQuoteModal}
                   onReopen={(reason) =>
                     handleStatus("Pending", reason)
                   }
@@ -1428,9 +1638,8 @@ const fetchThread = React.useCallback(
                 onAppointment={() =>
                   setApptOpen(true)
                 }
-                onQuote={() =>
-                  setShippingOpen(true)
-                }
+                onCalculateQuote={openQuoteModal}
+                onRequestPayment={openPaymentRequest}
                 onAddNote={async (note) => {
                   if (!selectedLead?._id) {
                     throw new Error(
@@ -1469,27 +1678,35 @@ const fetchThread = React.useCallback(
         entryTypeLock="appointment"
       />
 
+      <LeadPaymentDialog
+        open={paymentOpen}
+        form={paymentForm}
+        isCreating={isCreatingPayment}
+        onOpenChange={(open) => {
+          if (!isCreatingPayment) {
+            setPaymentOpen(open);
+          }
+        }}
+        onFormChange={setPaymentForm}
+        onSubmit={() => void handleCreateAndRequestPayment()}
+      />
+
       <ShippingQuoteModal
         open={shippingOpen}
         onOpenChange={setShippingOpen}
-        vehicles={[]}
+        vehicles={quoteVehicles}
         onCalculate={handleCalculateQuote}
-        defaultVehicle={
-          selectedLead?.vehicle
-            ? ({
-                make: selectedLead.vehicle.make,
-                model: selectedLead.vehicle.model,
-                year: parseInt(selectedLead.vehicle.year),
-              } as any)
-            : undefined
-        }
+        defaultVehicle={quoteVehicle}
         initialData={
           selectedLead
             ? {
-                firstName: selectedLead.firstName,
-                lastName: selectedLead.lastName,
-                email: selectedLead.email,
-                phone: selectedLead.phone,
+                firstName: selectedLead.firstName || "",
+                lastName: selectedLead.lastName || "",
+                email:
+                  selectedLead.email ||
+                  selectedLead.senderEmail ||
+                  "",
+                phone: selectedLead.phone || "",
               }
             : undefined
         }
@@ -1510,5 +1727,201 @@ const fetchThread = React.useCallback(
         isSending={isBulkReplying}
       />
     </div>
+  );
+}
+
+function LeadPaymentDialog({
+  open,
+  form,
+  isCreating,
+  onOpenChange,
+  onFormChange,
+  onSubmit,
+}: {
+  open: boolean;
+  form: LeadPaymentForm;
+  isCreating: boolean;
+  onOpenChange: (open: boolean) => void;
+  onFormChange: (form: LeadPaymentForm) => void;
+  onSubmit: () => void;
+}) {
+  const fieldClass =
+    "w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none ring-offset-background transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        overlayClassName="!z-[2147483000] bg-black/70 backdrop-blur-[4px]"
+        className="!z-[2147483001] w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-[500px] max-h-[90dvh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
+      >
+
+        <div className="space-y-3 border-b border-border pb-4">
+          <DialogTitle className="text-lg font-bold text-foreground">
+            Request Payment
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Create a pending payment and send the request to this lead.
+          </DialogDescription>
+        </div>
+
+        <div className="space-y-6 pt-4">
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-primary">
+              <CircleDollarSign className="h-4 w-4" />
+              <span className="text-sm font-semibold">Customer Information</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <PaymentField label="Customer name" required>
+                <input
+                  value={form.customerName}
+                  onChange={(event) =>
+                    onFormChange({ ...form, customerName: event.target.value })
+                  }
+                  className={fieldClass}
+                  placeholder="Full name"
+                  disabled={isCreating}
+                />
+              </PaymentField>
+
+              <PaymentField label="Email" required>
+                <input
+                  type="email"
+                  value={form.customerEmail}
+                  onChange={(event) =>
+                    onFormChange({ ...form, customerEmail: event.target.value })
+                  }
+                  className={fieldClass}
+                  placeholder="customer@example.com"
+                  disabled={isCreating}
+                />
+              </PaymentField>
+            </div>
+
+            <PaymentField label="Phone">
+              <input
+                type="tel"
+                value={form.customerPhone || ""}
+                onChange={(event) =>
+                  onFormChange({ ...form, customerPhone: event.target.value })
+                }
+                className={fieldClass}
+                placeholder="Phone number"
+                disabled={isCreating}
+              />
+            </PaymentField>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-primary">
+              <CreditCard className="h-4 w-4" />
+              <span className="text-sm font-semibold">Payment Details</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <PaymentField label="Amount (USD)" required>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.amount ? String(form.amount) : ""}
+                  onChange={(event) =>
+                    onFormChange({
+                      ...form,
+                      amount: Number.parseFloat(event.target.value) || 0,
+                    })
+                  }
+                  className={fieldClass}
+                  placeholder="0.00"
+                  disabled={isCreating}
+                />
+              </PaymentField>
+
+              <PaymentField label="Due date">
+                <input
+                  type="date"
+                  value={form.dueDate || ""}
+                  onChange={(event) =>
+                    onFormChange({ ...form, dueDate: event.target.value })
+                  }
+                  className={fieldClass}
+                  disabled={isCreating}
+                />
+              </PaymentField>
+            </div>
+
+            <PaymentField label="Description" required>
+              <input
+                value={form.description}
+                onChange={(event) =>
+                  onFormChange({ ...form, description: event.target.value })
+                }
+                className={fieldClass}
+                placeholder="Payment description"
+                disabled={isCreating}
+              />
+            </PaymentField>
+
+            <PaymentField label="Notes">
+              <textarea
+                rows={4}
+                value={form.notes || ""}
+                onChange={(event) =>
+                  onFormChange({ ...form, notes: event.target.value })
+                }
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none ring-offset-background transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Optional internal notes"
+                disabled={isCreating}
+              />
+            </PaymentField>
+          </section>
+
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={
+              isCreating ||
+              !form.customerName.trim() ||
+              !form.customerEmail.trim() ||
+              Number(form.amount) <= 0 ||
+              !form.description.trim()
+            }
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isCreating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating and sending…
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Create and request payment
+              </>
+            )}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PaymentField({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-medium text-foreground">
+        {label}
+        {required ? <span className="ml-1 text-primary">*</span> : null}
+      </span>
+      {children}
+    </label>
   );
 }

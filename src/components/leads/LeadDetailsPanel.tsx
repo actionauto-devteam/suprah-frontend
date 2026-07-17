@@ -25,7 +25,8 @@ interface LeadDetailsPanelProps {
   onClose: () => void;
   onStatusChange: (status: string) => void;
   onAppointment: () => void;
-  onQuote: () => void;
+  onRequestPayment: () => void;
+  onCalculateQuote: () => void;
   onAddNote: (note: string) => void | Promise<void>;
 }
 
@@ -90,7 +91,8 @@ export function LeadDetailsPanel({
   onClose,
   onStatusChange,
   onAppointment,
-  onQuote,
+  onRequestPayment,
+  onCalculateQuote,
   onAddNote,
 }: LeadDetailsPanelProps) {
   const [tab, setTab] = React.useState<PanelTab>("details");
@@ -329,7 +331,7 @@ export function LeadDetailsPanel({
 
         <button
           type="button"
-          onClick={onQuote}
+          onClick={onRequestPayment}
           title="Request payment"
         >
           <CircleDollarSign size={16} />
@@ -347,7 +349,7 @@ export function LeadDetailsPanel({
 
         <button
           type="button"
-          onClick={onQuote}
+          onClick={onCalculateQuote}
           title="Calculate quote"
         >
           <Calculator size={16} />
