@@ -51,26 +51,27 @@ export function DriverTrackerMap({
   mapFilter = "all",
   onMapFilterChange,
 }: DriverTrackerMapProps) {
-  /*
-   * The existing parent component already sends messages such as
-   * "Loading map data..." through mapNotice.
-   *
-   * We use that message to determine whether the dark loading overlay
-   * should be displayed.
-   */
   const isMapLoading =
     Boolean(mapboxToken) &&
     Boolean(mapNotice?.toLowerCase().includes("loading"));
 
-  /*
-   * Non-loading notices are displayed as normal informational notices.
-   * This prevents the loading message from appearing twice.
-   */
   const informationalNotice =
     mapNotice && !isMapLoading ? mapNotice : null;
 
   return (
-    <Card className="border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0">
+    <Card
+      className="
+        overflow-hidden
+        border-border/50
+        bg-card
+        text-card-foreground
+        p-0
+        gap-0
+        shadow-sm
+        transition-colors
+        duration-300
+      "
+    >
       <CardContent className="p-0">
         <div
           className="
@@ -83,23 +84,46 @@ export function DriverTrackerMap({
             lg:max-h-none
             overflow-hidden
             touch-none
-            bg-[#050505]
-            dark:bg-[#050505]
+            bg-background
+            text-foreground
+            transition-colors
+            duration-300
           "
         >
           {/* Map container */}
           {mapboxToken ? (
             <div
               ref={mapRef}
-              className="h-full w-full bg-[#050505]"
+              className="
+                h-full
+                w-full
+                bg-background
+                transition-colors
+                duration-300
+              "
               style={{
                 width: "100%",
                 height: "100%",
-                backgroundColor: "#050505",
               }}
             />
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-4 text-center bg-background">
+            <div
+              className="
+                absolute
+                inset-0
+                flex
+                flex-col
+                items-center
+                justify-center
+                gap-3
+                px-4
+                text-center
+                bg-background
+                text-foreground
+                transition-colors
+                duration-300
+              "
+            >
               <div className="size-16 rounded-2xl bg-muted/60 flex items-center justify-center">
                 <Satellite className="size-8 text-muted-foreground/40" />
               </div>
@@ -110,7 +134,7 @@ export function DriverTrackerMap({
             </div>
           )}
 
-          {/* Dark loading overlay */}
+          {/* Theme-aware loading overlay */}
           {isMapLoading && (
             <div
               className="
@@ -120,8 +144,10 @@ export function DriverTrackerMap({
                 flex
                 items-center
                 justify-center
-                bg-[#050505]
-                dark:bg-[#050505]
+                bg-background
+                text-foreground
+                transition-colors
+                duration-300
               "
               role="status"
               aria-live="polite"
@@ -129,9 +155,17 @@ export function DriverTrackerMap({
             >
               <div className="flex flex-col items-center gap-4 px-6 text-center">
                 <div className="relative flex size-16 items-center justify-center">
-                  <div className="absolute inset-0 rounded-2xl bg-emerald-500/10 animate-pulse" />
+                  <div
+                    className="
+                      absolute
+                      inset-0
+                      rounded-2xl
+                      bg-primary/10
+                      animate-pulse
+                    "
+                  />
 
-                  <MapPinned className="relative size-7 text-emerald-500" />
+                  <MapPinned className="relative size-7 text-primary" />
 
                   <div
                     className="
@@ -139,25 +173,33 @@ export function DriverTrackerMap({
                       -inset-2
                       rounded-full
                       border-2
-                      border-emerald-500/20
-                      border-t-emerald-500
+                      border-primary/20
+                      border-t-primary
                       animate-spin
                     "
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-sm font-semibold text-foreground">
                     Loading map data
                   </p>
 
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-muted-foreground">
                     Preparing live driver locations...
                   </p>
                 </div>
 
-                <div className="h-1 w-40 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full w-1/2 rounded-full bg-emerald-500 animate-map-loading-bar" />
+                <div className="h-1 w-40 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="
+                      h-full
+                      w-1/2
+                      rounded-full
+                      bg-primary
+                      animate-map-loading-bar
+                    "
+                  />
                 </div>
               </div>
             </div>
@@ -168,19 +210,21 @@ export function DriverTrackerMap({
             <div className="absolute inset-0 z-10 flex items-center justify-center px-4 pointer-events-none">
               <div
                 className="
+                  max-w-full
                   rounded-xl
-                  bg-background/90
-                  backdrop-blur-sm
                   border
                   border-border/50
+                  bg-background/90
                   px-4
-                  sm:px-6
                   py-3
                   shadow-lg
-                  max-w-full
+                  backdrop-blur-sm
+                  transition-colors
+                  duration-300
+                  sm:px-6
                 "
               >
-                <p className="text-xs text-muted-foreground font-medium text-center">
+                <p className="text-xs font-medium text-center text-muted-foreground">
                   {informationalNotice}
                 </p>
               </div>
@@ -196,21 +240,23 @@ export function DriverTrackerMap({
                 top-2.5
                 left-2.5
                 right-2.5
-                sm:right-auto
-                sm:top-4
-                sm:left-4
-                rounded-xl
-                bg-background/90
-                backdrop-blur-sm
-                border
-                border-border/50
-                shadow-lg
-                p-1.5
                 flex
                 items-center
                 gap-1
                 overflow-x-auto
+                rounded-xl
+                border
+                border-border/50
+                bg-background/90
+                p-1.5
+                shadow-lg
+                backdrop-blur-sm
+                transition-colors
+                duration-300
                 no-scrollbar
+                sm:right-auto
+                sm:top-4
+                sm:left-4
               "
             >
               <Filter className="size-3.5 text-muted-foreground ml-1 mr-0.5 shrink-0" />
@@ -229,6 +275,8 @@ export function DriverTrackerMap({
                     font-bold
                     rounded-lg
                     shrink-0
+                    transition-colors
+                    duration-200
                     ${
                       mapFilter === filter.key
                         ? "shadow-sm"
@@ -272,15 +320,16 @@ export function DriverTrackerMap({
                         className="
                           size-10
                           sm:size-9
-                          shadow-md
-                          bg-background/90
-                          backdrop-blur-sm
                           border
                           border-border/50
-                          hover:bg-background
-                          hover:shadow-lg
+                          bg-background/90
+                          text-foreground
+                          shadow-md
+                          backdrop-blur-sm
                           transition-all
                           duration-200
+                          hover:bg-background
+                          hover:shadow-lg
                         "
                         onClick={button.action}
                         aria-label={button.label}
@@ -306,17 +355,20 @@ export function DriverTrackerMap({
                 z-10
                 bottom-2.5
                 left-2.5
-                sm:bottom-4
-                sm:left-4
+                w-40
                 rounded-xl
-                bg-background/90
-                backdrop-blur-sm
                 border
                 border-border/50
+                bg-background/90
+                text-foreground
                 shadow-lg
-                w-40
-                sm:w-44
+                backdrop-blur-sm
+                transition-colors
+                duration-300
                 group
+                sm:bottom-4
+                sm:left-4
+                sm:w-44
               "
               open
             >
@@ -326,11 +378,11 @@ export function DriverTrackerMap({
                   items-center
                   justify-between
                   p-3
-                  sm:p-4
-                  sm:pb-0
                   cursor-pointer
                   list-none
                   select-none
+                  sm:p-4
+                  sm:pb-0
                   [&::-webkit-details-marker]:hidden
                 "
               >
@@ -380,7 +432,6 @@ export function DriverTrackerMap({
                       {item.pulse && (
                         <span
                           className={`
-                            animate-ping
                             absolute
                             inline-flex
                             h-full
@@ -388,6 +439,7 @@ export function DriverTrackerMap({
                             rounded-full
                             ${item.color}
                             opacity-40
+                            animate-ping
                           `}
                         />
                       )}
