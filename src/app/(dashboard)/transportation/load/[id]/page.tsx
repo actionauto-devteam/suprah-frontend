@@ -397,7 +397,7 @@ export default function LoadDetailsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* ── Left Column (Vehicles) ── */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-border shadow-sm bg-card overflow-hidden p-0">

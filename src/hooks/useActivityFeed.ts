@@ -44,11 +44,13 @@ export function useActivityFeed(userId?: string) {
         headers: { Authorization: `Bearer ${token}` },
         params: { limit: FEED_PAGE_SIZE, before: pageParam || undefined, userId },
       });
-      return res.data.data;
+      return res.data?.data || res.data || [];
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
-      lastPage.length === FEED_PAGE_SIZE ? lastPage[lastPage.length - 1].createdAt : undefined,
+      Array.isArray(lastPage) && lastPage.length === FEED_PAGE_SIZE
+        ? lastPage[lastPage.length - 1].createdAt
+        : undefined,
     enabled: !!isSignedIn,
     refetchInterval: 60_000,
     staleTime: 15_000,

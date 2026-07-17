@@ -530,6 +530,7 @@ export default function TeamPulsePage() {
                 myUserId={myUserId}
                 todayAbsences={todayAbsences}
                 onMemberClick={(id) => setOpenMemberId(id)}
+                isAdmin={isAdmin}
               />
             )}
 

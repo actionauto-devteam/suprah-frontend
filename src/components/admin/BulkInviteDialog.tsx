@@ -88,7 +88,7 @@ export function BulkInviteDialog() {
                     Bulk Invite
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-125">
                 <DialogHeader>
                     <DialogTitle>Bulk Invite Team Members</DialogTitle>
                     <DialogDescription>
@@ -103,7 +103,7 @@ export function BulkInviteDialog() {
                             <Textarea
                                 id="emails"
                                 placeholder="john@example.com, jane@example.com..."
-                                className="min-h-[150px] resize-none max-w-[450px]"
+                                className="min-h-37.5 resize-none max-w-112.5"
                                 value={emails}
                                 onChange={(e) => setEmails(e.target.value)}
                             />

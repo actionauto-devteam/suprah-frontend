@@ -180,7 +180,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
 
                         {socialLinks.length > 0 && (
                             <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-800">
-                                <p className="text-[9px] uppercase font-bold tracking-widest text-gray-400 mb-3">Links</p>
+                                <p className="text-[9px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500 mb-3">Links</p>
                                 <div className="flex flex-wrap gap-2">
                                     {socialLinks.map((link: any, i: number) => (
                                         <button
@@ -190,7 +190,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
                                         >
                                             <Link2 className="size-3 text-emerald-500" />
                                             <span className="truncate max-w-32">{link.label || link.url}</span>
-                                            <ExternalLink className="size-2.5 text-gray-400 group-hover/link:text-emerald-500 transition-colors" />
+                                            <ExternalLink className="size-2.5 text-gray-400 dark:text-gray-500 group-hover/link:text-emerald-500 transition-colors" />
                                         </button>
                                     ))}
                                 </div>
@@ -227,7 +227,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold truncate group-hover/act:text-purple-600 dark:group-hover/act:text-purple-400 transition-colors">{activity.title}</p>
-                                            <p className="text-[10px] font-medium text-gray-400 mt-0.5">{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</p>
+                                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-0.5">{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</p>
                                         </div>
                                     </div>
                                 </button>
@@ -235,7 +235,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
                             {activities.length === 0 && (
                                 <div className="p-10 text-center">
                                     <History className="size-8 text-gray-200 dark:text-gray-800 mx-auto mb-3" />
-                                    <p className="text-gray-400 text-sm">No recent activity</p>
+                                    <p className="text-gray-400 dark:text-gray-500 text-sm">No recent activity</p>
                                 </div>
                             )}
                         </div>
@@ -313,7 +313,7 @@ export const ProfileOverviewTab: React.FC<ProfileOverviewTabProps> = ({
                         <AlertDialogDescription className="space-y-2">
                             <span className="block">You are about to visit an external website:</span>
                             <span className="block font-mono text-xs bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg break-all">{pendingLink?.url}</span>
-                            <span className="block text-xs text-gray-500">Make sure you trust this link before proceeding.</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400">Make sure you trust this link before proceeding.</span>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

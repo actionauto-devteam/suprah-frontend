@@ -76,7 +76,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                     <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800">
                         <div className={cn(
                             "w-2 h-2 rounded-full",
-                            getNotificationStats().enabled > 0 ? "bg-green-500" : "bg-gray-400"
+                            getNotificationStats().enabled > 0 ? "bg-green-500" : "bg-gray-400 dark:bg-gray-600"
                         )} />
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                             {getNotificationStats().enabled}/{getNotificationStats().total}

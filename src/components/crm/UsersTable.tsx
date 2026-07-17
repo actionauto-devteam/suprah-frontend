@@ -275,7 +275,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
   }
 
   const fetchUsers = React.useCallback(async (targetPage: number) => {
-    if (!token) return
+    if (!token) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const params = new URLSearchParams({
       page: String(targetPage),
@@ -306,13 +309,16 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
       })
 
       const data = res.data?.data || res.data
-      const nextUsers = data?.users || []
-      const nextPagination = data?.pagination || {
-        page: targetPage,
-        limit: pageSize,
-        total: data?.total || nextUsers.length,
-        totalPages: Math.ceil((data?.total || nextUsers.length) / pageSize),
-      }
+      const nextUsers = Array.isArray(data?.users) ? data.users : []
+      const rawTotal = typeof data?.total === "number" ? data.total : nextUsers.length
+      const nextPagination = data?.pagination && typeof data.pagination === "object"
+        ? data.pagination
+        : {
+          page: targetPage,
+          limit: pageSize,
+          total: rawTotal,
+          totalPages: Math.ceil(rawTotal / pageSize),
+        }
 
       if (nextPagination.totalPages > 0 && targetPage > nextPagination.totalPages) {
         setPage(nextPagination.totalPages)

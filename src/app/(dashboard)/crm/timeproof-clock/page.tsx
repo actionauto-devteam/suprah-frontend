@@ -1274,7 +1274,7 @@ export default function TimeprofClockPage() {
       <div className="w-full px-4 sm:px-6 py-5">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4 items-start">
 
-          <div className="space-y-4 lg:sticky lg:top-14.25 lg:self-start">
+          <div className="space-y-4">
 
             <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
               <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">

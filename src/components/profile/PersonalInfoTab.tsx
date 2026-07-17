@@ -121,7 +121,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
                             maxLength={500}
                         />
                         <div className="flex justify-between items-center">
-                            <span className={cn("text-xs font-medium transition-colors", bioError ? "text-red-500" : "text-gray-500")}>
+                            <span className={cn("text-xs font-medium transition-colors", bioError ? "text-red-500 dark:text-red-400" : "text-gray-500 dark:text-gray-400")}>
                                 {bioError || `${(personalInfo.bio?.length || 0)}/500 characters`}
                             </span>
                             {(personalInfo.bio?.length || 0) > 450 && (

@@ -259,12 +259,12 @@ export default function ProfileImageCropper({
                     <Label className="text-xs font-semibold flex items-center gap-1.5">
                       <ZoomIn className="size-3.5 text-emerald-600" /> Zoom
                     </Label>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
                       {Math.round(zoom * 100)}%
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <ZoomOut className="size-3.5 text-gray-400" />
+                    <ZoomOut className="size-3.5 text-gray-400 dark:text-gray-500" />
                     <Slider
                       value={[zoom]}
                       min={1}
@@ -273,7 +273,7 @@ export default function ProfileImageCropper({
                       onValueChange={(v: number[]) => setZoom(v[0])}
                       className="flex-1"
                     />
-                    <ZoomIn className="size-3.5 text-gray-400" />
+                    <ZoomIn className="size-3.5 text-gray-400 dark:text-gray-500" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -282,7 +282,7 @@ export default function ProfileImageCropper({
                       <RotateCw className="size-3.5 text-emerald-600" />{" "}
                       Rotation
                     </Label>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
                       {rotation}\u00b0
                     </span>
                   </div>
@@ -295,7 +295,7 @@ export default function ProfileImageCropper({
                     className="flex-1"
                   />
                 </div>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-emerald-600 transition-colors cursor-pointer pt-1">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer pt-1">
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"

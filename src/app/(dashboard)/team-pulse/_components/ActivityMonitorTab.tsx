@@ -283,12 +283,14 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
   const { openDm } = useOpenDm();
   const meta = EVENT_META[event.type] ?? EVENT_META.offline;
   const Icon = meta.icon;
-  const initials = event.userName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const userName = event.userName || "";
+  const description = event.description || "";
+  const initials = userName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const canChat = event.userId !== myUserId;
   const m = event.meta ?? {};
 
   const chips: string[] = [];
-  if (typeof m.placeName === "string" && !event.description.includes(m.placeName)) chips.push(m.placeName);
+  if (typeof m.placeName === "string" && !description.includes(m.placeName)) chips.push(m.placeName);
   if (typeof m.durationMin === "number" && m.durationMin > 0) chips.push(`${m.durationMin}m`);
   if (typeof m.topSpeedMph === "number") chips.push(`top ${Math.round(m.topSpeedMph)} mph`);
   if (typeof m.distanceMi === "number" && m.distanceMi > 0) chips.push(`${m.distanceMi.toFixed(1)} mi`);
@@ -308,7 +310,7 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
           disabled={!canChat}
         >
           {event.userAvatar ? (
-            <img src={event.userAvatar} alt={event.userName} className="size-7 rounded-full object-cover" />
+            <img src={event.userAvatar} alt={userName} className="size-7 rounded-full object-cover" />
           ) : (
             <div className="size-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[9px] font-black text-primary">
               {initials}
@@ -325,9 +327,9 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
 
       <div className="flex-1 min-w-0">
         <p className="text-[11px] text-foreground/90 leading-snug">
-          <span className="font-semibold">{event.userName}</span>
+          <span className="font-semibold">{userName}</span>
           {" · "}
-          <span className="text-muted-foreground/80">{event.description.replace(event.userName, "").trim()}</span>
+          <span className="text-muted-foreground/80">{description.replace(userName, "").trim()}</span>
         </p>
         {chips.length > 0 && (
           <div className="flex items-center gap-1 mt-1 flex-wrap">

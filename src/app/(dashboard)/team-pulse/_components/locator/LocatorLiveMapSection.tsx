@@ -427,68 +427,97 @@ export function LocatorLiveMapSection({
     if (!mapboxToken || !mapRef.current || mapInstanceRef.current) return;
     let cancelled = false;
 
+    let loadTimeout: number | undefined;
+
     const initMap = async () => {
-      const mapboxgl = (await import("mapbox-gl")).default;
-      if (cancelled || !mapRef.current) return;
+      try {
+        const mapboxgl = (await import("mapbox-gl")).default;
+        if (cancelled || !mapRef.current) return;
 
-      if (!mapboxToken.startsWith("pk.")) {
-        setMapNotice("Invalid Mapbox token. Use a public token starting with pk.");
-        return;
-      }
-      if (!mapboxgl.supported()) {
-        setMapNotice("Mapbox requires WebGL. Please enable hardware acceleration.");
-        return;
-      }
-
-      mapboxgl.accessToken = mapboxToken;
-      mapThemeRef.current = theme;
-      const map = new mapboxgl.Map({
-        container: mapRef.current,
-        style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12",
-        center: [MAP_CENTER.lng, MAP_CENTER.lat],
-        zoom: 4,
-        attributionControl: false,
-      });
-
-      mapInstanceRef.current = map;
-      setMapNotice("Loading map tiles...");
-      map.on("load", () => map.resize());
-      map.on("idle", () => setMapNotice(null));
-      map.on("error", (e: any) => setMapNotice(e?.error?.message || "Map failed to load"));
-      map.on("zoom", () => setZoom(map.getZoom()));
-      map.on("rotate", () => setBearing(map.getBearing()));
-      map.on("zoom", scheduleViewUpdate);
-      map.on("move", scheduleViewUpdate);
-
-      // Container size can change without the window resizing (maximize toggle, device
-      // rotation, sidebar collapse) — Mapbox only auto-detects the very first layout, so
-      // without this the canvas keeps rendering at its old size until something else
-      // happens to call resize().
-      if (typeof ResizeObserver !== "undefined" && mapRef.current) {
-        const observer = new ResizeObserver(() => map.resize());
-        observer.observe(mapRef.current);
-        resizeObserverRef.current = observer;
-      }
-
-      map.on("click", (e: any) => {
-        if (placePickModeRef.current) {
-          onPlacePickedRef.current?.(e.lngLat.lat, e.lngLat.lng);
+        if (!mapboxToken.startsWith("pk.")) {
+          setMapNotice("Invalid Mapbox token. Use a public token starting with pk.");
           return;
         }
-        clearSelectionRef.current?.();
-      });
+        if (!mapboxgl.supported()) {
+          setMapNotice("Mapbox requires WebGL. Please enable hardware acceleration.");
+          return;
+        }
 
-      if (focusRef) {
-        focusRef.current = (lat: number, lng: number) => {
-          map.flyTo({ center: [lng, lat], zoom: 15, essential: true });
-          mapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-        };
+        mapboxgl.accessToken = mapboxToken;
+        mapThemeRef.current = theme;
+        const map = new mapboxgl.Map({
+          container: mapRef.current,
+          style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12",
+          center: [MAP_CENTER.lng, MAP_CENTER.lat],
+          zoom: 4,
+          attributionControl: false,
+        });
+
+        mapInstanceRef.current = map;
+        setMapNotice("Loading map tiles...");
+
+        // Mapbox's "idle" event is the only thing that clears the loading notice — if the
+        // style/tile request stalls or fails silently without emitting an "error" event, the
+        // notice would otherwise stay stuck forever. This timeout guarantees the user always
+        // sees a terminal state.
+        loadTimeout = window.setTimeout(() => {
+          if (!map.isStyleLoaded()) {
+            setMapNotice("Map style not loaded. Check token or network.");
+          }
+        }, 8000);
+
+        map.on("load", () => {
+          window.clearTimeout(loadTimeout);
+          map.resize();
+        });
+        map.on("idle", () => {
+          window.clearTimeout(loadTimeout);
+          setMapNotice(null);
+        });
+        map.on("error", (e: any) => {
+          window.clearTimeout(loadTimeout);
+          const status = e?.error?.status;
+          const message = e?.error?.message || "Map failed to load";
+          setMapNotice(status ? `${message} (HTTP ${status})` : message);
+        });
+        map.on("zoom", () => setZoom(map.getZoom()));
+        map.on("rotate", () => setBearing(map.getBearing()));
+        map.on("zoom", scheduleViewUpdate);
+        map.on("move", scheduleViewUpdate);
+
+        // Container size can change without the window resizing (maximize toggle, device
+        // rotation, sidebar collapse) — Mapbox only auto-detects the very first layout, so
+        // without this the canvas keeps rendering at its old size until something else
+        // happens to call resize().
+        if (typeof ResizeObserver !== "undefined" && mapRef.current) {
+          const observer = new ResizeObserver(() => map.resize());
+          observer.observe(mapRef.current);
+          resizeObserverRef.current = observer;
+        }
+
+        map.on("click", (e: any) => {
+          if (placePickModeRef.current) {
+            onPlacePickedRef.current?.(e.lngLat.lat, e.lngLat.lng);
+            return;
+          }
+          clearSelectionRef.current?.();
+        });
+
+        if (focusRef) {
+          focusRef.current = (lat: number, lng: number) => {
+            map.flyTo({ center: [lng, lat], zoom: 15, essential: true });
+            mapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          };
+        }
+      } catch {
+        if (!cancelled) setMapNotice("Failed to initialize map");
       }
     };
 
     initMap();
     return () => {
       cancelled = true;
+      window.clearTimeout(loadTimeout);
       if (focusRef) focusRef.current = null;
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
@@ -518,7 +547,12 @@ export function LocatorLiveMapSection({
     mapThemeRef.current = theme;
     setMapNotice("Applying theme...");
     map.setStyle(theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12");
-    map.once("idle", () => setMapNotice(null));
+    const themeTimeout = window.setTimeout(() => setMapNotice(null), 8000);
+    map.once("idle", () => {
+      window.clearTimeout(themeTimeout);
+      setMapNotice(null);
+    });
+    return () => window.clearTimeout(themeTimeout);
   }, [theme]);
 
   React.useEffect(() => {

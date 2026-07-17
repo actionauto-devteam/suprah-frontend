@@ -275,12 +275,18 @@ function VehicleForm({ value, onChange, errors = {} }: VehicleFormProps) {
       <div className="grid grid-cols-2 gap-3">
         <VinPicker value={value} onChange={onChange} />
         <Field label="Color">
-          <Input 
-            placeholder="Silver" 
-            value={value.color} 
-            onChange={set("color")} 
-            maxLength={20} 
-            className={`h-9 text-sm ${errors.color ? "border-destructive focus-visible:ring-destructive/20" : ""}`} 
+          <div className="invisible flex gap-1 mb-1.5" aria-hidden="true">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border">
+              <PenLine className="size-2.5" />
+              Manual
+            </span>
+          </div>
+          <Input
+            placeholder="Silver"
+            value={value.color}
+            onChange={set("color")}
+            maxLength={20}
+            className={`h-9 text-sm ${errors.color ? "border-destructive focus-visible:ring-destructive/20" : ""}`}
           />
           <FieldError error={errors.color} />
         </Field>

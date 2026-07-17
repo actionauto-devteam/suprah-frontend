@@ -113,8 +113,8 @@ function PremiumVehicleCardComponent({
 
             {/* Bottom: title + monthly badge — dark strip for contrast in both modes */}
             <div className="flex items-end justify-between gap-2 px-4 py-3 bg-black/20 dark:bg-black/40">
-              <div className="min-w-0">
-                <h3 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight leading-tight drop-shadow-sm">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight leading-tight drop-shadow-sm truncate">
                   {vehicle.year} {vehicle.make}
                 </h3>
                 <p className="text-zinc-800 dark:text-zinc-300 font-semibold text-sm capitalize tracking-wide truncate">
@@ -172,8 +172,8 @@ function PremiumVehicleCardComponent({
 
             {/* Bottom Image Overlay Details */}
             <div className="absolute bottom-4 left-4 right-4 z-10 flex items-end justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md leading-tight">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md leading-tight truncate">
                   {vehicle.year} {vehicle.make}
                 </h3>
                 <p className="text-zinc-100/95 font-semibold text-lg capitalize tracking-wide truncate">

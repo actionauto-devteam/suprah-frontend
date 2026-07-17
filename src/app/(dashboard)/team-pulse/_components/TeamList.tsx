@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
@@ -11,9 +13,11 @@ import {
   ChevronDown,
   LayoutGrid,
   LayoutList,
+  RefreshCw,
   Search,
   Shield,
   SlidersHorizontal,
+  UserPlus,
   Wifi,
   WifiOff,
   X,
@@ -32,6 +36,73 @@ import { DEPARTMENTS, deptLabel } from "@/lib/departments";
 import type { TeamMember, Absence } from "@/hooks/useTeamPulse";
 import { S, ROLE_LABEL } from "./team-pulse-constants";
 import { MemberCard } from "./MemberCard";
+
+function TeamGrowthPrompt({
+  variant,
+  isAdmin,
+  onRefresh,
+  refreshing,
+}: {
+  variant: "empty" | "solo";
+  isAdmin?: boolean;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const copy =
+    variant === "solo"
+      ? {
+          title: "You're the only one here",
+          desc: "No additional team members have been added yet. Invite your team to start collaborating in real time.",
+        }
+      : {
+          title: "No team members found",
+          desc: "We couldn't find anyone on this team yet. Try refreshing, or invite your first teammate to get started.",
+        };
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center text-center px-4 py-10 sm:py-12 rounded-xl border border-dashed border-border/30 bg-muted/5",
+        variant === "solo" && "mt-3",
+      )}
+    >
+      <div className="relative w-16 h-16 mb-4">
+        <div className="absolute inset-0 bg-linear-to-br from-blue-100 to-indigo-100 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-2xl rotate-6" />
+        <div className="absolute inset-0 bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-2xl -rotate-3" />
+        <div className="relative w-full h-full flex items-center justify-center bg-linear-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/5 dark:to-indigo-500/5 rounded-2xl border border-blue-200/50 dark:border-blue-800/30">
+          <UserPlus className="size-7 text-blue-500/70 dark:text-blue-400/60" />
+        </div>
+      </div>
+      <p className="text-sm font-semibold text-foreground">{copy.title}</p>
+      <p className="text-xs text-muted-foreground/70 mt-1.5 max-w-xs leading-relaxed">
+        {isAdmin
+          ? copy.desc
+          : "Ask a dealership admin to invite more teammates to this workspace."}
+      </p>
+
+      <div className="flex items-center gap-2 mt-4">
+        {isAdmin && (
+          <Button asChild size="sm" className="h-8 text-xs gap-1.5">
+            <Link href="/settings?tab=dealership">
+              <UserPlus className="size-3.5" />
+              Invite Team Member
+            </Link>
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1.5"
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 type SortOption = "name" | "status" | "department" | "last_active";
 type SortDir = "asc" | "desc";
@@ -130,13 +201,23 @@ export function TeamList({
   todayAbsences,
   onMemberClick,
   myUserId,
+  isAdmin,
 }: {
   members: TeamMember[];
   membersLoading: boolean;
   todayAbsences: Absence[];
   onMemberClick: (id: string) => void;
   myUserId?: string;
+  isAdmin?: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = React.useState(false);
+  const handleRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ["team-pulse-members"] });
+    setRefreshing(false);
+  }, [queryClient]);
+
   const [search, setSearch] = React.useState("");
   const [statusFilters, setStatusFilters] = React.useState<string[]>([]);
   const [deptFilter, setDeptFilter] = React.useState("all");
@@ -494,6 +575,13 @@ export function TeamList({
             />
           ))}
         </div>
+      ) : members.length === 0 ? (
+        <TeamGrowthPrompt
+          variant="empty"
+          isAdmin={isAdmin}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+        />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-16 border border-dashed border-border/30 rounded-xl bg-muted/5">
           <WifiOff className="size-8 text-muted-foreground/20 mb-3" />
@@ -505,34 +593,46 @@ export function TeamList({
             </Button>
           )}
         </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-4 sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
-          {filtered.map((m) => (
-            <MemberCard
-              key={m._id}
-              member={m}
-              isMe={m._id === myUserId}
-              myUserId={myUserId}
-              leaveToday={todayAbsences.find((a) => a.userName === m.name)}
-              onClick={() => onMemberClick(m._id)}
-              viewMode="grid"
-            />
-          ))}
-        </div>
       ) : (
-        <div className="space-y-1.5 pb-4 overscroll-contain sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
-          {filtered.map((m) => (
-            <MemberCard
-              key={m._id}
-              member={m}
-              isMe={m._id === myUserId}
-              myUserId={myUserId}
-              leaveToday={todayAbsences.find((a) => a.userName === m.name)}
-              onClick={() => onMemberClick(m._id)}
-              viewMode="list"
+        <>
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-4 sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
+              {filtered.map((m) => (
+                <MemberCard
+                  key={m._id}
+                  member={m}
+                  isMe={m._id === myUserId}
+                  myUserId={myUserId}
+                  leaveToday={todayAbsences.find((a) => a.userName === m.name)}
+                  onClick={() => onMemberClick(m._id)}
+                  viewMode="grid"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1.5 pb-4 overscroll-contain sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
+              {filtered.map((m) => (
+                <MemberCard
+                  key={m._id}
+                  member={m}
+                  isMe={m._id === myUserId}
+                  myUserId={myUserId}
+                  leaveToday={todayAbsences.find((a) => a.userName === m.name)}
+                  onClick={() => onMemberClick(m._id)}
+                  viewMode="list"
+                />
+              ))}
+            </div>
+          )}
+          {members.length === 1 && !hasFilters && (
+            <TeamGrowthPrompt
+              variant="solo"
+              isAdmin={isAdmin}
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
             />
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
