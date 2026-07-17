@@ -2,33 +2,84 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { apiClient } from "@/lib/api-client";
 import { setDepartments, DepartmentEntry } from "@/lib/departments";
 
-// Departments are admin-managed data (Team Engagement -> Manage Departments) instead of a
-// hardcoded list. This provider fetches the org's active list once per mount and mirrors it
-// into lib/departments.ts's live DEPARTMENTS array, so the many existing components that call
-// DEPARTMENTS.map(...) / deptLabel(...) / deptColorHex(...) directly keep working unchanged.
-// Reactivity tradeoff: components don't re-render the instant an admin edits the list — they
-// pick it up on this query's own refetch (or their own next unrelated re-render), which is
-// fine for a rarely-changed reference list.
+type DepartmentsApiResponse =
+  | DepartmentEntry[]
+  | {
+      data?: DepartmentEntry[];
+      message?: string;
+    };
+
+function extractDepartments(payload: DepartmentsApiResponse): DepartmentEntry[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return Array.isArray(payload?.data) ? payload.data : [];
+}
+
 export function useDepartmentsQuery() {
   return useQuery<DepartmentEntry[]>({
     queryKey: ["departments"],
+
     queryFn: async () => {
-      const response = await apiClient.get("/api/departments");
-      return response.data?.data || response.data || [];
+      try {
+        const response =
+          await apiClient.get<DepartmentsApiResponse>("/api/departments");
+
+        return extractDepartments(response.data);
+      } catch (error) {
+        const axiosError = error as AxiosError;
+
+        /*
+         * A 404 means the backend does not currently expose:
+         * GET /api/departments
+         *
+         * Returning an empty array prevents the Departments provider from
+         * crashing the page while the backend route is being added.
+         */
+        if (axiosError.response?.status === 404) {
+          console.warn(
+            "[Departments] GET /api/departments is not registered on the backend."
+          );
+          return [];
+        }
+
+        throw error;
+      }
     },
+
     staleTime: 60_000,
     refetchInterval: 120_000,
+
+    /*
+     * Do not repeatedly retry a missing backend route.
+     * Retry other temporary errors up to two times.
+     */
+    retry: (failureCount, error) => {
+      const axiosError = error as AxiosError;
+
+      if (axiosError.response?.status === 404) {
+        return false;
+      }
+
+      return failureCount < 2;
+    },
   });
 }
 
-export function DepartmentsProvider({ children }: { children: React.ReactNode }) {
+export function DepartmentsProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { data } = useDepartmentsQuery();
 
   React.useEffect(() => {
-    if (data && data.length > 0) {
+    if (data) {
       setDepartments(data);
     }
   }, [data]);

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  X,
   MapPin,
   User,
   Mail,
@@ -15,6 +14,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -223,25 +223,18 @@ export function ShippingQuoteModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        overlayClassName="bg-black/70 backdrop-blur-[4px]"
-        className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-125 max-h-[90dvh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        overlayClassName="!z-[2147483000] bg-black/70 backdrop-blur-[4px]"
+        className="!z-[2147483001] w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-125 max-h-[90dvh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
       >
-        <button
-          onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-        >
-          <X className="h-4 w-4 text-muted-foreground" />
-          <span className="sr-only">Close</span>
-        </button>
-
         <DialogHeader className="space-y-3 pb-4 border-b border-border">
           <div>
             <DialogTitle className="text-lg font-bold">
               Calculate Shipping Quote
             </DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Get shipping quotes from your origin to destination
-            </p>
+            <DialogDescription className="mt-1 text-sm text-muted-foreground">
+              Get shipping quotes from your origin to destination.
+            </DialogDescription>
           </div>
         </DialogHeader>
 
@@ -287,12 +280,16 @@ export function ShippingQuoteModal({
             {selectedVehicle && (
               <div className="bg-muted/50 p-3 rounded-lg border border-border">
                 <div className="flex gap-3">
-                  <div className="w-20 h-16 rounded overflow-hidden bg-muted">
-                    <img
-                      src={selectedVehicle.image}
-                      alt={`${selectedVehicle.year} ${selectedVehicle.make}`}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                    {selectedVehicle.image ? (
+                      <img
+                        src={selectedVehicle.image}
+                        alt={`${selectedVehicle.year} ${selectedVehicle.make}`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Package className="h-6 w-6 text-muted-foreground" />
+                    )}
                   </div>
                   <div className="flex-1 text-xs">
                     <p>
