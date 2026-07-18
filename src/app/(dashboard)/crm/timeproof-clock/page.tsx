@@ -49,7 +49,7 @@ import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departmen
 import { useLocationSharing } from "@/hooks/useLocationSharing"
 import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
 import {
-  DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar,
+  DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar, MobileCalendarList,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
   generateIdleLogHtml, type IdlePeriod,
 } from "@/components/crm/timeproof/shared"
@@ -298,94 +298,6 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
           <p className="mt-0.5 text-[9px] text-red-400/60">Over 1h 5m — please resume your shift</p>
         </div>
       )}
-    </div>
-  )
-}
-
-const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive }: {
-  year: number; month: number; calendar: Record<string, DayData>
-  onSelectDay: (ds: string) => void; isLive: boolean
-}) => {
-  const todayStr = toDateStr(new Date())
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-  type DayEntry = { ds: string; day: number; dow: number; data?: DayData; isToday: boolean; isFuture: boolean }
-  type Week = { days: DayEntry[]; weekTotal: number }
-
-  const weeks: Week[] = []
-  let cur: DayEntry[] = []
-  for (let d = 1; d <= daysInMonth; d++) {
-    const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
-    const dow = new Date(year, month, d).getDay()
-    cur.push({ ds, day: d, dow, data: calendar[ds], isToday: ds === todayStr, isFuture: ds > todayStr })
-    if (dow === 6 || d === daysInMonth) {
-      weeks.push({ days: cur, weekTotal: cur.reduce((s, e) => s + (e.data?.totalSeconds ?? 0), 0) })
-      cur = []
-    }
-  }
-
-  return (
-    <div>
-      {weeks.map((week, wi) => {
-        const hasAct = week.days.some(e => !!e.data?.totalSeconds)
-        if (week.days.every(e => e.isFuture)) return null
-        return (
-          <div key={wi}>
-            {week.days.map(({ ds, day, dow, data, isToday, isFuture }) => {
-              if (isFuture) return null
-              const hasData = !!data?.totalSeconds && data.totalSeconds > 0
-              return (
-                <div key={ds}
-                  onClick={() => (hasData || isToday) && onSelectDay(ds)}
-                  className={cn(
-                    "flex items-center gap-4 px-4 py-3.5 border-b border-border/10 transition-colors",
-                    hasData || isToday ? "cursor-pointer active:bg-muted/20" : "cursor-default"
-                  )}
-                >
-                  <div className="w-11 shrink-0 flex flex-col items-center gap-0.5">
-                    <span className={cn("text-[9px] font-bold uppercase tracking-widest",
-                      isToday ? "text-emerald-500" : "text-muted-foreground/30")}>{DOW[dow]}</span>
-                    <span className={cn("text-2xl font-black tabular-nums leading-none",
-                      isToday ? "text-emerald-500" : "text-foreground/70")}>{day}</span>
-                  </div>
-
-                  <div className="flex-1 min-w-0 flex items-center gap-2.5">
-                    {hasData ? (
-                      <>
-                        {isToday && isLive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
-                        <span className="text-[18px] font-black font-mono tabular-nums text-foreground tracking-tight leading-none">
-                          {fmtHHMM(data!.totalSeconds)}
-                        </span>
-                        {!!data!.breakSeconds && data!.breakSeconds > 0 && (
-                          <span className="text-[10px] font-bold font-mono text-orange-400/80 bg-orange-500/8 px-2 py-0.5 rounded-full border border-orange-500/15">
-                            {fmtHHMM(data!.breakSeconds)} brk
-                          </span>
-                        )}
-                      </>
-                    ) : isToday ? (
-                      <span className="text-[13px] text-muted-foreground/30 font-medium">Not clocked in yet</span>
-                    ) : (
-                      <span className="text-[15px] font-mono text-muted-foreground/15">—</span>
-                    )}
-                  </div>
-
-                  {hasData && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/20 shrink-0" />}
-                </div>
-              )
-            })}
-            {hasAct && (
-              <div className="flex items-center gap-4 px-4 py-2.5 bg-emerald-500/5 border-b border-emerald-500/10">
-                <div className="w-11 shrink-0" />
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/25">Week total</span>
-                  <span className="text-[13px] font-black font-mono text-emerald-600 dark:text-emerald-400">{fmtHHMM(week.weekTotal)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
     </div>
   )
 }

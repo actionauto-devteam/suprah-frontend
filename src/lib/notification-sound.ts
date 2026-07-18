@@ -175,13 +175,18 @@ export async function showNotificationViaSW(
 
   // Fallback: direct Notification API (desktop browser without SW)
   try {
+    const targetUrl = options.url ?? '/crm/supra-space';
     const notif = new Notification(title, {
       icon: '/favicon.ico',
       body: options.body,
       tag: options.tag,
       silent: false,
     });
-    notif.onclick = () => { window.focus(); notif.close(); };
+    notif.onclick = () => {
+      window.focus();
+      window.location.assign(targetUrl);
+      notif.close();
+    };
   } catch {}
 }
 
