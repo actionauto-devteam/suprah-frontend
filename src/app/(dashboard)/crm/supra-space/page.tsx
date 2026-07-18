@@ -783,11 +783,27 @@ function normalizeFinalMessageMarkup(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+function normalizePastedListArtifacts(text: string): string {
+  const normalizedText = text.replace(/â€¢/g, '\u2022');
+  const marker = String.raw`(?:[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab\u2013\u2014])`;
+  const markerOnlyRe = new RegExp(String.raw`^\s*${marker}\s*$`);
+  const realListItemRe = new RegExp(String.raw`^\s*${marker}\s+\S`);
+  const lines = normalizedText.replace(/\r\n?/g, '\n').split('\n');
+  const hasRealListItem = lines.some(line => realListItemRe.test(line));
+  if (!hasRealListItem) return text;
+
+  return lines
+    .filter(line => !markerOnlyRe.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 function normalizeMessageMarkdownText(text: string): string {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .trim();
+  return normalizePastedListArtifacts(
+    text
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
+  ).trim();
 }
 
 function normalizeMessageMarkdownForDisplay(text: string): string {
@@ -3420,6 +3436,9 @@ export default function SupraSpacePage() {
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
+  const composerDraftsRef = React.useRef<Record<string, string>>({});
+  const previousComposerConversationRef = React.useRef<string | null>(null);
+  const [composerDraftPreviews, setComposerDraftPreviews] = React.useState<Record<string, string>>({});
   React.useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
   const syncComposerText = React.useCallback((value: string, commitToState = false) => {
@@ -3433,6 +3452,27 @@ export default function SupraSpacePage() {
     inputTextRef.current = input;
     setComposerHasText(Boolean(input.trim()));
   }, [input]);
+
+  const setConversationDraft = React.useCallback((conversationId: string, value: string) => {
+    if (value.trim()) {
+      composerDraftsRef.current[conversationId] = value;
+      setComposerDraftPreviews(prev => prev[conversationId] === value ? prev : { ...prev, [conversationId]: value });
+    } else {
+      delete composerDraftsRef.current[conversationId];
+      setComposerDraftPreviews(prev => {
+        if (!(conversationId in prev)) return prev;
+        const next = { ...prev };
+        delete next[conversationId];
+        return next;
+      });
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const conversationId = activeIdRef.current;
+    if (!conversationId) return;
+    setConversationDraft(conversationId, inputTextRef.current);
+  }, [input, setConversationDraft]);
 
   const scrollToLatest = React.useCallback((behavior: ScrollBehavior = 'smooth', conversationId = activeIdRef.current) => {
     if (conversationId) forceScrollToBottomRef.current = conversationId;
@@ -4211,7 +4251,14 @@ export default function SupraSpacePage() {
   }, [activeId, isConnected, joinConversation, leaveConversation]);
 
   React.useEffect(() => {
-    syncComposerText('', true);
+    const previousId = previousComposerConversationRef.current;
+    if (previousId) {
+      const currentDraft = textareaRef.current ? htmlToMarkdown(textareaRef.current) : inputTextRef.current || '';
+      setConversationDraft(previousId, currentDraft);
+    }
+
+    const nextDraft = activeId ? composerDraftsRef.current[activeId] || '' : '';
+    syncComposerText(nextDraft, true);
     setReplyTo(null);
     setPendingFiles([]);
     setPendingMeeting(null);
@@ -4222,7 +4269,10 @@ export default function SupraSpacePage() {
     setMentionAnchor(-1);
     setEmojiOpen(false);
     setScheduleOpen(false);
-    if (textareaRef.current) textareaRef.current.innerHTML = '';
+    if (textareaRef.current) {
+      textareaRef.current.innerHTML = nextDraft ? markdownTextToEditorHtml(nextDraft) : '';
+    }
+    previousComposerConversationRef.current = activeId;
   }, [activeId]);
 
   React.useEffect(() => {
@@ -4314,7 +4364,7 @@ export default function SupraSpacePage() {
           optionalMessage: content,
         }, { headers: { Authorization: `Bearer ${token}` } });
         if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        setPendingMeeting(null); pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingMeeting(null); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (r.data?.data?.meetingLink) {
           try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
           catch { toast.success('Meeting sent'); }
@@ -4331,7 +4381,7 @@ export default function SupraSpacePage() {
         if (replyMessageId) fd.append('replyTo', replyMessageId);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
         if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingFiles([]); pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingFiles([]); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         showUploadNotice('success', pendingFiles.length === 1 ? 'Attachment sent.' : `${pendingFiles.length} attachments sent.`);
       } else if (hasPendingGif) {
         const r = await apiClient.post(
@@ -4341,7 +4391,7 @@ export default function SupraSpacePage() {
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingGif(null); pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        setPendingGif(null); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
       } else {
         const tempId = scheduledAt ? null : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         if (tempId) {
@@ -4367,7 +4417,7 @@ export default function SupraSpacePage() {
             createdAt: new Date().toISOString(),
           });
         }
-        pastedPlainTextRef.current = ''; syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (tempId) setSending(false);
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
@@ -5310,6 +5360,8 @@ export default function SupraSpacePage() {
               : effectiveLastMsg.type === 'poll' ? `📊 ${effectiveLastMsg.poll?.question || 'Poll'}`
                 : effectiveLastMsg.type === 'event' ? `📅 ${effectiveLastMsg.event?.title || 'Event'}`
                   : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '📎 Attachment' : 'No messages yet');
+    const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
+    const hasDraftPreview = Boolean(draftPreview);
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const [ddOpen, setDdOpen] = React.useState(false);
@@ -5351,7 +5403,17 @@ export default function SupraSpacePage() {
             <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
             {!rowHov && <span className="ss4-conv-time shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
           </div>
-          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>{senderPrefix}{lastPreview}</p>
+          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
+            {hasDraftPreview ? (
+              <>
+                <span style={{ color: '#ef4444', fontWeight: 800 }}>Draft:</span>
+                {' '}
+                <span>{draftPreview}</span>
+              </>
+            ) : (
+              <>{senderPrefix}{lastPreview}</>
+            )}
+          </p>
         </div>
         {!compact && (
           <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov || ddOpen ? 1 : 0 }}>
