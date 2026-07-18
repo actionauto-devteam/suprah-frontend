@@ -188,11 +188,27 @@ function normalizeFinalMessageMarkup(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+function normalizePastedListArtifacts(text: string): string {
+  const normalizedText = text.replace(/â€¢/g, '\u2022');
+  const marker = String.raw`(?:[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab\u2013\u2014])`;
+  const markerOnlyRe = new RegExp(String.raw`^\s*${marker}\s*$`);
+  const realListItemRe = new RegExp(String.raw`^\s*${marker}\s+\S`);
+  const lines = normalizedText.replace(/\r\n?/g, '\n').split('\n');
+  const hasRealListItem = lines.some(line => realListItemRe.test(line));
+  if (!hasRealListItem) return text;
+
+  return lines
+    .filter(line => !markerOnlyRe.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 function normalizeMessageMarkdownText(text: string): string {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .trim();
+  return normalizePastedListArtifacts(
+    text
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
+  ).trim();
 }
 
 function escapeRegExp(value: string): string {
@@ -915,6 +931,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
   const pendingAttachmentsRef = React.useRef<PendingPopupAttachment[]>([]);
+  const draftStorageKey = React.useMemo(() => `supraspace-popup-draft:${conv._id}`, [conv._id]);
 
   // Chat settings dropdown
   const [chatSettingsOpen, setChatSettingsOpen] = React.useState(false);
@@ -948,6 +965,28 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     inputTextRef.current = input;
     setComposerHasText(Boolean(input.trim()));
   }, [input]);
+
+  React.useEffect(() => {
+    try {
+      const savedDraft = localStorage.getItem(draftStorageKey) || '';
+      if (!savedDraft) return;
+      syncComposerText(savedDraft, true);
+      requestAnimationFrame(() => {
+        if (inputRef.current) inputRef.current.innerHTML = markdownTextToEditorHtml(savedDraft);
+      });
+    } catch {
+      // Draft restore is best-effort only.
+    }
+  }, [draftStorageKey, syncComposerText]);
+
+  React.useEffect(() => {
+    try {
+      if (input.trim()) localStorage.setItem(draftStorageKey, input);
+      else localStorage.removeItem(draftStorageKey);
+    } catch {
+      // Ignore storage failures in private browsing or constrained PWA contexts.
+    }
+  }, [draftStorageKey, input]);
 
   // Hover action bar (portal-based to escape overflow)
   const [hovMsg, setHovMsg] = React.useState<string | null>(null);
@@ -1170,6 +1209,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           return [];
         });
         syncComposerText('', true);
+        try { localStorage.removeItem(draftStorageKey); } catch {}
         if (inputRef.current) inputRef.current.innerHTML = '';
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
       }
@@ -1182,7 +1222,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       setDraggingAttachment(false);
       dragDepthRef.current = 0;
     }
-  }, [conv._id, crmToken, pendingAttachments, replyTo?._id, sending]);
+  }, [conv._id, crmToken, draftStorageKey, pendingAttachments, replyTo?._id, sending, syncComposerText]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -1569,6 +1609,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       createdAt: new Date().toISOString(),
     }]);
     syncComposerText('', true);
+    try { localStorage.removeItem(draftStorageKey); } catch {}
     pastedPlainTextRef.current = '';
     if (inputRef.current) inputRef.current.innerHTML = '';
     setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null);
@@ -1587,6 +1628,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       const currentDraft = inputRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
       if (!currentDraft.trim()) {
         syncComposerText(text, true);
+        try { localStorage.setItem(draftStorageKey, text); } catch {}
         if (inputRef.current) inputRef.current.textContent = text;
       }
     } finally { setSending(false); }
