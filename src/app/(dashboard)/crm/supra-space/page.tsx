@@ -180,6 +180,8 @@ if (typeof document !== 'undefined') {
     @keyframes ss4-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4;} 40%{transform:translateY(-4px);opacity:1;} }
     .ss4-typing-dot { animation:ss4-dot-bounce 1.4s ease-in-out infinite; }
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
+    @keyframes ss4-action-pop { from{opacity:0;transform:translateY(6px) scale(.92);} to{opacity:1;transform:translateY(0) scale(1);} }
+    .ss4-msg-actions-pop { animation:ss4-action-pop .16s cubic-bezier(.2,.8,.2,1) both; }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
     .ss4-filter-pill { height:26px!important; padding:0 10px!important; font-size:10.5px!important; line-height:1; }
@@ -225,6 +227,11 @@ if (typeof document !== 'undefined') {
       .ss4-msg-column { max-width:min(82%,22rem); }
       .ss4-msg-bubble { font-size:18px !important; line-height:1.55 !important; }
       .ss4-msg-sender { font-size:14px !important; }
+      .ss4-msg-actions { border-radius:18px!important; padding:5px!important; gap:3px!important; box-shadow:0 10px 30px rgba(0,0,0,.48)!important; }
+      .ss4-msg-actions .ss4-action-emoji,
+      .ss4-msg-actions .ss4-action-btn { height:36px!important; width:36px!important; font-size:20px!important; border-radius:13px!important; }
+      .ss4-msg-actions .ss4-action-btn svg { height:18px!important; width:18px!important; }
+      .ss4-msg-actions .ss4-action-divider { height:22px!important; margin-left:3px!important; margin-right:3px!important; }
       .ss4-date-chip { font-size:12px; }
       .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; height:auto!important; }
       .ss4-composer-placeholder { font-size:16px !important; top:1px; }
@@ -1412,7 +1419,7 @@ function Bubble({
   disableActions?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string }>;
   hideTime?: boolean;
-  onEditSave?: (id: string, content: string) => Promise<void>;
+  onEditSave?: (id: string, content: string, replacementFiles?: File[]) => Promise<void>;
   onForward?: (m: SSMessage) => void;
 }) {
   const [hov, setHov] = React.useState(false);
@@ -1434,6 +1441,8 @@ function Bubble({
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLDivElement>(null);
+  const editFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [editReplacementFiles, setEditReplacementFiles] = React.useState<File[]>([]);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
@@ -1451,12 +1460,22 @@ function Bubble({
   const moreActionsRef = React.useRef<HTMLDivElement>(null);
   const setMoreActionsOpen = (v: boolean) => { moreActionsOpenRef.current = v; setMoreActionsOpen_(v); };
   const [actionsBelow, setActionsBelow] = React.useState(false);
-  const [dropdownFixedPos, setDropdownFixedPos] = React.useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null);
+  const [dropdownFixedPos, setDropdownFixedPos] = React.useState<{ top?: number; bottom?: number; left?: number; right?: number; width?: number; maxHeight?: number } | null>(null);
   const dropdownPortalRef = React.useRef<HTMLDivElement>(null);
   const bubbleRowRef = React.useRef<HTMLDivElement>(null);
   const columnRef = React.useRef<HTMLDivElement>(null);
   const bubbleRef = React.useRef<HTMLDivElement>(null);
   const [actionBarPos, setActionBarPos] = React.useState<{ top: number; left: number } | null>(null);
+  const swipeStartRef = React.useRef<{ x: number; y: number; active: boolean; direction: 1 | -1 } | null>(null);
+  const swipeOffsetRef = React.useRef(0);
+  const swipeRafRef = React.useRef<number | null>(null);
+  const swipeCueRef = React.useRef<HTMLDivElement>(null);
+  const [swipeCueVisible, setSwipeCueVisible] = React.useState(false);
+  const [swipeReplyReady, setSwipeReplyReady] = React.useState(false);
+  const editableAttachmentCount = (message.attachments || []).filter(a => !a.mimeType?.startsWith('audio/')).length;
+  const canEditMessage = isOwn && !!onEditSave && !['voice', 'poll', 'event'].includes(message.type) && (Boolean(message.content?.trim()) || editableAttachmentCount > 0);
+  const hasEditChanges = editDraft.trim() !== (message.content || '').trim() || editReplacementFiles.length > 0;
+  const canSaveEdit = !editSaving && Boolean(onEditSave) && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0) && hasEditChanges;
 
   React.useEffect(() => {
     if (!moreActionsOpen) return;
@@ -1474,7 +1493,9 @@ function Bubble({
   const enterEdit = () => {
     const width = bubbleRef.current?.getBoundingClientRect().width;
     setEditWidth(width ? Math.max(width, 220) : null);
-    setEditDraft(message.content);
+    setEditDraft(message.content || '');
+    setEditReplacementFiles([]);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
     setEditMode(true);
     setHov(false);
     requestAnimationFrame(() => {
@@ -1577,12 +1598,27 @@ function Bubble({
     syncEditDraft();
   };
 
-  const cancelEdit = () => { setEditMode(false); setEditDraft(''); setEditWidth(null); setEditColorPickerOpen(false); };
+  const cancelEdit = () => {
+    setEditMode(false);
+    setEditDraft('');
+    setEditWidth(null);
+    setEditColorPickerOpen(false);
+    setEditReplacementFiles([]);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
   const saveEdit = async () => {
     const trimmed = syncEditDraft();
-    if (!trimmed || trimmed === message.content || !onEditSave) return;
+    if (!onEditSave) return;
+    if (!trimmed && editableAttachmentCount === 0 && editReplacementFiles.length === 0) return;
+    if (trimmed === (message.content || '').trim() && editReplacementFiles.length === 0) {
+      cancelEdit();
+      return;
+    }
     setEditSaving(true);
-    try { await onEditSave(message._id, trimmed); setEditMode(false); setEditWidth(null); } finally { setEditSaving(false); }
+    try {
+      await onEditSave(message._id, trimmed, editReplacementFiles.length > 0 ? editReplacementFiles : undefined);
+      cancelEdit();
+    } finally { setEditSaving(false); }
   };
 
   const editFormatButtonClass = (format: RichTextFormat) => cn(
@@ -1606,15 +1642,144 @@ function Bubble({
     if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
   };
 
+  const positionActionBar = React.useCallback((mode: 'desktop' | 'mobile' = 'desktop') => {
+    if (!bubbleRef.current) return;
+    const rect = bubbleRef.current.getBoundingClientRect();
+    const isMobileMode = mode === 'mobile';
+    const BAR_W = isMobileMode ? 262 : 175;
+    const PAD = 8;
+    const below = isMobileMode ? rect.top < 62 : rect.top < 120;
+    const barLeft = isOwn
+      ? Math.min(window.innerWidth - BAR_W - PAD, rect.left, rect.right - BAR_W)
+      : Math.max(PAD, rect.left, rect.right - BAR_W);
+    setActionsBelow(below);
+    setActionBarPos({
+      top: below ? rect.bottom + (isMobileMode ? 8 : 4) : rect.top - (isMobileMode ? 48 : 36),
+      left: Math.max(PAD, Math.min(window.innerWidth - BAR_W - PAD, barLeft)),
+    });
+  }, [isOwn]);
+
+  const resetSwipeReply = React.useCallback(() => {
+    swipeStartRef.current = null;
+    swipeOffsetRef.current = 0;
+    if (swipeRafRef.current !== null) {
+      cancelAnimationFrame(swipeRafRef.current);
+      swipeRafRef.current = null;
+    }
+    if (columnRef.current) {
+      columnRef.current.style.transform = '';
+      columnRef.current.style.transition = 'transform 180ms cubic-bezier(.2,.8,.2,1)';
+    }
+    if (swipeCueRef.current) {
+      swipeCueRef.current.style.opacity = '0';
+      swipeCueRef.current.style.transform = 'translateY(-50%) scale(0.92)';
+    }
+    setSwipeCueVisible(false);
+    setSwipeReplyReady(false);
+  }, []);
+
+  const renderSwipeOffset = React.useCallback((offset: number, ready: boolean) => {
+    swipeOffsetRef.current = offset;
+    if (swipeRafRef.current !== null) return;
+    swipeRafRef.current = requestAnimationFrame(() => {
+      swipeRafRef.current = null;
+      const currentOffset = swipeOffsetRef.current;
+      if (columnRef.current) {
+        columnRef.current.style.transition = 'none';
+        columnRef.current.style.transform = currentOffset ? `translate3d(${currentOffset}px,0,0)` : '';
+      }
+      if (swipeCueRef.current) {
+        const progress = Math.min(1, Math.abs(currentOffset) / 44);
+        swipeCueRef.current.style.opacity = String(progress);
+        swipeCueRef.current.style.transform = `translateY(-50%) scale(${ready ? 1.06 : 0.94 + progress * 0.08})`;
+      }
+    });
+  }, []);
+
+  const jumpToRepliedMessage = React.useCallback((replyTo: SSMessage['replyTo']) => {
+    const targetId =
+      typeof replyTo === 'string'
+        ? replyTo
+        : (replyTo as any)?._id || (replyTo as any)?.id;
+
+    if (!targetId) return;
+
+    const target = document.getElementById(`ss4-msg-${targetId}`);
+    if (!target) {
+      toast.info('Original message is not loaded yet. Scroll up to load older messages.');
+      return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.animate(
+      [
+        { boxShadow: '0 0 0 0 rgba(91, 124, 246, 0)', transform: 'scale(1)' },
+        { boxShadow: '0 0 0 4px rgba(91, 124, 246, 0.55), 0 0 28px rgba(91, 124, 246, 0.35)', transform: 'scale(1.01)' },
+        { boxShadow: '0 0 0 0 rgba(91, 124, 246, 0)', transform: 'scale(1)' },
+      ],
+      { duration: 1400, easing: 'ease' },
+    );
+  }, []);
+
   const handleTouchStart = (event: React.TouchEvent) => {
-    if ((event.target as HTMLElement | null)?.closest('.ss4-copyable-text, a, button, textarea, input')) return;
+    if (event.touches.length !== 1) return;
+    if ((event.target as HTMLElement | null)?.closest('a, button, textarea, input, [contenteditable="true"], .ss4-reaction-chip')) return;
+    swipeStartRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+      active: true,
+      direction: isOwn ? -1 : 1,
+    };
+    if (columnRef.current) columnRef.current.style.transition = 'none';
     longPressTimer.current = setTimeout(() => {
-      setMobileMenu(true);
+      positionActionBar('mobile');
+      setHov(true);
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
     }, 500);
   };
+
+  const handleTouchMove = (event: React.TouchEvent) => {
+    const start = swipeStartRef.current;
+    if (!start || !start.active || event.touches.length !== 1) {
+      handleTouchEnd();
+      return;
+    }
+
+    const dx = event.touches[0].clientX - start.x;
+    const dy = event.touches[0].clientY - start.y;
+    const directionalDx = dx * start.direction;
+
+    if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx)) {
+      resetSwipeReply();
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      return;
+    }
+
+    if (directionalDx <= 0) {
+      renderSwipeOffset(0, false);
+      if (swipeCueVisible) setSwipeCueVisible(false);
+      if (swipeReplyReady) setSwipeReplyReady(false);
+      return;
+    }
+
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    event.preventDefault();
+    const nextOffset = Math.min(78, Math.sqrt(directionalDx) * 8.8);
+    const signedOffset = nextOffset * start.direction;
+    const ready = directionalDx >= 58;
+    if (!swipeCueVisible) setSwipeCueVisible(true);
+    if (ready !== swipeReplyReady) setSwipeReplyReady(ready);
+    renderSwipeOffset(signedOffset, ready);
+  };
+
   const handleTouchEnd = () => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    const start = swipeStartRef.current;
+    if (start && Math.abs(swipeOffsetRef.current) >= 58) {
+      onReply(message);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(25);
+    }
+    resetSwipeReply();
   };
 
   const _nameParts = nameFor(uid).trim().split(/\s+/);
@@ -1657,20 +1822,12 @@ function Bubble({
   return (
     <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
       onMouseEnter={() => {
+        if (typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
         cancelHide();
-        if (bubbleRef.current) {
-          const rect = bubbleRef.current.getBoundingClientRect();
-          const below = rect.top < 120;
-          setActionsBelow(below);
-          const BAR_W = 175, PAD = 8;
-          const barLeft = isOwn
-            ? Math.min(window.innerWidth - BAR_W - PAD, rect.left, rect.right - BAR_W)
-            : Math.max(PAD, rect.left, rect.right - BAR_W);
-          setActionBarPos({ top: below ? rect.bottom + 4 : rect.top - 36, left: barLeft });
-        }
+        positionActionBar('desktop');
         setHov(true);
       }} onMouseLeave={scheduleHide}
-      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}>
+      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onTouchMove={handleTouchMove}>
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender?.avatar
@@ -1679,7 +1836,33 @@ function Bubble({
         </div>
       ) : <div className="w-7 sm:w-8 shrink-0" />}
 
-      <div ref={columnRef} className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}>
+      <div
+        ref={columnRef}
+        className={cn('ss4-msg-column flex flex-col gap-1 will-change-transform', isOwn && 'items-end')}
+        style={{
+          transition: 'transform 180ms cubic-bezier(.2,.8,.2,1)',
+        }}
+      >
+        {swipeCueVisible && (
+          <div
+            ref={swipeCueRef}
+            className={cn(
+              'absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full md:hidden',
+              isOwn ? 'right-10' : 'left-10',
+            )}
+            style={{
+              background: swipeReplyReady ? 'var(--accent)' : 'var(--surface-3)',
+              color: swipeReplyReady ? '#fff' : 'var(--text-secondary)',
+              opacity: 0,
+              transform: 'translateY(-50%) scale(0.92)',
+              transition: 'background-color 120ms ease, color 120ms ease',
+              boxShadow: 'var(--shadow-md)',
+            }}
+            aria-hidden="true"
+          >
+            <Reply className="h-4 w-4" />
+          </div>
+        )}
         {showAvatar && !isOwn && (
           <div className="flex items-center gap-1.5 px-1">
             <span className="ss4-msg-sender font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</span>
@@ -1688,14 +1871,22 @@ function Bubble({
         )}
 
         {message.replyTo && (
-          <div className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              jumpToRepliedMessage(message.replyTo);
+            }}
+            className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+            title="Jump to original message"
+          >
             <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>{message.replyTo.sender?.fullName}</p>
             <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(message.replyTo.content) || '📎 Attachment'}</p>
-          </div>
+          </button>
         )}
 
         <div ref={bubbleRef} className="relative w-fit">
-          {message.content && (editMode ? (
+          {editMode ? (
             <div
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
               style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 220, maxWidth: '100%' }}
@@ -1819,35 +2010,85 @@ function Bubble({
                 className="ss4-copyable-text min-h-7 max-h-56 overflow-y-auto outline-none"
                 style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--accent)' }}
               />
+              {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
+                <div className="mt-2 space-y-2 rounded-xl p-2" style={{ background: 'rgba(0,0,0,0.14)', border: '1px solid rgba(255,255,255,0.14)' }}>
+                  {editableAttachmentCount > 0 && editReplacementFiles.length === 0 && (
+                    <div className="space-y-1">
+                      <p className="font-semibold" style={{ fontSize: 10, opacity: 0.65 }}>Current attachment{editableAttachmentCount === 1 ? '' : 's'}</p>
+                      {(message.attachments || []).filter(a => !a.mimeType?.startsWith('audio/')).map((att, index) => (
+                        <div key={`${att.url}-${index}`} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                          {att.mimeType?.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Paperclip className="h-3.5 w-3.5 shrink-0" />}
+                          <span className="min-w-0 flex-1 truncate" style={{ fontSize: 11 }}>{att.originalName || `Attachment ${index + 1}`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {editReplacementFiles.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="font-semibold" style={{ fontSize: 10, opacity: 0.65 }}>Replacement attachment{editReplacementFiles.length === 1 ? '' : 's'}</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+                        {editReplacementFiles.map((file, index) => (
+                          <FilePreviewItem
+                            key={`${file.name}-${file.lastModified}-${index}`}
+                            file={file}
+                            onRemove={() => setEditReplacementFiles(prev => prev.filter((_, i) => i !== index))}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}>
                 <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>Enter to save · Esc to cancel</span>
                 <div className="flex-1" />
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={e => {
+                    setEditReplacementFiles(Array.from(e.target.files || []));
+                    syncEditDraft();
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => editFileInputRef.current?.click()}
+                  className="h-7 px-2.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'inherit' }}
+                  title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
+                </button>
                 <button onClick={cancelEdit} className="h-7 px-3 rounded-lg text-xs font-medium" style={{ background: 'rgba(255,255,255,0.14)', color: 'inherit' }}>Cancel</button>
-                <button onClick={saveEdit} disabled={editSaving || !editDraft.trim() || editDraft.trim() === message.content}
+                <button onClick={saveEdit} disabled={!canSaveEdit}
                   className="h-7 px-3 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
                   style={{ background: 'var(--positive,#34c97d)' }}>
                   {editSaving ? '...' : 'Update'}
                 </button>
               </div>
             </div>
-          ) : (
+          ) : message.content ? (
             <div className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
               <p className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
-          ))}
+          ) : null}
           {hov && !disableActions && !editMode && actionBarPos && createPortal(
             <div ref={menuRef}
+              className="ss4-msg-actions ss4-msg-actions-pop"
               style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: '#1e1f22', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)', minWidth: 'max-content' }}
               onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
               {SS4_REACTIONS.slice(0, 3).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
-                  className="h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
+                  className="ss4-action-emoji h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
                   {emoji}
                 </button>
               ))}
-              <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }} />
-              <button onClick={() => onReply(message)} className="ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
+              <div className="ss4-action-divider w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }} />
+              <button onClick={() => onReply(message)} className="ss4-action-btn ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
               <div className="relative">
                 <button
                   onClick={(e) => {
@@ -1869,7 +2110,7 @@ function Bubble({
                     };
                     pickerPosRef.current ? closePicker() : openPicker(pos);
                   }}
-                  className="ss4-icon-btn h-7 w-7"
+                  className="ss4-action-btn ss4-icon-btn h-7 w-7"
                   title="More reactions"
                   style={{ color: pickerPos ? 'var(--positive)' : undefined }}
                 >
@@ -1882,21 +2123,28 @@ function Bubble({
                   onClick={() => {
                     if (!moreActionsOpen && moreActionsRef.current) {
                       const rect = moreActionsRef.current.getBoundingClientRect();
+                      const PAD = 10;
+                      const preferredWidth = 228;
+                      const width = Math.min(preferredWidth, window.innerWidth - PAD * 2);
                       const openDown = rect.top < 320;
+                      const left = Math.max(PAD, Math.min(window.innerWidth - width - PAD, rect.left + rect.width / 2 - width / 2));
+                      const availableHeight = openDown
+                        ? window.innerHeight - rect.bottom - PAD
+                        : rect.top - PAD;
                       setDropdownFixedPos({
                         ...(openDown
-                          ? { top: rect.bottom }
-                          : { bottom: window.innerHeight - rect.top }),
-                        ...(isOwn
-                          ? { right: window.innerWidth - rect.right }
-                          : { left: rect.left }),
+                          ? { top: rect.bottom + 6 }
+                          : { bottom: window.innerHeight - rect.top + 6 }),
+                        left,
+                        width,
+                        maxHeight: Math.max(180, Math.min(380, availableHeight)),
                       });
                     } else if (moreActionsOpen) {
                       setDropdownFixedPos(null);
                     }
                     setMoreActionsOpen(!moreActionsOpen);
                   }}
-                  className="ss4-icon-btn h-7 w-7"
+                  className="ss4-action-btn ss4-icon-btn h-7 w-7"
                   title="More actions"
                   style={{ color: moreActionsOpen ? 'var(--accent)' : undefined }}
                 >
@@ -1910,7 +2158,10 @@ function Bubble({
                       position: 'fixed',
                       zIndex: 9999,
                       ...dropdownFixedPos,
-                      minWidth: 228,
+                      minWidth: dropdownFixedPos.width,
+                      maxWidth: 'calc(100vw - 20px)',
+                      maxHeight: dropdownFixedPos.maxHeight,
+                      overflowY: 'auto',
                       background: 'var(--surface-3, #1a1b1e)',
                       border: '1px solid var(--border-2)',
                       boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
@@ -1982,7 +2233,7 @@ function Bubble({
                       {isOwn && (
                         <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
                       )}
-                      {isOwn && onEditSave && !!message.content?.trim() && !['voice', 'poll', 'event'].includes(message.type) && (
+                      {canEditMessage && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { enterEdit(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
                           <Pencil className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
@@ -2061,7 +2312,16 @@ function Bubble({
               </div>
             ))}
             {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
-              <a key={`file-${i}`} href={att.url} download={att.originalName}
+              <button
+                key={`file-${i}`}
+                type="button"
+                onClick={async () => {
+                  try {
+                    await downloadMediaFile(att.url, att.originalName || 'attachment');
+                  } catch {
+                    toast.error('Unable to download this file.');
+                  }
+                }}
                 className={cn('flex items-center gap-3 rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80 no-underline', isOwn ? 'ss4-file-own' : 'ss4-file-other')} style={{ maxWidth: 280 }}>
                 <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: isOwn ? 'rgba(255,255,255,0.12)' : 'var(--accent-muted)' }}>
                   <FileText className="h-4 w-4" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }} />
@@ -2071,7 +2331,7 @@ function Bubble({
                   <p className="mt-0.5 ss4-mono" style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)' }}>{fmtSize(att.size)}</p>
                 </div>
                 <Download className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? 'rgba(255,255,255,0.65)' : 'var(--text-secondary)' }} />
-              </a>
+              </button>
             ))}
           </div>
         )}
@@ -2197,7 +2457,7 @@ function Bubble({
                   {isPinned ? 'Unpin message' : 'Pin message'}
                 </button>
               )}
-              {isOwn && onEditSave && !!message.content?.trim() && !['voice', 'poll', 'event'].includes(message.type) && (
+              {canEditMessage && (
                 <button onClick={() => { setMobileMenu(false); enterEdit(); }}
                   className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
                   <Pencil className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Edit message
@@ -3428,6 +3688,7 @@ export default function SupraSpacePage() {
   const messageScrollRef = React.useRef<HTMLDivElement>(null);
   const pendingScrollRestoreRef = React.useRef<{ convId: string; scrollHeight: number; scrollTop: number } | null>(null);
   const forceScrollToBottomRef = React.useRef<string | null>(null);
+  const openScrollTimersRef = React.useRef<number[]>([]);
   const suppressAutoScrollOnceRef = React.useRef(false);
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -3436,6 +3697,7 @@ export default function SupraSpacePage() {
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
+  const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string } | null>(null);
   const composerDraftsRef = React.useRef<Record<string, string>>({});
   const previousComposerConversationRef = React.useRef<string | null>(null);
   const [composerDraftPreviews, setComposerDraftPreviews] = React.useState<Record<string, string>>({});
@@ -3487,6 +3749,29 @@ export default function SupraSpacePage() {
         setShowJumpToLatest(false);
       });
     });
+  }, []);
+
+  const lockConversationOpenToBottom = React.useCallback((conversationId: string) => {
+    openScrollTimersRef.current.forEach(clearTimeout);
+    openScrollTimersRef.current = [];
+    pendingScrollRestoreRef.current = null;
+    suppressAutoScrollOnceRef.current = false;
+    forceScrollToBottomRef.current = conversationId;
+
+    [0, 60, 160, 360, 720].forEach(delay => {
+      const timer = window.setTimeout(() => {
+        if (activeIdRef.current !== conversationId) return;
+        scrollToLatest('auto', conversationId);
+      }, delay);
+      openScrollTimersRef.current.push(timer);
+    });
+  }, [scrollToLatest]);
+
+  React.useEffect(() => {
+    return () => {
+      openScrollTimersRef.current.forEach(clearTimeout);
+      openScrollTimersRef.current = [];
+    };
   }, []);
 
   // @mention state
@@ -3752,6 +4037,7 @@ export default function SupraSpacePage() {
     if (!conversationId) return;
     pendingScrollRestoreRef.current = null;
     forceScrollToBottomRef.current = conversationId;
+    suppressAutoScrollOnceRef.current = false;
     setShowJumpToLatest(false);
     setShowInfo(false);
     setActiveId(conversationId);
@@ -3765,9 +4051,8 @@ export default function SupraSpacePage() {
       scrollToBottom: true,
     });
 
-    scrollToLatest('auto', conversationId);
-    window.setTimeout(() => scrollToLatest('auto', conversationId), 80);
-  }, [fetchConversationMessages, scrollToLatest]);
+    lockConversationOpenToBottom(conversationId);
+  }, [fetchConversationMessages, lockConversationOpenToBottom]);
 
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
@@ -3847,7 +4132,26 @@ export default function SupraSpacePage() {
         setConvos(fetchedConvos);
         setAllUsers(us.data?.data || []);
 
-        const pendingMeetingId = new URLSearchParams(window.location.search).get('meeting');
+        const urlParams = new URLSearchParams(window.location.search);
+        const pendingNotificationConversationId = urlParams.get('conversationId');
+        const pendingNotificationMessageId = urlParams.get('messageId');
+        if (
+          pendingNotificationConversationId &&
+          fetchedConvos.some(c => c._id === pendingNotificationConversationId)
+        ) {
+          pendingNotificationTargetRef.current = {
+            conversationId: pendingNotificationConversationId,
+            messageId: pendingNotificationMessageId || undefined,
+          };
+          openConversation(pendingNotificationConversationId);
+
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('conversationId');
+          cleanUrl.searchParams.delete('messageId');
+          window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+        }
+
+        const pendingMeetingId = urlParams.get('meeting');
         if (pendingMeetingId) {
           try {
             const joinRes = await apiClient.post('/api/calls/join', { meetingId: pendingMeetingId }, { headers: { Authorization: `Bearer ${t}` } });
@@ -3866,7 +4170,7 @@ export default function SupraSpacePage() {
           }
         }
 
-        const pendingUserId = new URLSearchParams(window.location.search).get('userId');
+        const pendingUserId = urlParams.get('userId');
         if (pendingUserId) {
           try {
             const dmRes = await apiClient.post(
@@ -3940,6 +4244,27 @@ export default function SupraSpacePage() {
     openConversation(targetConvId);
     router.replace('/crm/supra-space', { scroll: false });
   }, [loading, targetConvId, router]);
+
+  React.useEffect(() => {
+    const target = pendingNotificationTargetRef.current;
+    if (!target || target.conversationId !== activeId) return;
+
+    if (!target.messageId) {
+      scrollToLatest('auto', target.conversationId);
+      pendingNotificationTargetRef.current = null;
+      return;
+    }
+
+    const conversationMessages = msgs[target.conversationId] || [];
+    if (!conversationMessages.some(message => message._id === target.messageId)) return;
+
+    window.setTimeout(() => {
+      document
+        .getElementById(`ss4-msg-${target.messageId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 160);
+    pendingNotificationTargetRef.current = null;
+  }, [activeId, msgs, scrollToLatest]);
 
   const targetUserId = searchParams.get('userId');
   React.useEffect(() => {
@@ -4031,7 +4356,12 @@ export default function SupraSpacePage() {
       }
     };
 
-    const onEdited = ({ conversationId, messageId, content }: any) => patchMsg(conversationId, messageId, { content, isEdited: true });
+    const onEdited = ({ conversationId, messageId, content, attachments, type }: any) => {
+      const patch: Partial<SSMessage> = { content, isEdited: true };
+      if (Array.isArray(attachments)) patch.attachments = attachments;
+      if (type) patch.type = type;
+      patchMsg(conversationId, messageId, patch);
+    };
     const onCallEnded = ({ conversationId, meetingId }: { conversationId?: string; meetingId?: string }) => {
       const m = activeMeetingRef.current;
       if (!m) return;
@@ -4935,8 +5265,27 @@ export default function SupraSpacePage() {
     }
   };
 
-  const handleEdit = async (msgId: string, content: string) => {
+  const handleEdit = async (msgId: string, content: string, replacementFiles?: File[]) => {
     if (!activeId) return;
+    if (replacementFiles?.length) {
+      const fd = new FormData();
+      fd.append('content', content);
+      replacementFiles.forEach(file => fd.append('files', file));
+      const r = await apiClient.patch(`/api/supraspace/messages/${msgId}/attachments`, fd, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+      });
+      const updated = r.data?.data;
+      if (updated) {
+        patchMsg(activeId, msgId, {
+          content: updated.content,
+          attachments: updated.attachments || [],
+          type: updated.type,
+          isEdited: true,
+        } as Partial<SSMessage>);
+      }
+      return;
+    }
+
     const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content }, { headers: { Authorization: `Bearer ${token}` } });
     if (r.data?.data) patchMsg(activeId, msgId, { content: r.data.data.content, isEdited: true });
   };
@@ -5236,7 +5585,7 @@ export default function SupraSpacePage() {
 
   const loadMore = React.useCallback(async () => {
     if (!activeId || !hasMore[activeId] || loadingMsgs) return;
-    if (forceScrollToBottomRef.current === activeId) forceScrollToBottomRef.current = null;
+    if (forceScrollToBottomRef.current === activeId) return;
     const scrollEl = messageScrollRef.current;
     if (scrollEl) {
       pendingScrollRestoreRef.current = {
@@ -5582,7 +5931,12 @@ export default function SupraSpacePage() {
 
         <div className="flex flex-1 overflow-hidden relative">
           { }
-          <aside className={cn('ss4-sidebar flex flex-col transition-transform duration-300 ease-in-out overflow-hidden', 'absolute inset-0 z-20', 'lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:translate-x-0', activeId ? '-translate-x-full' : 'translate-x-0')}>
+          <aside className={cn(
+            'ss4-sidebar flex-col overflow-hidden',
+            'absolute inset-0 z-20',
+            'lg:relative lg:inset-auto lg:z-auto lg:flex lg:w-72 lg:shrink-0 lg:translate-x-0',
+            activeId ? 'hidden -translate-x-full lg:flex' : 'flex translate-x-0',
+          )}>
             <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="ss4-section-label">Messages</span>
@@ -5830,7 +6184,12 @@ export default function SupraSpacePage() {
 
           { }
           <main
-            className={cn('flex flex-col min-h-0 overflow-hidden', 'absolute inset-0 z-10 transition-transform duration-300 ease-in-out', 'lg:relative lg:inset-auto lg:z-auto lg:flex-1 lg:translate-x-0', !activeId ? 'translate-x-full' : 'translate-x-0')}
+            className={cn(
+              'flex-col min-h-0 overflow-hidden',
+              'absolute inset-0 z-10',
+              'lg:relative lg:inset-auto lg:z-auto lg:flex lg:flex-1 lg:translate-x-0',
+              !activeId ? 'hidden translate-x-full lg:flex' : 'flex translate-x-0',
+            )}
             style={themeStyle}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
@@ -6301,7 +6660,7 @@ export default function SupraSpacePage() {
                             </div>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            {composerHasText || pendingGif ? (
+                            {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
                                 onPointerUp={finishSendPress}

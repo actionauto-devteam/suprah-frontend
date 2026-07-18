@@ -358,7 +358,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
             const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
             const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
             const body = nextUnreadCount >= 2 ? `${nextUnreadCount} new messages` : isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
-            showNotificationViaSW(title, { body, tag: conversationId });
+            showNotificationViaSW(title, {
+              body,
+              tag: conversationId,
+              url: `/crm/supra-space?conversationId=${encodeURIComponent(conversationId)}&messageId=${encodeURIComponent(message._id)}`,
+            });
           }
         }
       }
