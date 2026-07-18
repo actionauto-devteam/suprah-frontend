@@ -99,6 +99,7 @@ export default function DriverTrackerPage() {
   const [shareError, setShareError] = React.useState<string | null>(null);
   const [lastShareAt, setLastShareAt] = React.useState<string | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
+  const [isMapReady, setIsMapReady] = React.useState(false);
   const [availableLoads, setAvailableLoads] = React.useState<AvailableItem[]>([]);
   const [loadsLoading, setLoadsLoading] = React.useState(false);
   const [assignModalOpen, setAssignModalOpen] = React.useState(false);
@@ -444,10 +445,13 @@ export default function DriverTrackerPage() {
     let cancelled = false;
 
     const initMap = async () => {
+      setIsMapReady(false);
+
       const mapboxgl = (await import("mapbox-gl")).default;
       if (cancelled || !mapRef.current) return;
 
       if (!normalizedToken.startsWith("pk.")) {
+        setIsMapReady(true);
         setMapNotice(
           "Invalid Mapbox token. Use a public token starting with pk.",
         );
@@ -455,6 +459,7 @@ export default function DriverTrackerPage() {
       }
 
       if (!mapboxgl.supported()) {
+        setIsMapReady(true);
         setMapNotice(
           "Mapbox requires WebGL. Please enable hardware acceleration.",
         );
@@ -477,15 +482,24 @@ export default function DriverTrackerPage() {
       mapInstanceRef.current = map;
       setMapNotice("Loading map tiles...");
 
-      const handleIdle = () => setMapNotice(null);
+      const handleIdle = () => {
+        setIsMapReady(true);
+        setMapNotice(null);
+      };
+
       const handleError = (event: any) => {
         const status = event?.error?.status;
         const message = event?.error?.message || "Map failed to load";
+
+        // Reveal the map surface so the error notice can be shown instead of
+        // leaving the loading overlay visible indefinitely.
+        setIsMapReady(true);
         setMapNotice(status ? `${message} (HTTP ${status})` : message);
       };
 
       const loadTimeout = window.setTimeout(() => {
         if (!map.isStyleLoaded()) {
+          setIsMapReady(true);
           setMapNotice("Map style not loaded. Check token or network.");
         }
       }, 8000);
@@ -495,6 +509,7 @@ export default function DriverTrackerPage() {
       map.on("load", () => {
         window.clearTimeout(loadTimeout);
         map.resize();
+        setIsMapReady(true);
       });
       map.on("idle", handleIdle);
       map.on("error", handleError);
@@ -513,20 +528,36 @@ export default function DriverTrackerPage() {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
+
+      setIsMapReady(false);
     };
   }, [normalizedToken]);
 
   React.useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || mapThemeRef.current === theme) return;
+
     mapThemeRef.current = theme;
-    setMapNotice("Applying theme...");
+    setIsMapReady(false);
+    setMapNotice("Loading map theme...");
+
     map.setStyle(
       theme === "dark"
         ? "mapbox://styles/mapbox/dark-v11"
         : "mapbox://styles/mapbox/streets-v12",
     );
-    map.once("idle", () => setMapNotice(null));
+
+    const handleThemeIdle = () => {
+      map.resize();
+      setIsMapReady(true);
+      setMapNotice(null);
+    };
+
+    map.once("idle", handleThemeIdle);
+
+    return () => {
+      map.off("idle", handleThemeIdle);
+    };
   }, [theme]);
 
   React.useEffect(() => {
@@ -913,6 +944,7 @@ export default function DriverTrackerPage() {
           activeCount={activeDrivers.length}
           mapFilter={mapFilter}
           onMapFilterChange={setMapFilter}
+          isMapReady={isMapReady}
         />
 
         <DriverTrackerListCard

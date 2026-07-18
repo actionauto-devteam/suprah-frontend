@@ -1489,3 +1489,65 @@ main {
     text-size-adjust: 100%;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Driver Tracker map loading and visual polish animations
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes map-loading-bar {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  50% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.animate-map-loading-bar {
+  animation: map-loading-bar 1.4s ease-in-out infinite;
+}
+
+@keyframes map-controls-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-map-controls-in {
+  animation: map-controls-in 300ms ease-out both;
+}
+
+@keyframes map-notice-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-map-notice-in {
+  animation: map-notice-in 250ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-map-loading-bar,
+  .animate-map-controls-in,
+  .animate-map-notice-in {
+    animation: none;
+  }
+}

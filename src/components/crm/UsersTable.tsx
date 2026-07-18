@@ -917,11 +917,13 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
         <div className="flex flex-col gap-3 border-t border-border/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-muted-foreground/30">
-            {pagination.total === 0
-              ? hasFilters
-                ? "No results match the selected search and filters."
-                : "No users available."
-              : `Showing ${startItem}-${endItem} of ${pagination.total} users`}
+            {loading
+              ? "Loading users..."
+              : pagination.total === 0
+                ? hasFilters
+                  ? "No results match the selected search and filters."
+                  : "No users available."
+                : `Showing ${startItem}-${endItem} of ${pagination.total} users`}
           </p>
 
           <div className="flex flex-wrap items-center gap-1.5">
