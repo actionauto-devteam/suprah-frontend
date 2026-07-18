@@ -72,6 +72,8 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     }
 
     const handleDelete = async () => {
+        if (isDeleting) return
+
         showAlert({
             type: "confirm",
             title: "Delete Quote",
@@ -79,15 +81,20 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
             confirmText: "Yes, Delete",
             cancelText: "No, Keep Quote",
             onConfirm: async () => {
+                if (isDeleting) return
+
                 setIsDeleting(true)
+
                 try {
                     await onDelete(quote._id)
+                    hideAlert()
                 } catch (error) {
-                    console.error('Error deleting quote:', error)
-                    setIsDeleting(false)
+                    console.error("Error deleting quote:", error)
                     throw error
+                } finally {
+                    setIsDeleting(false)
                 }
-            }
+            },
         })
     }
 

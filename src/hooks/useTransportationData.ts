@@ -536,21 +536,105 @@ export function useTransportationData(filters: TransportationFilters = {}) {
 
   const handleDeleteQuote = React.useCallback(
     async (quoteId: string) => {
+      if (!quoteId) {
+        throw new Error("Failed to delete quote: Quote ID is missing");
+      }
+
+      const config = await getAuthConfig();
+
+      if (!config) {
+        throw new Error("Failed to delete quote: Authentication required");
+      }
+
+      /*
+       * Remove the quote immediately for a responsive production UI.
+       * Keep the previous list so it can be restored if the delete fails.
+       */
+      let previousQuotes: Quote[] = [];
+
+      setQuotes((currentQuotes) => {
+        previousQuotes = currentQuotes;
+        return currentQuotes.filter((quote) => quote._id !== quoteId);
+      });
+
+      setQuotesPagination((currentPagination) => {
+        if (!currentPagination) return currentPagination;
+
+        const total = Math.max(0, currentPagination.total - 1);
+        const totalPages = Math.max(
+          1,
+          Math.ceil(total / Math.max(1, currentPagination.limit)),
+        );
+
+        return {
+          ...currentPagination,
+          total,
+          totalPages,
+          hasMore: currentPagination.page < totalPages,
+        };
+      });
+
       try {
-        const config = await getAuthConfig();
-        await apiClient.delete(`/api/quotes/${quoteId}`, config ?? undefined);
-        setQuotes((prev) => prev.filter((q) => q._id !== quoteId));
+        await apiClient.delete(`/api/quotes/${quoteId}`, {
+          ...config,
+          timeout: 15_000,
+        });
       } catch (err) {
         const axiosError = err as AxiosError;
-        throw new Error(
-          "Failed to delete quote: " +
-          ((axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Unknown error"),
+        const status = axiosError.response?.status;
+
+        /*
+         * A 404 means the quote is already gone. This is a successful final
+         * state from the user's perspective, so do not restore the stale card.
+         */
+        if (status !== 404) {
+          setQuotes(previousQuotes);
+
+          setQuotesPagination((currentPagination) => {
+            if (!currentPagination) return currentPagination;
+
+            const total = currentPagination.total + 1;
+            const totalPages = Math.max(
+              1,
+              Math.ceil(total / Math.max(1, currentPagination.limit)),
+            );
+
+            return {
+              ...currentPagination,
+              total,
+              totalPages,
+              hasMore: currentPagination.page < totalPages,
+            };
+          });
+
+          throw new Error(
+            "Failed to delete quote: " +
+            ((axiosError.response?.data as any)?.message ||
+              axiosError.message ||
+              "Unknown error"),
+          );
+        }
+
+        console.warn(
+          `[Transportation] Quote ${quoteId} was already deleted on the server.`,
         );
       }
+
+      /*
+       * Refresh in the background so the local page and pagination match the
+       * server without keeping the confirmation button in a loading state.
+       */
+      void fetchQuotes(
+        quotesPageRef.current,
+        quotesLimitRef.current,
+      ).catch((refreshError) => {
+        console.error(
+          "Quote deleted, but the quote list could not be refreshed:",
+          refreshError,
+        );
+      });
     },
-    [getAuthConfig],
+    [getAuthConfig, fetchQuotes],
   );
 
   const handleDeleteLoad = React.useCallback(
