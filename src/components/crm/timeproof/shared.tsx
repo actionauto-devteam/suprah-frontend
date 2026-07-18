@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { ChevronRight } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 /* ─────────────────────────────────────────────────────────────────────────
    Shared types/utilities/components between the employee TimeProof clock
@@ -22,6 +24,13 @@ export const toDateStr = (d: Date) => {
   const m = toMDTDate(d)
   return `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, "0")}-${String(m.getUTCDate()).padStart(2, "0")}`
 }
+
+// A day's break badge on the calendar (grid or mobile list) turns red once
+// that day's total break time hit 1h10m+ — 10 minutes past the official 1h
+// limit, matching the grace window already used elsewhere (admin gets
+// notified at 1h05m; this is a visually louder, retrospective flag once it
+// went further still). Below this it stays the normal orange.
+export const BREAK_OVER_LIMIT_SECONDS = 70 * 60
 
 export const fmtHHMM = (seconds: number) => {
   const h = Math.floor(seconds / 3600)
@@ -431,7 +440,7 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
                           <span className={`text-[11px] font-black font-mono ${colors.text}`}>{fmtHHMM(data.totalSeconds)}</span>
                         </div>
                         {!!data.breakSeconds && data.breakSeconds > 0 && (
-                          <div className="rounded-[5px] px-1.5 py-0.5 text-center bg-orange-500/80">
+                          <div className={`rounded-[5px] px-1.5 py-0.5 text-center ${data.breakSeconds >= BREAK_OVER_LIMIT_SECONDS ? "bg-red-500/90" : "bg-orange-500/80"}`}>
                             <span className="text-[10px] font-bold font-mono text-white">{fmtHHMM(data.breakSeconds)}</span>
                           </div>
                         )}
@@ -456,6 +465,105 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
           })}
         </div>
       ))}
+    </div>
+  )
+}
+
+// Mobile/PWA list view — day-by-day rows grouped by week with a "Week total"
+// separator, used in place of MonthCalendar's 7-column grid on narrow
+// screens (the grid's fixed columns get cramped on phone widths). Previously
+// only defined locally in the employee's own timeproof-clock page; moved here
+// so the admin per-user view can share the exact same mobile UI.
+export const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive }: {
+  year: number; month: number; calendar: Record<string, DayData>
+  onSelectDay: (ds: string) => void; isLive: boolean
+}) => {
+  const todayStr = toDateStr(new Date())
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+  type DayEntry = { ds: string; day: number; dow: number; data?: DayData; isToday: boolean; isFuture: boolean }
+  type Week = { days: DayEntry[]; weekTotal: number }
+
+  const weeks: Week[] = []
+  let cur: DayEntry[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+    const dow = new Date(year, month, d).getDay()
+    cur.push({ ds, day: d, dow, data: calendar[ds], isToday: ds === todayStr, isFuture: ds > todayStr })
+    if (dow === 6 || d === daysInMonth) {
+      weeks.push({ days: cur, weekTotal: cur.reduce((s, e) => s + (e.data?.totalSeconds ?? 0), 0) })
+      cur = []
+    }
+  }
+
+  return (
+    <div>
+      {weeks.map((week, wi) => {
+        const hasAct = week.days.some(e => !!e.data?.totalSeconds)
+        if (week.days.every(e => e.isFuture)) return null
+        return (
+          <div key={wi}>
+            {week.days.map(({ ds, day, dow, data, isToday, isFuture }) => {
+              if (isFuture) return null
+              const hasData = !!data?.totalSeconds && data.totalSeconds > 0
+              return (
+                <div key={ds}
+                  onClick={() => (hasData || isToday) && onSelectDay(ds)}
+                  className={cn(
+                    "flex items-center gap-4 px-4 py-3.5 border-b border-border/10 transition-colors",
+                    hasData || isToday ? "cursor-pointer active:bg-muted/20" : "cursor-default"
+                  )}
+                >
+                  <div className="w-11 shrink-0 flex flex-col items-center gap-0.5">
+                    <span className={cn("text-[9px] font-bold uppercase tracking-widest",
+                      isToday ? "text-emerald-500" : "text-muted-foreground/30")}>{DOW[dow]}</span>
+                    <span className={cn("text-2xl font-black tabular-nums leading-none",
+                      isToday ? "text-emerald-500" : "text-foreground/70")}>{day}</span>
+                  </div>
+
+                  <div className="flex-1 min-w-0 flex items-center gap-2.5">
+                    {hasData ? (
+                      <>
+                        {isToday && isLive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                        <span className="text-[18px] font-black font-mono tabular-nums text-foreground tracking-tight leading-none">
+                          {fmtHHMM(data!.totalSeconds)}
+                        </span>
+                        {!!data!.breakSeconds && data!.breakSeconds > 0 && (
+                          data!.breakSeconds! >= BREAK_OVER_LIMIT_SECONDS ? (
+                            <span className="text-[10px] font-bold font-mono text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                              {fmtHHMM(data!.breakSeconds)} brk
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold font-mono text-orange-400/80 bg-orange-500/8 px-2 py-0.5 rounded-full border border-orange-500/15">
+                              {fmtHHMM(data!.breakSeconds)} brk
+                            </span>
+                          )
+                        )}
+                      </>
+                    ) : isToday ? (
+                      <span className="text-[13px] text-muted-foreground/30 font-medium">Not clocked in yet</span>
+                    ) : (
+                      <span className="text-[15px] font-mono text-muted-foreground/15">—</span>
+                    )}
+                  </div>
+
+                  {hasData && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/20 shrink-0" />}
+                </div>
+              )
+            })}
+            {hasAct && (
+              <div className="flex items-center gap-4 px-4 py-2.5 bg-emerald-500/5 border-b border-emerald-500/10">
+                <div className="w-11 shrink-0" />
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/25">Week total</span>
+                  <span className="text-[13px] font-black font-mono text-emerald-600 dark:text-emerald-400">{fmtHHMM(week.weekTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

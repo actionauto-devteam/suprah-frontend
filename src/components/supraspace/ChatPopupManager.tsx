@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2 } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Paperclip } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -1164,6 +1164,31 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
+  const jumpToPopupRepliedMessage = React.useCallback((replyTo: SSMessage['replyTo']) => {
+    const targetId =
+      typeof replyTo === 'string'
+        ? replyTo
+        : (replyTo as any)?._id || (replyTo as any)?.id;
+
+    if (!targetId) return;
+
+    const target = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
+    if (!target) {
+      toast.info('Original message is not loaded yet. Scroll up to load older messages.');
+      return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.animate(
+      [
+        { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)', transform: 'scale(1)' },
+        { boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.55), 0 0 24px rgba(59, 130, 246, 0.32)', transform: 'scale(1.015)' },
+        { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)', transform: 'scale(1)' },
+      ],
+      { duration: 1400, easing: 'ease' },
+    );
+  }, []);
+
   const stageFiles = React.useCallback((files: FileList | File[] | null) => {
     const selected = Array.from(files || []);
     if (!selected.length) return;
@@ -1271,6 +1296,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLDivElement>(null);
+  const editFileRef = React.useRef<HTMLInputElement>(null);
+  const [editReplacementFiles, setEditReplacementFiles] = React.useState<PendingPopupAttachment[]>([]);
   const [editColorOpen, setEditColorOpen] = React.useState(false);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
   const [editPalette, setEditPalette] = React.useState(TEXT_COLORS);
@@ -1281,7 +1308,12 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     const bubble = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${msgId}"]`);
     const width = bubble?.getBoundingClientRect().width;
     setEditWidth(width ? Math.max(width, 190) : null);
-    setEditDraft(msg.content);
+    setEditDraft(msg.content || '');
+    setEditReplacementFiles(prev => {
+      prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      return [];
+    });
+    if (editFileRef.current) editFileRef.current.value = '';
     setEditingMsgId(msgId);
     clearBar();
     requestAnimationFrame(() => {
@@ -1340,18 +1372,42 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     setEditingMsgId(null);
     setEditWidth(null);
     setEditColorOpen(false);
+    setEditReplacementFiles(prev => {
+      prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      return [];
+    });
+    if (editFileRef.current) editFileRef.current.value = '';
   }, []);
 
   const saveEdit = async () => {
     if (!editingMsgId || !crmToken) return;
-    const original = messages.find(m => m._id === editingMsgId)?.content;
+    const originalMsg = messages.find(m => m._id === editingMsgId);
+    const original = originalMsg?.content || '';
+    const editableAttachmentCount = (originalMsg?.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).length;
     const nextDraft = syncEditDraft();
-    if (!nextDraft || nextDraft === original) { cancelEdit(); return; }
+    if (!nextDraft && editableAttachmentCount === 0 && editReplacementFiles.length === 0) return;
+    if (nextDraft === original.trim() && editReplacementFiles.length === 0) { cancelEdit(); return; }
     setEditSaving(true);
     try {
-      await apiClient.patch(`/api/supraspace/messages/${editingMsgId}`, { content: nextDraft },
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
-      setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: nextDraft, isEdited: true } : m));
+      if (editReplacementFiles.length > 0) {
+        const fd = new FormData();
+        fd.append('content', nextDraft);
+        editReplacementFiles.forEach(item => fd.append('files', item.file));
+        const r = await apiClient.patch(`/api/supraspace/messages/${editingMsgId}/attachments`, fd,
+          { headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' }, _skipAuthRefresh: true } as any);
+        const updated = r.data?.data;
+        setMessages(prev => prev.map(m => m._id === editingMsgId ? {
+          ...m,
+          content: updated?.content ?? nextDraft,
+          attachments: updated?.attachments ?? m.attachments ?? [],
+          type: updated?.type ?? m.type,
+          isEdited: true,
+        } : m));
+      } else {
+        await apiClient.patch(`/api/supraspace/messages/${editingMsgId}`, { content: nextDraft },
+          { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+        setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: nextDraft, isEdited: true } : m));
+      }
       cancelEdit();
     } catch {} finally { setEditSaving(false); }
   };
@@ -1542,6 +1598,21 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     socket.on('message:new', handler);
     return () => { socket.off('message:new', handler); };
   }, [socket, conv._id, isMinimized, markAsRead]);
+  React.useEffect(() => {
+    if (!socket) return;
+    const handler = ({ conversationId, messageId, content, attachments, type }: any) => {
+      if (conversationId !== conv._id) return;
+      setMessages(prev => prev.map(m => m._id === messageId ? {
+        ...m,
+        content,
+        attachments: Array.isArray(attachments) ? attachments : m.attachments,
+        type: type || m.type,
+        isEdited: true,
+      } : m));
+    };
+    socket.on('message:edited', handler);
+    return () => { socket.off('message:edited', handler); };
+  }, [socket, conv._id]);
   React.useEffect(() => {
     if (!socket) return;
     const handler = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
@@ -1851,6 +1922,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   const imageOnly = imageAttachments.length > 0 && !msg.content?.trim();
                   const emojiOnly = imageAttachments.length === 0 && msg.type === 'text' && isEmojiOnlyText(msg.content);
                   const bareMessage = imageOnly || emojiOnly;
+                  const editableAttachmentCount = (msg.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).length;
+                  const canSaveThisEdit = !editSaving
+                    && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0)
+                    && (editDraft.trim() !== (msg.content || '').trim() || editReplacementFiles.length > 0);
                   return (
                     <div key={msg._id}
                       className={cn('flex gap-1.5', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end')}
@@ -1940,11 +2015,77 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                               className="min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
                               style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: '#fff' }}
                             />
+                            {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
+                              <div className="mt-1.5 space-y-1.5 rounded-xl border border-white/15 bg-black/15 p-2">
+                                {editableAttachmentCount > 0 && editReplacementFiles.length === 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-[9px] font-semibold text-white/55">Current attachment{editableAttachmentCount === 1 ? '' : 's'}</div>
+                                    {(msg.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).map((att: SSAttachment, index: number) => (
+                                      <div key={`${att.url}-${index}`} className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2 py-1">
+                                        {att.mimeType?.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Paperclip className="h-3.5 w-3.5 shrink-0" />}
+                                        <span className="min-w-0 flex-1 truncate text-[10.5px]">{att.originalName || `Attachment ${index + 1}`}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {editReplacementFiles.length > 0 && (
+                                  <div className="flex gap-2 overflow-x-auto pb-1">
+                                    {editReplacementFiles.map((item, index) => {
+                                      const isImage = item.file.type.startsWith('image/');
+                                      return (
+                                        <div key={`${item.file.name}-${item.file.lastModified}-${index}`} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/20">
+                                          {isImage ? (
+                                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                                          ) : (
+                                            <div className="flex h-full w-full items-center justify-center px-1 text-center text-[8px] font-semibold text-white/70">{item.file.name}</div>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditReplacementFiles(prev => {
+                                              const removed = prev[index];
+                                              if (removed) URL.revokeObjectURL(removed.previewUrl);
+                                              return prev.filter((_, i) => i !== index);
+                                            })}
+                                            className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white"
+                                          >
+                                            <X className="h-2.5 w-2.5" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             <div className="flex items-center gap-1.5 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
                               <span style={{ fontSize: 8, opacity: 0.5 }}>Enter · Esc</span>
                               <div className="flex-1" />
+                              <input
+                                ref={editFileRef}
+                                type="file"
+                                multiple
+                                hidden
+                                onChange={e => {
+                                  const selected = Array.from(e.target.files || []);
+                                  setEditReplacementFiles(prev => {
+                                    prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+                                    return selected.map(file => ({ file, previewUrl: URL.createObjectURL(file) }));
+                                  });
+                                  syncEditDraft();
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => editFileRef.current?.click()}
+                                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]"
+                                style={{ background: 'rgba(255,255,255,0.15)' }}
+                                title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
+                              >
+                                <Paperclip className="h-3 w-3" />
+                                {editableAttachmentCount > 0 ? 'Replace' : 'Attach'}
+                              </button>
                               <button onClick={cancelEdit} className="text-[11px] px-2 py-1 rounded-md" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
-                              <button onClick={saveEdit} disabled={editSaving || !editDraft.trim()} className="text-[11px] px-2 py-1 rounded-md font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
+                              <button onClick={saveEdit} disabled={!canSaveThisEdit} className="text-[11px] px-2 py-1 rounded-md font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
                                 {editSaving ? '...' : 'Update'}
                               </button>
                             </div>
@@ -1957,15 +2098,26 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere' }}>
                           {/* Reply preview */}
                           {msg.replyTo && (
-                            <div className={cn('mb-1 px-2 py-1 rounded-lg text-[12px] border-l-2', isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5 border-blue-400')}
-                              style={{ maxWidth: 180 }}>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                jumpToPopupRepliedMessage(msg.replyTo);
+                              }}
+                              className={cn(
+                                'mb-1 block px-2 py-1 rounded-lg text-left text-[12px] border-l-2 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/50',
+                                isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5 border-blue-400',
+                              )}
+                              style={{ maxWidth: 180 }}
+                              title="Jump to original message"
+                            >
                               <div className={cn('font-semibold truncate', isOwn ? 'text-white/80' : 'text-blue-400')}>
                                 {(msg.replyTo as any)?.sender?.fullName || 'Reply'}
                               </div>
                               <div className={cn('truncate', isOwn ? 'text-white/60' : 'text-foreground/50')}>
                                 {messagePreviewText((msg.replyTo as any)?.content) || '📎 Attachment'}
                               </div>
-                            </div>
+                            </button>
                           )}
                           {imageAttachments.length > 0 && (
                             <div className={cn(
@@ -2417,6 +2569,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             const msg = messages.find(m => m._id === moreMenuMsgId);
             const isOwnMsg = msg?.sender?._id === crmUserId;
             const imgAtt = msg?.attachments?.find((a: any) => a.mimeType?.startsWith('image/'));
+            const canEditMsg = isOwnMsg && !!msg && !msg.isDeleted && !['voice', 'poll', 'event'].includes(msg.type) && (Boolean(msg.content?.trim()) || (msg.attachments || []).some((a: SSAttachment) => !a.mimeType?.startsWith('audio/')));
             const close = () => { moreMenuMsgIdRef.current = null; setMoreMenuMsgId(null); setMoreMenuPos(null); };
             const isPinned = pinnedMsgIds.has(moreMenuMsgId);
             const row = 'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5';
@@ -2477,7 +2630,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 {isOwnMsg && (
                   <>
                     <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
-                    {!!msg?.content?.trim() && !msg?.isDeleted && !['voice', 'poll', 'event'].includes(msg.type) && (
+                    {canEditMsg && (
                       <button className={row} onClick={() => { startEdit(moreMenuMsgId); close(); }}>
                         <Pencil className="h-4 w-4 shrink-0" style={ic} />
                         <span style={{ fontSize: 13, color: '#e8e8ea' }}>Edit message</span>

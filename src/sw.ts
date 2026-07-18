@@ -100,6 +100,9 @@ self.addEventListener("push", (event: any) => {
         tag: data.tag,
         data: {
           url: data.data?.url || "/",
+          conversationId: data.data?.conversationId,
+          messageId: data.data?.messageId,
+          notificationId: data.data?.notificationId,
           driverRequestId: data.data?.driverRequestId,
         },
         actions: data.actions || [],
@@ -128,19 +131,29 @@ self.addEventListener("notificationclick", (event: any) => {
   }
 
   const urlToOpen = new URL(notificationData.url || "/", self.location.origin)
-    .href;
+  const targetHref = urlToOpen.href;
+  const targetPathname = urlToOpen.pathname;
 
   event.waitUntil(
     (self as any).clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList: any) => {
         for (const client of clientList) {
-          if (client.url === urlToOpen && "focus" in client) {
+          const clientUrl = new URL(client.url);
+          if (client.url === targetHref && "focus" in client) {
+            return client.focus();
+          }
+          if (clientUrl.pathname === targetPathname && "focus" in client) {
+            if ("navigate" in client) {
+              return client.navigate(targetHref).then((navigatedClient: any) =>
+                navigatedClient?.focus ? navigatedClient.focus() : client.focus(),
+              );
+            }
             return client.focus();
           }
         }
         if ((self as any).clients.openWindow) {
-          return (self as any).clients.openWindow(urlToOpen);
+          return (self as any).clients.openWindow(targetHref);
         }
       }),
   );

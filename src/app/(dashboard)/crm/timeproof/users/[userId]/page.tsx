@@ -25,8 +25,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { resolveImageUrl } from "@/lib/utils"
 import { useCrmUser } from "@/hooks/useCrmUser"
 import { isTimeEditExempt } from "@/lib/departments"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
-  DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar,
+  DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar, MobileCalendarList,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
   generateIdleLogHtml, type IdlePeriod,
 } from "@/components/crm/timeproof/shared"
@@ -84,6 +85,7 @@ export default function AdminUserTimeprofPage() {
   const { user: currentUser } = useCrmUser()
   const isAdmin = currentUser?.role === "admin"
   const isAdminOrManager = currentUser?.role === "admin" || currentUser?.role === "manager"
+  const isMobile = useIsMobile()
 
   const [data, setData] = React.useState<TimeprofData | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -639,15 +641,27 @@ export default function AdminUserTimeprofPage() {
                 </div>
               </div>
 
-              <MonthCalendar
-                year={viewYear}
-                month={viewMonth}
-                calendar={data.calendar}
-                onSelectDay={(ds) =>
-                  router.push(`/crm/timeproof/${ds}?userId=${userId}&t=${data?.calendar[ds]?.totalSeconds ?? 0}`)
-                }
-                isLive={data.isLive}
-              />
+              {isMobile ? (
+                <MobileCalendarList
+                  year={viewYear}
+                  month={viewMonth}
+                  calendar={data.calendar}
+                  onSelectDay={(ds) =>
+                    router.push(`/crm/timeproof/${ds}?userId=${userId}&t=${data?.calendar[ds]?.totalSeconds ?? 0}`)
+                  }
+                  isLive={data.isLive}
+                />
+              ) : (
+                <MonthCalendar
+                  year={viewYear}
+                  month={viewMonth}
+                  calendar={data.calendar}
+                  onSelectDay={(ds) =>
+                    router.push(`/crm/timeproof/${ds}?userId=${userId}&t=${data?.calendar[ds]?.totalSeconds ?? 0}`)
+                  }
+                  isLive={data.isLive}
+                />
+              )}
             </div>
 
             {/* ── Payout Calculator ── */}
