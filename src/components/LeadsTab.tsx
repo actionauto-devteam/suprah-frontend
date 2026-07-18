@@ -63,6 +63,9 @@ const LEADS_PER_PAGE = 20;
 const THREAD_POLL_INTERVAL_MS = 15_000;
 const DRAFT_STORAGE_KEY = "crm-appointment-draft";
 
+const isMongoObjectId = (value: unknown): value is string =>
+  typeof value === "string" && /^[a-f\d]{24}$/i.test(value.trim());
+
 const TABS = [
   { key: null, label: "All" },
   { key: "New", label: "New" },
@@ -270,23 +273,45 @@ export function LeadsTab({
     const vehicle = selectedLead?.vehicle as any;
     if (!vehicle) return null;
 
-    const id = String(
-      vehicle.id ||
-        vehicle._id ||
+    /*
+     * CRM leads can contain either:
+     * - a real MongoDB vehicle ID, or
+     * - only a stock number such as "L22575".
+     *
+     * Never treat the stock number as the database vehicle ID. The backend
+     * uses Vehicle.findById(), which only accepts a 24-character ObjectId.
+     */
+    const rawVehicleId =
+      vehicle.vehicleId?._id ||
+      vehicle.vehicleId ||
+      vehicle.inventoryVehicleId?._id ||
+      vehicle.inventoryVehicleId ||
+      vehicle._id ||
+      vehicle.id;
+
+    const databaseVehicleId = isMongoObjectId(String(rawVehicleId || ""))
+      ? String(rawVehicleId).trim()
+      : undefined;
+
+    // The modal still needs a stable value for its dropdown, even when this
+    // lead only has a vehicle snapshot and no inventory database ID.
+    const displayId =
+      databaseVehicleId ||
+      String(
         vehicle.stockNumber ||
-        vehicle.stock ||
-        `lead-vehicle-${selectedLead?._id || "unknown"}`,
-    );
+          vehicle.stock ||
+          `lead-vehicle-${selectedLead?._id || "unknown"}`,
+      );
 
     return {
       ...vehicle,
-      id,
-      _id: vehicle._id || id,
+      id: displayId,
+      ...(databaseVehicleId ? { _id: databaseVehicleId } : {}),
       year: Number(vehicle.year) || new Date().getFullYear(),
       make: vehicle.make || "Unknown",
-      model: vehicle.model || "Vehicle",
+      model: vehicle.model || vehicle.modelName || "Vehicle",
       stockNumber: vehicle.stockNumber || vehicle.stock || "N/A",
-      vin: vehicle.vin || "N/A",
+      vin: vehicle.vin || vehicle.VIN || vehicle.vinNumber || "",
       location: vehicle.location || "Action Auto - Orem, UT",
       image: vehicle.image || vehicle.imageUrl || "",
       price: Number(vehicle.price) || 0,
@@ -1024,21 +1049,77 @@ const fetchThread = React.useCallback(
   const handleCalculateQuote = async (formData: any) => {
     try {
       const token = await getToken();
-      await apiClient.post(
-        "/api/quotes",
-        {
-          ...formData,
-          toZip: formData.zipCode,
-          toAddress: formData.fullAddress,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const leadVehicle = selectedLead?.vehicle as any;
+
+      const rawVehicleId =
+        leadVehicle?.vehicleId?._id ||
+        leadVehicle?.vehicleId ||
+        leadVehicle?.inventoryVehicleId?._id ||
+        leadVehicle?.inventoryVehicleId ||
+        leadVehicle?._id ||
+        leadVehicle?.id ||
+        quoteVehicle?._id;
+
+      const databaseVehicleId = isMongoObjectId(String(rawVehicleId || ""))
+        ? String(rawVehicleId).trim()
+        : undefined;
+
+      const vehicleName = [
+        quoteVehicle?.year,
+        quoteVehicle?.make,
+        quoteVehicle?.model,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      /*
+       * Send a MongoDB ID only when it is valid. Also include the vehicle
+       * snapshot directly so VIN and vehicle details are not lost when a CRM
+       * lead only contains a stock number instead of an inventory ObjectId.
+       */
+      const payload = {
+        ...formData,
+        ...(databaseVehicleId ? { vehicleId: databaseVehicleId } : {}),
+        vehicleName: vehicleName || undefined,
+        vin:
+          quoteVehicle?.vin ||
+          leadVehicle?.vin ||
+          leadVehicle?.VIN ||
+          leadVehicle?.vinNumber ||
+          undefined,
+        stockNumber:
+          quoteVehicle?.stockNumber ||
+          leadVehicle?.stockNumber ||
+          leadVehicle?.stock ||
+          undefined,
+        vehicleLocation:
+          quoteVehicle?.location ||
+          leadVehicle?.location ||
+          undefined,
+        vehiclePrice:
+          Number(quoteVehicle?.price || leadVehicle?.price) || undefined,
+        toZip: formData.zipCode,
+        toAddress: formData.fullAddress,
+      };
+
+      await apiClient.post("/api/quotes", payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       addToast("success", "Shipping Quote Calculated & Saved");
       setShippingOpen(false);
-    } catch {
-      addToast("error", "Failed to calculate quote");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.data?.message ||
+        error?.message ||
+        "Failed to calculate quote";
+
+      addToast("error", message);
     }
   };
 
