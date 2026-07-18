@@ -6,14 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /* Hide scrollbar while keeping scroll functionality */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ── Custom breakpoints ──────────────────────────────── */
 @theme {
@@ -1349,143 +1343,131 @@ body.theme-switching *::after {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   CRM Leads: small viewport height and scrolling safeguards
+   Driver Tracker map loading and visual polish
    ───────────────────────────────────────────────────────────── */
-
-/*
- * Use the visible mobile viewport when supported. This avoids extra page
- * height caused by browser address bars and keeps the lead list usable.
- */
-html,
-body {
-  min-height: 100%;
-}
-
-body {
-  min-height: 100dvh;
-}
-
-/*
- * Prevent flex children inside the application shell from forcing the page
- * taller than the viewport. Individual modules should own their scrolling.
- */
-body > div,
-main {
-  min-height: 0;
-}
-
-/*
- * Scope these rules to the Leads workspace so other modules retain their
- * existing scrolling behavior.
- */
-.ss4 {
-  min-height: 0;
-  max-width: 100%;
-}
-
-.ss4 .suprah-responsive-workspace {
-  min-height: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.ss4 .suprah-leads-panel,
-.ss4 .suprah-center-panel,
-.ss4 .suprah-details-panel,
-.ss4 .ss4-sidebar,
-.ss4 .ss4-scroll {
-  min-height: 0;
-}
-
-/* Better momentum scrolling inside the lead list on touch devices. */
-.ss4 .ss4-scroll {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-}
-
-/*
- * Keep mobile controls responsive to taps and avoid the delayed double-tap
- * zoom behavior on browsers that still apply it.
- */
-.ss4 button,
-.ss4 [role="button"],
-.ss4 input,
-.ss4 select,
-.ss4 textarea {
-  touch-action: manipulation;
-}
-
-/*
- * Prevent horizontal overflow from long lead names, emails, vehicle details,
- * or status labels.
- */
-.ss4,
-.ss4 * {
-  box-sizing: border-box;
-}
-
-.ss4 .ss4-sidebar,
-.ss4 .ss4-conv,
-.ss4 .ss4-conv > *,
-.ss4 .ss4-conv-name,
-.ss4 .ss4-conv-preview {
-  min-width: 0;
-}
-
-@supports (height: 100dvh) {
-  .ss4 {
-    max-height: 100dvh;
-  }
-}
 
 @keyframes map-loading-bar {
   0% {
-    transform: translateX(-120%);
+    transform: translateX(-125%);
   }
 
   50% {
-    transform: translateX(100%);
+    transform: translateX(95%);
   }
 
   100% {
-    transform: translateX(220%);
+    transform: translateX(225%);
   }
 }
 
 .animate-map-loading-bar {
-  animation: map-loading-bar 1.4s ease-in-out infinite;
+  animation: map-loading-bar 1.25s ease-in-out infinite;
 }
 
-@media (max-width: 639px) {
-  /*
-   * Preserve room for phone safe areas without adding unnecessary space on
-   * normal desktop browsers.
-   */
-  .ss4 {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+@keyframes map-controls-in {
+  from {
+    opacity: 0;
+    transform: translateY(-7px) scale(0.975);
   }
 
-  /*
-   * The lead list remains the scroll owner. This prevents accidental page
-   * movement while the user browses conversations.
-   */
-  .ss4 .suprah-responsive-workspace,
-  .ss4 .suprah-leads-panel,
-  .ss4 .ss4-sidebar {
-    overflow: hidden;
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-map-controls-in {
+  animation: map-controls-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes map-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
   }
 
-  .ss4 .ss4-scroll {
-    overflow-x: hidden;
-    overflow-y: auto;
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-map-notice-in {
+  animation: map-notice-in 260ms ease-out both;
+}
+
+@keyframes map-loading-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
   }
 
-  /*
-   * Avoid text-size inflation when rotating phones, which can unexpectedly
-   * make lead cards taller.
-   */
-  .ss4 {
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.map-loading-card {
+  animation: map-loading-card-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/*
+ * Lightweight map-like placeholder used only for the very first render.
+ * It prevents a flat blank panel before Mapbox has produced its first frame.
+ */
+.map-skeleton-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--border) 28%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--border) 28%, transparent) 1px, transparent 1px),
+    radial-gradient(
+      circle at 25% 30%,
+      color-mix(in oklch, var(--muted-foreground) 8%, transparent),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 75% 70%,
+      color-mix(in oklch, var(--muted-foreground) 7%, transparent),
+      transparent 24%
+    );
+  background-size:
+    44px 44px,
+    44px 44px,
+    100% 100%,
+    100% 100%;
+  mask-image: linear-gradient(to bottom, black 70%, transparent 115%);
+}
+
+/* Smooth Mapbox canvas changes without changing the application's theme. */
+.mapboxgl-map,
+.mapboxgl-canvas,
+.mapboxgl-canvas-container {
+  transition:
+    opacity 500ms ease,
+    filter 500ms ease,
+    transform 500ms ease;
+}
+
+.map-ui-control {
+  transition:
+    opacity 250ms ease,
+    transform 250ms ease,
+    background-color 250ms ease,
+    border-color 250ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-map-loading-bar,
+  .animate-map-controls-in,
+  .animate-map-notice-in,
+  .map-loading-card {
+    animation: none;
+  }
+
+  .mapboxgl-map,
+  .mapboxgl-canvas,
+  .mapboxgl-canvas-container,
+  .map-ui-control {
+    transition-duration: 1ms;
   }
 }
