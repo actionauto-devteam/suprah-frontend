@@ -1062,7 +1062,8 @@ const fetchThread = React.useCallback(
         leadVehicle?.inventoryVehicleId ||
         leadVehicle?._id ||
         leadVehicle?.id ||
-        quoteVehicle?._id;
+        (quoteVehicle as (Vehicle & { _id?: string }) | null)?._id ||
+        quoteVehicle?.id;
 
       const databaseVehicleId = isMongoObjectId(String(rawVehicleId || ""))
         ? String(rawVehicleId).trim()
