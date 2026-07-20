@@ -26,6 +26,7 @@ import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { fmtTimeMDT, fmtFullDateTimeMDT, MDT_TZ } from "@/lib/timezone";
 import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
+import { linkifyText } from "@/lib/chatFormat";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -225,7 +226,7 @@ function TimelineRow({ msg }: { msg: CallMessage }) {
           )}
         >
           {!isCustomer && <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5 text-chart-4" />}
-          <span>{msg.content}</span>
+          <span className="whitespace-pre-wrap">{linkifyText(msg.content)}</span>
         </div>
         <span className="text-[10px] text-muted-foreground/50 tabular-nums font-mono">
           {fmtFull(msg.createdAt)}

@@ -596,7 +596,7 @@ export function TeamList({
       ) : (
         <>
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-4 sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pb-4">
               {filtered.map((m) => (
                 <MemberCard
                   key={m._id}
@@ -610,7 +610,7 @@ export function TeamList({
               ))}
             </div>
           ) : (
-            <div className="space-y-1.5 pb-4 overscroll-contain sm:max-h-140 sm:overflow-y-auto sm:no-scrollbar">
+            <div className="space-y-1.5 pb-4">
               {filtered.map((m) => (
                 <MemberCard
                   key={m._id}

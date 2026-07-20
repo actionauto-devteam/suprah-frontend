@@ -17,11 +17,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { cn, resolveImageUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { useTheme } from '@/context/ThemeContext';
+
+const FALLBACK = "/vehicle-placeholder.jpg";
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
 const trailerLabel = (val?: string) => trailerTypeOptions.find(t => t.value === val)?.label || val || 'Any';
@@ -259,18 +261,26 @@ export default function AvailableLoadDetailPage() {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehicleImg && (
-                        <Card className="border-border/20 rounded-2xl overflow-hidden md:col-span-2">
-                            <div className="relative h-56 sm:h-72">
-                                <img src={vehicleImg} alt={vehicleName || 'Vehicle'} className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
-                                <div className="absolute bottom-4 left-4 right-4">
-                                    <p className="text-xl font-black text-white">{vehicleName}</p>
-                                    {miles && <p className="text-sm text-white/60">{miles.toLocaleString()} miles</p>}
-                                </div>
+                    <Card className="border-border/20 rounded-2xl overflow-hidden md:col-span-2">
+                        <div className="relative h-56 sm:h-72">
+                            <img
+                                src={resolveImageUrl(vehicleImg) || FALLBACK}
+                                alt={vehicleName || 'Vehicle'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    const img = e.currentTarget;
+                                    if (img.src !== window.location.origin + FALLBACK) {
+                                        img.src = FALLBACK;
+                                    }
+                                }}
+                            />
+                            <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
+                            <div className="absolute bottom-4 left-4 right-4">
+                                <p className="text-xl font-black text-white">{vehicleName}</p>
+                                {miles && <p className="text-sm text-white/60">{miles.toLocaleString()} miles</p>}
                             </div>
-                        </Card>
-                    )}
+                        </div>
+                    </Card>
 
                     {vehicles.length > 0 && (
                         <Card className="border-border/20 rounded-2xl overflow-hidden md:col-span-2">

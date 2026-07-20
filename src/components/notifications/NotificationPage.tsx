@@ -36,6 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { TimePicker } from '@/components/ui/time-picker';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/context/NotificationContext';
 import { Notification } from '@/types/notification';
@@ -511,16 +512,18 @@ export function NotificationPage() {
                             onChange={(e) => setDateTo(e.target.value)}
                             className="h-9 text-xs"
                           />
-                          <Input
-                            type="time"
+                          <TimePicker
+                            format="time"
                             value={timeFrom}
-                            onChange={(e) => setTimeFrom(e.target.value)}
+                            onChange={setTimeFrom}
+                            placeholder="Start time"
                             className="h-9 text-xs"
                           />
-                          <Input
-                            type="time"
+                          <TimePicker
+                            format="time"
                             value={timeTo}
-                            onChange={(e) => setTimeTo(e.target.value)}
+                            onChange={setTimeTo}
+                            placeholder="End time"
                             className="h-9 text-xs"
                           />
                         </div>

@@ -209,7 +209,7 @@ export const LeadsList = React.memo(
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
                   key={item}
-                  className="h-[82px] w-full animate-pulse rounded-xl sm:h-20"
+                  className="h-20.5 w-full animate-pulse rounded-xl sm:h-20"
                   style={{
                     background: "var(--bg-hover)",
                   }}
@@ -277,13 +277,12 @@ export const LeadsList = React.memo(
                       handleLeadSelect();
                     }
                   }}
-                  className={`ss4-conv group relative flex w-full cursor-pointer items-start gap-2 px-2 py-2 text-left sm:gap-3 sm:px-3 sm:py-2.5 ${
-                    isSelected
+                  className={`ss4-conv group relative flex w-full cursor-pointer items-start gap-2 px-2 py-2 text-left sm:gap-3 sm:px-3 sm:py-2.5 ${isSelected
                       ? "ss4-conv-active"
                       : isHighlighted
                         ? "ss4-conv-active animate-pulse"
                         : ""
-                  } ${isChecked ? "ss4-conv-active" : ""}`}
+                    } ${isChecked ? "ss4-conv-active" : ""}`}
                 >
                   {/* Avatar or selection checkbox */}
                   <div className="relative mt-0.5 shrink-0">

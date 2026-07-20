@@ -15,13 +15,23 @@ interface TimePickerProps {
   onChange: (time: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  format?: "iso" | "time";
+  className?: string;
+}
+
+function to12Hour(hours: number): { hour: string; period: "AM" | "PM" } {
+  const period = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 || 12;
+  return { hour: hour12.toString().padStart(2, '0'), period };
 }
 
 export function TimePicker({
   value,
   onChange,
   disabled,
-  placeholder = "Select time"
+  placeholder = "Select time",
+  format = "iso",
+  className,
 }: TimePickerProps) {
   const [open, setOpen] = React.useState(false);
   const [tempHour, setTempHour] = React.useState("12");
@@ -30,33 +40,43 @@ export function TimePicker({
 
   // Initialize from value
   React.useEffect(() => {
-    if (value) {
-      const date = new Date(value);
-      let hours = date.getHours();
-      const minutes = date.getMinutes();
-      const period = hours >= 12 ? "PM" : "AM";
-      
-      hours = hours % 12 || 12;
-      
-      setTempHour(hours.toString().padStart(2, '0'));
-      setTempMinute(minutes.toString().padStart(2, '0'));
+    if (!value) return;
+
+    if (format === "time") {
+      const [h = "0", m = "0"] = value.split(':');
+      const { hour, period } = to12Hour(Number(h));
+      setTempHour(hour);
+      setTempMinute(m.padStart(2, '0'));
       setTempPeriod(period);
+      return;
     }
-  }, [value]);
+
+    const date = new Date(value);
+    const { hour, period } = to12Hour(date.getHours());
+    setTempHour(hour);
+    setTempMinute(date.getMinutes().toString().padStart(2, '0'));
+    setTempPeriod(period);
+  }, [value, format]);
 
   const handleConfirm = () => {
     let hour = parseInt(tempHour);
-    
+
     // Convert to 24-hour format
     if (tempPeriod === "PM" && hour !== 12) {
       hour += 12;
     } else if (tempPeriod === "AM" && hour === 12) {
       hour = 0;
     }
-    
+
     // Create time string in format "HH:MM"
     const timeString = `${hour.toString().padStart(2, '0')}:${tempMinute}`;
-    
+
+    if (format === "time") {
+      onChange(timeString);
+      setOpen(false);
+      return;
+    }
+
     // If we have an existing value, update just the time
     if (value) {
       const date = new Date(value);
@@ -70,32 +90,38 @@ export function TimePicker({
       date.setHours(parseInt(h), parseInt(m), 0, 0);
       onChange(date.toISOString());
     }
-    
+
     setOpen(false);
   };
 
   const handleCancel = () => {
     // Reset to current value
     if (value) {
-      const date = new Date(value);
-      let hours = date.getHours();
-      const minutes = date.getMinutes();
-      const period = hours >= 12 ? "PM" : "AM";
-      
-      hours = hours % 12 || 12;
-      
-      setTempHour(hours.toString().padStart(2, '0'));
-      setTempMinute(minutes.toString().padStart(2, '0'));
-      setTempPeriod(period);
+      if (format === "time") {
+        const [h = "0", m = "0"] = value.split(':');
+        const { hour, period } = to12Hour(Number(h));
+        setTempHour(hour);
+        setTempMinute(m.padStart(2, '0'));
+        setTempPeriod(period);
+      } else {
+        const date = new Date(value);
+        const { hour, period } = to12Hour(date.getHours());
+        setTempHour(hour);
+        setTempMinute(date.getMinutes().toString().padStart(2, '0'));
+        setTempPeriod(period);
+      }
     }
     setOpen(false);
   };
 
   const displayValue = value
-    ? new Date(value).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+    ? (format === "time"
+      ? (() => {
+        const [h = "0", m = "0"] = value.split(':');
+        const { hour, period } = to12Hour(Number(h));
+        return `${hour}:${m.padStart(2, '0')} ${period}`;
+      })()
+      : new Date(value).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
     : placeholder;
 
   const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
@@ -105,18 +131,20 @@ export function TimePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           disabled={disabled}
           className={cn(
             "w-full justify-start text-left font-normal",
-            !value && "text-muted-foreground"
+            !value && "text-muted-foreground",
+            className
           )}
         >
           <Clock className="mr-2 h-4 w-4" />
           {displayValue}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 z-[300]" align="start">
+      <PopoverContent className="w-auto p-0 z-300" align="start">
         <div className="p-4">
           <div className="flex gap-2 mb-4">
             {/* Hour Selector */}
@@ -141,7 +169,7 @@ export function TimePicker({
                 onChange={(e) => setTempMinute(e.target.value)}
                 className="w-full border border-input bg-background text-foreground rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
-                {minutes.filter((_, i) => i % 5 === 0).map(m => (
+                {minutes.map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>

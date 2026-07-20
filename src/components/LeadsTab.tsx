@@ -122,6 +122,7 @@ export function LeadsTab({
     React.useState<LeadsViewportMode>("wide");
   const [isInboxSummaryExpanded, setIsInboxSummaryExpanded] =
     React.useState(false);
+  const [isAutrixOpen, setIsAutrixOpen] = React.useState(false);
 
   React.useEffect(() => {
     const updateViewportMode = () => {
@@ -299,8 +300,8 @@ export function LeadsTab({
       databaseVehicleId ||
       String(
         vehicle.stockNumber ||
-          vehicle.stock ||
-          `lead-vehicle-${selectedLead?._id || "unknown"}`,
+        vehicle.stock ||
+        `lead-vehicle-${selectedLead?._id || "unknown"}`,
       );
 
     return {
@@ -541,7 +542,7 @@ export function LeadsTab({
     } catch {
       try {
         await refetch();
-      } catch {}
+      } catch { }
     } finally {
       setLocalIsSyncing(false);
     }
@@ -569,122 +570,121 @@ export function LeadsTab({
 
   // 6. Thread Refresh
   const buildLeadFallbackMessage = React.useCallback((lead: Lead) => {
-  const content =
-    lead.parsedContent?.trim() ||
-    lead.body?.trim() ||
-    lead.comments?.trim() ||
-    lead.subject?.trim();
+    const content =
+      lead.parsedContent?.trim() ||
+      lead.body?.trim() ||
+      lead.comments?.trim() ||
+      lead.subject?.trim();
 
-  if (!content) return [];
+    if (!content) return [];
 
-  return [
-    {
-      _id: `lead-inquiry-${lead._id}`,
-      direction: "inbound",
-      body: content,
-      text: content,
-      subject: lead.subject,
-      createdAt: lead.createdAt,
-      from: lead.senderEmail || lead.email,
-      senderName:
-        lead.senderName ||
-        `${lead.firstName || ""} ${lead.lastName || ""}`.trim(),
-      isLeadFallback: true,
-    },
-  ];
-}, []);
+    return [
+      {
+        _id: `lead-inquiry-${lead._id}`,
+        direction: "inbound",
+        body: content,
+        text: content,
+        subject: lead.subject,
+        createdAt: lead.createdAt,
+        from: lead.senderEmail || lead.email,
+        senderName:
+          lead.senderName ||
+          `${lead.firstName || ""} ${lead.lastName || ""}`.trim(),
+        isLeadFallback: true,
+      },
+    ];
+  }, []);
 
-const fetchThread = React.useCallback(
-  async (lead: Lead) => {
-    const fallbackMessages =
-      buildLeadFallbackMessage(lead);
+  const fetchThread = React.useCallback(
+    async (lead: Lead) => {
+      const fallbackMessages =
+        buildLeadFallbackMessage(lead);
 
-    const threadId = lead.threadId;
+      const threadId = lead.threadId;
 
-    /*
-     * Immediately seed the conversation with the inquiry stored
-     * on the lead. This prevents ConversationView from rendering
-     * an empty state while the latest Gmail thread is loading.
-     *
-     * Do not overwrite a previously cached thread.
-     */
-    setThreads((previous) => {
-      if (previous[lead._id]) {
-        return previous;
-      }
+      /*
+       * Immediately seed the conversation with the inquiry stored
+       * on the lead. This prevents ConversationView from rendering
+       * an empty state while the latest Gmail thread is loading.
+       *
+       * Do not overwrite a previously cached thread.
+       */
+      setThreads((previous) => {
+        if (previous[lead._id]) {
+          return previous;
+        }
 
-      return {
-        ...previous,
-        [lead._id]: fallbackMessages,
-      };
-    });
+        return {
+          ...previous,
+          [lead._id]: fallbackMessages,
+        };
+      });
 
-    // Imported leads may not have a Gmail thread.
-    if (!threadId) {
-      return;
-    }
-
-    try {
-      const token = await getToken();
-
-      if (!token) {
+      // Imported leads may not have a Gmail thread.
+      if (!threadId) {
         return;
       }
 
-      const startedAt = performance.now();
+      try {
+        const token = await getToken();
 
-      const response = await apiClient.get(
-        `/api/leads/${lead._id}/thread`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        if (!token) {
+          return;
+        }
+
+        const startedAt = performance.now();
+
+        const response = await apiClient.get(
+          `/api/leads/${lead._id}/thread`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-      );
+        );
 
-      console.log(
-        `Thread request took ${
-          Math.round(performance.now() - startedAt)
-        } ms`
-      );
+        console.log(
+          `Thread request took ${Math.round(performance.now() - startedAt)
+          } ms`
+        );
 
-      console.log(
-        `[THREAD] ${lead._id} loaded in ${Math.round(
-          performance.now() - startedAt,
-        )}ms`,
-      );
+        console.log(
+          `[THREAD] ${lead._id} loaded in ${Math.round(
+            performance.now() - startedAt,
+          )}ms`,
+        );
 
-      const syncedMessages =
-        response.data?.data?.messages ||
-        response.data?.messages ||
-        [];
+        const syncedMessages =
+          response.data?.data?.messages ||
+          response.data?.messages ||
+          [];
 
-      /*
-      * Replace the temporary fallback only when the backend
-      * returns real synced messages.
-      */
-      if (syncedMessages.length > 0) {
-        // Mark this lead as having a fully loaded thread
-        loadedThreadIdsRef.current.add(lead._id);
+        /*
+        * Replace the temporary fallback only when the backend
+        * returns real synced messages.
+        */
+        if (syncedMessages.length > 0) {
+          // Mark this lead as having a fully loaded thread
+          loadedThreadIdsRef.current.add(lead._id);
 
-        setThreads((previous) => ({
-          ...previous,
-          [lead._id]: syncedMessages,
-        }));
+          setThreads((previous) => ({
+            ...previous,
+            [lead._id]: syncedMessages,
+          }));
+        }
+      } catch (error) {
+        /*
+         * Keep the immediate fallback visible if the request fails.
+         * Do not replace the conversation with an empty array.
+         */
+        console.error(
+          "Failed to load lead thread:",
+          error,
+        );
       }
-    } catch (error) {
-      /*
-       * Keep the immediate fallback visible if the request fails.
-       * Do not replace the conversation with an empty array.
-       */
-      console.error(
-        "Failed to load lead thread:",
-        error,
-      );
-    }
-  },
-  [getToken, buildLeadFallbackMessage],
-);
+    },
+    [getToken, buildLeadFallbackMessage],
+  );
 
   React.useEffect(() => {
     if (!selectedLead) return;
@@ -696,8 +696,8 @@ const fetchThread = React.useCallback(
 
     // Only fetch immediately when no cached entry exists.
     if (!loadedThreadIdsRef.current.has(leadId)) {
-    void fetchThread(currentLead);
-  }
+      void fetchThread(currentLead);
+    }
 
     const intervalId = window.setInterval(() => {
       if (!cancelled) {
@@ -1154,6 +1154,7 @@ const fetchThread = React.useCallback(
       data-viewport-mode={viewportMode}
       data-has-active-lead={selectedLead ? "true" : "false"}
       data-details-expanded={showLeadDetails ? "true" : "false"}
+      data-autrix-open={isAutrixOpen ? "true" : "false"}
     >
       <ToastStack
         toasts={toasts}
@@ -1169,7 +1170,7 @@ const fetchThread = React.useCallback(
           selectedLead && "hidden lg:block",
         )}
       >
-        <div className="flex min-h-12 items-center justify-between gap-2 px-3 py-2 sm:min-h-[52px] sm:gap-3 sm:px-5 sm:py-3">
+        <div className="flex min-h-12 items-center justify-between gap-2 px-3 py-2 sm:min-h-13 sm:gap-3 sm:px-5 sm:py-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <div className="ss4-logo-mark flex h-8 w-8 shrink-0 items-center justify-center">
               <Mail className="h-3.5 w-3.5" style={{ color: "#fff" }} />
@@ -1273,9 +1274,8 @@ const fetchThread = React.useCallback(
               title="Refresh leads"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 sm:h-3 sm:w-3 ${
-                  isWorkerSyncing || localIsSyncing ? "animate-spin" : ""
-                }`}
+                className={`h-3.5 w-3.5 sm:h-3 sm:w-3 ${isWorkerSyncing || localIsSyncing ? "animate-spin" : ""
+                  }`}
               />
               <span className="hidden sm:inline">
                 {isWorkerSyncing || localIsSyncing ? "Syncing…" : "Refresh"}
@@ -1295,7 +1295,7 @@ const fetchThread = React.useCallback(
             </button>
 
             <div className="shrink-0 max-[380px]:scale-90 max-[380px]:origin-right">
-              <SupraLeoAI variant="toolbar" />
+              <SupraLeoAI variant="toolbar" onOpenChange={setIsAutrixOpen} />
             </div>
           </div>
         </div>
@@ -1329,380 +1329,380 @@ const fetchThread = React.useCallback(
           <InboundCallsTab />
         </div>
       ) : (
-        <div className="suprah-responsive-workspace relative flex min-h-0 flex-1 overflow-hidden bg-[var(--bg-base)]">
+        <div className="suprah-responsive-workspace relative flex min-h-0 flex-1 overflow-hidden bg-(--bg-base)">
           {/* PODIUM-LIKE LEFT CONVERSATION SIDEBAR */}
           {showLeadsPanel && (
-          <aside
-            className="suprah-leads-panel flex min-h-0 shrink-0 flex-col border-r"
+            <aside
+              className="suprah-leads-panel flex min-h-0 shrink-0 flex-col border-r"
 
-            style={{
-              background: "var(--bg-elevated)",
-              borderColor: "var(--border-1)",
-            }}
-          >
-            {/* Compact conversations heading */}
-            <div
-              className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-3 py-2 sm:min-h-[58px] sm:px-4 sm:py-3"
-              style={{ borderColor: "var(--border-1)" }}
-            >
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <h2
-                    className="truncate font-bold tracking-tight"
-                    style={{ color: "var(--text-primary)", fontSize: 15 }}
-                  >
-                    All Conversations
-                  </h2>
-
-                  {!isLoading && total > 0 && (
-                    <span
-                      className="ss4-badge inline-flex shrink-0 items-center tabular-nums sm:hidden"
-                      style={{ borderRadius: 10 }}
-                    >
-                      {total}
-                    </span>
-                  )}
-                </div>
-
-                <p
-                  className="mt-0.5 hidden text-[11px] sm:block"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  Lead Inbox
-                </p>
-              </div>
-
-              <button
-                onClick={toggleSelectMode}
-                className="ss4-pill-btn flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9"
-                title={
-                  selectMode ? "Cancel select mode" : "Select conversations"
-                }
-              >
-                {selectMode ? (
-                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                ) : (
-                  <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                )}
-              </button>
-            </div>
-
-            {/* Podium-style status and sorting filters */}
-            <div
-              className="grid shrink-0 grid-cols-2 gap-1.5 px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
               style={{
-                borderBottom: "1px solid var(--border-1)",
                 background: "var(--bg-elevated)",
+                borderColor: "var(--border-1)",
               }}
             >
-              <label className="relative min-w-0">
-                <Filter
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                  style={{ color: "var(--text-tertiary)" }}
-                />
-
-                <select
-                  value={statusFilter ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setStatusFilter(value === "" ? null : value);
-                    setCurrentPage(1);
-                    setSelectedLead(null);
-                  }}
-                  className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
-                  style={{
-                    background: "var(--input-bg)",
-                    border: "1px solid var(--input-border)",
-                    color: "var(--text-primary)",
-                  }}
-                  aria-label="Filter conversations by status"
-                >
-                  {TABS.map((tab) => (
-                    <option key={tab.label} value={tab.key ?? ""}>
-                      {tab.key === null ? "All statuses" : tab.label}
-                    </option>
-                  ))}
-                </select>
-
-                <ChevronDown
-                  className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                  style={{ color: "var(--text-tertiary)" }}
-                />
-              </label>
-
-              <label className="relative min-w-0">
-                <ArrowUpDown
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                  style={{ color: "var(--text-tertiary)" }}
-                />
-
-                <select
-                  value={sortBy}
-                  onChange={(event) => {
-                    setSortBy(event.target.value as LeadSortOption);
-                    setCurrentPage(1);
-                  }}
-                  className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
-                  style={{
-                    background: "var(--input-bg)",
-                    border: "1px solid var(--input-border)",
-                    color: "var(--text-primary)",
-                  }}
-                  aria-label="Sort conversations"
-                >
-                  <option value="newest">Newest</option>
-                  <option value="oldest">Oldest</option>
-                  <option value="waiting_longest">Longest waiting</option>
-                </select>
-
-                <ChevronDown
-                  className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                  style={{ color: "var(--text-tertiary)" }}
-                />
-              </label>
-            </div>
-
-            {isFetching && !isLoading && (
+              {/* Compact conversations heading */}
               <div
-                className="shrink-0 px-3 py-1 text-[10px]"
-                style={{
-                  color: "var(--text-tertiary)",
-                }}
+                className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-3 py-2 sm:min-h-14.5 sm:px-4 sm:py-3"
+                style={{ borderColor: "var(--border-1)" }}
               >
-                Updating…
-              </div>
-            )}
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h2
+                      className="truncate font-bold tracking-tight"
+                      style={{ color: "var(--text-primary)", fontSize: 15 }}
+                    >
+                      All Conversations
+                    </h2>
 
-            {/* Existing list component keeps pagination, search, read status, selection */}
-            {selectMode && (
+                    {!isLoading && total > 0 && (
+                      <span
+                        className="ss4-badge inline-flex shrink-0 items-center tabular-nums sm:hidden"
+                        style={{ borderRadius: 10 }}
+                      >
+                        {total}
+                      </span>
+                    )}
+                  </div>
+
+                  <p
+                    className="mt-0.5 hidden text-[11px] sm:block"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    Lead Inbox
+                  </p>
+                </div>
+
+                <button
+                  onClick={toggleSelectMode}
+                  className="ss4-pill-btn flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9"
+                  title={
+                    selectMode ? "Cancel select mode" : "Select conversations"
+                  }
+                >
+                  {selectMode ? (
+                    <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  ) : (
+                    <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Podium-style status and sorting filters */}
               <div
-                className="flex items-center justify-between gap-2 px-3 py-2 shrink-0"
+                className="grid shrink-0 grid-cols-2 gap-1.5 px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
                 style={{
                   borderBottom: "1px solid var(--border-1)",
                   background: "var(--bg-elevated)",
                 }}
               >
-                <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                  {selectedLeadIds.size} selected
-                </span>
+                <label className="relative min-w-0">
+                  <Filter
+                    className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
+                    style={{ color: "var(--text-tertiary)" }}
+                  />
 
-                <button
-                  onClick={() => setBulkModalOpen(true)}
-                  disabled={selectedLeadIds.size === 0}
-                  className="ss4-pill-btn px-3 h-8 text-[12px] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  Reply to all
-                </button>
+                  <select
+                    value={statusFilter ?? ""}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setStatusFilter(value === "" ? null : value);
+                      setCurrentPage(1);
+                      setSelectedLead(null);
+                    }}
+                    className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
+                    style={{
+                      background: "var(--input-bg)",
+                      border: "1px solid var(--input-border)",
+                      color: "var(--text-primary)",
+                    }}
+                    aria-label="Filter conversations by status"
+                  >
+                    {TABS.map((tab) => (
+                      <option key={tab.label} value={tab.key ?? ""}>
+                        {tab.key === null ? "All statuses" : tab.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <ChevronDown
+                    className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
+                    style={{ color: "var(--text-tertiary)" }}
+                  />
+                </label>
+
+                <label className="relative min-w-0">
+                  <ArrowUpDown
+                    className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
+                    style={{ color: "var(--text-tertiary)" }}
+                  />
+
+                  <select
+                    value={sortBy}
+                    onChange={(event) => {
+                      setSortBy(event.target.value as LeadSortOption);
+                      setCurrentPage(1);
+                    }}
+                    className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
+                    style={{
+                      background: "var(--input-bg)",
+                      border: "1px solid var(--input-border)",
+                      color: "var(--text-primary)",
+                    }}
+                    aria-label="Sort conversations"
+                  >
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="waiting_longest">Longest waiting</option>
+                  </select>
+
+                  <ChevronDown
+                    className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
+                    style={{ color: "var(--text-tertiary)" }}
+                  />
+                </label>
               </div>
-            )}
 
-            <LeadsList
-              leads={leads}
-              isLoading={isLoading}
-              total={total}
-              pages={pages}
-              currentPage={currentPage}
-              selectedLeadId={selectedLead?._id}
-              searchQuery={searchQuery}
-              onSearchChange={(query) => {
-                setSearchQuery(query);
-                setCurrentPage(1);
-              }}
-              onPageChange={setCurrentPage}
-              onLeadSelect={setSelectedLead}
-              highlightedLeadIds={highlightedLeadIds}
-              itemsPerPage={LEADS_PER_PAGE}
-              sourceEmail={LEADS_SOURCE_EMAIL}
-              selectMode={selectMode}
-              selectedIds={selectedLeadIds}
-              onToggleSelect={toggleLeadSelected}
-            />
-          </aside>
+              {isFetching && !isLoading && (
+                <div
+                  className="shrink-0 px-3 py-1 text-[10px]"
+                  style={{
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  Updating…
+                </div>
+              )}
+
+              {/* Existing list component keeps pagination, search, read status, selection */}
+              {selectMode && (
+                <div
+                  className="flex items-center justify-between gap-2 px-3 py-2 shrink-0"
+                  style={{
+                    borderBottom: "1px solid var(--border-1)",
+                    background: "var(--bg-elevated)",
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                    {selectedLeadIds.size} selected
+                  </span>
+
+                  <button
+                    onClick={() => setBulkModalOpen(true)}
+                    disabled={selectedLeadIds.size === 0}
+                    className="ss4-pill-btn px-3 h-8 text-[12px] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Reply to all
+                  </button>
+                </div>
+              )}
+
+              <LeadsList
+                leads={leads}
+                isLoading={isLoading}
+                total={total}
+                pages={pages}
+                currentPage={currentPage}
+                selectedLeadId={selectedLead?._id}
+                searchQuery={searchQuery}
+                onSearchChange={(query) => {
+                  setSearchQuery(query);
+                  setCurrentPage(1);
+                }}
+                onPageChange={setCurrentPage}
+                onLeadSelect={setSelectedLead}
+                highlightedLeadIds={highlightedLeadIds}
+                itemsPerPage={LEADS_PER_PAGE}
+                sourceEmail={LEADS_SOURCE_EMAIL}
+                selectMode={selectMode}
+                selectedIds={selectedLeadIds}
+                onToggleSelect={toggleLeadSelected}
+              />
+            </aside>
           )}
 
           {/* PODIUM-LIKE CENTER CONVERSATION PANEL */}
           {showConversationPanel && (
-          <main
-            className="suprah-center-panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-            style={{
-              background: "var(--bg-base)",
-            }}
-            onMouseEnter={() => setIsChatHovered(true)}
-            onMouseLeave={() => setIsChatHovered(false)}
-          >
-            {selectedLead && viewportMode !== "wide" && (
-              <button
-                type="button"
-                onClick={() => setSelectedLead(null)}
-                className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
-                style={{
-                  background: "var(--bg-elevated)",
-                  borderColor: "var(--border-2)",
-                  color: "var(--text-secondary)",
-                }}
-                title="Back to leads"
-                aria-label="Back to leads"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            )}
+            <main
+              className="suprah-center-panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              style={{
+                background: "var(--bg-base)",
+              }}
+              onMouseEnter={() => setIsChatHovered(true)}
+              onMouseLeave={() => setIsChatHovered(false)}
+            >
+              {selectedLead && viewportMode !== "wide" && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLead(null)}
+                  className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    borderColor: "var(--border-2)",
+                    color: "var(--text-secondary)",
+                  }}
+                  title="Back to leads"
+                  aria-label="Back to leads"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
 
-            {selectedLead && !showLeadDetails && (
-              <button
-                type="button"
-                onClick={() => setShowLeadDetails(true)}
-                className="absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
-                style={{
-                  background: "var(--bg-elevated)",
-                  borderColor: "var(--border-2)",
-                  color: "var(--text-secondary)",
-                }}
-                title="Show lead details"
-                aria-label="Show lead details"
-              >
-                <PanelRightOpen className="h-4 w-4" />
-              </button>
-            )}
+              {selectedLead && !showLeadDetails && (
+                <button
+                  type="button"
+                  onClick={() => setShowLeadDetails(true)}
+                  className="absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    borderColor: "var(--border-2)",
+                    color: "var(--text-secondary)",
+                  }}
+                  title="Show lead details"
+                  aria-label="Show lead details"
+                >
+                  <PanelRightOpen className="h-4 w-4" />
+                </button>
+              )}
 
-            {selectedLead ? (
-              <>
-                <ConversationView
-                  lead={selectedLead}
-                  threads={threads[selectedLead._id] || []}
-                  hideConversationChrome={isChatHovered}
-                  onClose={() => setSelectedLead(null)}
-                  sourceEmail={LEADS_SOURCE_EMAIL}
-                  siblingCount={
-                    (selectedLead.vehicle as any)?.stock
-                      ? leadsByVehicleStock
+              {selectedLead ? (
+                <>
+                  <ConversationView
+                    lead={selectedLead}
+                    threads={threads[selectedLead._id] || []}
+                    hideConversationChrome={isChatHovered}
+                    onClose={() => setSelectedLead(null)}
+                    sourceEmail={LEADS_SOURCE_EMAIL}
+                    siblingCount={
+                      (selectedLead.vehicle as any)?.stock
+                        ? leadsByVehicleStock
                           .get((selectedLead.vehicle as any).stock)
                           ?.filter(
                             (lead) =>
                               lead._id !== selectedLead._id,
                           ).length || 0
-                      : 0
-                  }
-                  onReplyToSiblings={() =>
-                    openBulkReplyForSiblings(
-                      (selectedLead.vehicle as any).stock,
-                      selectedLead._id,
-                    )
-                  }
-                />
+                        : 0
+                    }
+                    onReplyToSiblings={() =>
+                      openBulkReplyForSiblings(
+                        (selectedLead.vehicle as any).stock,
+                        selectedLead._id,
+                      )
+                    }
+                  />
 
-                <ReplySection
-                  isClosed={isClosed}
-                  replyMessage={replyMessage}
-                  setReplyMessage={setReplyMessage}
-                  onSend={handleSend}
-                  isSending={isSending}
-                  onStatusChange={handleStatus}
-                  onApptOpen={() => setApptOpen(true)}
-                  onQuoteShipping={openQuoteModal}
-                  onReopen={(reason) =>
-                    handleStatus("Pending", reason)
-                  }
-                  selectedLeadStatus={selectedLead.status}
-                />
-              </>
-            ) : (
-              <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
-                <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-center gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className="relative shrink-0">
-                      <div className="ss4-empty-icon flex h-14 w-14 items-center justify-center">
-                        <MessageSquare className="h-6 w-6" style={{ color: 'var(--accent)', opacity: 0.55 }} />
+                  <ReplySection
+                    isClosed={isClosed}
+                    replyMessage={replyMessage}
+                    setReplyMessage={setReplyMessage}
+                    onSend={handleSend}
+                    isSending={isSending}
+                    onStatusChange={handleStatus}
+                    onApptOpen={() => setApptOpen(true)}
+                    onQuoteShipping={openQuoteModal}
+                    onReopen={(reason) =>
+                      handleStatus("Pending", reason)
+                    }
+                    selectedLeadStatus={selectedLead.status}
+                  />
+                </>
+              ) : (
+                <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
+                  <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 lg:max-w-3xl">
+                    <div className="flex items-start gap-4">
+                      <div className="relative shrink-0">
+                        <div className="ss4-empty-icon flex h-14 w-14 items-center justify-center">
+                          <MessageSquare className="h-6 w-6" style={{ color: 'var(--accent)', opacity: 0.55 }} />
+                        </div>
+                        <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 ss4-logo-mark flex items-center justify-center">
+                          <Mail className="h-3 w-3" style={{ color: '#fff' }} />
+                        </div>
                       </div>
-                      <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 ss4-logo-mark flex items-center justify-center">
-                        <Mail className="h-3 w-3" style={{ color: '#fff' }} />
+                      <div className="min-w-0">
+                        <p className="font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Select a lead to start</p>
+                        <p className="mt-1 max-w-xl leading-relaxed" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          Pick a lead from the inbox to view the full inquiry, reply, schedule an appointment, or ask Autrix for follow-up help.
+                        </p>
+                        <p className="ss4-mono mt-2" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{LEADS_SOURCE_EMAIL}</p>
                       </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Select a lead to start</p>
-                      <p className="mt-1 max-w-xl leading-relaxed" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                        Pick a lead from the inbox to view the full inquiry, reply, schedule an appointment, or ask Autrix for follow-up help.
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={() => { setStatusFilter("New"); setCurrentPage(1); }}
+                        className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                        style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
+                      >
+                        <Inbox className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
+                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Review new leads</p>
+                        <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Jump to fresh inquiries that need attention.</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setStatusFilter(null); setSearchQuery(''); setCurrentPage(1); }}
+                        className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                        style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
+                      >
+                        <Search className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
+                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Search all leads</p>
+                        <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Clear filters and browse the complete inbox.</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={refetch}
+                        className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                        style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
+                      >
+                        <RefreshCw className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
+                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Refresh inbox</p>
+                        <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Pull the latest synced lead activity.</p>
+                      </button>
+                    </div>
+
+                    {leads.length > 0 && (
+                      <div className="rounded-2xl border p-4" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recent conversations</p>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Select one to open</span>
+                        </div>
+                        <div className="grid gap-2">
+                          {leads.slice(0, 3).map((lead) => (
+                            <button
+                              key={lead._id}
+                              type="button"
+                              onClick={() => setSelectedLead(lead)}
+                              className="flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition hover:bg-black/5 dark:hover:bg-white/5"
+                              style={{ borderColor: 'var(--border-1)' }}
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-white" style={{ background: 'var(--accent)', fontSize: 11 }}>
+                                {`${lead.firstName?.[0] || ''}${lead.lastName?.[0] || ''}` || 'L'}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate font-semibold" style={{ fontSize: 12.5, color: 'var(--text-primary)' }}>
+                                  {[lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email || 'Unknown lead'}
+                                </p>
+                                <p className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                  {lead.email || lead.phone || lead.status}
+                                </p>
+                              </div>
+                              <span className="rounded-full px-2 py-1 font-semibold" style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-muted)' }}>{lead.status}</span>
+                              <ArrowRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-2xl border px-4 py-3" style={{ background: 'var(--accent-muted)', borderColor: 'rgba(91,124,246,0.18)' }}>
+                      <p className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>Autrix is standing by</p>
+                      <p className="mt-1" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                        Select a lead to give Autrix the right customer context for summaries, reply drafts, and follow-up suggestions.
                       </p>
-                      <p className="ss4-mono mt-2" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{LEADS_SOURCE_EMAIL}</p>
                     </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <button
-                      type="button"
-                      onClick={() => { setStatusFilter("New"); setCurrentPage(1); }}
-                      className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
-                    >
-                      <Inbox className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
-                      <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Review new leads</p>
-                      <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Jump to fresh inquiries that need attention.</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setStatusFilter(null); setSearchQuery(''); setCurrentPage(1); }}
-                      className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
-                    >
-                      <Search className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
-                      <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Search all leads</p>
-                      <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Clear filters and browse the complete inbox.</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={refetch}
-                      className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
-                    >
-                      <RefreshCw className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
-                      <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Refresh inbox</p>
-                      <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Pull the latest synced lead activity.</p>
-                    </button>
-                  </div>
-
-                  {leads.length > 0 && (
-                    <div className="rounded-2xl border p-4" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}>
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recent conversations</p>
-                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Select one to open</span>
-                      </div>
-                      <div className="grid gap-2">
-                        {leads.slice(0, 3).map((lead) => (
-                          <button
-                            key={lead._id}
-                            type="button"
-                            onClick={() => setSelectedLead(lead)}
-                            className="flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition hover:bg-black/5 dark:hover:bg-white/5"
-                            style={{ borderColor: 'var(--border-1)' }}
-                          >
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-white" style={{ background: 'var(--accent)', fontSize: 11 }}>
-                              {`${lead.firstName?.[0] || ''}${lead.lastName?.[0] || ''}` || 'L'}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-semibold" style={{ fontSize: 12.5, color: 'var(--text-primary)' }}>
-                                {[lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email || 'Unknown lead'}
-                              </p>
-                              <p className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                                {lead.email || lead.phone || lead.status}
-                              </p>
-                            </div>
-                            <span className="rounded-full px-2 py-1 font-semibold" style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-muted)' }}>{lead.status}</span>
-                            <ArrowRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl border px-4 py-3" style={{ background: 'var(--accent-muted)', borderColor: 'rgba(91,124,246,0.18)' }}>
-                    <p className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>Autrix is standing by</p>
-                    <p className="mt-1" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                      Select a lead to give Autrix the right customer context for summaries, reply drafts, and follow-up suggestions.
-                    </p>
                   </div>
                 </div>
-              </div>
-            )}
-          </main>
+              )}
+            </main>
           )}
 
           {/* PODIUM-LIKE RIGHT DETAILS PANEL */}
@@ -1711,7 +1711,7 @@ const fetchThread = React.useCallback(
               className={cn(
                 "suprah-details-slot",
                 viewportMode === "narrow" &&
-                  "suprah-details-slot-overlay",
+                "suprah-details-slot-overlay",
               )}
             >
               <LeadDetailsPanel
@@ -1752,11 +1752,11 @@ const fetchThread = React.useCallback(
         initialCustomerBooking={
           selectedLead
             ? {
-                firstName: selectedLead.firstName || "",
-                lastName: selectedLead.lastName || "",
-                email: selectedLead.email || "",
-                phone: selectedLead.phone || "",
-              }
+              firstName: selectedLead.firstName || "",
+              lastName: selectedLead.lastName || "",
+              email: selectedLead.email || "",
+              phone: selectedLead.phone || "",
+            }
             : undefined
         }
         forceCustomerBooking={true}
@@ -1786,14 +1786,14 @@ const fetchThread = React.useCallback(
         initialData={
           selectedLead
             ? {
-                firstName: selectedLead.firstName || "",
-                lastName: selectedLead.lastName || "",
-                email:
-                  selectedLead.email ||
-                  selectedLead.senderEmail ||
-                  "",
-                phone: selectedLead.phone || "",
-              }
+              firstName: selectedLead.firstName || "",
+              lastName: selectedLead.lastName || "",
+              email:
+                selectedLead.email ||
+                selectedLead.senderEmail ||
+                "",
+              phone: selectedLead.phone || "",
+            }
             : undefined
         }
       />
@@ -1838,7 +1838,7 @@ function LeadPaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName="!z-[2147483000] bg-black/70 backdrop-blur-[4px]"
-        className="!z-[2147483001] w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-[500px] max-h-[90dvh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
+        className="z-2147483001! w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-125 max-h-[90dvh] overflow-y-auto custom-scrollbar bg-card border-border text-card-foreground"
       >
 
         <div className="space-y-3 border-b border-border pb-4">

@@ -161,6 +161,7 @@ function VehicleImage({
     [realCandidates, hasRealImage],
   );
 
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
   const [imgIdx, setImgIdx] = React.useState(0);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
@@ -173,6 +174,12 @@ function VehicleImage({
   }, [vehicle.id]);
 
   const activeSrc = candidates[imgIdx];
+
+  React.useLayoutEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setImgLoaded(true);
+    }
+  }, [activeSrc]);
   const StatusIcon = statusCfg?.icon ?? Clock;
 
   const handleImgError = () => {
@@ -213,6 +220,7 @@ function VehicleImage({
 
       {!showEmptyState ? (
         <img
+          ref={imgRef}
           key={`${vehicle.id}-${imgIdx}`}
           src={activeSrc}
           alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}

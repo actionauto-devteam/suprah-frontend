@@ -60,15 +60,15 @@ const isOutboundMessage = (
 
   const from = String(
     message?.from ||
-      message?.sender ||
-      message?.senderEmail ||
-      "",
+    message?.sender ||
+    message?.senderEmail ||
+    "",
   ).toLowerCase();
 
   return Boolean(
     from &&
-      sourceEmail &&
-      from.includes(sourceEmail.toLowerCase()),
+    sourceEmail &&
+    from.includes(sourceEmail.toLowerCase()),
   );
 };
 
@@ -237,10 +237,10 @@ const isLeadInquiryMessage = (
 
   return Boolean(
     message?.isLeadFallback ||
-      index === 0 ||
-      text.includes("new lead from credit application") ||
-      text.includes("contact information") ||
-      text.includes("vehicle interest"),
+    index === 0 ||
+    text.includes("new lead from credit application") ||
+    text.includes("contact information") ||
+    text.includes("vehicle interest"),
   );
 };
 
@@ -304,7 +304,7 @@ function InquiryFieldRow({
       </span>
 
       <strong
-        className="min-w-0 break-words text-xs font-semibold"
+        className="min-w-0 wrap-break-word text-xs font-semibold"
         style={{
           color: "var(--text-primary)",
         }}
@@ -352,7 +352,7 @@ function InquiryCard({
         size="sm"
       />
 
-      <div className="min-w-0 w-full max-w-[680px]">
+      <div className="min-w-0 w-full max-w-170">
         <p
           className="mb-1.5 text-xs font-semibold"
           style={{
@@ -464,9 +464,9 @@ function InquiryCard({
         >
           {formatTimestamp(
             message?.createdAt ||
-              message?.date ||
-              message?.timestamp ||
-              lead?.createdAt,
+            message?.date ||
+            message?.timestamp ||
+            lead?.createdAt,
           )}
         </time>
       </div>
@@ -593,112 +593,112 @@ export function ConversationView({
       >
         <div className="mx-auto w-full max-w-5xl">
           <div className="suprah-conversation-start">
-          <div className="suprah-phone-icon">
-            <MessageSquare className="h-5 w-5" />
-          </div>
-
-          <h3>
-            Beginning of lead conversation
-          </h3>
-
-          <p>
-            {formatTimestamp(lead?.createdAt) ||
-              "Conversation started"}
-          </p>
-        </div>
-
-        {threads.length === 0 ? (
-          <div className="suprah-empty-thread">
-            <Mail className="h-5 w-5" />
-
-            <div>
-              <strong>
-                No synced messages yet
-              </strong>
-
-              <p>
-                The lead inquiry is ready for your
-                first response.
-              </p>
+            <div className="suprah-phone-icon">
+              <MessageSquare className="h-5 w-5" />
             </div>
+
+            <h3>
+              Beginning of lead conversation
+            </h3>
+
+            <p>
+              {formatTimestamp(lead?.createdAt) ||
+                "Conversation started"}
+            </p>
           </div>
-        ) : (
-          <div className="w-full space-y-5">
-            {threads.map((message, index) => {
-              const outbound =
-                isOutboundMessage(
-                  message,
-                  sourceEmail,
-                );
 
-              const key =
-                message?._id ||
-                message?.id ||
-                message?.messageId ||
-                `${lead?._id}-${index}`;
+          {threads.length === 0 ? (
+            <div className="suprah-empty-thread">
+              <Mail className="h-5 w-5" />
 
-              if (
-                !outbound &&
-                isLeadInquiryMessage(
-                  message,
-                  index,
-                )
-              ) {
-                return (
-                  <InquiryCard
-                    key={key}
-                    lead={lead}
-                    message={message}
-                  />
-                );
-              }
+              <div>
+                <strong>
+                  No synced messages yet
+                </strong>
 
-              const text =
-                getMessageText(message);
+                <p>
+                  The lead inquiry is ready for your
+                  first response.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full space-y-5">
+              {threads.map((message, index) => {
+                const outbound =
+                  isOutboundMessage(
+                    message,
+                    sourceEmail,
+                  );
 
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    "suprah-message-row",
-                    outbound
-                      ? "outbound"
-                      : "inbound",
-                  )}
-                >
-                  {!outbound && (
-                    <Avatar
-                      first={lead?.firstName}
-                      last={lead?.lastName}
-                      size="sm"
+                const key =
+                  message?._id ||
+                  message?.id ||
+                  message?.messageId ||
+                  `${lead?._id}-${index}`;
+
+                if (
+                  !outbound &&
+                  isLeadInquiryMessage(
+                    message,
+                    index,
+                  )
+                ) {
+                  return (
+                    <InquiryCard
+                      key={key}
+                      lead={lead}
+                      message={message}
                     />
-                  )}
+                  );
+                }
 
-                  <div className="suprah-message-column">
-                    <div className="suprah-message-bubble whitespace-pre-wrap">
-                      {text ||
-                        "Message content unavailable"}
-                    </div>
+                const text =
+                  getMessageText(message);
 
-                    <span className="suprah-message-time">
-                      {formatTimestamp(
-                        message?.createdAt ||
+                return (
+                  <div
+                    key={key}
+                    className={cn(
+                      "suprah-message-row",
+                      outbound
+                        ? "outbound"
+                        : "inbound",
+                    )}
+                  >
+                    {!outbound && (
+                      <Avatar
+                        first={lead?.firstName}
+                        last={lead?.lastName}
+                        size="sm"
+                      />
+                    )}
+
+                    <div className="suprah-message-column">
+                      <div className="suprah-message-bubble whitespace-pre-wrap">
+                        {text ||
+                          "Message content unavailable"}
+                      </div>
+
+                      <span className="suprah-message-time">
+                        {formatTimestamp(
+                          message?.createdAt ||
                           message?.date ||
                           message?.timestamp,
-                      )}
-                    </span>
-                  </div>
-
-                  {outbound && (
-                    <div className="suprah-small-avatar">
-                      AA
+                        )}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+
+                    {outbound && (
+                      <div className="suprah-small-avatar">
+                        AA
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </section>
