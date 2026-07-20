@@ -28,6 +28,8 @@ import {
   MessageCircle,
   Copy,
   Check,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -49,7 +51,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
-import { Switch } from "@/components/ui/switch";
 import { getSocket, initializeSocket } from "@/lib/socket.client";
 import { useAuth } from "@/providers/AuthProvider";
 import { deptLabel } from "@/lib/departments";
@@ -646,9 +647,28 @@ export default function CrmProfilePage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold leading-tight tracking-tight wrap-break-word">
-                          {user.fullName}
-                        </h2>
+                        <div className="flex items-center gap-1.5">
+                          <h2 className="text-lg font-bold leading-tight tracking-tight wrap-break-word">
+                            {user.fullName}
+                          </h2>
+                          {canSeeScreenshotPrivacy && (
+                            <button
+                              type="button"
+                              title="Privacy"
+                              disabled={savingScreenshotPrivacy}
+                              onClick={() =>
+                                handleToggleScreenshotBlur(!user.screenshotBlurUntilPayout)
+                              }
+                              className="shrink-0 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/30 transition-colors disabled:opacity-50"
+                            >
+                              {user.screenshotBlurUntilPayout ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground/70 mt-0.5">
                           Joined {formatDate(user.createdAt)}
                         </p>
@@ -768,30 +788,6 @@ export default function CrmProfilePage() {
                     </div>
                   </div>
                 </div>
-
-                {/* ── Privacy (self-service, single-account exception) ── */}
-                {canSeeScreenshotPrivacy && (
-                  <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
-                    <div className="px-4 sm:px-5 py-3.5 border-b border-border/30">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                        Privacy
-                      </h3>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">Privacy</p>
-                        <p className="text-xs text-muted-foreground/60 mt-0.5">
-                          privacy settings
-                        </p>
-                      </div>
-                      <Switch
-                        checked={!!user.screenshotBlurUntilPayout}
-                        disabled={savingScreenshotPrivacy}
-                        onCheckedChange={handleToggleScreenshotBlur}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* ── Compact Activity Log ─────────────────────────────────── */}
                 <ActivityLogSection
