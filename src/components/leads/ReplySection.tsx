@@ -178,17 +178,17 @@ export const ReplySection = React.memo(
     const reasonModalProps =
       reasonModal === "close"
         ? {
-            title: "Close this ticket",
-            description:
-              "Why is this inquiry being closed? This is logged on the ticket for the team to see later.",
-            confirmLabel: "Close ticket",
-          }
+          title: "Close this ticket",
+          description:
+            "Why is this inquiry being closed? This is logged on the ticket for the team to see later.",
+          confirmLabel: "Close ticket",
+        }
         : {
-            title: "Reopen this ticket",
-            description:
-              "Why is this inquiry being reopened? This is logged on the ticket for the team to see later.",
-            confirmLabel: "Reopen ticket",
-          };
+          title: "Reopen this ticket",
+          description:
+            "Why is this inquiry being reopened? This is logged on the ticket for the team to see later.",
+          confirmLabel: "Reopen ticket",
+        };
 
     React.useEffect(() => {
       if (!emojiOpen) return;
@@ -412,7 +412,7 @@ export const ReplySection = React.memo(
 
                   <div className="min-w-0">
                     <p
-                      className="max-w-[180px] truncate text-xs font-medium"
+                      className="max-w-45 truncate text-xs font-medium"
                       style={{ color: "var(--text-primary)" }}
                     >
                       {file.name}
@@ -546,7 +546,7 @@ export const ReplySection = React.memo(
 
                 {emojiOpen && (
                   <div
-                    className="absolute bottom-full right-0 z-[100] mb-2 grid w-[220px] grid-cols-8 gap-1 rounded-xl border p-2 shadow-xl"
+                    className="absolute bottom-full right-0 z-100 mb-2 grid w-55 grid-cols-8 gap-1 rounded-xl border p-2 shadow-xl"
                     style={{
                       background: "var(--bg-elevated)",
                       borderColor: "var(--border-2)",
@@ -557,7 +557,7 @@ export const ReplySection = React.memo(
                         key={emoji}
                         type="button"
                         onClick={() => insertEmoji(emoji)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-[var(--bg-hover)]"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-(--bg-hover)"
                       >
                         {emoji}
                       </button>

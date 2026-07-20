@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDashboardChat, type ChatMessage } from "@/hooks/useDashboardChat";
+import { linkifyText } from "@/lib/chatFormat";
 
 function initials(name: string) {
   return name
@@ -114,7 +115,7 @@ function MessageItem({
         )}
 
         <p className="mt-0.5 text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap wrap-break-word">
-          {msg.content}
+          {linkifyText(msg.content)}
         </p>
       </div>
 

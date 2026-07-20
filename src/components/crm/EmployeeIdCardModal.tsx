@@ -47,7 +47,21 @@ export function EmployeeIdCardModal({ open, onOpenChange, user }: EmployeeIdCard
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = React.useState<"download" | "share" | null>(null);
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          overlayClassName="bg-black/70 backdrop-blur-[4px]"
+          className="w-[calc(100vw-3rem)] max-w-75 p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white/80 [&>button]:top-3 [&>button]:left-3 [&>button]:right-auto [&>button]:z-50"
+        >
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-white py-16">
+            <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+            <p className="text-xs font-medium text-zinc-400">Loading employee ID…</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const department = user.department ?? user.personalInfo?.department;
   const deptColor = deptColorHex(department);

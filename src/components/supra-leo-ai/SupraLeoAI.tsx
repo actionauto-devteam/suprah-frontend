@@ -280,6 +280,7 @@ export interface SupraLeoAIProps {
   onVoiceReply?: () => void
   onSendReply?: (t: string) => void
   onSetTranscript?: (t: string) => void
+  onOpenChange?: (open: boolean) => void
 }
 
 interface LoadedPanelProps {
@@ -418,10 +419,13 @@ export function SupraLeoAI({
   onVoiceReply = () => {},
   onSendReply = () => {},
   onSetTranscript = () => {},
+  onOpenChange,
 }: SupraLeoAIProps) {
   const [open, setOpen] = useState(false)
   const [Panel, setPanel] = useState<React.ComponentType<LoadedPanelProps> | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const onOpenChangeRef = useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
   const pathname = usePathname()
   const currentModule = detectModule(pathname || '')
   const isLeft = position === 'bottom-left'
@@ -433,6 +437,10 @@ export function SupraLeoAI({
   }
 
   useEffect(() => { injectBadgeCSS() }, [])
+
+  // Notify parent layout so it can reserve space for the panel instead of
+  // letting this absolutely-positioned dropdown overlap sibling content.
+  useEffect(() => { onOpenChangeRef.current?.(open) }, [open])
 
   // Lazy-load panel
   useEffect(() => {

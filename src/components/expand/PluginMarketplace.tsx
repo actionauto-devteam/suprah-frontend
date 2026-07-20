@@ -316,7 +316,7 @@ export default function PluginMarketplace() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,340px))] justify-center gap-4 sm:gap-6">
                 {visiblePlugins.map((plugin) => (
                   <MarketplacePluginCard
                     key={plugin.id}

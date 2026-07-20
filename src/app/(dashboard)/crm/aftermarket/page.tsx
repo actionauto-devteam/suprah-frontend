@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 
 
@@ -98,11 +98,24 @@ function PriceTag({ price }: { price?: number | null }) {
 }
 
 function MediaThumb({ product, className }: { product: AftermarketProduct; className?: string }) {
-  if (product.media?.url) {
+  const [failed, setFailed] = React.useState(false);
+  const src = resolveImageUrl(product.media?.url);
+
+  if (src && !failed) {
     return isVideoMedia(product.media) ? (
-      <video src={product.media.url} className={cn("h-full w-full object-cover", className)} muted />
+      <video
+        src={src}
+        className={cn("h-full w-full object-cover", className)}
+        muted
+        onError={() => setFailed(true)}
+      />
     ) : (
-      <img src={product.media.url} alt={product.name} className={cn("h-full w-full object-cover", className)} />
+      <img
+        src={src}
+        alt={product.name}
+        className={cn("h-full w-full object-cover", className)}
+        onError={() => setFailed(true)}
+      />
     );
   }
   return (
@@ -276,7 +289,7 @@ function ProductEditor({
   const mediaPreview = React.useMemo(() => (media ? URL.createObjectURL(media) : null), [media]);
   React.useEffect(() => () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview); }, [mediaPreview]);
 
-  const shownImage = mediaPreview || (product?.media?.url && !removeMedia ? product.media.url : null);
+  const shownImage = mediaPreview || (product?.media?.url && !removeMedia ? resolveImageUrl(product.media.url) : null);
 
   const acceptMedia = (f?: File | null) => {
     if (!f) return;

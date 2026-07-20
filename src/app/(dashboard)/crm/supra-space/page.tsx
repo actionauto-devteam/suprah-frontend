@@ -1877,7 +1877,7 @@ function Bubble({
               event.stopPropagation();
               jumpToRepliedMessage(message.replyTo);
             }}
-            className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+            className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-(--accent)/50"
             title="Jump to original message"
           >
             <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>{message.replyTo.sender?.fullName}</p>
@@ -5870,7 +5870,7 @@ export default function SupraSpacePage() {
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', letterSpacing: '0.01em' }}>The Communication Hub That Drives Every Deal</p>
           <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
         </div>
-</div>
+      </div>
     </div>
   );
 
@@ -5908,14 +5908,14 @@ export default function SupraSpacePage() {
               {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
               <div className="flex items-center gap-2.5">
                 <SupraSpaceLogo size={32} className="shrink-0" />
-              <div>
-                <div className="flex items-center gap-1.5 leading-none">
-                  <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
-                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
-                  {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
+                <div>
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
+                    {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
+                  </div>
+                  <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
                 </div>
-                <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
-              </div>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
@@ -6212,12 +6212,12 @@ export default function SupraSpacePage() {
               )}
               {!activeId && (
                 <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
-                <SupraSpaceLogo size={64} />
-                <div className="text-center">
-                  <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
-                  <p className="mt-1.5" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
-                  <p className="mt-0.5" style={{ fontSize: 12, color: 'var(--text-disabled)' }}>Select a conversation to start messaging</p>
-                </div>
+                  <SupraSpaceLogo size={64} />
+                  <div className="text-center">
+                    <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                    <p className="mt-1.5" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
+                    <p className="mt-0.5" style={{ fontSize: 12, color: 'var(--text-disabled)' }}>Select a conversation to start messaging</p>
+                  </div>
                 </div>
               )}
 
@@ -6289,68 +6289,68 @@ export default function SupraSpacePage() {
                       className="h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
                       style={wallpaper ? { backgroundImage: wallpaper } : undefined}
                     >
-                    {hasMore[activeId] && (
-                      <div className="flex justify-center pb-3">
-                        <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full inline-flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>
-                          {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Scroll up for earlier messages'}
-                        </button>
-                      </div>
-                    )}
-                    {(loadingMsgs || activeMsgStatus === 'loading') && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-                    {!loadingMsgs && activeMsgs.length === 0 && activeConv && activeMsgStatus !== 'error' && activeMsgStatus !== 'stale' && !activeConvHasHistorySignal && (
-                      <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
-                        <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
-                        <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
-                          {activeConv.type === 'direct'
-                            ? `Say Hi to ${safeMembers(activeConv).find(m => m._id !== uid)?.fullName || 'your friend'}!`
-                            : `Welcome to ${activeConv.name || 'this channel'}!`}
-                        </p>
-                        <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
-                          {activeConv.type === 'direct' ? 'Send a message to start the conversation.' : 'Be the first to send a message.'}
-                        </p>
-                      </div>
-                    )}
-                    {activeMsgs.map((msg, i) => {
-                      const prevMsg = activeMsgs[i - 1] || null;
-                      const nextMsg = activeMsgs[i + 1] || null;
-                      const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
-                      const showAvatar = !prevMsg || prevMsg.sender?._id !== msg.sender?._id || showDate;
-                      const hideTime = !!(nextMsg
-                        && nextMsg.sender?._id === msg.sender?._id
-                        && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
-                        && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
-                      );
-                      return (
-                        <React.Fragment key={msg._id}>
-                          {showDate && <DateSep date={msg.createdAt} />}
-                          <div id={`ss4-msg-${msg._id}`}>
-                            <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} />
-                          </div>
-                          {pinEvents.find(e => e.msgId === msg._id) && (() => {
-                            const ev = pinEvents.find(e => e.msgId === msg._id)!;
-                            return (
-                              <div className="flex items-center justify-center px-3 py-1 my-0.5 sm:px-4 sm:py-1.5">
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:px-4" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
-                                  <span style={{ fontSize: 14 }}>⭐</span>
-                                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </React.Fragment>
-                      );
-                    })}
-                    {typers.length > 0 && (
-                      <div className="flex gap-2 px-4 py-1 sm:gap-2.5 sm:px-5">
-                        <div className="w-7 sm:w-8" />
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-2xl rounded-tl-sm sm:gap-2.5 sm:px-4 sm:py-2.5" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
-                          <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing</span>
-                          <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
+                      {hasMore[activeId] && (
+                        <div className="flex justify-center pb-3">
+                          <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full inline-flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>
+                            {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Scroll up for earlier messages'}
+                          </button>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {(loadingMsgs || activeMsgStatus === 'loading') && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+                      {!loadingMsgs && activeMsgs.length === 0 && activeConv && activeMsgStatus !== 'error' && activeMsgStatus !== 'stale' && !activeConvHasHistorySignal && (
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
+                          <span style={{ fontSize: 44, lineHeight: 1 }}>👋</span>
+                          <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
+                            {activeConv.type === 'direct'
+                              ? `Say Hi to ${safeMembers(activeConv).find(m => m._id !== uid)?.fullName || 'your friend'}!`
+                              : `Welcome to ${activeConv.name || 'this channel'}!`}
+                          </p>
+                          <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+                            {activeConv.type === 'direct' ? 'Send a message to start the conversation.' : 'Be the first to send a message.'}
+                          </p>
+                        </div>
+                      )}
+                      {activeMsgs.map((msg, i) => {
+                        const prevMsg = activeMsgs[i - 1] || null;
+                        const nextMsg = activeMsgs[i + 1] || null;
+                        const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
+                        const showAvatar = !prevMsg || prevMsg.sender?._id !== msg.sender?._id || showDate;
+                        const hideTime = !!(nextMsg
+                          && nextMsg.sender?._id === msg.sender?._id
+                          && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
+                          && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
+                        );
+                        return (
+                          <React.Fragment key={msg._id}>
+                            {showDate && <DateSep date={msg.createdAt} />}
+                            <div id={`ss4-msg-${msg._id}`}>
+                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} />
+                            </div>
+                            {pinEvents.find(e => e.msgId === msg._id) && (() => {
+                              const ev = pinEvents.find(e => e.msgId === msg._id)!;
+                              return (
+                                <div className="flex items-center justify-center px-3 py-1 my-0.5 sm:px-4 sm:py-1.5">
+                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:px-4" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
+                                    <span style={{ fontSize: 14 }}>⭐</span>
+                                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                                      <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </React.Fragment>
+                        );
+                      })}
+                      {typers.length > 0 && (
+                        <div className="flex gap-2 px-4 py-1 sm:gap-2.5 sm:px-5">
+                          <div className="w-7 sm:w-8" />
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl rounded-tl-sm sm:gap-2.5 sm:px-4 sm:py-2.5" style={{ background: 'var(--bubble-other-bg)', border: '1px solid var(--bubble-other-border)' }}>
+                            <span className="italic" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{typers.map(t => t.fullName).join(', ')} {typers.length === 1 ? 'is' : 'are'} typing</span>
+                            <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
+                          </div>
+                        </div>
+                      )}
                       <div ref={endRef} />
                     </div>
                     {showJumpToLatest && (

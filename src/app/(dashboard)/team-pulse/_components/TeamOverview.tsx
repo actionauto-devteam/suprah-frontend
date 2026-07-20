@@ -189,7 +189,7 @@ export function TeamOverview({
           </div>
           <div
             ref={stripRef}
-            className="flex flex-nowrap gap-3 overflow-x-auto no-scrollbar py-4 px-4 select-none touch-pan-x"
+            className="flex flex-nowrap gap-3 overflow-x-auto no-scrollbar py-5 px-4 select-none touch-pan-x"
             style={{ cursor: "grab" }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -206,7 +206,7 @@ export function TeamOverview({
                       onClick={(e) => { if (drag.current.moved) { e.preventDefault(); return; } }}
                       className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
                     >
-                      <div className="relative">
+                      <div className="relative size-10 shrink-0">
                         <Avatar
                           className={cn(
                             "size-10 ring-2 ring-offset-2 ring-offset-background transition-all group-hover:scale-110",

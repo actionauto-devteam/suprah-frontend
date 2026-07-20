@@ -6,6 +6,9 @@ import { Quote } from "@/types/transportation"
 import { useState } from "react"
 import { useAlert, AlertDialog } from "@/components/AlertDialog"
 import { EditQuoteModal } from "./EditQuoteModal"
+import { resolveImageUrl } from "@/lib/utils"
+
+const FALLBACK = "/vehicle-placeholder.jpg"
 
 interface QuoteCardProps {
     quote: Quote
@@ -123,16 +126,20 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                 </Badge>
                             </div>
 
-                            {quote.vehicleImage && (
-                                <div className="mb-4 relative group">
-                                    <img
-                                        src={quote.vehicleImage}
-                                        alt={vehicleName}
-                                        className="w-full h-40 object-cover rounded-lg shadow-sm group-hover:shadow-md transition-shadow"
-                                    />
-                                    <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                </div>
-                            )}
+                            <div className="mb-4 relative group">
+                                <img
+                                    src={resolveImageUrl(quote.vehicleImage) || FALLBACK}
+                                    alt={vehicleName}
+                                    className="w-full h-40 object-cover rounded-lg shadow-sm group-hover:shadow-md transition-shadow"
+                                    onError={(e) => {
+                                        const img = e.currentTarget
+                                        if (img.src !== window.location.origin + FALLBACK) {
+                                            img.src = FALLBACK
+                                        }
+                                    }}
+                                />
+                                <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            </div>
 
                             <div className="space-y-3">
                                 <div>
