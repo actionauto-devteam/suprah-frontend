@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 
 interface PaginatedUsers {
     users: any[];
@@ -43,14 +43,18 @@ export default function UsersPage() {
     const { getToken } = useAuth();
 
     // Fetch Users
-    const { data, isLoading } = useQuery({
+    const { data, error, isError, isLoading, refetch } = useQuery({
         queryKey: ['admin-users'],
         queryFn: async () => {
             const token = await getToken();
+            if (!token) {
+                throw new Error("Unable to authenticate the user request.");
+            }
             const res = await apiClient.get<ApiResponse<PaginatedUsers>>('/api/admin/users?limit=100', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            return res.data?.data?.users || [];
+            const payload = res.data?.data || (res.data as any);
+            return Array.isArray(payload?.users) ? payload.users : [];
         }
     });
 
@@ -70,6 +74,32 @@ export default function UsersPage() {
         return (
             <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <div className="container mx-auto flex min-h-[60vh] items-center justify-center">
+                <Card className="max-w-md border-destructive/30 bg-destructive/5">
+                    <CardHeader className="text-center">
+                        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                            <AlertCircle className="h-5 w-5 text-destructive" />
+                        </div>
+                        <CardTitle>Unable to Load Users</CardTitle>
+                        <CardDescription>
+                            {error instanceof Error
+                                ? error.message
+                                : "The user management request failed. Please try again."}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center">
+                        <Button onClick={() => refetch()} className="gap-2">
+                            <RefreshCw className="h-4 w-4" />
+                            Retry
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }

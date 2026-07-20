@@ -14,6 +14,7 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const REPAINT_OVERLAY_ID = 'theme-repaint-overlay';
 
 function getInitialTheme(): Theme {
   // Always 'dark' here so the first client render matches the server-rendered
@@ -43,17 +44,26 @@ function flushThemePaint() {
 
   const root = document.documentElement;
   const body = document.body;
+  const existingOverlay = document.getElementById(REPAINT_OVERLAY_ID);
+  existingOverlay?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = REPAINT_OVERLAY_ID;
+  overlay.setAttribute('aria-hidden', 'true');
 
   root.classList.add(THEME_SWITCHING_CLASS);
   body?.classList.add(THEME_SWITCHING_CLASS);
+  body?.appendChild(overlay);
 
   // Force style recalculation so the new theme repaints in a single pass.
   void root.offsetHeight;
+  void overlay.offsetHeight;
 
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
       root.classList.remove(THEME_SWITCHING_CLASS);
       body?.classList.remove(THEME_SWITCHING_CLASS);
+      overlay.remove();
     });
   });
 }
