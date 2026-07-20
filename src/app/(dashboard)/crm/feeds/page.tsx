@@ -13,6 +13,7 @@ import {
   Loader2,
   X,
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronUp,
   RefreshCw,
@@ -22,6 +23,9 @@ import {
   BarChart2,
   Paperclip,
   FileText,
+  AtSign,
+  Bell,
+  Megaphone,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -38,6 +42,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { apiClient } from "@/lib/api-client"
+import {
+  useFeedBadge,
+  refreshFeedBadge,
+  clearUnseenPosts,
+  clearFeedNotificationsBadge,
+  decrementFeedNotifications,
+} from "@/lib/feed-notification-store"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 import DayPulsePage from "@/components/DayPulsePage"
 
@@ -84,6 +95,29 @@ interface CrmUser {
   avatar?: string
   role: string
   organizationId?: string
+}
+
+/** Org member shown in the @ mention autocomplete. `_id === "all"` is the
+ *  special client-side "Everyone" entry. */
+interface MentionCandidate {
+  _id: string
+  fullName: string
+  username?: string
+  email?: string
+  avatar?: string
+  role?: string
+}
+
+/** Row in the Activity panel — mirrors the FeedNotification backend model. */
+interface FeedNotificationItem {
+  _id: string
+  type: "mention_post" | "mention_comment" | "comment_on_post" | "all_announcement"
+  postId: string
+  commentId?: string | null
+  actorName: string
+  snippet: string
+  readAt: string | null
+  createdAt: string
 }
 
 type FeedTab = "feeds" | "daypulse"
@@ -199,6 +233,334 @@ function topReactionEmojis(summary: ReactionSummary): string[] {
     .sort(([, a], [, b]) => b.count - a.count)
     .slice(0, 3)
     .map(([type]) => REACTION_MAP[type as ReactionType]?.emoji ?? "")
+}
+
+// ─── Mentions: tokens, rendering, autocomplete ────────────────────────────────
+//
+// Mentions are stored inside content as tokens:  @[Roque Jerico](664f…)  or
+// @[all](all). The composer inserts tokens via the @ autocomplete; the token
+// regex here must stay in sync with utils/feedMentions.ts on the backend.
+
+const MENTION_TOKEN = /@\[([^\]\n]{1,80})\]\(([a-fA-F0-9]{24}|all)\)/g
+
+/** Replace tokens with plain "@Name" — for character counters and previews. */
+function stripMentions(content: string): string {
+  return (content || "").replace(new RegExp(MENTION_TOKEN.source, "g"), (_f, name, id) =>
+    id === "all" ? "@Everyone" : `@${name}`
+  )
+}
+
+/** Visible length (what the author perceives) — limits apply to this. */
+function visibleLength(content: string): number {
+  return stripMentions(content).length
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/**
+ * Convert the CLEAN text the user sees ("@Aaron Gonzalez Navarro", "@all")
+ * into storage tokens ("@[Aaron Gonzalez Navarro](id)", "@[all](all)") right
+ * before submitting. The textarea never shows raw tokens — this is the only
+ * place display text and storage format meet.
+ *
+ * Longest names are matched first so "Aaron Gonzalez" can't shadow
+ * "Aaron Gonzalez Navarro". Matching is case-insensitive with a word
+ * boundary after the name; the canonical fullName is written into the token.
+ */
+function serializeMentions(text: string, candidates: MentionCandidate[]): string {
+  let out = text
+  const sorted = [...candidates].sort((a, b) => b.fullName.length - a.fullName.length)
+  for (const c of sorted) {
+    if (!c.fullName) continue
+    const re = new RegExp(`@${escapeRegExp(c.fullName)}(?=$|[^A-Za-z0-9_])`, "gi")
+    out = out.replace(re, `@[${c.fullName}](${c._id})`)
+  }
+  // "@all" / "@everyone" → the org-wide token (also catches manually typed ones)
+  out = out.replace(/@(all|everyone)(?=$|[^A-Za-z0-9_])/gi, "@[all](all)")
+  return out
+}
+
+/** Render content with mention tokens as highlighted chips. */
+function renderWithMentions(content: string): React.ReactNode {
+  if (!content) return null
+  const re = new RegExp(MENTION_TOKEN.source, "g")
+  const parts: React.ReactNode[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  let key = 0
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) parts.push(content.slice(last, m.index))
+    const isAll = m[2] === "all"
+    parts.push(
+      <span
+        key={`mention-${key++}`}
+        className={`inline rounded px-1 font-medium ${isAll
+          ? "bg-amber-500/15 text-amber-600"
+          : "bg-emerald-500/12 text-emerald-600"
+          }`}
+      >
+        @{isAll ? "Everyone" : m[1]}
+      </span>
+    )
+    last = m.index + m[0].length
+  }
+  if (last < content.length) parts.push(content.slice(last))
+  return parts
+}
+
+const ALL_CANDIDATE: MentionCandidate = { _id: "all", fullName: "Everyone", username: "all" }
+
+/** Style props mirrored onto the hidden measuring div — anything that affects
+ *  text layout inside the textarea. */
+const CARET_MIRROR_PROPS = [
+  "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+  "fontStyle", "fontVariant", "fontWeight", "fontStretch", "fontSize", "fontFamily",
+  "lineHeight", "textAlign", "textTransform", "textIndent", "letterSpacing",
+  "wordSpacing", "tabSize", "whiteSpace", "wordBreak", "overflowWrap",
+] as const
+
+interface CaretCoords { top: number; left: number; height: number }
+
+/**
+ * Pixel position of a character inside a textarea (relative to the textarea's
+ * top-left corner) — the classic mirror-div technique: clone the textarea's
+ * text styles onto a hidden div, insert the text up to `position`, and measure
+ * where a marker span lands. Accounts for wrapping, padding, and scroll.
+ */
+function getCaretCoordinates(el: HTMLTextAreaElement, position: number): CaretCoords {
+  const style = window.getComputedStyle(el)
+  const div = document.createElement("div")
+  div.style.position = "absolute"
+  div.style.visibility = "hidden"
+  div.style.top = "0"
+  div.style.left = "-9999px"
+  div.style.whiteSpace = "pre-wrap"
+  div.style.wordWrap = "break-word"
+  for (const prop of CARET_MIRROR_PROPS) {
+    ;(div.style as any)[prop] = (style as any)[prop]
+  }
+  div.textContent = el.value.substring(0, position)
+  const marker = document.createElement("span")
+  marker.textContent = el.value.substring(position) || "."
+  div.appendChild(marker)
+  document.body.appendChild(div)
+  const lh = parseFloat(style.lineHeight)
+  const height = Number.isFinite(lh) ? lh : parseFloat(style.fontSize) * 1.4
+  const coords: CaretCoords = {
+    top: marker.offsetTop - el.scrollTop,
+    left: marker.offsetLeft - el.scrollLeft,
+    height,
+  }
+  document.body.removeChild(div)
+  return coords
+}
+
+/**
+ * @ autocomplete for a textarea. Detects an "@query" being typed at the
+ * caret, filters candidates, and inserts the storage token on selection.
+ * Returns handlers the host component wires into onChange / onKeyDown.
+ */
+function useMentions(opts: {
+  value: string
+  setValue: (v: string) => void
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
+  candidates: MentionCandidate[]
+}) {
+  const { value, setValue, textareaRef, candidates } = opts
+  const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const [activeIndex, setActiveIndex] = React.useState(0)
+  const [caret, setCaret] = React.useState<CaretCoords | null>(null)
+  const anchorStart = React.useRef(-1)
+
+  const results = React.useMemo(() => {
+    if (!open) return [] as MentionCandidate[]
+    const q = query.toLowerCase()
+    const base = [ALL_CANDIDATE, ...candidates]
+    return base
+      .filter((c) =>
+        !q ||
+        c.fullName.toLowerCase().includes(q) ||
+        (c.username || "").toLowerCase().includes(q)
+      )
+      .slice(0, 6)
+  }, [open, query, candidates])
+
+  /** Call after every value change — looks for "@query" ending at the caret. */
+  const detect = React.useCallback((val: string) => {
+    const el = textareaRef.current
+    const caret = el ? el.selectionStart : val.length
+    const before = val.slice(0, caret)
+    // "@" at start or after whitespace, then up to two words (names contain
+    // spaces). Closes as soon as the pattern breaks (e.g. "@" mid-sentence
+    // followed by normal prose past two words).
+    const m = before.match(/(^|\s)@([A-Za-z0-9._-]{0,24}(?: [A-Za-z0-9._-]{0,24})?)$/)
+    if (m) {
+      setOpen(true)
+      setQuery(m[2])
+      anchorStart.current = caret - m[2].length - 1
+      setActiveIndex(0)
+      // Pin the panel to the "@" character itself, clamped so a 288px-wide
+      // panel never overflows the textarea's right edge.
+      if (el) {
+        try {
+          const coords = getCaretCoordinates(el, anchorStart.current)
+          setCaret({
+            ...coords,
+            left: Math.max(0, Math.min(coords.left, el.clientWidth - 296)),
+          })
+        } catch { setCaret(null) }
+      }
+    } else {
+      setOpen(false)
+      setQuery("")
+      setCaret(null)
+    }
+  }, [textareaRef])
+
+  const insert = React.useCallback((c: MentionCandidate) => {
+    const el = textareaRef.current
+    const caret = el ? el.selectionStart : value.length
+    const start = anchorStart.current >= 0 ? anchorStart.current : caret
+    // Insert CLEAN display text — storage tokens are produced by
+    // serializeMentions() only at submit time.
+    const token = c._id === "all" ? "@all " : `@${c.fullName} `
+    const next = value.slice(0, start) + token + value.slice(caret)
+    setValue(next)
+    setOpen(false)
+    setQuery("")
+    requestAnimationFrame(() => {
+      el?.focus()
+      const pos = start + token.length
+      el?.setSelectionRange(pos, pos)
+    })
+  }, [value, setValue, textareaRef])
+
+  /** Returns true when the key was consumed by the suggestion list. */
+  const onKeyDown = React.useCallback((e: React.KeyboardEvent): boolean => {
+    if (!open || results.length === 0) return false
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => (i + 1) % results.length); return true }
+    if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => (i - 1 + results.length) % results.length); return true }
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insert(results[activeIndex]); return true }
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false); return true }
+    return false
+  }, [open, results, activeIndex, insert])
+
+  return { open, query, results, activeIndex, setActiveIndex, detect, insert, onKeyDown, caret, close: () => setOpen(false) }
+}
+
+/** Bold the part of the name that matches the typed query. */
+function highlightMatch(name: string, query: string): React.ReactNode {
+  if (!query) return name
+  const idx = name.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return name
+  return (
+    <>
+      {name.slice(0, idx)}
+      <span className="text-emerald-500">{name.slice(idx, idx + query.length)}</span>
+      {name.slice(idx + query.length)}
+    </>
+  )
+}
+
+/** Floating suggestion list — render inside a `relative` wrapper around the
+ *  textarea. `placement="bottom"` drops the panel BELOW the input (use for
+ *  inputs near the top of the viewport, e.g. the composer, where an upward
+ *  panel would collide with the sticky header); `"top"` opens upward (use for
+ *  comment inputs at the bottom of cards). */
+function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnType<typeof useMentions>; placement?: "top" | "bottom" }) {
+  if (!mention.open || mention.results.length === 0) return null
+  const caret = mention.caret
+  // With caret coords: pin directly under the "@" (bottom) or horizontally
+  // aligned to it while opening upward (top). Without coords (measurement
+  // failed): fall back to anchoring on the input edge.
+  const posStyle: React.CSSProperties = caret
+    ? placement === "bottom"
+      ? { top: caret.top + caret.height + 4, left: caret.left }
+      : { left: caret.left }
+    : {}
+  const anchorClass = placement === "top"
+    ? "bottom-full mb-1.5"
+    : caret ? "" : "top-full mt-1.5"
+  const hasEveryone = mention.results[0]?._id === "all"
+  const people = hasEveryone ? mention.results.slice(1) : mention.results
+  const renderRow = (c: MentionCandidate, i: number) => {
+    const active = i === mention.activeIndex
+    const isAll = c._id === "all"
+    return (
+      <button
+        key={c._id}
+        type="button"
+        // mousedown (not click) so the textarea doesn't blur first
+        onMouseDown={(e) => { e.preventDefault(); mention.insert(c) }}
+        onMouseEnter={() => mention.setActiveIndex(i)}
+        className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors duration-100
+          ${active ? "bg-emerald-500/12 ring-1 ring-inset ring-emerald-500/20" : "hover:bg-muted/40"}`}
+      >
+        {isAll ? (
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500 ring-1 ring-inset ring-amber-500/25">
+            <Megaphone className="h-3.5 w-3.5" />
+          </div>
+        ) : (
+          <Avatar className="h-7 w-7 shrink-0 rounded-lg ring-1 ring-border/40">
+            <AvatarImage src={c.avatar} />
+            <AvatarFallback className="rounded-lg bg-emerald-600 text-white text-[9px] font-semibold">{ini(c.fullName)}</AvatarFallback>
+          </Avatar>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium leading-tight text-foreground">
+            {isAll ? "Everyone" : highlightMatch(c.fullName, mention.query)}
+          </p>
+          <p className="truncate text-[10px] leading-tight text-muted-foreground/55">
+            {isAll ? "Notify the whole team" : `@${c.username || c.email || ""}`}
+          </p>
+        </div>
+        {active && <span className="shrink-0 text-[9px] font-semibold text-emerald-500/70">↵</span>}
+      </button>
+    )
+  }
+  return (
+    <div
+      style={posStyle}
+      className={`absolute z-50 w-72 overflow-hidden rounded-2xl border border-border/50 bg-popover shadow-2xl shadow-black/40 ${anchorClass}`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border/40 px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <AtSign className="h-3 w-3 text-emerald-500" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60">Mention</span>
+        </div>
+        <span className="text-[9px] font-medium tabular-nums text-muted-foreground/40">
+          {mention.results.length} {mention.results.length === 1 ? "match" : "matches"}
+        </span>
+      </div>
+
+      {/* Results — Everyone pinned as its own section, teammates below */}
+      <div className="max-h-60 overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50">
+        {hasEveryone && (
+          <>
+            {renderRow(mention.results[0], 0)}
+            {people.length > 0 && (
+              <div className="mx-2 my-1 h-px bg-linear-to-r from-transparent via-border/50 to-transparent" />
+            )}
+          </>
+        )}
+        <div className="space-y-0.5">
+          {people.map((c, idx) => renderRow(c, hasEveryone ? idx + 1 : idx))}
+        </div>
+      </div>
+
+      {/* Keyboard hints */}
+      <div className="flex items-center gap-2.5 border-t border-border/40 bg-muted/20 px-3 py-1.5 text-[9px] text-muted-foreground/45">
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">↑↓</kbd> navigate</span>
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">↵</kbd> select</span>
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">esc</kbd> close</span>
+      </div>
+    </div>
+  )
 }
 
 // ─── Clean gradient divider ───────────────────────────────────────────────────
@@ -597,7 +959,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
                 {comment.authorRole}
               </Badge>
             </div>
-            {comment.content && <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{comment.content}</p>}
+            {comment.content && <p className="text-xs leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{renderWithMentions(comment.content)}</p>}
           </div>
           {!!comment.attachments?.length && (
             <div className="mt-2 max-w-xs">
@@ -621,10 +983,11 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
 
 // ─── Comment Section ──────────────────────────────────────────────────────────
 
-function CommentSection({ post, currentUser, token, comments, setComments, commentReactions, setCommentReactions, inputId }: {
+function CommentSection({ post, currentUser, token, comments, setComments, commentReactions, setCommentReactions, inputId, mentionCandidates }: {
   post: Post; currentUser: CrmUser; token: string; inputId: string
   comments: Comment[]; setComments: React.Dispatch<React.SetStateAction<Comment[]>>
   commentReactions: Record<string, ReactionState>; setCommentReactions: React.Dispatch<React.SetStateAction<Record<string, ReactionState>>>
+  mentionCandidates: MentionCandidate[]
 }) {
   const COLLAPSE_THRESHOLD = 5
   const VISIBLE_WHEN_COLLAPSED = 3
@@ -639,6 +1002,13 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   const preferNativeEmoji = usePreferNativeEmojiPicker()
   const inputRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const mention = useMentions({
+    value: newComment,
+    setValue: (v) => { setNewComment(v); setSubmitError("") },
+    textareaRef: inputRef,
+    candidates: mentionCandidates,
+  })
 
   const addFiles = (incoming: File[]) => {
     if (!incoming.length) return
@@ -689,18 +1059,21 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
 
   const handleSubmit = async () => {
     if (!newComment.trim() && pendingFiles.length === 0) return
+    if (newComment.trim().length > 1000) { setSubmitError("Comment cannot exceed 1000 characters"); return }
     setSubmitting(true); setSubmitError("")
     try {
+      // Convert clean "@Name" text into storage tokens only now, at submit.
+      const payload = serializeMentions(newComment.trim(), mentionCandidates)
       let res
       if (pendingFiles.length > 0) {
         // Has attachments → multipart
         const formData = new FormData()
-        formData.append("content", newComment.trim())
+        formData.append("content", payload)
         pendingFiles.forEach((f) => formData.append("files", f))
         res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, formData)
       } else {
         // Text-only → plain JSON
-        res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, { content: newComment.trim() })
+        res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, { content: payload })
       }
       const comment: Comment = res.data?.data?.comment
       setComments((prev) => prev.some((c) => c._id === comment._id) ? prev : [...prev, comment])
@@ -717,6 +1090,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   }
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mention.onKeyDown(e)) return
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleSubmit() }
   }
 
@@ -756,14 +1130,16 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
           <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 relative">
+          <MentionSuggestions mention={mention} />
           <div className="rounded-2xl border border-border/40 bg-background/50 focus-within:border-emerald-500/40 focus-within:ring-1 focus-within:ring-emerald-500/15 transition-all">
             <textarea
               id={inputId}
               ref={inputRef} value={newComment}
-              onChange={(e) => { setNewComment(e.target.value); setSubmitError("") }}
+              onChange={(e) => { setNewComment(e.target.value); setSubmitError(""); mention.detect(e.target.value) }}
               onKeyDown={handleKey}
               onPaste={handlePaste}
-              placeholder="Leave a comment…" rows={1} maxLength={1000}
+              onBlur={() => setTimeout(mention.close, 150)}
+              placeholder="Leave a comment… (@ to mention)" rows={1} maxLength={1000}
               className="w-full bg-transparent text-xs leading-relaxed p-3 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/40"
               style={{ minHeight: "38px" }}
             />
@@ -774,6 +1150,29 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
                   <Paperclip className="h-3.5 w-3.5" />
                 </button>
                 <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePick} />
+                <button
+                  type="button"
+                  title="Mention someone"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    const el = inputRef.current
+                    if (!el) return
+                    const caret = el.selectionStart ?? newComment.length
+                    const needsSpace = caret > 0 && !/\s$/.test(newComment.slice(0, caret))
+                    const inserted = `${needsSpace ? " " : ""}@`
+                    const next = newComment.slice(0, caret) + inserted + newComment.slice(caret)
+                    setNewComment(next)
+                    requestAnimationFrame(() => {
+                      el.focus()
+                      const pos = caret + inserted.length
+                      el.setSelectionRange(pos, pos)
+                      mention.detect(next)
+                    })
+                  }}
+                  className="text-muted-foreground/50 hover:text-emerald-600 transition-colors"
+                >
+                  <AtSign className="h-3.5 w-3.5" />
+                </button>
                 {preferNativeEmoji ? (
                   <button type="button" onClick={() => inputRef.current?.focus()} className="text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" title="Emoji">
                     <Smile className="h-3.5 w-3.5" />
@@ -808,13 +1207,21 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionState, onReactionChange }: {
+function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionState, onReactionChange, mentionCandidates, isUnread, isFlashing, onMarkRead }: {
   post: Post; currentUser: CrmUser; token: string
   onUpdated: (updated: Post) => void; onDeleted: (id: string) => void
   reactionState: ReactionState; onReactionChange: (state: ReactionState) => void
+  mentionCandidates: MentionCandidate[]
+  /** True when this post is newer than the user's last visit and not yet read. */
+  isUnread: boolean
+  /** True while a deep-link / auto-scroll wants this card visually flashed. */
+  isFlashing: boolean
+  onMarkRead: (postId: string) => void
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
-  const [editContent, setEditContent] = React.useState(post.content)
+  // The edit textarea works with CLEAN text — stored tokens are stripped on
+  // open and re-serialized on save.
+  const [editContent, setEditContent] = React.useState(() => stripMentions(post.content))
   const [editLoading, setEditLoading] = React.useState(false)
   const [editError, setEditError] = React.useState("")
   const [showEmojiEdit, setShowEmojiEdit] = React.useState(false)
@@ -825,6 +1232,13 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   const [commentReactions, setCommentReactions] = React.useState<Record<string, ReactionState>>({})
   const editRef = React.useRef<HTMLTextAreaElement>(null)
   const commentInputId = `comment-input-${post._id}`
+
+  const editMention = useMentions({
+    value: editContent,
+    setValue: (v) => { setEditContent(v); setEditError("") },
+    textareaRef: editRef,
+    candidates: mentionCandidates,
+  })
 
   const isOwner = post.userId === currentUser._id
   const isAdmin = currentUser.role === "admin"
@@ -843,9 +1257,11 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
 
   const handleSave = async () => {
     if (!editContent.trim()) { setEditError("Content cannot be empty"); return }
+    if (editContent.trim().length > 5000) { setEditError("Post content cannot exceed 5000 characters"); return }
     setEditLoading(true); setEditError("")
     try {
-      const res = await apiClient.put(`/api/crm/feeds/${post._id}`, { content: editContent.trim() })
+      const payload = serializeMentions(editContent.trim(), mentionCandidates)
+      const res = await apiClient.put(`/api/crm/feeds/${post._id}`, { content: payload })
       onUpdated(res.data?.data?.post || res.data?.post)
       setIsEditing(false)
     } catch (err: any) {
@@ -875,7 +1291,19 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   return (
     <>
       {showDeleteModal && <DeleteModal label="post" onConfirm={handleDelete} onCancel={() => setShowDeleteModal(false)} loading={deleteLoading} />}
-      <article className="group relative rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/5">
+      <article
+        id={`post-${post._id}`}
+        className={`group relative rounded-3xl border bg-card/60 backdrop-blur-xl shadow-sm transition-all duration-300
+          ${isFlashing
+            ? "border-emerald-500/60 ring-2 ring-emerald-500/30 shadow-lg shadow-emerald-500/15"
+            : isUnread
+              ? "border-emerald-500/35 shadow-md shadow-emerald-500/8 hover:border-emerald-500/45"
+              : "border-border/40 hover:border-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/5"}`}
+      >
+        {/* Unread accent rail */}
+        {isUnread && !isFlashing && (
+          <span className="pointer-events-none absolute left-0 top-5 bottom-5 w-0.75 rounded-full bg-linear-to-b from-emerald-500 to-emerald-500/30" />
+        )}
         <div className="p-5 space-y-4">
           {/* Header row */}
           <div className="flex items-start justify-between gap-3">
@@ -893,10 +1321,24 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                   <Badge variant="outline" className={`text-[8px] h-4 px-1.5 rounded-full capitalize font-medium leading-none border ${ROLE_COLORS[post.authorRole] ?? ROLE_COLORS.employee}`}>
                     {post.authorRole}
                   </Badge>
+                  {isUnread && (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/12 border border-emerald-500/30 px-1.5 h-4 text-[8px] font-semibold uppercase tracking-wide text-emerald-600 leading-none">
+                      <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" /> New
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <p className="text-[10px] text-muted-foreground/55 cursor-default" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
                   {post.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">· edited</span>}
+                  {isUnread && (
+                    <button
+                      type="button"
+                      onClick={() => onMarkRead(post._id)}
+                      className="text-[10px] font-medium text-muted-foreground/45 hover:text-emerald-600 transition-colors"
+                    >
+                      Mark read
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -909,7 +1351,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40 rounded-2xl border-border/40 shadow-xl p-1 bg-card/95 backdrop-blur-xl">
                   {canEdit && (
-                    <DropdownMenuItem className="rounded-xl text-xs h-8 gap-2.5 cursor-pointer font-medium" onClick={() => { setIsEditing(true); setEditContent(post.content) }}>
+                    <DropdownMenuItem className="rounded-xl text-xs h-8 gap-2.5 cursor-pointer font-medium" onClick={() => { setIsEditing(true); setEditContent(stripMentions(post.content)) }}>
                       <Pencil className="h-3.5 w-3.5 text-muted-foreground" /> Edit post
                     </DropdownMenuItem>
                   )}
@@ -927,9 +1369,12 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
           {isEditing ? (
             <div className="space-y-3">
               <div className="relative">
+                <MentionSuggestions mention={editMention} placement="bottom" />
                 <textarea
                   ref={editRef} value={editContent}
-                  onChange={(e) => { setEditContent(e.target.value); setEditError("") }}
+                  onChange={(e) => { setEditContent(e.target.value); setEditError(""); editMention.detect(e.target.value) }}
+                  onKeyDown={(e) => { editMention.onKeyDown(e) }}
+                  onBlur={() => setTimeout(editMention.close, 150)}
                   rows={4} maxLength={5000}
                   className="w-full rounded-2xl border border-border/40 bg-muted/20 text-sm p-3.5 pr-10 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/25 leading-relaxed"
                 />
@@ -967,7 +1412,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
             </div>
           ) : (
             <>
-              {post.content && <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/85">{post.content}</p>}
+              {post.content && <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/85">{renderWithMentions(post.content)}</p>}
               {!!post.attachments?.length && <AttachmentGrid attachments={post.attachments} />}
             </>
           )}
@@ -994,6 +1439,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
             comments={comments} setComments={setComments}
             commentReactions={commentReactions} setCommentReactions={setCommentReactions}
             inputId={commentInputId}
+            mentionCandidates={mentionCandidates}
           />
         </div>
       </article>
@@ -1003,8 +1449,9 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
 
 // ─── Post Composer ────────────────────────────────────────────────────────────
 
-function Composer({ currentUser, token, onPosted }: {
+function Composer({ currentUser, token, onPosted, mentionCandidates }: {
   currentUser: CrmUser; token: string; onPosted: (post: Post) => void
+  mentionCandidates: MentionCandidate[]
 }) {
   const [content, setContent] = React.useState("")
   const [loading, setLoading] = React.useState(false)
@@ -1015,6 +1462,13 @@ function Composer({ currentUser, token, onPosted }: {
   const preferNativeEmoji = usePreferNativeEmojiPicker()
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const mention = useMentions({
+    value: content,
+    setValue: (v) => { setContent(v); setError("") },
+    textareaRef,
+    candidates: mentionCandidates,
+  })
 
   const addFiles = (incoming: File[]) => {
     if (!incoming.length) return
@@ -1046,18 +1500,21 @@ function Composer({ currentUser, token, onPosted }: {
 
   const handleSubmit = async () => {
     if (!content.trim() && pendingFiles.length === 0) { setError("Write something first!"); return }
+    if (content.trim().length > 5000) { setError("Post content cannot exceed 5000 characters"); return }
     setLoading(true); setError("")
     try {
+      // Convert clean "@Name" text into storage tokens only now, at submit.
+      const payload = serializeMentions(content.trim(), mentionCandidates)
       let res
       if (pendingFiles.length > 0) {
         // Has attachments → multipart
         const formData = new FormData()
-        formData.append("content", content.trim())
+        formData.append("content", payload)
         pendingFiles.forEach((f) => formData.append("files", f))
         res = await apiClient.post("/api/crm/feeds", formData)
       } else {
         // Text-only → plain JSON (matches the proven-working comment/reaction path)
-        res = await apiClient.post("/api/crm/feeds", { content: content.trim() })
+        res = await apiClient.post("/api/crm/feeds", { content: payload })
       }
       onPosted(res.data?.data?.post || res.data?.post)
       setContent(""); setPendingFiles([]); textareaRef.current?.blur(); setIsFocused(false)
@@ -1067,16 +1524,22 @@ function Composer({ currentUser, token, onPosted }: {
   }
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mention.onKeyDown(e)) return
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleSubmit() }
   }
 
+  const shownLength = content.length
+
   return (
-    <div className={`relative rounded-3xl border overflow-hidden bg-card/60 backdrop-blur-xl shadow-sm transition-all duration-200 ${isFocused ? "border-emerald-500/35 shadow-lg shadow-emerald-500/10" : "border-border/40"}`}>
+    <div className={`relative rounded-3xl border bg-card/60 backdrop-blur-xl shadow-sm transition-all duration-200 ${isFocused ? "border-emerald-500/35 shadow-lg shadow-emerald-500/10" : "border-border/40"}`}>
       <div className="flex items-center justify-between px-5 pt-4 pb-1">
         <div className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-xs font-medium text-muted-foreground/70">Share an update</span>
         </div>
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40">
+          <AtSign className="h-3 w-3" /> mention teammates or everyone
+        </span>
       </div>
 
       <div className="flex items-start gap-3 px-5 pb-2">
@@ -1085,10 +1548,12 @@ function Composer({ currentUser, token, onPosted }: {
           <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">{ini(currentUser.fullName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 relative">
+          <MentionSuggestions mention={mention} placement="bottom" />
           <textarea
             ref={textareaRef} value={content}
-            onChange={(e) => { setContent(e.target.value); setError("") }}
-            onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)}
+            onChange={(e) => { setContent(e.target.value); setError(""); mention.detect(e.target.value) }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => { setIsFocused(false); setTimeout(mention.close, 150) }}
             onKeyDown={handleKey}
             onPaste={handlePaste}
             placeholder={`What's happening, ${currentUser.fullName.split(" ")[0]}?`}
@@ -1106,6 +1571,29 @@ function Composer({ currentUser, token, onPosted }: {
             <Paperclip className="h-4 w-4" /> Attach
           </button>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePick} />
+          <button
+            type="button"
+            title="Mention someone"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              const el = textareaRef.current
+              if (!el) return
+              const caret = el.selectionStart ?? content.length
+              const needsSpace = caret > 0 && !/\s$/.test(content.slice(0, caret))
+              const inserted = `${needsSpace ? " " : ""}@`
+              const next = content.slice(0, caret) + inserted + content.slice(caret)
+              setContent(next)
+              requestAnimationFrame(() => {
+                el.focus()
+                const pos = caret + inserted.length
+                el.setSelectionRange(pos, pos)
+                mention.detect(next)
+              })
+            }}
+            className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-emerald-600 hover:bg-emerald-500/5"
+          >
+            <AtSign className="h-4 w-4" /> Mention
+          </button>
           {preferNativeEmoji ? (
             <button type="button" onClick={() => textareaRef.current?.focus()} className="flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1.5 transition-colors text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40" title="Emoji">
               <Smile className="h-4 w-4" /> Emoji
@@ -1127,8 +1615,8 @@ function Composer({ currentUser, token, onPosted }: {
         </div>
         <div className="flex items-center gap-3">
           {content.length > 0 && (
-            <span className={`text-[10px] tabular-nums font-medium transition-colors ${content.length > 4500 ? "text-rose-500" : "text-muted-foreground/55"}`}>
-              {content.length}/5000
+            <span className={`text-[10px] tabular-nums font-medium transition-colors ${shownLength > 4500 ? "text-rose-500" : "text-muted-foreground/55"}`}>
+              {shownLength}/5000
             </span>
           )}
           <Button onClick={handleSubmit} disabled={loading || (!content.trim() && pendingFiles.length === 0)} size="sm" className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold gap-2 px-4 disabled:opacity-30 transition-all">
@@ -1138,6 +1626,109 @@ function Composer({ currentUser, token, onPosted }: {
       </div>
       {error && <p className="text-xs text-rose-500 px-5 pb-3">{error}</p>}
       {content && !error && <p className="text-[10px] text-muted-foreground/40 px-5 pb-3">⌘/Ctrl + Enter to post</p>}
+    </div>
+  )
+}
+
+// ─── Activity Panel (mentions & comments on your posts) ───────────────────────
+
+const NOTIF_META: Record<FeedNotificationItem["type"], { icon: React.ReactNode; text: string; iconBg: string }> = {
+  mention_post: {
+    icon: <AtSign className="h-3.5 w-3.5 text-emerald-600" />,
+    text: "mentioned you in a post",
+    iconBg: "bg-emerald-500/12 border-emerald-500/25",
+  },
+  mention_comment: {
+    icon: <AtSign className="h-3.5 w-3.5 text-emerald-600" />,
+    text: "mentioned you in a comment",
+    iconBg: "bg-emerald-500/12 border-emerald-500/25",
+  },
+  comment_on_post: {
+    icon: <MessageCircle className="h-3.5 w-3.5 text-sky-500" />,
+    text: "commented on your post",
+    iconBg: "bg-sky-500/12 border-sky-500/25",
+  },
+  all_announcement: {
+    icon: <Megaphone className="h-3.5 w-3.5 text-amber-500" />,
+    text: "posted an announcement for everyone",
+    iconBg: "bg-amber-500/12 border-amber-500/25",
+  },
+}
+
+function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: {
+  items: FeedNotificationItem[]
+  loading: boolean
+  onItemClick: (n: FeedNotificationItem) => void
+  onMarkAllRead: () => void
+  onClose: () => void
+}) {
+  const hasUnread = items.some((n) => !n.readAt)
+  return (
+    <div className="absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30">
+      <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Bell className="h-3.5 w-3.5 text-emerald-500" />
+          <h3 className="text-sm font-semibold tracking-tight">Activity</h3>
+        </div>
+        <div className="flex items-center gap-1">
+          {hasUnread && (
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+            >
+              <CheckCheck className="h-3 w-3" /> Mark all read
+            </button>
+          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/60" onClick={onClose}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="max-h-[26rem] overflow-y-auto p-1.5">
+        {loading && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+          </div>
+        )}
+        {!loading && items.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-dashed border-border/30">
+              <Bell className="h-4 w-4 text-muted-foreground/25" />
+            </div>
+            <p className="text-xs text-muted-foreground/50">No activity yet.</p>
+            <p className="text-[10px] text-muted-foreground/40 max-w-[15rem]">Mentions, comments on your posts, and team-wide announcements will show up here.</p>
+          </div>
+        )}
+        {!loading && items.map((n) => {
+          const meta = NOTIF_META[n.type] ?? NOTIF_META.comment_on_post
+          const unread = !n.readAt
+          return (
+            <button
+              key={n._id}
+              type="button"
+              onClick={() => onItemClick(n)}
+              className={`flex w-full items-start gap-2.5 rounded-2xl px-2.5 py-2.5 text-left transition-colors hover:bg-muted/40 ${unread ? "bg-emerald-500/5" : ""}`}
+            >
+              <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${meta.iconBg}`}>
+                {meta.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-snug text-foreground/85">
+                  <span className="font-semibold">{n.actorName}</span>{" "}
+                  <span className="text-muted-foreground/70">{meta.text}</span>
+                </p>
+                {n.snippet && (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">“{n.snippet}”</p>
+                )}
+                <p className="mt-1 text-[10px] text-muted-foreground/45" title={fullDate(n.createdAt)}>{timeAgo(n.createdAt)}</p>
+              </div>
+              {unread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1197,6 +1788,39 @@ export default function FeedsPage() {
   const socketRef = React.useRef<any>(null)
   const ssSocketRef = React.useRef<any>(null)
 
+  // ── Notification system state ──
+  const badge = useFeedBadge()
+  /** Watermark from the PREVIOUS visit — posts newer than this render as unread. */
+  const [unreadSince, setUnreadSince] = React.useState<string | null>(null)
+  /** Posts the user marked read during this visit (client-side overlay). */
+  const [locallyRead, setLocallyRead] = React.useState<Set<string>>(new Set())
+  const [flashPostId, setFlashPostId] = React.useState<string | null>(null)
+  const [mentionCandidates, setMentionCandidates] = React.useState<MentionCandidate[]>([])
+  const [activityOpen, setActivityOpen] = React.useState(false)
+  const [activityItems, setActivityItems] = React.useState<FeedNotificationItem[]>([])
+  const [activityLoading, setActivityLoading] = React.useState(false)
+  const activityFetchedRef = React.useRef(false)
+  const activityWrapRef = React.useRef<HTMLDivElement>(null)
+  const autoScrolledRef = React.useRef(false)
+  const flashTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const isUnreadPost = React.useCallback((post: Post): boolean => {
+    if (!unreadSince || !currentUser) return false
+    if (post.userId === currentUser._id) return false
+    if (locallyRead.has(post._id)) return false
+    return new Date(post.createdAt).getTime() > new Date(unreadSince).getTime()
+  }, [unreadSince, currentUser, locallyRead])
+
+  const scrollToPost = React.useCallback((postId: string) => {
+    if (typeof document === "undefined") return
+    const el = document.getElementById(`post-${postId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    setFlashPostId(postId)
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    flashTimerRef.current = setTimeout(() => setFlashPostId(null), 2500)
+  }, [])
+
   const fetchPostsAndReactions = React.useCallback(async (tk: string, pg: number, signal?: AbortSignal) => {
     const res = await apiClient.get(`/api/crm/feeds?page=${pg}&limit=${PAGE_LIMIT}`, { signal })
     const d = res.data?.data || res.data || {}
@@ -1238,6 +1862,9 @@ export default function FeedsPage() {
       setHasMore(false)
       setPage(1)
       setNewPostCount(0)
+      setUnreadSince(null)
+      setLocallyRead(new Set())
+      autoScrolledRef.current = false
 
       const t = localStorage.getItem("crm_token")
       if (!t) {
@@ -1261,6 +1888,25 @@ export default function FeedsPage() {
         setPosts(posts)
         setPostReactions(reactions)
         setHasMore(hasMore)
+
+        // Advance the server-side watermark ("I've now seen the feed") and keep
+        // the PREVIOUS watermark so this visit can still highlight what was new.
+        try {
+          const rs = await apiClient.post("/api/crm/feeds/read-state", {}, { signal: controller.signal })
+          const prev = rs.data?.data?.previousLastSeenAt
+          if (active && prev) setUnreadSince(prev)
+        } catch { }
+        clearUnseenPosts()
+        refreshFeedBadge()
+
+        // Mention autocomplete candidates (exclude self) — non-blocking.
+        apiClient.get("/api/crm/feeds/mention-candidates", { signal: controller.signal })
+          .then((res) => {
+            if (!active) return
+            const users: MentionCandidate[] = res.data?.data?.users || []
+            setMentionCandidates(users.filter((u) => u._id !== me._id))
+          })
+          .catch(() => { })
       } catch (err: any) {
         if (!active || controller.signal.aborted || didTimeout) return
         const status = err?.response?.status
@@ -1288,6 +1934,18 @@ export default function FeedsPage() {
     }
   }, [router, fetchPostsAndReactions, initAttempt])
 
+  // Auto-scroll to the OLDEST unread post once the first page has rendered.
+  React.useEffect(() => {
+    if (loadingInit || !unreadSince || autoScrolledRef.current || activeTab !== "feeds") return
+    const unread = posts.filter(isUnreadPost)
+    if (unread.length === 0) return
+    // Posts are sorted newest-first, so the oldest unread is the last match.
+    const target = unread[unread.length - 1]
+    autoScrolledRef.current = true
+    const id = setTimeout(() => scrollToPost(target._id), 300)
+    return () => clearTimeout(id)
+  }, [loadingInit, unreadSince, posts, isUnreadPost, scrollToPost, activeTab])
+
   React.useEffect(() => {
     if (!token || typeof window === "undefined") return
     import("socket.io-client").then(({ io }) => {
@@ -1307,6 +1965,13 @@ export default function FeedsPage() {
         if (targetType === "post") {
           setPostReactions((prev) => ({ ...prev, [targetId]: { summary, myReaction: prev[targetId]?.myReaction ?? null } }))
         }
+      })
+      // Targeted notification for THIS user (mention / comment / announcement).
+      // The badge count itself is bumped by the feed-notification store's own
+      // socket — here we only keep the Activity panel list fresh.
+      socket.on("feed:notify", ({ notification }: { notification: FeedNotificationItem }) => {
+        if (!notification?._id) return
+        setActivityItems((prev) => prev.some((n) => n._id === notification._id) ? prev : [notification, ...prev])
       })
       socketRef.current = socket
     }).catch(() => { })
@@ -1357,6 +2022,18 @@ export default function FeedsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore, posts, activeTab])
 
+  // Close the Activity panel on outside click.
+  React.useEffect(() => {
+    if (!activityOpen) return
+    function handle(e: MouseEvent) {
+      if (activityWrapRef.current && !activityWrapRef.current.contains(e.target as Node)) {
+        setActivityOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handle)
+    return () => document.removeEventListener("mousedown", handle)
+  }, [activityOpen])
+
   const loadMore = async () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
@@ -1375,8 +2052,67 @@ export default function FeedsPage() {
     try {
       const { posts, hasMore, reactions } = await fetchPostsAndReactions(token, 1)
       setPosts(posts); setPostReactions(reactions); setHasMore(hasMore); setPage(1)
+      // The refreshed page is now "seen": advance the watermark and clear the
+      // sidebar badge, but keep `unreadSince` from this visit so freshly
+      // arrived posts still carry their "New" pill until read/navigated away.
+      try { await apiClient.post("/api/crm/feeds/read-state", {}) } catch { }
+      clearUnseenPosts()
+      refreshFeedBadge()
     } catch { }
     finally { setRefreshing(false) }
+  }
+
+  const handleMarkPostRead = async (postId: string) => {
+    setLocallyRead((prev) => { const next = new Set(prev); next.add(postId); return next })
+    try {
+      await apiClient.post("/api/crm/feeds/read-state/posts", { postIds: [postId] })
+      refreshFeedBadge()
+    } catch { }
+  }
+
+  const openActivity = async () => {
+    const willOpen = !activityOpen
+    setActivityOpen(willOpen)
+    if (!willOpen) return
+    if (activityFetchedRef.current && activityItems.length > 0) return
+    setActivityLoading(true)
+    try {
+      const res = await apiClient.get("/api/crm/feeds/notifications?page=1&limit=30")
+      setActivityItems(res.data?.data?.notifications || [])
+      activityFetchedRef.current = true
+    } catch { }
+    finally { setActivityLoading(false) }
+  }
+
+  const handleActivityItemClick = async (n: FeedNotificationItem) => {
+    setActivityOpen(false)
+    if (!n.readAt) {
+      setActivityItems((prev) => prev.map((x) => x._id === n._id ? { ...x, readAt: new Date().toISOString() } : x))
+      decrementFeedNotifications(1)
+      apiClient.patch("/api/crm/feeds/notifications/read", { ids: [n._id] }).catch(() => { })
+    }
+    setActiveTab("feeds")
+    // Deep-link to the post: scroll if loaded, otherwise refresh page 1 first
+    // (comment/announcement targets are usually recent). Older DayPulse or
+    // paged-out targets simply won't scroll — the row itself carries context.
+    if (posts.some((p) => p._id === n.postId)) {
+      setTimeout(() => scrollToPost(n.postId), 100)
+      return
+    }
+    try {
+      const { posts: fresh, hasMore, reactions } = await fetchPostsAndReactions(token, 1)
+      setPosts(fresh); setPostReactions(reactions); setHasMore(hasMore); setPage(1)
+      setTimeout(() => scrollToPost(n.postId), 300)
+    } catch { }
+  }
+
+  const handleMarkAllActivityRead = async () => {
+    setActivityItems((prev) => prev.map((x) => x.readAt ? x : { ...x, readAt: new Date().toISOString() }))
+    clearFeedNotificationsBadge()
+    try {
+      await apiClient.patch("/api/crm/feeds/notifications/read", {})
+      refreshFeedBadge()
+    } catch { }
   }
 
   // ── Loading screen ──────────────────────────────────────────────────────────
@@ -1446,6 +2182,33 @@ export default function FeedsPage() {
             </p>
           </div>
 
+          {/* Activity bell — mentions, comments on your posts, announcements */}
+          <div ref={activityWrapRef} className="relative shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 rounded-full hover:bg-muted/60 ${activityOpen ? "bg-emerald-500/10 text-emerald-600" : ""}`}
+              onClick={openActivity}
+              title="Activity"
+            >
+              <Bell className="h-3.5 w-3.5" />
+            </Button>
+            {badge.unreadNotifications > 0 && (
+              <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-semibold leading-none text-white tabular-nums">
+                {badge.unreadNotifications > 99 ? "99+" : badge.unreadNotifications}
+              </span>
+            )}
+            {activityOpen && (
+              <ActivityPanel
+                items={activityItems}
+                loading={activityLoading}
+                onItemClick={handleActivityItemClick}
+                onMarkAllRead={handleMarkAllActivityRead}
+                onClose={() => setActivityOpen(false)}
+              />
+            )}
+          </div>
+
           {activeTab === "feeds" && (
             <Button
               variant="ghost"
@@ -1502,7 +2265,7 @@ export default function FeedsPage() {
               </button>
             )}
 
-            <Composer currentUser={currentUser} token={token} onPosted={(p) => {
+            <Composer currentUser={currentUser} token={token} mentionCandidates={mentionCandidates} onPosted={(p) => {
               setPosts((prev) => [p, ...prev])
               setPostReactions((prev) => ({ ...prev, [p._id]: { summary: {}, myReaction: null } }))
             }} />
@@ -1532,6 +2295,10 @@ export default function FeedsPage() {
                     onDeleted={(id) => { setPosts((prev) => prev.filter((p) => p._id !== id)); setPostReactions((prev) => { const n = { ...prev }; delete n[id]; return n }) }}
                     reactionState={postReactions[post._id] ?? { summary: {}, myReaction: null }}
                     onReactionChange={(state) => setPostReactions((prev) => ({ ...prev, [post._id]: state }))}
+                    mentionCandidates={mentionCandidates}
+                    isUnread={isUnreadPost(post)}
+                    isFlashing={flashPostId === post._id}
+                    onMarkRead={handleMarkPostRead}
                   />
                 ))}
               </div>
