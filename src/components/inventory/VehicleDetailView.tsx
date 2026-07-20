@@ -685,9 +685,9 @@ export function VehicleDetailView({
         />
       )}
 
-      <div className="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden group">
+      <div className="group flex h-full min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:flex-row lg:overflow-hidden">
         {/* ══ LEFT / MAIN ══════════════════════════════════════════ */}
-        <div className="flex flex-col lg:flex-1 lg:overflow-y-auto">
+        <div className="flex min-h-0 flex-col lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
           <Gallery
             images={allImages}
             onOpenLightbox={(i) => {
@@ -1276,8 +1276,8 @@ export function VehicleDetailView({
         </div>
 
         {/* ══ RIGHT SIDEBAR (desktop) ══════════════════════════════ */}
-        <div className="hidden border-l border-border/50 bg-background lg:flex lg:w-80 lg:flex-col xl:w-96">
-          <div className="flex-1 space-y-4 overflow-y-auto p-5 xl:p-6">
+        <div className="hidden min-h-0 border-l border-border/50 bg-background lg:flex lg:w-80 lg:flex-col xl:w-96">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 xl:p-6">
             {/* Price block */}
             <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20 dark:bg-zinc-900/40">
               <div className="px-5 pt-5 pb-4">

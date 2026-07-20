@@ -39,9 +39,9 @@ export function VehicleDetailsModal({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "p-0 gap-0 overflow-hidden flex flex-col bg-background border-border/30 shadow-2xl",
+          "flex min-h-0 flex-col gap-0 overflow-hidden border-border/30 bg-background p-0 shadow-2xl",
           /* Mobile: true full-screen */
-          "fixed inset-0 h-dvh w-screen max-w-none rounded-none translate-x-0 translate-y-0 left-0 top-0",
+          "fixed inset-0 left-0 top-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 rounded-none",
           /* Desktop: large centered sheet with subtle rounding */
           "lg:inset-auto lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2",
           "lg:w-[96vw] lg:max-w-7xl lg:h-[94vh] lg:rounded-2xl",
@@ -67,8 +67,8 @@ export function VehicleDetailsModal({
           <X className="h-4 w-4 lg:h-5 lg:w-5" />
         </button>
 
-        {/* Scrollable content — VehicleDetailView fills everything */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        {/* VehicleDetailView owns the responsive scrolling behavior. */}
+        <div className="min-h-0 flex-1 overflow-hidden">
           <VehicleDetailView
             vehicle={vehicle}
             onInquiryClick={onInquiryClick}
