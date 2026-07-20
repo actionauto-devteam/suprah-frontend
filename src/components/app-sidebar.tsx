@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * Drop-in replacement of the CURRENT app-sidebar.tsx (the version with the
+ * Apps / Services / Platform grouping, HUD corners, and data streams).
+ * Only three additions, all marked with "CAL-BADGE":
+ *   1. import useCalendarNotifications
+ *   2. read badgeCount from the context
+ *   3. cyan badge on the "Suprah Calendar" row (today's remaining events +
+ *      overdue tasks + deadlines due today)
+ * Everything else is byte-identical to the file you shared.
+ */
+
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -64,6 +75,8 @@ import { Badge } from "@/components/ui/badge";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import { useWhatsNew } from "@/context/WhatsNewContext";
+// CAL-BADGE (1/3): Suprah Calendar notification center.
+import { useCalendarNotifications } from "@/context/CalendarNotificationContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -269,6 +282,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { totalUnread } = useSupraSpaceMessenger();
   const { unreadCount: pmUnread } = useProjectNotifications();
   const { unreadCount: whatsNewUnread } = useWhatsNew();
+  // CAL-BADGE (2/3): today's events + overdue tasks + deadlines due today.
+  const { badgeCount: calendarBadge } = useCalendarNotifications();
 
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
@@ -426,6 +441,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
 
+                        {/* CAL-BADGE (3/3): Suprah Calendar — today's remaining
+                            events + overdue tasks + deadlines due today.
+                            Cyan to match the calendar's secondary accent. */}
+                        {item.title === "Suprah Calendar" && calendarBadge > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-cyan-500 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            {calendarBadge > 99 ? "99+" : calendarBadge}
+                          </Badge>
+                        )}
+
                         {/* Suprah Space: unread team-chat messages. */}
                         {item.title === "Suprah Space" && totalUnread > 0 && (
                           <Badge
@@ -449,8 +476,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                         {/* Project Management: unread task-activity badge.
                             Count comes from ProjectNotificationContext —
-                            assignments, comments, and status changes on the
-                            logged-in user's tasks only. */}
+                            assignments, comments, mentions, status changes,
+                            and deadline reminders for this user only. */}
                         {item.title === "Project Management" && pmUnread > 0 && (
                           <Badge
                             variant="secondary"

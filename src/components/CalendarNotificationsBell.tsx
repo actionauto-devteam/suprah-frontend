@@ -1,0 +1,198 @@
+"use client";
+
+/**
+ * CalendarNotificationsBell — Suprah Calendar's notification center.
+ *
+ * Cockpit-styled bell for the SuprahCalendar toolbar (dark UI), fed by
+ * CalendarNotificationContext. Sections:
+ *   Overdue tasks        — deadlines already passed (rose)
+ *   Due soon             — tasks due within 3 days (amber)
+ *   Today's schedule     — remaining events / meetings / task deadlines (emerald)
+ *   Next 24 hours        — items starting after today but within a day
+ *
+ * Drop into the SuprahCalendar toolbar, e.g. just before the "My Schedule"
+ * button:  <CalendarNotificationsBell />
+ */
+
+import * as React from "react";
+import { useCalendarNotifications } from "@/context/CalendarNotificationContext";
+
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+const fmtDay = (iso: string) =>
+  new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+
+function Section({
+  label,
+  tone,
+  children,
+}: {
+  label: string;
+  tone: "rose" | "amber" | "emerald" | "cyan";
+  children: React.ReactNode;
+}) {
+  const tones = {
+    rose: "text-rose-300 border-rose-400/25",
+    amber: "text-amber-300 border-amber-400/25",
+    emerald: "text-emerald-300 border-emerald-400/25",
+    cyan: "text-cyan-300 border-cyan-400/25",
+  } as const;
+  return (
+    <div className="px-3 pb-2 pt-2.5">
+      <p
+        className={`mb-1.5 inline-flex rounded border bg-white/[0.03] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] ${tones[tone]}`}
+      >
+        {label}
+      </p>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+export function CalendarNotificationsBell() {
+  const { summary, badgeCount, refresh } = useCalendarNotifications();
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (open) refresh();
+  }, [open, refresh]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const s = summary;
+  const empty =
+    !s ||
+    (s.todayItems.length === 0 &&
+      s.upcoming24h.length === 0 &&
+      s.overdueTasks.length === 0 &&
+      s.approachingTasks.length === 0);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Calendar notifications"
+        className={`relative rounded-lg border px-2.5 py-1.5 text-xs transition ${
+          open
+            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
+            : "border-white/10 text-zinc-300 hover:bg-white/5"
+        }`}
+      >
+        {/* bell glyph kept inline to avoid icon-library coupling in this file */}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+        </svg>
+        {badgeCount > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 font-mono text-[9px] font-bold text-zinc-950 shadow-[0_0_10px_rgba(52,211,153,0.8)]">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-40 mt-2 max-h-[440px] w-80 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl [scrollbar-width:thin]">
+          <div className="border-b border-white/10 px-3 py-2">
+            <p className="text-xs font-semibold text-zinc-100">Calendar updates</p>
+            <p className="text-[10px] text-zinc-500">
+              Today's schedule, deadlines, and what's next
+            </p>
+          </div>
+
+          {empty ? (
+            <p className="px-4 py-8 text-center text-xs text-zinc-500">
+              Nothing needs your attention — no events today and no
+              approaching deadlines.
+            </p>
+          ) : (
+            <>
+              {s!.overdueTasks.length > 0 && (
+                <Section label="Overdue tasks" tone="rose">
+                  {s!.overdueTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="rounded-md border border-rose-400/20 bg-rose-400/[0.06] px-2 py-1.5"
+                    >
+                      <p className="truncate text-[11px] font-semibold text-rose-200">
+                        {t.title}
+                      </p>
+                      <p className="text-[9px] text-rose-300/70">
+                        {t.groupName} · was due {fmtDay(t.deadline)}
+                      </p>
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {s!.approachingTasks.length > 0 && (
+                <Section label="Due soon" tone="amber">
+                  {s!.approachingTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-2 py-1.5"
+                    >
+                      <p className="truncate text-[11px] font-semibold text-amber-200">
+                        {t.title}
+                      </p>
+                      <p className="text-[9px] text-amber-300/70">
+                        {t.groupName} · due {fmtDay(t.deadline)} {fmtTime(t.deadline)}
+                      </p>
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {s!.todayItems.length > 0 && (
+                <Section label="Today's schedule" tone="emerald">
+                  {s!.todayItems.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center gap-2 rounded-md border border-emerald-400/15 bg-emerald-400/[0.05] px-2 py-1.5"
+                    >
+                      <span className="w-14 shrink-0 font-mono text-[10px] tabular-nums text-emerald-300">
+                        {e.allDay ? "All day" : fmtTime(e.start)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-zinc-200">
+                        {e.title}
+                      </span>
+                      <span className="shrink-0 rounded border border-white/10 bg-white/[0.05] px-1 py-0.5 text-[8px] uppercase tracking-wider text-zinc-400">
+                        {e.type}
+                      </span>
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {s!.upcoming24h.length > 0 && (
+                <Section label="Next 24 hours" tone="cyan">
+                  {s!.upcoming24h.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center gap-2 rounded-md border border-cyan-400/15 bg-cyan-400/[0.05] px-2 py-1.5"
+                    >
+                      <span className="w-20 shrink-0 font-mono text-[10px] tabular-nums text-cyan-300">
+                        {fmtDay(e.start)} {fmtTime(e.start)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-zinc-200">
+                        {e.title}
+                      </span>
+                    </div>
+                  ))}
+                </Section>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

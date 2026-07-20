@@ -1,5 +1,22 @@
 "use client";
 
+/**
+ * Shared Project Management pieces used by both the /projects workspace and
+ * the My Tasks / Completed Tasks panels:
+ *
+ *   - TaskDetailDialog  — full task view: status control, EDIT + DELETE
+ *                         actions, attachments, comment thread
+ *   - EditTaskDialog    — title / description / assignee / dates
+ *   - ConfirmDialog     — reusable destructive-action confirmation
+ *   - AttachmentChip / MemberAvatar / helpers / shared types
+ *
+ * Permission checks here only mirror the backend rules for UX — the backend
+ * (projectManagement.controller.ts) is always the source of truth:
+ *   status change → task creator or assignee ONLY
+ *   edit details  → creator, assignee, or admin
+ *   delete task   → creator, group creator, or admin
+ */
+
 import * as React from "react";
 import {
   CalendarDays,
@@ -32,7 +49,9 @@ import {
   TaskStatusSelect,
   type ProjectTaskStatus,
 } from "@/components/project/task-status-badge";
+import { MentionTextarea, MentionText } from "@/components/project/mention-textarea";
 
+/* ── Shared types (mirror backend lean shapes) ─────────────────────────── */
 
 export type Member = {
   _id: string;
@@ -74,10 +93,12 @@ export type Comment = {
   authorName: string;
   authorAvatar?: string | null;
   message: string;
+  mentions?: string[];
   attachments: Attachment[];
   createdAt: string;
 };
 
+/* ── Shared helpers ────────────────────────────────────────────────────── */
 
 export const fmtDate = (d?: string | null) =>
   d
@@ -98,11 +119,21 @@ export const fmtSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-export const initials = (name: string) =>
-  name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+export const initials = (name?: string | null) =>
+  (name || "")
+    .split(" ")
+    .filter(Boolean)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
 
 export const errMsg = (err: any, fallback: string) =>
   err?.response?.data?.message || err?.response?.data?.data?.message || fallback;
+
+/** Safe visible name — populated users can arrive without fullName. */
+export const displayName = (m?: Partial<Member> | null) =>
+  m?.fullName || m?.username || m?.email || "Team member";
 
 /** ISO date → value usable by <input type="date"> */
 const toDateInput = (d?: string | null) => (d ? new Date(d).toISOString().slice(0, 10) : "");
@@ -111,10 +142,13 @@ const toDateInput = (d?: string | null) => (d ? new Date(d).toISOString().slice(
 
 export function MemberAvatar({ member, size = "sm" }: { member?: Member | null; size?: "sm" | "xs" }) {
   if (!member) return null;
+  // Populated docs can arrive without fullName (e.g. the synthetic admin user
+  // from the main-app token path) — fall back through username/email.
+  const displayName = member.fullName || member.username || member.email || "";
   return (
     <Avatar className={cn("ring-1 ring-border", size === "sm" ? "h-6 w-6" : "h-5 w-5")}>
-      <AvatarImage src={resolveImageUrl(member.avatar || undefined)} alt={member.fullName} />
-      <AvatarFallback className="text-[9px]">{initials(member.fullName)}</AvatarFallback>
+      <AvatarImage src={resolveImageUrl(member.avatar || undefined)} alt={displayName} />
+      <AvatarFallback className="text-[9px]">{initials(displayName)}</AvatarFallback>
     </Avatar>
   );
 }
@@ -200,7 +234,7 @@ export function AssigneeMultiSelect({
               className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 py-1 pl-1.5 pr-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-400"
             >
               <MemberAvatar member={m} size="xs" />
-              {m.fullName}
+              {displayName(m)}
               {!disabled && (
                 <button onClick={() => toggle(m)} className="opacity-60 hover:opacity-100">
                   <X className="h-3 w-3" />
@@ -231,7 +265,7 @@ export function AssigneeMultiSelect({
               >
                 <MemberAvatar member={m} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium">{m.fullName}</span>
+                  <span className="block truncate text-xs font-medium">{displayName(m)}</span>
                   <span className="block truncate text-[10px] text-muted-foreground/60">
                     {m.username}
                   </span>
@@ -460,12 +494,15 @@ export function EditTaskDialog({
 export function TaskDetailDialog({
   taskId,
   meId,
+  highlightCommentId,
   onClose,
   onChanged,
   onDeleted,
 }: {
   taskId: string | null;
   meId: string;
+  /** Scrolls to and flashes this comment once the thread loads (mention deep-link). */
+  highlightCommentId?: string | null;
   onClose: () => void;
   onChanged: () => void;
   onDeleted?: () => void;
@@ -486,6 +523,9 @@ export function TaskDetailDialog({
   const [comments, setComments] = React.useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
+  const [mentionIds, setMentionIds] = React.useState<string[]>([]);
+  const [groupMembers, setGroupMembers] = React.useState<Member[]>([]);
+  const [flashCommentId, setFlashCommentId] = React.useState<string | null>(null);
   const [commentFiles, setCommentFiles] = React.useState<File[]>([]);
   const [sending, setSending] = React.useState(false);
   const commentFileRef = React.useRef<HTMLInputElement>(null);
@@ -523,6 +563,8 @@ export function TaskDetailDialog({
       setTask(null);
       setComments([]);
       setMessage("");
+      setMentionIds([]);
+      setGroupMembers([]);
       setCommentFiles([]);
       setEditOpen(false);
       setDeleteOpen(false);
@@ -530,6 +572,33 @@ export function TaskDetailDialog({
       loadComments();
     }
   }, [taskId, loadTask, loadComments]);
+
+  // Group members power the @-mention picker (and the edit dialog reuses them).
+  React.useEffect(() => {
+    if (!task?.groupId) return;
+    let cancelled = false;
+    apiClient
+      .get(`/api/crm/projects/groups/${task.groupId}/tree`)
+      .then((res) => {
+        if (!cancelled) setGroupMembers(res.data?.data?.members || []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [task?.groupId]);
+
+  // Mention deep-link: scroll to + flash the target comment once loaded.
+  React.useEffect(() => {
+    if (!highlightCommentId || comments.length === 0) return;
+    const el = document.getElementById(`pm-comment-${highlightCommentId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlashCommentId(highlightCommentId);
+      const t = setTimeout(() => setFlashCommentId(null), 2600);
+      return () => clearTimeout(t);
+    }
+  }, [highlightCommentId, comments.length]);
 
   React.useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -561,6 +630,11 @@ export function TaskDetailDialog({
   /** Load the group's members (for the assignee picker), then open the edit dialog. */
   const openEdit = async () => {
     if (!task) return;
+    if (groupMembers.length > 0) {
+      setEditMembers(groupMembers);
+      setEditOpen(true);
+      return;
+    }
     setEditLoading(true);
     setError("");
     try {
@@ -598,6 +672,7 @@ export function TaskDetailDialog({
     try {
       const form = new FormData();
       form.append("message", message.trim());
+      mentionIds.forEach((id) => form.append("mentions", id));
       commentFiles.forEach((f) => form.append("attachments", f));
       const res = await apiClient.post(
         `/api/crm/projects/tasks/${task._id}/comments`,
@@ -607,6 +682,7 @@ export function TaskDetailDialog({
       const created: Comment | undefined = res.data?.data?.comment;
       if (created) setComments((prev) => [...prev, created]);
       setMessage("");
+      setMentionIds([]);
       setCommentFiles([]);
       onChanged();
     } catch (err: any) {
@@ -668,7 +744,7 @@ export function TaskDetailDialog({
                   <span className="inline-flex items-center gap-1.5">
                     Created by <MemberAvatar member={task.createdBy} size="xs" />
                     <span className="font-medium text-foreground/80">
-                      {task.createdBy?.fullName}
+                      {displayName(task.createdBy)}
                     </span>
                   </span>
                   <span className="inline-flex items-center gap-1.5">
@@ -683,7 +759,7 @@ export function TaskDetailDialog({
                         <span className="font-medium text-foreground/80">
                           {task.assigneeIds
                             .slice(0, 2)
-                            .map((a) => a.fullName)
+                            .map((a) => displayName(a))
                             .join(", ")}
                           {task.assigneeIds.length > 2 && ` +${task.assigneeIds.length - 2}`}
                         </span>
@@ -747,7 +823,11 @@ export function TaskDetailDialog({
                     {comments.map((c) => {
                       const mine = c.userId === meId;
                       return (
-                        <div key={c._id} className={cn("flex gap-2.5", mine && "flex-row-reverse")}>
+                        <div
+                          key={c._id}
+                          id={`pm-comment-${c._id}`}
+                          className={cn("flex gap-2.5", mine && "flex-row-reverse")}
+                        >
                           <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border">
                             <AvatarImage
                               src={resolveImageUrl(c.authorAvatar || undefined)}
@@ -759,10 +839,12 @@ export function TaskDetailDialog({
                           </Avatar>
                           <div
                             className={cn(
-                              "max-w-[78%] space-y-1.5 rounded-2xl border px-3.5 py-2.5",
+                              "max-w-[78%] space-y-1.5 rounded-2xl border px-3.5 py-2.5 transition-shadow duration-500",
                               mine
                                 ? "rounded-tr-sm border-emerald-500/25 bg-emerald-500/10"
                                 : "rounded-tl-sm border-border/40 bg-muted/30",
+                              flashCommentId === c._id &&
+                                "ring-2 ring-emerald-500/70 shadow-[0_0_18px_-4px_rgba(16,185,129,0.6)]",
                             )}
                           >
                             <div className="flex items-baseline gap-2">
@@ -773,7 +855,15 @@ export function TaskDetailDialog({
                             </div>
                             {c.message && (
                               <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">
-                                {c.message}
+                                <MentionText
+                                  text={c.message}
+                                  mentionNames={(c.mentions || [])
+                                    .map((id) => {
+                                      const m = groupMembers.find((x) => x._id === id);
+                                      return m ? (m.fullName || m.username || m.email || "") : "";
+                                    })
+                                    .filter(Boolean)}
+                                />
                               </p>
                             )}
                             {c.attachments?.length > 0 && (
@@ -837,19 +927,15 @@ export function TaskDetailDialog({
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
-                <textarea
+                <MentionTextarea
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendComment();
-                    }
-                  }}
-                  placeholder="Write a message… (Enter to send, Shift+Enter for a new line)"
-                  rows={1}
+                  onChange={setMessage}
+                  members={groupMembers.filter((m) => m._id !== meId)}
+                  mentionIds={mentionIds}
+                  onMentionIdsChange={setMentionIds}
+                  onSubmit={sendComment}
+                  placeholder="Write a message… @ to mention a teammate"
                   disabled={sending}
-                  className="max-h-28 min-h-10 flex-1 resize-none rounded-xl border border-border/70 bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                 />
                 <Button
                   onClick={sendComment}
