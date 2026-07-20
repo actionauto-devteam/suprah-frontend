@@ -165,9 +165,12 @@ export default function TransportationPage() {
 function TransportationPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = React.useState(
-    searchParams.get("tab") === "market-board" ? "market-board" : "managed-loads"
-  );
+  const [activeTab, setActiveTab] = React.useState(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "load-board" || tab === "market-board") return "load-board";
+    if (tab === "drafts") return "drafts";
+    return "shipments";
+  });
   const [searchQuery, setSearchQuery] = React.useState(
     searchParams.get("search") || "",
   );
@@ -287,7 +290,7 @@ function TransportationPageInner() {
       await handleConvertToLoad(calculatedQuote._id);
       setIsQuoteResultModalOpen(false);
       setCalculatedQuote(null);
-      setActiveTab("loads");
+      setActiveTab("shipments");
       showAlert({
         type: "success",
         title: "Load Created",

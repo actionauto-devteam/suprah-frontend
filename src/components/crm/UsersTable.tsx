@@ -16,6 +16,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
@@ -235,6 +236,7 @@ function SkeletonRow() {
 
 export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTableProps) {
   const [users, setUsers] = React.useState<CrmUserRow[]>([])
+  const [fetchError, setFetchError] = React.useState<string | null>(null)
   const [pagination, setPagination] = React.useState<PaginationMeta>({
     page: 1,
     limit: 10,
@@ -276,10 +278,12 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
   const fetchUsers = React.useCallback(async (targetPage: number) => {
     if (!token) {
+      setFetchError("Unable to authenticate the user request.")
       setLoading(false)
       return
     }
     setLoading(true)
+    setFetchError(null)
     const params = new URLSearchParams({
       page: String(targetPage),
       limit: String(pageSize),
@@ -334,7 +338,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
           nextPagination.totalPages ||
           Math.ceil((nextPagination.total || nextUsers.length) / (nextPagination.limit || pageSize)),
       })
-    } catch {
+    } catch (error) {
       setUsers([])
       setPagination({
         page: targetPage,
@@ -342,6 +346,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
         total: 0,
         totalPages: 0,
       })
+      setFetchError(getErrorMessage(error, "Unable to load CRM users. Please try again."))
     } finally {
       setLoading(false)
     }
@@ -510,6 +515,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
   }
 
   const isEmpty = !loading && users.length === 0
+  const hasError = !loading && !!fetchError
   const emptyMessage = hasFilters ? "No results found" : "No users found"
   const emptyDescription = hasFilters
     ? "Try adjusting the search, filters, or sort order."
@@ -715,6 +721,26 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                 </div>
               </div>
             ))
+            : hasError
+              ? (
+                <div className="rounded-2xl border border-destructive/25 bg-destructive/5 px-5 py-12 text-center">
+                  <AlertCircle className="mx-auto h-7 w-7 text-destructive/70" />
+                  <p className="mt-3 text-sm font-semibold text-destructive">
+                    Unable to load users
+                  </p>
+                  <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground/60">
+                    {fetchError}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fetchUsers(page)}
+                    className="mt-4 h-8 rounded-xl text-xs font-semibold"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )
             : isEmpty
               ? (
                 <div className="rounded-2xl border border-dashed border-border/35 px-5 py-12 text-center">
@@ -841,6 +867,32 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                 ? Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
                   <SkeletonRow key={i} />
                 ))
+                : hasError
+                  ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-16">
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-destructive/25 bg-destructive/5">
+                            <AlertCircle className="h-6 w-6 text-destructive/70" />
+                          </div>
+                          <p className="text-sm font-semibold text-destructive">
+                            Unable to load users
+                          </p>
+                          <p className="mt-1 max-w-xs text-xs text-muted-foreground/60">
+                            {fetchError}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => fetchUsers(page)}
+                            className="mt-4 h-8 rounded-xl text-xs font-semibold"
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
                 : isEmpty
                   ? (
                     <tr>
@@ -919,6 +971,8 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
           <p className="text-[11px] text-muted-foreground/30">
             {loading
               ? "Loading users..."
+              : fetchError
+                ? "Could not load users."
               : pagination.total === 0
                 ? hasFilters
                   ? "No results match the selected search and filters."
