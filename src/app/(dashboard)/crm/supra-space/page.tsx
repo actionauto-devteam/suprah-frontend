@@ -38,7 +38,7 @@ import { stopCallSound } from '@/lib/notification-sound';
 import { CallBanner } from './CallBanner';
 import { IncomingCallModal } from './IncomingCallModal';
 import { CallExperience } from './CallExperience';
-import { EmojiReactionPicker } from '@/components/supraspace/EmojiReactionPicker';
+import { EmojiReactionPicker, MobileEmojiReactionSheet } from '@/components/supraspace/EmojiReactionPicker';
 import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
@@ -182,6 +182,8 @@ if (typeof document !== 'undefined') {
     .ss4-msg-actions { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:10px; box-shadow:var(--shadow-md); }
     @keyframes ss4-action-pop { from{opacity:0;transform:translateY(6px) scale(.92);} to{opacity:1;transform:translateY(0) scale(1);} }
     .ss4-msg-actions-pop { animation:ss4-action-pop .16s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes ss4-mobile-sheet-in { from{opacity:0;transform:translateY(18px);} to{opacity:1;transform:translateY(0);} }
+    @keyframes ss4-mobile-pop-in { from{opacity:0;transform:translateY(8px) scale(.96);} to{opacity:1;transform:translateY(0) scale(1);} }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
     .ss4-filter-pill { height:26px!important; padding:0 10px!important; font-size:10.5px!important; line-height:1; }
@@ -232,6 +234,13 @@ if (typeof document !== 'undefined') {
       .ss4-msg-actions .ss4-action-btn { height:36px!important; width:36px!important; font-size:20px!important; border-radius:13px!important; }
       .ss4-msg-actions .ss4-action-btn svg { height:18px!important; width:18px!important; }
       .ss4-msg-actions .ss4-action-divider { height:22px!important; margin-left:3px!important; margin-right:3px!important; }
+      .ss4-mobile-no-select,
+      .ss4-mobile-no-select .ss4-copyable-text,
+      .ss4-mobile-no-select .ss4-msg-bubble {
+        -webkit-touch-callout:none!important;
+        -webkit-user-select:none!important;
+        user-select:none!important;
+      }
       .ss4-date-chip { font-size:12px; }
       .ss4-composer-editor { font-size:16px !important; line-height:1.5 !important; min-height:30px; height:auto!important; }
       .ss4-composer-placeholder { font-size:16px !important; top:1px; }
@@ -410,7 +419,8 @@ function clipboardHtmlToPlainText(html: string): string {
     if (visibleValue) return visibleValue;
 
     const inner = Array.from(el.childNodes).map(walk).join('');
-    if (['div', 'p', 'li', 'section', 'article'].includes(tag)) return `${inner}\n`;
+    if (tag === 'li') return `• ${inner.trimStart()}\n`;
+    if (['div', 'p', 'section', 'article'].includes(tag)) return `${inner}\n`;
     return inner;
   };
 
@@ -570,10 +580,62 @@ function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
 
 function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {
   if (!plainText.trim() || !editorHtml.trim()) return false;
+  const normalizedPlainText = normalizePastedListArtifacts(plainText)
+    .replace(/\r\n?/g, '\n')
+    .trim();
+  const originalPlainText = plainText
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .trim();
+  if (normalizedPlainText && normalizedPlainText !== originalPlainText) return true;
   const plainBreaks = (plainText.replace(/\r\n/g, '\n').match(/\n/g) || []).length;
   if (plainBreaks < 2) return false;
   const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length;
   return plainBreaks > htmlBreaks + 1;
+}
+
+function stripListMarkerNoise(value: string): string {
+  return value
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/\u00a0/g, ' ');
+}
+
+function plainTextHasListMarkers(text: string): boolean {
+  return /(^|\n)\s*(?:[-*+•·‣◦●○▪▫–—]|\d+\.)\s+\S/.test(stripListMarkerNoise(text).replace(/\r\n?/g, '\n'));
+}
+
+function editorHtmlHasListMarkers(html: string): boolean {
+  return /(^|<br\s*\/?>)\s*(?:[-*+•·‣◦●○▪▫–—]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
+}
+
+function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): boolean {
+  if (!plainText.trim()) return false;
+  if (!plainTextHasListMarkers(plainText)) return false;
+  return !editorHtml.trim() || !editorHtmlHasListMarkers(editorHtml);
+}
+
+function normalizeEditorHtmlListArtifacts(html: string): string {
+  const marker = String.raw`[•·‣◦●○▪▫\-*+–—]`;
+  const markerOnlyLineRe = new RegExp(
+    String.raw`(^|<br\s*\/?>)\s*(${marker})(?:&nbsp;|\s|[\u200b-\u200d\ufeff])*<br\s*\/?>\s*`,
+    'gi',
+  );
+
+  let normalized = html;
+  let previous = '';
+  while (previous !== normalized) {
+    previous = normalized;
+    normalized = normalized.replace(markerOnlyLineRe, (_match, prefix: string, listMarker: string) => {
+      const cleanPrefix = /^<br/i.test(prefix) ? '<br>' : '';
+      return `${cleanPrefix}${listMarker} `;
+    });
+  }
+
+  return normalized
+    .replace(/(?:&nbsp;|\s|[\u200b-\u200d\ufeff])+(<br\s*\/?>)/gi, '$1')
+    .replace(/(<br\s*\/?>){3,}/gi, '<br><br>')
+    .replace(/^(<br\s*\/?>)+/gi, '')
+    .replace(/(<br\s*\/?>)+$/gi, '');
 }
 
 function escapeHtmlText(s: string): string {
@@ -584,6 +646,148 @@ function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
     || /<font\b[^>]*color\s*=/i.test(html)
     || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+}
+
+function htmlAppearsToContainLists(html: string): boolean {
+  return /<(?:ul|ol|li)\b/i.test(html)
+    || /display\s*:\s*list-item/i.test(html)
+    || /mso-list\s*:/i.test(html)
+    || /list-style(?:-type)?\s*:/i.test(html)
+    || /(?:^|[>\n\r])\s*(?:&bull;|&#8226;|&#x2022;|•|·|‣|◦|●|○|▪|▫)\s*/i.test(html);
+}
+
+function clipboardHtmlToListAwareText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const lines: string[] = [];
+
+  const pushBlankLine = () => {
+    if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
+  };
+
+  const pushNormalLine = (line: string) => {
+    const clean = stripListMarkerNoise(line).replace(/[ \t]+/g, ' ').trim();
+    if (!clean) return;
+    lines.push(clean);
+  };
+
+  const pushLine = (line: string, forceBullet = false) => {
+    const clean = stripListMarkerNoise(line)
+      .replace(/[ \t]+/g, ' ')
+      .replace(/^(?:&bull;|&#8226;|&#x2022;|[•·‣◦●○▪▫\-*+–—])\s*/i, '')
+      .trim();
+    if (!clean) return;
+    lines.push(forceBullet || !/^(?:[-*+•·‣◦●○▪▫–—]|\d+\.)\s+\S/.test(clean) ? `• ${clean}` : clean);
+  };
+
+  const isListElement = (element: HTMLElement) => {
+    const tag = element.tagName.toLowerCase();
+    const style = (element.getAttribute('style') || '').toLowerCase();
+    return tag === 'li'
+      || style.includes('display:list-item')
+      || style.includes('display: list-item')
+      || style.includes('mso-list:')
+      || style.includes('list-style');
+  };
+
+  const isBlockElement = (tag: string) =>
+    ['div', 'p', 'section', 'article', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
+
+  const hasBoldStyle = (element: HTMLElement) => {
+    const tag = element.tagName.toLowerCase();
+    const style = (element.getAttribute('style') || '').toLowerCase();
+    const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim();
+    return tag === 'strong'
+      || tag === 'b'
+      || /^h[1-6]$/.test(tag)
+      || weight === 'bold'
+      || Number(weight) >= 600;
+  };
+
+  const wrapMarkdown = (text: string, element: HTMLElement): string => {
+    const clean = text.trim();
+    if (!clean) return '';
+    const tag = element.tagName.toLowerCase();
+    const style = (element.getAttribute('style') || '').toLowerCase();
+    let result = clean;
+    if (hasBoldStyle(element) && !/^\*\*[\s\S]*\*\*$/.test(result)) result = `**${result.replace(/\*\*/g, '')}**`;
+    if ((tag === 'em' || tag === 'i' || /font-style\s*:\s*italic/.test(style)) && !/^_[\s\S]*_$/.test(result)) result = `_${result.replace(/^_+|_+$/g, '')}_`;
+    if ((tag === 'u' || /text-decoration[^;]*underline/.test(style)) && !/^__[\s\S]*__$/.test(result)) result = `__${result.replace(/__/g, '')}__`;
+    if ((tag === 's' || tag === 'strike' || tag === 'del' || /text-decoration[^;]*line-through/.test(style)) && !/^~~[\s\S]*~~$/.test(result)) result = `~~${result.replace(/~~/g, '')}~~`;
+    const color = cssColorToHex(element.style?.color || element.getAttribute('color') || '');
+    if (color && !/^\{color:/i.test(result)) result = `{color:${color}}${result}{/color}`;
+    return result;
+  };
+
+  const collectText = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style') return '';
+    if (tag === 'br') return '\n';
+    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+    const visibleValue = getCopiedElementVisibleText(element);
+    if (visibleValue) return visibleValue;
+    const inner = Array.from(element.childNodes).map(collectText).join('');
+    return wrapMarkdown(inner, element);
+  };
+
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = stripListMarkerNoise(node.textContent || '').trim();
+      if (text) lines.push(text);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style') return;
+
+    if (isListElement(element)) {
+      pushLine(collectText(element), true);
+      return;
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      Array.from(element.children).forEach(walk);
+      return;
+    }
+
+    if (isBlockElement(tag)) {
+      const directListChildren = Array.from(element.children).some(child => {
+        const childElement = child as HTMLElement;
+        const childTag = childElement.tagName.toLowerCase();
+        return childTag === 'ul' || childTag === 'ol' || isListElement(childElement);
+      });
+
+      if (directListChildren) {
+        const nonListText = Array.from(element.childNodes)
+          .filter(child => child.nodeType !== Node.ELEMENT_NODE || !['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase()) && !isListElement(child as HTMLElement))
+          .map(collectText)
+          .join('')
+          .trim();
+        if (nonListText) {
+          if (/^h[1-6]$/.test(tag) || hasBoldStyle(element)) pushBlankLine();
+          pushNormalLine(wrapMarkdown(nonListText, element));
+        }
+        Array.from(element.children).forEach(walk);
+        return;
+      }
+
+      const text = collectText(element).trim();
+      if (text) {
+        if (/^h[1-6]$/.test(tag) || hasBoldStyle(element)) pushBlankLine();
+        pushNormalLine(wrapMarkdown(text, element));
+      }
+      return;
+    }
+    Array.from(element.childNodes).forEach(walk);
+  };
+
+  Array.from(doc.body.childNodes).forEach(walk);
+
+  return lines.join('\n');
 }
 
 function clipboardHtmlToEditorHtml(html: string): string {
@@ -642,15 +846,15 @@ function clipboardHtmlToEditorHtml(html: string): string {
     }
   };
 
-  return Array.from(doc.body.childNodes)
+  return normalizeEditorHtmlListArtifacts(Array.from(doc.body.childNodes)
     .map(n => walk(n))
     .join('')
     .replace(/(<br>)+$/g, '')
-    .replace(/^(<br>)+/g, '');
+    .replace(/^(<br>)+/g, ''));
 }
 
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -658,7 +862,7 @@ function markdownTextToEditorHtml(text: string): string {
   const htmlLines = lines.map(line => {
     let marker = '';
     let rest = line;
-    const bulletMatch = line.match(/^\s*[-*+]\s+(.+)$/);
+    const bulletMatch = line.match(/^\s*[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab]\s+(.+)$/);
     const numberedMatch = !bulletMatch && line.match(/^\s*(\d+)\.\s+(.+)$/);
     const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.+)$/);
     if (bulletMatch) { marker = '\u2022 '; rest = bulletMatch[1]; }
@@ -791,16 +995,45 @@ function normalizeFinalMessageMarkup(text: string): string {
 }
 
 function normalizePastedListArtifacts(text: string): string {
-  const normalizedText = text.replace(/â€¢/g, '\u2022');
+  const normalizedText = stripListMarkerNoise(text.replace(/â€¢/g, '\u2022'));
   const marker = String.raw`(?:[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab\u2013\u2014])`;
   const markerOnlyRe = new RegExp(String.raw`^\s*${marker}\s*$`);
   const realListItemRe = new RegExp(String.raw`^\s*${marker}\s+\S`);
+  const cleanLine = (line: string) => stripListMarkerNoise(line);
+  const trimLineStart = (line: string) => stripListMarkerNoise(line).replace(/^[\s\u200b-\u200d\ufeff]+/, '');
+  const isMarkerOnly = (line: string) => {
+    const clean = cleanLine(line).trim();
+    return markerOnlyRe.test(clean) || ['•', '·', '‣', '◦', '●', '○', '▪', '▫', '-', '*', '+', '–', '—'].includes(clean);
+  };
+  const isRealListItem = (line: string) => realListItemRe.test(cleanLine(line)) || /^[\s]*[•·‣◦●○▪▫\-*+–—]\s+\S/.test(cleanLine(line));
   const lines = normalizedText.replace(/\r\n?/g, '\n').split('\n');
-  const hasRealListItem = lines.some(line => realListItemRe.test(line));
-  if (!hasRealListItem) return text;
+  const hasRealListItem = lines.some(line => isRealListItem(line));
+  const hasMarkerOnly = lines.some(line => isMarkerOnly(line));
+  if (!hasRealListItem && !hasMarkerOnly) return text;
 
-  return lines
-    .filter(line => !markerOnlyRe.test(line))
+  const cleaned: string[] = [];
+  let pendingBullet = false;
+
+  for (const line of lines) {
+    if (isMarkerOnly(line)) {
+      pendingBullet = true;
+      continue;
+    }
+
+    if (pendingBullet) {
+      if (!line.trim()) {
+        continue;
+      }
+
+      cleaned.push(isRealListItem(line) ? trimLineStart(line) : `\u2022 ${trimLineStart(line)}`);
+      pendingBullet = false;
+      continue;
+    }
+
+    cleaned.push(cleanLine(line));
+  }
+
+  return cleaned
     .join('\n')
     .replace(/\n{3,}/g, '\n\n');
 }
@@ -811,6 +1044,43 @@ function normalizeMessageMarkdownText(text: string): string {
       .replace(/\r\n?/g, '\n')
       .replace(/\u00a0/g, ' '),
   ).trim();
+}
+
+function hasSplitListMarkerLines(text: string): boolean {
+  const markerOnlyRe = /^[\s\u200b-\u200d\ufeff]*[•·‣◦●○▪▫\-*+–—][\s\u200b-\u200d\ufeff]*$/;
+  const lines = stripListMarkerNoise(text).replace(/\r\n?/g, '\n').split('\n');
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!markerOnlyRe.test(lines[index])) continue;
+    const nextTextLine = lines.slice(index + 1).find(line => line.trim());
+    if (nextTextLine) return true;
+  }
+
+  return false;
+}
+
+function moveContentEditableCaretToEnd(el: HTMLElement): void {
+  const selection = window.getSelection?.();
+  if (!selection) return;
+
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function normalizeContentEditableListArtifacts(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const currentText = el.innerText.replace(/\r\n?/g, '\n').replace(/\n$/, '');
+  if (!hasSplitListMarkerLines(currentText)) return false;
+
+  const normalizedText = normalizeMessageMarkdownText(currentText);
+  if (!normalizedText || normalizedText === currentText.trim()) return false;
+
+  el.innerHTML = markdownTextToEditorHtml(normalizedText);
+  moveContentEditableCaretToEnd(el);
+  return true;
 }
 
 function normalizeMessageMarkdownForDisplay(text: string): string {
@@ -968,7 +1238,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
     if (bulletMatch) {
       const bulletNodes = renderInline(`• ${bulletMatch[2]}`, `bullet-${li}`);
       result.push(
-        <span key={`bul-${li}`} style={{ display: 'inline-block', paddingLeft: '1.1em', textIndent: '-0.8em' }}>
+        <span key={`bul-${li}`} style={{ display: 'inline-block', marginLeft: '1.1em', paddingLeft: '0.7em', textIndent: '-0.75em' }}>
           {bulletNodes}
         </span>
       );
@@ -979,15 +1249,43 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
 
   return result;
 }
+const SS4_AI_CREDIT_MESSAGE = 'Low Suprah Autrix credits \u2014 contact admin to upgrade.';
+
+function sanitizeUserFacingErrorMessage(message: unknown, fallback: string) {
+  const value = typeof message === 'string'
+    ? message
+    : message && typeof message === 'object'
+      ? JSON.stringify(message)
+      : '';
+
+  if (!value.trim()) return fallback;
+
+  if (/credit balance|plans? & billing|billing|upgrade|purchase credits|anthropic api/i.test(value)) {
+    return SS4_AI_CREDIT_MESSAGE;
+  }
+
+  if (/invalid_request_error|request_id|status code|no body/i.test(value)) {
+    return fallback;
+  }
+
+  return value;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null && 'response' in error &&
     typeof (error as { response?: unknown }).response === 'object' &&
     (error as { response?: { data?: unknown } }).response !== null) {
-    const response = (error as { response?: { data?: { message?: unknown } } }).response;
-    const message = response?.data?.message;
-    if (typeof message === 'string' && message.trim()) return message;
+    const response = (error as { response?: { data?: { message?: unknown } | unknown } }).response;
+    const data = response?.data;
+    const message = data && typeof data === 'object' && 'message' in data
+      ? (data as { message?: unknown }).message
+      : data;
+    const sanitized = sanitizeUserFacingErrorMessage(message, fallback);
+    if (sanitized) return sanitized;
   }
-  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error instanceof Error && error.message.trim()) {
+    return sanitizeUserFacingErrorMessage(error.message, fallback);
+  }
   return fallback;
 }
 const isVideoFileLike = (file: Pick<File, 'name' | 'type'>) => {
@@ -1434,6 +1732,8 @@ function Bubble({
   const pickerPosRef = React.useRef<PickerPosition | null>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [mobileMenu, setMobileMenu] = React.useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = React.useState(false);
+  const [mobileEmojiSheetOpen, setMobileEmojiSheetOpen] = React.useState(false);
   const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editMode, setEditMode] = React.useState(false);
@@ -1463,6 +1763,8 @@ function Bubble({
   const [dropdownFixedPos, setDropdownFixedPos] = React.useState<{ top?: number; bottom?: number; left?: number; right?: number; width?: number; maxHeight?: number } | null>(null);
   const dropdownPortalRef = React.useRef<HTMLDivElement>(null);
   const bubbleRowRef = React.useRef<HTMLDivElement>(null);
+  const [mobileOverlayHost, setMobileOverlayHost] = React.useState<HTMLElement | null>(null);
+  const [mobileReactionPos, setMobileReactionPos] = React.useState<{ top: number; left: number } | null>(null);
   const columnRef = React.useRef<HTMLDivElement>(null);
   const bubbleRef = React.useRef<HTMLDivElement>(null);
   const [actionBarPos, setActionBarPos] = React.useState<{ top: number; left: number } | null>(null);
@@ -1476,6 +1778,54 @@ function Bubble({
   const canEditMessage = isOwn && !!onEditSave && !['voice', 'poll', 'event'].includes(message.type) && (Boolean(message.content?.trim()) || editableAttachmentCount > 0);
   const hasEditChanges = editDraft.trim() !== (message.content || '').trim() || editReplacementFiles.length > 0;
   const canSaveEdit = !editSaving && Boolean(onEditSave) && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0) && hasEditChanges;
+  const getMobileOverlayHost = React.useCallback(() => {
+    if (typeof document === 'undefined') return null;
+    return bubbleRowRef.current?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]') || null;
+  }, []);
+
+  const openMobileActions = React.useCallback(() => {
+    const host = getMobileOverlayHost();
+    if (!host) return;
+    const hostRect = host.getBoundingClientRect();
+    const targetRect = (bubbleRef.current || bubbleRowRef.current)?.getBoundingClientRect();
+    const stripWidth = 368;
+    const stripHeight = 64;
+    const left = targetRect
+      ? Math.max(10, Math.min(hostRect.width - stripWidth - 10, targetRect.left - hostRect.left + targetRect.width / 2 - stripWidth / 2))
+      : Math.max(10, (hostRect.width - stripWidth) / 2);
+    const top = targetRect
+      ? Math.max(10, Math.min(hostRect.height - stripHeight - 150, targetRect.top - hostRect.top - stripHeight - 8))
+      : 88;
+    window.getSelection?.()?.removeAllRanges();
+    setMobileOverlayHost(host);
+    setMobileReactionPos({ top, left });
+    setHov(false);
+    setMoreActionsOpen(false);
+    setDropdownFixedPos(null);
+    setMobileMoreOpen(false);
+    setMobileEmojiSheetOpen(false);
+    closePicker();
+    setMobileMenu(true);
+  }, [getMobileOverlayHost]);
+
+  React.useEffect(() => {
+    if ((!mobileMenu && !mobileMoreOpen && !mobileEmojiSheetOpen) || !mobileOverlayHost) return;
+
+    const scrollEl = mobileOverlayHost.querySelector<HTMLElement>('[data-supraspace-message-scroll="true"]');
+    const previousHostTouchAction = mobileOverlayHost.style.touchAction;
+    const previousHostOverscroll = mobileOverlayHost.style.overscrollBehavior;
+    const previousScrollOverflow = scrollEl?.style.overflowY;
+
+    mobileOverlayHost.style.touchAction = 'none';
+    mobileOverlayHost.style.overscrollBehavior = 'contain';
+    if (scrollEl) scrollEl.style.overflowY = 'hidden';
+
+    return () => {
+      mobileOverlayHost.style.touchAction = previousHostTouchAction;
+      mobileOverlayHost.style.overscrollBehavior = previousHostOverscroll;
+      if (scrollEl) scrollEl.style.overflowY = previousScrollOverflow || '';
+    };
+  }, [mobileMenu, mobileMoreOpen, mobileEmojiSheetOpen, mobileOverlayHost]);
 
   React.useEffect(() => {
     if (!moreActionsOpen) return;
@@ -1622,7 +1972,7 @@ function Bubble({
   };
 
   const editFormatButtonClass = (format: RichTextFormat) => cn(
-    'h-7 w-7 flex items-center justify-center rounded-md transition-colors',
+    'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
     editActiveFormats[format] ? 'bg-white/15' : 'hover:bg-white/10'
   );
   const editFormatIconStyle = (format: RichTextFormat) => ({ color: editActiveFormats[format] ? 'var(--accent-text)' : 'currentColor' });
@@ -1732,10 +2082,15 @@ function Bubble({
     };
     if (columnRef.current) columnRef.current.style.transition = 'none';
     longPressTimer.current = setTimeout(() => {
-      positionActionBar('mobile');
-      setHov(true);
+      openMobileActions();
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
     }, 500);
+  };
+
+  const handleMobileContextMenu = (event: React.MouseEvent) => {
+    if (typeof window === 'undefined' || !window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
+    event.preventDefault();
+    openMobileActions();
   };
 
   const handleTouchMove = (event: React.TouchEvent) => {
@@ -1820,14 +2175,14 @@ function Bubble({
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
 
   return (
-    <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
+    <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
       onMouseEnter={() => {
         if (typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
         cancelHide();
         positionActionBar('desktop');
         setHov(true);
       }} onMouseLeave={scheduleHide}
-      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onTouchMove={handleTouchMove}>
+      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onTouchMove={handleTouchMove} onContextMenu={handleMobileContextMenu}>
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender?.avatar
@@ -1891,7 +2246,7 @@ function Bubble({
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
               style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 220, maxWidth: '100%' }}
             >
-              <div className="flex items-center gap-0.5 pb-2 mb-2 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
+              <div className="flex items-center gap-1 pb-2 mb-2 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
                 <button onMouseDown={e => { e.preventDefault(); applyEditFormat('bold'); }} className={editFormatButtonClass('bold')} title="Bold" aria-pressed={editActiveFormats.bold}>
                   <Bold className="h-3.5 w-3.5" style={editFormatIconStyle('bold')} />
                 </button>
@@ -1915,11 +2270,11 @@ function Bubble({
                   <Code2 className="h-3.5 w-3.5" style={editFormatIconStyle('code')} />
                 </button>
                 <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
-                <div className="relative flex items-center gap-1">
+                <div className="relative flex items-center gap-2">
                   <button
                     type="button"
                     onMouseDown={e => { e.preventDefault(); setEditColorPickerOpen(v => !v); }}
-                    className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-white/10"
+                    className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
                     title="More text colors"
                     aria-expanded={editColorPickerOpen}
                   >
@@ -1929,7 +2284,7 @@ function Bubble({
                     <button
                       key={color}
                       onMouseDown={e => { e.preventDefault(); applyEditTextColor(color); }}
-                      className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110"
+                      className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
                       style={{
                         background: color,
                         borderColor: editTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)',
@@ -1948,15 +2303,15 @@ function Bubble({
                   ))}
                   {editColorPickerOpen && (
                     <div
-                      className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl"
-                      style={{ background: 'var(--surface-3,#18181c)', border: '1px solid var(--border-2)', width: 210, maxHeight: 156 }}
+                      className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-6 gap-2 overflow-y-auto rounded-xl p-3 shadow-2xl"
+                      style={{ background: 'var(--surface-3,#18181c)', border: '1px solid var(--border-2)', width: 260, maxHeight: 210 }}
                     >
                       {SS4_MORE_TEXT_COLORS.map(color => (
                         <button
                           key={color}
                           type="button"
                           onMouseDown={e => { e.preventDefault(); chooseExpandedEditTextColor(color); }}
-                          className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
+                          className="relative h-8 w-8 rounded-full border transition-transform hover:scale-110"
                           style={{
                             background: color,
                             borderColor: editTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'var(--border-3)' : 'rgba(255,255,255,0.22)',
@@ -1994,17 +2349,30 @@ function Bubble({
                 onPaste={e => {
                   const text = e.clipboardData?.getData('text/plain') || '';
                   const html = e.clipboardData?.getData('text/html') || '';
-                  if (html && hasRichFormatting(html)) {
+                  if (html && (hasRichFormatting(html) || htmlAppearsToContainLists(html))) {
                     e.preventDefault();
                     const editorHtml = clipboardHtmlToEditorHtml(html);
-                    document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
-                    requestAnimationFrame(syncEditDraft);
+                    const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
+                    const htmlToInsert = listAwareText && plainTextHasListMarkers(listAwareText)
+                      ? markdownTextToEditorHtml(listAwareText)
+                      : (shouldUsePlainTextListLayout(text, editorHtml) || shouldPreferPlainTextLayout(text, editorHtml))
+                        ? markdownTextToEditorHtml(text)
+                        : editorHtml;
+                    document.execCommand('insertHTML', false, htmlToInsert);
+                    requestAnimationFrame(() => {
+                      normalizeContentEditableListArtifacts(editAreaRef.current);
+                      syncEditDraft();
+                    });
                     return;
                   }
                   if (text) {
                     e.preventDefault();
-                    document.execCommand(hasMarkdownSyntax(text) ? 'insertHTML' : 'insertText', false, hasMarkdownSyntax(text) ? markdownTextToEditorHtml(text) : text);
-                    requestAnimationFrame(syncEditDraft);
+                    const normalizedText = normalizeMessageMarkdownText(text);
+                    document.execCommand(hasMarkdownSyntax(normalizedText) ? 'insertHTML' : 'insertText', false, hasMarkdownSyntax(normalizedText) ? markdownTextToEditorHtml(normalizedText) : normalizedText);
+                    requestAnimationFrame(() => {
+                      normalizeContentEditableListArtifacts(editAreaRef.current);
+                      syncEditDraft();
+                    });
                   }
                 }}
                 className="ss4-copyable-text min-h-7 max-h-56 overflow-y-auto outline-none"
@@ -2410,72 +2778,140 @@ function Bubble({
         })()}
       </div>
 
-      {mobileMenu && !disableActions && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/60 md:hidden" onClick={() => setMobileMenu(false)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden rounded-t-2xl overflow-hidden"
-            style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-1)', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
-            {message.content && (
-              <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</p>
-                <p className="text-xs line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>{messagePreviewText(message.content)}</p>
-              </div>
-            )}
-            <div className="flex justify-around px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-              {SS4_REACTIONS.map(e => (
-                <button key={e} onClick={() => { onReact(message._id, e); setMobileMenu(false); }}
-                  className="text-2xl p-1 active:scale-90 transition-transform">{e}</button>
-              ))}
-            </div>
-            <div className="py-1">
-              <button onClick={() => { onReply(message); setMobileMenu(false); }}
-                className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
-                <Reply className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Reply
+      {mobileMenu && !disableActions && mobileOverlayHost && createPortal(
+        <div
+          className="absolute inset-0 z-50 md:hidden"
+          onTouchMove={(e) => e.preventDefault()}
+          onWheel={(e) => e.preventDefault()}
+        >
+          <div
+            className="absolute inset-0 bg-transparent"
+            onClick={() => { setMobileMenu(false); setMobileMoreOpen(false); setMobileEmojiSheetOpen(false); setMobileReactionPos(null); closePicker(); }}
+          />
+          {mobileReactionPos && <div
+            className="absolute z-20 flex max-w-[calc(100%-20px)] items-center gap-1 rounded-full px-2 py-2"
+            style={{
+              top: mobileReactionPos.top,
+              left: mobileReactionPos.left,
+              background: '#2b2b2d',
+              boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
+              animation: 'ss4-mobile-pop-in .16s cubic-bezier(.2,.8,.2,1) both',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {SS4_REACTIONS.slice(0, 6).map(e => (
+              <button
+                key={e}
+                onClick={() => { onReact(message._id, e); setMobileMenu(false); setMobileReactionPos(null); }}
+                className="flex h-11 w-11 items-center justify-center rounded-full text-3xl transition-transform active:scale-90"
+                aria-label={`React with ${e}`}
+              >
+                {e}
               </button>
-              {message.content && (
-                <button onClick={() => { setMobileMenu(false); copyMessageText(); }}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
-                  <Copy className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Copy message
-                </button>
-              )}
-              {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
-                <button onClick={async () => {
-                  const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
+            ))}
+            <button
+              onClick={() => {
+                closePicker();
+                setMobileMenu(false);
+                setMobileReactionPos(null);
+                setMobileEmojiSheetOpen(true);
+              }}
+              className="flex h-12 w-12 items-center justify-center rounded-full text-4xl"
+              style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}
+              aria-label="More reactions"
+            >
+              +
+            </button>
+          </div>}
+          {pickerPos && (
+            <EmojiReactionPicker
+              position={pickerPos}
+              onSelect={(emoji) => { onReact(message._id, emoji); closePicker(); setMobileMenu(false); setMobileReactionPos(null); }}
+              onClose={closePicker}
+            />
+          )}
+          <div
+            className="absolute bottom-0 left-0 right-0 z-10 rounded-t-[28px] px-5 pb-5 pt-4"
+            style={{
+              background: '#242526',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 18px)',
+              animation: 'ss4-mobile-sheet-in .18s cubic-bezier(.2,.8,.2,1) both',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+            <div className="grid grid-cols-4 gap-2">
+              <button onClick={() => { onReply(message); setMobileMenu(false); setMobileReactionPos(null); }}
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                <Reply className="h-8 w-8" style={{ color: '#4f7cff' }} />
+                <span className="text-center text-sm">Reply</span>
+              </button>
+              <button
+                onClick={() => { setMobileMenu(false); setMobileReactionPos(null); message.content ? copyMessageText() : toast.info('No text to copy'); }}
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                <Copy className="h-8 w-8" style={{ color: '#4f7cff' }} />
+                <span className="text-center text-sm">Copy</span>
+              </button>
+              <button
+                onClick={() => toast.info('Reminder feature coming soon')}
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                <Clock className="h-8 w-8" style={{ color: '#4f7cff' }} />
+                <span className="text-center text-sm">Set reminder</span>
+              </button>
+              <button
+                onClick={() => {
+                  closePicker();
                   setMobileMenu(false);
-                  if (!att) return;
-                  try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
-                  catch { toast.error('Could not copy image'); }
+                  setMobileReactionPos(null);
+                  setMobileMoreOpen(true);
                 }}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
-                  <Copy className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Copy image
-                </button>
-              )}
-              {onPin && (
-                <button onClick={() => { onPin(message._id); setMobileMenu(false); }}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
-                  <Pin className="h-5 w-5 shrink-0" style={{ color: isPinned ? 'var(--accent)' : 'var(--text-secondary)' }} />
-                  {isPinned ? 'Unpin message' : 'Pin message'}
-                </button>
-              )}
-              {canEditMessage && (
-                <button onClick={() => { setMobileMenu(false); enterEdit(); }}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-primary)' }}>
-                  <Pencil className="h-5 w-5 shrink-0" style={{ color: 'var(--accent)' }} /> Edit message
-                </button>
-              )}
-              {isOwn && (
-                <button onClick={() => { onDelete(message._id); setMobileMenu(false); }}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--danger,#f87171)' }}>
-                  <Trash2 className="h-5 w-5 shrink-0" /> Delete message
-                </button>
-              )}
-              <button onClick={() => setMobileMenu(false)}
-                className="w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium active:bg-white/5 transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                <X className="h-5 w-5 shrink-0" /> Cancel
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                <List className="h-8 w-8" style={{ color: '#4f7cff' }} />
+                <span className="text-center text-sm">More</span>
               </button>
             </div>
           </div>
-        </>
+        </div>,
+        mobileOverlayHost,
+      )}
+      {mobileEmojiSheetOpen && !disableActions && mobileOverlayHost && (
+        <MobileEmojiReactionSheet
+          host={mobileOverlayHost}
+          quickReactions={SS4_REACTIONS.slice(0, 6)}
+          onSelect={(emoji) => {
+            onReact(message._id, emoji);
+            setMobileEmojiSheetOpen(false);
+          }}
+          onClose={() => setMobileEmojiSheetOpen(false)}
+        />
+      )}
+      {mobileMoreOpen && !disableActions && mobileOverlayHost && createPortal(
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-8 md:hidden"
+          style={{ background: 'rgba(0,0,0,0.58)', backdropFilter: 'blur(2px)' }}
+          onTouchMove={(e) => e.preventDefault()}
+          onWheel={(e) => e.preventDefault()}
+          onClick={() => setMobileMoreOpen(false)}
+        >
+          <div
+            className="relative z-[71] w-full max-w-sm rounded-[28px] px-7 py-6"
+            style={{ background: '#2b2b2b', color: '#f5f5f5', boxShadow: '0 24px 80px rgba(0,0,0,0.55)', animation: 'ss4-mobile-pop-in .16s cubic-bezier(.2,.8,.2,1) both' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="mb-5 text-3xl font-medium">More</h3>
+            <div className="space-y-1">
+              <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => toast.info('Translate feature coming soon')}>Translate</button>
+              {isOwn && <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => { onDelete(message._id); setMobileMoreOpen(false); }}>Delete</button>}
+              {onPin && <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => { onPin(message._id); setMobileMoreOpen(false); }}>{isPinned ? 'Unpin' : 'Pin'}</button>}
+              <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => { onForward?.(message); setMobileMoreOpen(false); }}>Forward</button>
+              {canEditMessage && <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => { enterEdit(); setMobileMoreOpen(false); }}>Edit</button>}
+              <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => toast.info('Make AI image coming soon')}>Make AI image</button>
+              <button className="w-full rounded-2xl py-3 text-left text-xl active:bg-white/5" onClick={() => toast.info('Report submitted to admins')}>Report</button>
+            </div>
+          </div>
+        </div>,
+        mobileOverlayHost,
       )}
     </div>
   );
@@ -3639,6 +4075,7 @@ export default function SupraSpacePage() {
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned'>('members');
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
+  const [pinnedModalOpen, setPinnedModalOpen] = React.useState(false);
   const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
   const [editingGcName, setEditingGcName] = React.useState(false);
   const [gcNameInput, setGcNameInput] = React.useState('');
@@ -3805,6 +4242,10 @@ export default function SupraSpacePage() {
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
+  const activePinnedMsgs = React.useMemo(
+    () => activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted),
+    [activeMsgs, pinnedMsgIds],
+  );
   const activeMsgStatus = activeId ? (msgFetchState[activeId] || 'idle') : 'idle';
   const activeConvHasHistorySignal = Boolean(activeConv?.lastMessage || activeConv?.lastMessageAt);
   const msgSeenByMembers = React.useMemo(() => {
@@ -5309,6 +5750,28 @@ export default function SupraSpacePage() {
     }
   };
 
+  const jumpToMessage = React.useCallback((msgId: string) => {
+    setPinnedModalOpen(false);
+    setShowInfo(false);
+    window.setTimeout(() => {
+      const target = document.getElementById(`ss4-msg-${msgId}`);
+      if (!target) {
+        toast.info('Pinned message is not loaded yet. Scroll up to load older messages.');
+        return;
+      }
+
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.animate(
+        [
+          { boxShadow: '0 0 0 0 rgba(46, 213, 127, 0)', transform: 'scale(1)' },
+          { boxShadow: '0 0 0 4px rgba(46, 213, 127, 0.5), 0 0 26px rgba(46, 213, 127, 0.28)', transform: 'scale(1.01)' },
+          { boxShadow: '0 0 0 0 rgba(46, 213, 127, 0)', transform: 'scale(1)' },
+        ],
+        { duration: 1300, easing: 'ease' },
+      );
+    }, 120);
+  }, []);
+
   const togglePinConv = async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
     patchConv(c._id, { pinnedBy: pinned ? [...(c.pinnedBy || []), uid] : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
@@ -5394,7 +5857,7 @@ export default function SupraSpacePage() {
       const reply = r.data?.data?.refined || '';
       if (reply.trim()) { syncComposerText(reply.trim(), true); if (textareaRef.current) textareaRef.current.innerText = reply.trim(); }
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'AI service is unavailable';
+      const msg = getErrorMessage(err, 'AI service is unavailable');
       toast.error(msg);
     } finally { setAutrixLoading(false); }
   };
@@ -5419,7 +5882,8 @@ export default function SupraSpacePage() {
       return true;
     }
     if (line.trimStart().startsWith('• ')) {
-      const insert = `\n${leading}• `;
+      const listIndent = leading || '  ';
+      const insert = `\n${listIndent}• `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
       const caret = cursor + insert.length;
       syncComposerText(next, true);
@@ -5458,7 +5922,7 @@ export default function SupraSpacePage() {
       case 'underline': document.execCommand('underline', false); break;
       case 'strike': document.execCommand('strikethrough', false); break;
       case 'list':
-        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '• ' + (selectedText || ''));
+        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '  • ' + (selectedText || ''));
         break;
       case 'quote':
         document.execCommand('insertText', false, (selectedText ? '\n' : '') + '> ' + (selectedText || 'quote'));
@@ -5515,7 +5979,7 @@ export default function SupraSpacePage() {
   }, [activeTextColor, applyTextColor]);
 
   const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
-    'h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)',
+    'h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)',
     activeFormats[format] && 'ss4-video-btn'
   ), [activeFormats]);
 
@@ -5714,6 +6178,7 @@ export default function SupraSpacePage() {
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
     const [ddOpen, setDdOpen] = React.useState(false);
+    const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
     return (
@@ -5766,13 +6231,30 @@ export default function SupraSpacePage() {
         </div>
         {!compact && (
           <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov || ddOpen ? 1 : 0 }}>
-            <DropdownMenu onOpenChange={setDdOpen}>
+            <DropdownMenu open={ddOpen} onOpenChange={setDdOpen} modal={false}>
               <DropdownMenuTrigger asChild>
-                <button onClick={e => e.stopPropagation()} className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)" style={{ color: 'var(--text-secondary)' }}>
+                <button
+                  ref={ddTriggerRef}
+                  onPointerDown={e => e.stopPropagation()}
+                  onMouseDown={e => e.stopPropagation()}
+                  onClick={e => e.stopPropagation()}
+                  className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="bottom" align="end" className="min-w-52 rounded-xl p-1" onClick={e => e.stopPropagation()}
+              <DropdownMenuContent
+                side="bottom"
+                align="end"
+                className="min-w-52 rounded-xl p-1"
+                onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
+                onCloseAutoFocus={e => e.preventDefault()}
+                onPointerDownOutside={e => {
+                  if (ddTriggerRef.current?.contains(e.target as Node)) e.preventDefault();
+                }}
                 style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
                 <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
                   onClick={() => {
@@ -6264,7 +6746,7 @@ export default function SupraSpacePage() {
 
                   { }
                   {(() => {
-                    const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted);
+                    const pinnedMsgs = activePinnedMsgs;
                     if (pinnedMsgs.length === 0) return null;
                     const latest = pinnedMsgs[pinnedMsgs.length - 1];
                     return (
@@ -6272,8 +6754,8 @@ export default function SupraSpacePage() {
                         style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
                         <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
                         <div className="min-w-0 flex-1 cursor-pointer"
-                          onClick={() => document.getElementById(`ss4-msg-${latest._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
-                          <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Message{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
+                          onClick={() => setPinnedModalOpen(true)}>
+                          <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Messages{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
                           <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender?.fullName || 'Deleted User'}: {messagePreviewText(latest.content) || String.fromCodePoint(128206) + ' Attachment'}</p>
                         </div>
                         <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
@@ -6286,6 +6768,7 @@ export default function SupraSpacePage() {
                     <div
                       ref={messageScrollRef}
                       onScroll={handleMessageScroll}
+                      data-supraspace-message-scroll="true"
                       className="h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
                       style={wallpaper ? { backgroundImage: wallpaper } : undefined}
                     >
@@ -6446,7 +6929,7 @@ export default function SupraSpacePage() {
                           </div>
                         )}
                         {showFormatBar && (
-                          <div className="flex items-center gap-0.5 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                          <div className="flex items-center gap-1 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
                               <Bold className="h-3.5 w-3.5" style={formatIconStyle('bold')} />
                             </button>
@@ -6466,18 +6949,18 @@ export default function SupraSpacePage() {
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className={formatButtonClass('quote')} title="Quote" aria-pressed={activeFormats.quote}>
                               <TextQuote className="h-3.5 w-3.5" style={formatIconStyle('quote')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)" title="Link">
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)" title="Link">
                               <Link2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
                             </button>
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className={formatButtonClass('code')} title="Inline code" aria-pressed={activeFormats.code}>
                               <Code2 className="h-3.5 w-3.5" style={formatIconStyle('code')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
-                            <div className="relative flex items-center gap-1 px-1" title="Text color">
+                            <div className="relative flex items-center gap-2 px-1" title="Text color">
                               <button
                                 type="button"
                                 onMouseDown={e => { e.preventDefault(); saveComposerSelection(); setTextColorPickerOpen(v => !v); }}
-                                className="h-7 w-7 flex items-center justify-center rounded-md transition-colors hover:bg-(--bg-hover)"
+                                className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)"
                                 title="More text colors"
                                 aria-expanded={textColorPickerOpen}
                               >
@@ -6487,7 +6970,7 @@ export default function SupraSpacePage() {
                                 <button
                                   key={color}
                                   onMouseDown={e => { e.preventDefault(); saveComposerSelection(); applyTextColor(color); }}
-                                  className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110"
+                                  className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
                                   style={{
                                     background: color,
                                     borderColor: activeTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'var(--border-3)' : 'rgba(255,255,255,0.2)',
@@ -6506,15 +6989,15 @@ export default function SupraSpacePage() {
                               ))}
                               {textColorPickerOpen && (
                                 <div
-                                  className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl"
-                                  style={{ background: 'var(--surface-3,#18181c)', border: '1px solid var(--border-2)', width: 210, maxHeight: 156 }}
+                                  className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-6 gap-2 overflow-y-auto rounded-xl p-3 shadow-2xl"
+                                  style={{ background: 'var(--surface-3,#18181c)', border: '1px solid var(--border-2)', width: 260, maxHeight: 210 }}
                                 >
                                   {SS4_MORE_TEXT_COLORS.map(color => (
                                     <button
                                       key={color}
                                       type="button"
                                       onMouseDown={e => { e.preventDefault(); saveComposerSelection(); chooseExpandedTextColor(color); }}
-                                      className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
+                                      className="relative h-8 w-8 rounded-full border transition-transform hover:scale-110"
                                       style={{
                                         background: color,
                                         borderColor: activeTextColor === color ? 'var(--accent)' : color === '#ffffff' ? 'var(--border-3)' : 'rgba(255,255,255,0.22)',
@@ -6538,7 +7021,7 @@ export default function SupraSpacePage() {
                             <button
                               onMouseDown={e => { e.preventDefault(); handleAutrix('improve'); }}
                               disabled={autrixLoading || !composerHasText}
-                              className="h-7 px-2.5 flex items-center gap-1.5 rounded-md font-semibold transition-colors hover:bg-(--bg-hover) disabled:opacity-40"
+                              className="h-9 px-3 flex items-center gap-1.5 rounded-lg font-semibold transition-colors hover:bg-(--bg-hover) disabled:opacity-40"
                               title="Refine with AI"
                             >
                               {autrixLoading
@@ -6595,13 +7078,20 @@ export default function SupraSpacePage() {
                                 if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
 
                                 const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
-                                if (html && hasRichFormatting(html) && !shouldUsePlainText) {
+                                if (html && (hasRichFormatting(html) || htmlAppearsToContainLists(html)) && !shouldUsePlainText) {
                                   e.preventDefault();
                                   const editorHtml = clipboardHtmlToEditorHtml(html);
-                                  document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
+                                  const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
+                                  const htmlToInsert = listAwareText && plainTextHasListMarkers(listAwareText)
+                                    ? markdownTextToEditorHtml(listAwareText)
+                                    : (shouldUsePlainTextListLayout(text, editorHtml) || shouldPreferPlainTextLayout(text, editorHtml))
+                                      ? markdownTextToEditorHtml(text)
+                                      : editorHtml;
+                                  document.execCommand('insertHTML', false, htmlToInsert);
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
                                     if (el) {
+                                      normalizeContentEditableListArtifacts(el);
                                       const nextText = el.innerText.replace(/\n$/, '');
                                       syncComposerText(nextText, true);
                                       inspectMentionAnywhere(nextText);
@@ -6613,14 +7103,19 @@ export default function SupraSpacePage() {
                                 const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
                                 if (richText) {
                                   e.preventDefault();
-                                  if (hasMarkdownSyntax(richText)) {
-                                    document.execCommand('insertHTML', false, markdownTextToEditorHtml(richText));
+                                  const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(richText)
+                                    ? clipboardHtmlToListAwareText(html)
+                                    : richText;
+                                  const normalizedRichText = normalizeMessageMarkdownText(sourceText);
+                                  if (hasMarkdownSyntax(normalizedRichText)) {
+                                    document.execCommand('insertHTML', false, markdownTextToEditorHtml(normalizedRichText));
                                   } else {
-                                    document.execCommand('insertText', false, richText);
+                                    document.execCommand('insertText', false, normalizedRichText);
                                   }
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
                                     if (el) {
+                                      normalizeContentEditableListArtifacts(el);
                                       const nextText = el.innerText.replace(/\n$/, '');
                                       syncComposerText(nextText, true);
                                       inspectMentionAnywhere(nextText);
@@ -6745,7 +7240,7 @@ export default function SupraSpacePage() {
                             </div>
                             <button
                               onClick={() => setShowFormatBar(v => !v)}
-                              className={cn('ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8', showFormatBar && 'ss4-video-btn')}
+                              className={cn('ss4-icon-btn h-9 w-9', showFormatBar && 'ss4-video-btn')}
                               title="Formatting options"
                             >
                               <Type className="h-4 w-4" />
@@ -7039,6 +7534,76 @@ export default function SupraSpacePage() {
         )}
         {summarizeOpen && activeId && (
           <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
+        )}
+        {pinnedModalOpen && activeConv && (
+          <div
+            className="fixed inset-0 z-60 flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+            onClick={() => setPinnedModalOpen(false)}
+          >
+            <div
+              className="ss4 flex max-h-[82dvh] w-full flex-col overflow-hidden rounded-t-3xl shadow-2xl sm:max-w-lg sm:rounded-2xl"
+              data-theme={theme}
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+                  <Pin className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Pinned messages</h3>
+                  <p className="truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                    {getConvName(activeConv, uid)} · {activePinnedMsgs.length} pinned
+                  </p>
+                </div>
+                <button onClick={() => setPinnedModalOpen(false)} className="ss4-icon-btn h-9 w-9 shrink-0" aria-label="Close pinned messages">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 ss4-scroll">
+                {activePinnedMsgs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                    <PinOff className="h-8 w-8" style={{ color: 'var(--text-tertiary)' }} />
+                    <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>No pinned messages</p>
+                    <p className="max-w-xs" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Pinned messages from this conversation will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {activePinnedMsgs.slice().reverse().map(m => (
+                      <div key={m._id} className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+                        <button type="button" onClick={() => jumpToMessage(m._id)} className="block w-full text-left">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
+                              <p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtDate(m.createdAt)} · {fmtTime(m.createdAt)}</p>
+                            </div>
+                            <ChevronLeft className="h-3.5 w-3.5 rotate-180 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+                          </div>
+                          <p className="line-clamp-3 leading-relaxed" style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                            {messagePreviewText(m.content) || String.fromCodePoint(128206) + ` ${m.attachments?.length || 1} attachment${(m.attachments?.length || 1) === 1 ? '' : 's'}`}
+                          </p>
+                        </button>
+                        <div className="mt-3 flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => jumpToMessage(m._id)} className="ss4-pill-btn h-8 px-3" style={{ fontSize: 12 }}>
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePinToggle(m._id)}
+                            className="h-8 rounded-lg px-3 font-semibold"
+                            style={{ fontSize: 12, color: 'var(--danger)', background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.22)' }}
+                          >
+                            Unpin
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
         {forwardMsg && (
           <ForwardMessageModal message={forwardMsg} users={allUsers.filter(u => u._id !== uid)} token={token} onClose={() => setForwardMsg(null)} />

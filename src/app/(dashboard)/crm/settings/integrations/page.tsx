@@ -45,7 +45,7 @@ export default function IntegrationsSettingsPage() {
   const [config, setConfig] = React.useState<OrgLeadConfig | null>(null);
   const [sourceEmailInput, setSourceEmailInput] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
-  const [showCopied, setShowCopied] = React.useState(false);
+  const [copiedField, setCopiedField] = React.useState<"webhook" | "secret" | null>(null);
 
   React.useEffect(() => {
     const init = async () => {
@@ -203,11 +203,43 @@ export default function IntegrationsSettingsPage() {
         }
     }
 
-    const copySecret = () => {
-        if (config?.webhookSecret) {
-            navigator.clipboard.writeText(config.webhookSecret)
-            setShowCopied(true)
-            setTimeout(() => setShowCopied(false), 2000)
+    const copyToClipboard = async (value: string | undefined, field: "webhook" | "secret", label: string) => {
+        const text = value?.trim()
+        if (!text) {
+            toast.error(`${label} is empty`, {
+                description: "Generate or load the value first, then try copying again."
+            })
+            return
+        }
+
+        try {
+            if (navigator.clipboard?.writeText && window.isSecureContext) {
+                await navigator.clipboard.writeText(text)
+            } else {
+                const textArea = document.createElement("textarea")
+                textArea.value = text
+                textArea.setAttribute("readonly", "")
+                textArea.style.position = "fixed"
+                textArea.style.left = "-9999px"
+                textArea.style.top = "0"
+                document.body.appendChild(textArea)
+                textArea.focus()
+                textArea.select()
+                const copied = document.execCommand("copy")
+                document.body.removeChild(textArea)
+                if (!copied) throw new Error("Copy command failed")
+            }
+
+            setCopiedField(field)
+            window.setTimeout(() => setCopiedField(null), 2000)
+            toast.success("Copied to clipboard", {
+                description: `${label} is ready to paste.`
+            })
+        } catch (error) {
+            console.error(`Failed to copy ${label}:`, error)
+            toast.error("Copy failed", {
+                description: `Could not copy the ${label}. Please select and copy it manually.`
+            })
         }
     }
 
@@ -436,9 +468,22 @@ export default function IntegrationsSettingsPage() {
                                     <div className="space-y-5 max-w-xl">
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-foreground opacity-70">Webhook URL</label>
-                                            <code className="block w-full text-[11px] bg-background border border-border/40 rounded-lg px-3 py-2.5 text-orange-400 font-mono break-all">
-                                                POST {config.webhookUrl || `https://api.actionauto.com/api/leads/adf?orgId=${user.username}`}
-                                            </code>
+                                            <div className="flex items-start gap-2">
+                                                <code className="flex-1 text-[11px] bg-background border border-border/40 rounded-lg px-3 py-2.5 text-orange-400 font-mono break-all">
+                                                    POST {config.webhookUrl || `https://api.actionauto.com/api/leads/adf?orgId=${user.username}`}
+                                                </code>
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard(config.webhookUrl || `https://api.actionauto.com/api/leads/adf?orgId=${user.username}`, "webhook", "Webhook URL")}
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-10 w-10 shrink-0 rounded-lg border-border/40 hover:bg-muted/50"
+                                                    title="Copy Webhook URL"
+                                                    aria-label="Copy Webhook URL"
+                                                >
+                                                    {copiedField === "webhook" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
+                                                </Button>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-1.5">
@@ -450,12 +495,15 @@ export default function IntegrationsSettingsPage() {
                                                     {config.webhookSecret}
                                                 </code>
                                                 <Button
-                                                    onClick={copySecret}
+                                                    type="button"
+                                                    onClick={() => copyToClipboard(config.webhookSecret, "secret", "HMAC Secret Key")}
                                                     variant="outline"
                                                     size="icon"
                                                     className="h-10 w-10 shrink-0 rounded-lg border-border/40 hover:bg-muted/50"
+                                                    title="Copy HMAC Secret Key"
+                                                    aria-label="Copy HMAC Secret Key"
                                                 >
-                                                    {showCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
+                                                    {copiedField === "secret" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
                                                 </Button>
                                             </div>
                                         </div>
