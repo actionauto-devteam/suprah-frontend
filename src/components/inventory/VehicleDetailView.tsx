@@ -406,7 +406,7 @@ function Gallery({
             }
           }}
           className={cn(
-            "h-full w-full object-cover transition-opacity duration-200",
+            "h-full w-full object-contain object-center transition-opacity duration-200",
             loaded ? "opacity-100" : "opacity-0",
           )}
         />

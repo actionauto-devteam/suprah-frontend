@@ -749,10 +749,22 @@ export const UPDATED_PANEL_CSS = `
 
 .axp-action-card-hdr {
   display: flex; align-items: center; gap: 10px;
+  width: 100%;
   padding: 10px 13px; cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   transition: background .18s;
 }
-.axp-action-card-hdr:hover { background: var(--p-acc-dim); }
+.axp-action-card-hdr:hover,
+.axp-action-card-hdr:focus-visible {
+  background: var(--p-acc-dim);
+}
+.axp-action-card-hdr:focus-visible {
+  outline: 1px solid var(--p-acc);
+  outline-offset: -2px;
+}
 
 .axp-action-icon {
   width: 30px; height: 30px; border-radius: 9px;
@@ -1602,9 +1614,16 @@ interface ActionCardProps {
 
 function ActionCard({ icon, iconBg, iconBd, title, subtitle, children, defaultOpen = false }: ActionCardProps) {
   const [open, setOpen] = React.useState(defaultOpen)
+  const bodyId = React.useId()
   return (
     <div className="axp-action-card">
-      <div className="axp-action-card-hdr" onClick={() => setOpen(p => !p)}>
+      <button
+        type="button"
+        className="axp-action-card-hdr"
+        onClick={() => setOpen(p => !p)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+      >
         <div className="axp-action-icon" style={{ background: iconBg, borderColor: iconBd || 'rgba(34,197,94,.1)' }}>
           {icon}
         </div>
@@ -1617,8 +1636,8 @@ function ActionCard({ icon, iconBg, iconBd, title, subtitle, children, defaultOp
           transition: 'transform .22s',
           transform: open ? 'rotate(180deg)' : 'rotate(0)',
         }} />
-      </div>
-      {open && <div className="axp-action-body">{children}</div>}
+      </button>
+      {open && <div id={bodyId} className="axp-action-body">{children}</div>}
     </div>
   )
 }

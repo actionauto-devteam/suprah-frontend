@@ -248,8 +248,13 @@ export function useTransportationData(filters: TransportationFilters = {}) {
 
   const fetchData = React.useCallback(
     async (options?: { silent?: boolean }) => {
-      if (!isSignedIn) return;
       const silent = options?.silent ?? false;
+      if (!isSignedIn) {
+        if (silent) setIsSilentRefreshing(false);
+        else setIsLoading(false);
+        setError(isLoaded ? "Please sign in to view transportation records." : null);
+        return;
+      }
 
       if (silent) setIsSilentRefreshing(true);
       else setIsLoading(true);
@@ -257,10 +262,12 @@ export function useTransportationData(filters: TransportationFilters = {}) {
 
       try {
         const config = await getAuthConfig();
-        if (!config) return;
+        if (!config) {
+          throw new Error("Authentication is required to load transportation records.");
+        }
 
-        const [loadsRes, quotesRes, vehiclesRes, statsRes] =
-          await Promise.all([
+        const [loadsResult, quotesResult, vehiclesResult, statsResult] =
+          await Promise.allSettled([
             apiClient.get("/api/loads", {
               ...config,
               params: {
@@ -285,8 +292,18 @@ export function useTransportationData(filters: TransportationFilters = {}) {
             apiClient.get("/api/loads/stats", config),
           ]);
 
-        const rawLoads = loadsRes.data?.data ?? loadsRes.data;
-        const rawQuotes = quotesRes.data?.data ?? quotesRes.data;
+        if (loadsResult.status === "rejected" && quotesResult.status === "rejected") {
+          throw loadsResult.reason || quotesResult.reason || new Error("Failed to load transportation data");
+        }
+
+        const rawLoads =
+          loadsResult.status === "fulfilled"
+            ? loadsResult.value.data?.data ?? loadsResult.value.data
+            : [];
+        const rawQuotes =
+          quotesResult.status === "fulfilled"
+            ? quotesResult.value.data?.data ?? quotesResult.value.data
+            : [];
 
         const { items: loadsData, pagination: loadsPag } =
           extractPaginatedItems<Load>(rawLoads, "loads");
@@ -298,13 +315,20 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setQuotes(quotesData);
         setQuotesPagination(quotesPag);
 
-        const vehiclesResponse = vehiclesRes.data?.data ?? vehiclesRes.data;
-        const vehicleData =
-          vehiclesResponse?.vehicles || vehiclesResponse || [];
-        setVehicles(transformVehicles(vehicleData));
+        if (vehiclesResult.status === "fulfilled") {
+          const vehiclesResponse =
+            vehiclesResult.value.data?.data ?? vehiclesResult.value.data;
+          const vehicleData =
+            vehiclesResponse?.vehicles || vehiclesResponse || [];
+          setVehicles(transformVehicles(vehicleData));
+        } else if (!silent) {
+          setVehicles([]);
+        }
 
-        const statsData = statsRes.data?.data ?? statsRes.data;
-        if (statsData && typeof statsData === "object") setStats(statsData);
+        if (statsResult.status === "fulfilled") {
+          const statsData = statsResult.value.data?.data ?? statsResult.value.data;
+          if (statsData && typeof statsData === "object") setStats(statsData);
+        }
 
         setLastUpdated(new Date());
         isInitializedRef.current = true;
@@ -331,7 +355,12 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   // ── Initial fetch ──────────────────────────────────────────────────────────
 
   React.useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      setIsLoading(false);
+      setError("Please sign in to view transportation records.");
+      return;
+    }
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn]);

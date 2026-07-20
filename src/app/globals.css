@@ -248,6 +248,18 @@ body.theme-switching *::after {
   animation: none !important;
 }
 
+#theme-repaint-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: 0.001;
+  background: var(--background);
+  contain: strict;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
 /* Custom scrollbar styles for light and dark mode */
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar {
