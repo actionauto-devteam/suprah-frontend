@@ -678,13 +678,13 @@ function StatCard({
 }) {
   return (
     <div
-      className={`flex-1 min-w-27.5 rounded-lg border bg-card px-4 py-3 ${accent}`}
+      className={`min-w-0 rounded-lg border bg-card px-3 py-3 sm:px-4 ${accent}`}
     >
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
         <span className="opacity-60">{icon}</span>
       </div>
-      <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+      <p className="break-words text-lg font-bold leading-tight text-foreground sm:text-xl">{value}</p>
     </div>
   );
 }
@@ -705,7 +705,7 @@ function LoadPreview({ loads }: { loads: Load[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2.5">
+      <div className="grid min-w-0 grid-cols-2 gap-2.5 lg:grid-cols-4">
         <StatCard
           label="Total Loads"
           value={summary.total}
@@ -889,7 +889,7 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2.5">
+      <div className="grid min-w-0 grid-cols-2 gap-2.5 lg:grid-cols-4">
         <StatCard
           label="Total Quotes"
           value={summary.total}
@@ -1086,10 +1086,10 @@ export function TransportationPreviewModal({
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/65 backdrop-blur-sm"
-        className="w-[96vw] max-w-300 sm:max-w-[min(96vw,1200px)] p-0 gap-0 overflow-hidden max-h-[92dvh] min-h-[62dvh] flex flex-col rounded-2xl border-border/60 bg-background/95 shadow-2xl"
+        className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-background p-0 shadow-2xl sm:inset-auto sm:h-auto sm:min-h-[62dvh] sm:max-h-[92dvh] sm:w-[96vw] sm:max-w-[min(96vw,1200px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:border-border/60 sm:bg-background/95"
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:pb-4 sm:pt-6">
           <div className="flex items-start gap-3 min-w-0">
             <div
               className={`size-10 rounded-lg flex items-center justify-center border shrink-0 ${isLoad
@@ -1114,10 +1114,10 @@ export function TransportationPreviewModal({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto sm:mt-0.5">
+          <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2 sm:flex sm:w-auto sm:shrink-0 sm:self-auto sm:mt-0.5">
             <Button
               size="sm"
-              className="gap-1.5 text-xs font-medium h-9"
+              className="h-10 gap-1.5 text-xs font-medium sm:h-9"
               onClick={onDownload}
               disabled={isDownloading}
             >
@@ -1142,7 +1142,7 @@ export function TransportationPreviewModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
+        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-6 sm:py-5">
           {isLoad ? (
             <LoadPreview loads={loads} />
           ) : (

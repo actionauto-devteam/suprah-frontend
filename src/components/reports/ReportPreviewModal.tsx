@@ -83,13 +83,13 @@ function StatCard({
 }) {
   return (
     <div
-      className={`flex-1 min-w-27.5 rounded-lg border bg-card px-4 py-3 ${accent}`}
+      className={`min-w-0 rounded-lg border bg-card px-3 py-3 sm:px-4 ${accent}`}
     >
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
         <span className="opacity-60">{icon}</span>
       </div>
-      <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+      <p className="break-words text-lg font-bold leading-tight text-foreground sm:text-xl">{value}</p>
     </div>
   );
 }
@@ -122,7 +122,7 @@ function DriverPreview({ loads }: { loads: Load[] }) {
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="flex flex-wrap gap-2.5">
+      <div className="grid min-w-0 grid-cols-2 gap-2.5 lg:grid-cols-4">
         <StatCard
           label="Assigned Loads"
           value={assigned.length}
@@ -268,7 +268,7 @@ function BillingPreview({
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="flex flex-wrap gap-2.5">
+      <div className="grid min-w-0 grid-cols-2 gap-2.5 lg:grid-cols-4">
         <StatCard
           label="Revenue Collected"
           value={formatCurrency(revenue)}
@@ -455,10 +455,10 @@ export function ReportPreviewModal({
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/80 backdrop-blur-sm"
-        className={`${isDriver ? "max-w-300" : "max-w-2xl"} w-[94vw] p-0 gap-0 overflow-hidden max-h-[92dvh] flex flex-col rounded-2xl border-border/70 shadow-2xl ring-1 ring-white/10`}
+        className={`${isDriver ? "sm:max-w-300" : "sm:max-w-2xl"} inset-0 h-dvh w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-0 p-0 shadow-2xl sm:inset-auto sm:h-auto sm:max-h-[92dvh] sm:w-[94vw] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:border-border/70 sm:ring-1 sm:ring-white/10 flex flex-col`}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:pb-4 sm:pt-6">
           <div className="flex items-start gap-3 min-w-0">
             <div
               className={`size-10 rounded-lg flex items-center justify-center border shrink-0 ${isDriver
@@ -479,10 +479,10 @@ export function ReportPreviewModal({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto sm:mt-0.5">
+          <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2 sm:flex sm:w-auto sm:shrink-0 sm:self-auto sm:mt-0.5">
             <Button
               size="sm"
-              className="gap-1.5 text-xs font-medium h-9"
+              className="h-10 gap-1.5 text-xs font-medium sm:h-9"
               onClick={onDownload}
               disabled={isDownloading}
             >
@@ -507,7 +507,7 @@ export function ReportPreviewModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
+        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-6 sm:py-5">
           {isDriver
             ? <DriverPreview loads={loads} />
             : <BillingPreview payments={payments} payouts={payouts} />
