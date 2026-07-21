@@ -6,7 +6,11 @@ export type DepartmentEntry = {
   isTimeEditExempt: boolean;
   isMandatoryLocationDept: boolean;
   isActive?: boolean;
+  isDefault?: boolean;
   sortOrder?: number;
+  memberCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 // Seed defaults so every consumer works before the live list has loaded (or if

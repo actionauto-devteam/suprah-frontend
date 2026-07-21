@@ -653,9 +653,11 @@ export const LEAD_DETAILS_PANEL_CSS = `
   .suprah-stage-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 9px 16px 14px; }
   .suprah-stage-track span { height: 3px; border-radius: 999px; background: var(--surface-2); }
   .suprah-stage-track span.active { background: var(--accent); }
-  .suprah-tabs { margin-top: 0; border-color: var(--border-1); }
-  .suprah-tabs button { color: var(--text-tertiary); }
-  .suprah-tabs button.active { color: var(--text-primary); border-color: var(--accent); }
+  .suprah-tabs { display: flex; align-items: center; gap: 4px; margin: 4px 16px 12px; border-bottom: 1px solid var(--border-1); }
+  .suprah-tabs button { position: relative; padding: 9px 14px; border: 0; border-radius: 7px 7px 0 0; background: transparent; color: var(--text-tertiary); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s ease, color .15s ease; }
+  .suprah-tabs button:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .suprah-tabs button.active { color: var(--text-primary); }
+  .suprah-tabs button.active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 999px; background: var(--accent); }
   .suprah-details-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 18px; }
   .suprah-detail-section { margin-bottom: 10px; border: 1px solid var(--border-1); border-radius: 11px; background: var(--bg-subtle); overflow: hidden; }
   .suprah-detail-section-title { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 0; background: transparent; color: var(--text-primary); font-size: 12px; font-weight: 700; }

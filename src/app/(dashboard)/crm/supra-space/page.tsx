@@ -2888,14 +2888,14 @@ function Bubble({
       )}
       {mobileMoreOpen && !disableActions && mobileOverlayHost && createPortal(
         <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-8 md:hidden"
+          className="absolute inset-0 z-70 flex items-center justify-center px-8 md:hidden"
           style={{ background: 'rgba(0,0,0,0.58)', backdropFilter: 'blur(2px)' }}
           onTouchMove={(e) => e.preventDefault()}
           onWheel={(e) => e.preventDefault()}
           onClick={() => setMobileMoreOpen(false)}
         >
           <div
-            className="relative z-[71] w-full max-w-sm rounded-[28px] px-7 py-6"
+            className="relative z-71 w-full max-w-sm rounded-[28px] px-7 py-6"
             style={{ background: '#2b2b2b', color: '#f5f5f5', boxShadow: '0 24px 80px rgba(0,0,0,0.55)', animation: 'ss4-mobile-pop-in .16s cubic-bezier(.2,.8,.2,1) both' }}
             onClick={e => e.stopPropagation()}
           >

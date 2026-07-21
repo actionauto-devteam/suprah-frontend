@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
+import { generateBolHtml } from "@/lib/transportation-reports"
 import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { fmtDateMDT, fmtTimeMDT } from "@/lib/timezone"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 function LoadDetailsSkeleton() {
   return (
@@ -224,6 +226,7 @@ export default function LoadDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const id = params?.id as string
+  const [isPrinting, setIsPrinting] = React.useState(false)
 
   const { data: load, isLoading, isError } = useQuery({
     queryKey: ["load", id],
@@ -231,6 +234,45 @@ export default function LoadDetailsPage() {
     enabled: !!id,
     refetchOnWindowFocus: false,
   })
+
+  const handlePrintBol = () => {
+    if (!load) return
+    setIsPrinting(true)
+
+    const iframe = document.createElement("iframe")
+    iframe.style.position = "fixed"
+    iframe.style.right = "0"
+    iframe.style.bottom = "0"
+    iframe.style.width = "0"
+    iframe.style.height = "0"
+    iframe.style.border = "0"
+    document.body.appendChild(iframe)
+
+    try {
+      const printWindow = iframe.contentWindow
+      const doc = printWindow?.document
+      if (!doc || !printWindow) throw new Error("Print unavailable")
+
+      doc.open()
+      doc.write(generateBolHtml(load))
+      doc.close()
+
+      const triggerPrint = () => {
+        printWindow.focus()
+        printWindow.print()
+      }
+      if (doc.readyState === "complete") {
+        triggerPrint()
+      } else {
+        printWindow.addEventListener("load", triggerPrint, { once: true })
+      }
+    } catch {
+      toast.error("Unable to open the print dialog. Please try again.")
+    } finally {
+      setIsPrinting(false)
+      setTimeout(() => iframe.remove(), 1000)
+    }
+  }
 
   if (isLoading) return <LoadDetailsSkeleton />
 
@@ -283,7 +325,7 @@ export default function LoadDetailsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial"><FileText className="size-4 mr-2 text-muted-foreground" /> Print Bol</Button>
+          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol} disabled={isPrinting}><FileText className="size-4 mr-2 text-muted-foreground" /> Print Bol</Button>
           <Button variant="default" size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial">Edit Load</Button>
         </div>
       </div>

@@ -147,7 +147,7 @@ class ApiClient {
             const refreshResponse = await axios.post(
               `${API_URL}/api/auth/refresh-tokens`,
               {},
-              { withCredentials: true }
+              { withCredentials: true, timeout: 15000 }
             );
 
             const newToken =

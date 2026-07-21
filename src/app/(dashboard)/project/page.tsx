@@ -952,7 +952,7 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                                     className={cn(
                                       "flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-muted/30",
                                       task.unseenForMe &&
-                                        "border-l-2 border-emerald-500 bg-emerald-500/[0.06]",
+                                        "border-l-2 border-l-emerald-500 bg-emerald-500/6",
                                     )}
                                   >
                                     <TaskStatusBadge status={task.status} />

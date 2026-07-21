@@ -98,22 +98,22 @@ export function LeaderboardPro() {
           ref={scrollContainerRef}
           className="flex-1 overflow-y-auto touch-pan-y overscroll-contain px-2.5 sm:px-4 py-2.5 sm:py-4 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 scrollbar-track-transparent transition-all"
         >
-          <div className="hidden sm:block px-1 pb-2.5 border-b border-border/20">
-            <div className="flex items-center gap-2 sm:gap-3 bg-muted/30 rounded-xl px-3 py-2">
+          <div className="hidden sm:block sticky top-0 z-10 -mx-2.5 sm:-mx-4 px-2.5 sm:px-4 pb-2.5 bg-card/95 backdrop-blur-sm border-b-2 border-border/50">
+            <div className="flex items-center gap-2 sm:gap-3 bg-muted/60 rounded-xl px-3 py-2.5 border border-border/40">
               <div className="w-6 sm:w-8 shrink-0" aria-hidden="true" />
               <div className="w-9 sm:w-11 shrink-0" aria-hidden="true" />
 
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-wider text-foreground/55">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/90">
                   Rep
                 </p>
               </div>
 
               <div className="flex items-center gap-3 sm:gap-6 text-right shrink-0">
-                <p className="hidden sm:block text-[10px] font-black uppercase tracking-wider text-foreground/55">
+                <p className="hidden sm:block text-[10px] font-extrabold uppercase tracking-wider text-foreground/90">
                   Leads
                 </p>
-                <p className="text-[10px] font-black uppercase tracking-wider text-foreground/55">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/90">
                   Appts
                 </p>
               </div>

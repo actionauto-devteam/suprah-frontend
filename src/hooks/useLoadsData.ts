@@ -68,13 +68,30 @@ export function useLoadsData(searchQuery?: string, selectedStatus?: string) {
             ? selectedStatus
             : undefined;
         const q = searchQuery?.trim() || undefined;
-        const [result, statsData] = await Promise.all([
-          getLoads({ status, q, page: p, limit: l }),
-          getLoadStats(),
+        const timeoutGuard = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Loading loads timed out. Please try again.")),
+            20000,
+          ),
+        );
+        const [result, statsData] = await Promise.race([
+          Promise.all([
+            getLoads({ status, q, page: p, limit: l }),
+            getLoadStats(),
+          ]),
+          timeoutGuard,
         ]);
-        setLoads(result.loads);
-        setPagination(result.pagination);
-        setStats(statsData);
+        setLoads(result?.loads ?? []);
+        setPagination(
+          result?.pagination ?? {
+            page: p,
+            limit: l,
+            total: 0,
+            totalPages: 1,
+            hasMore: false,
+          },
+        );
+        if (statsData) setStats(statsData);
         setPage(p);
       } catch (err: any) {
         setError(

@@ -29,11 +29,11 @@ import { N, ANNOUNCE_CONFIG } from "./team-pulse-constants";
 import { toast } from "sonner";
 
 const EMOJI_REACTIONS = [
-  { key: "like",  label: "👍" },
-  { key: "love",  label: "❤️" },
-  { key: "haha",  label: "😂" },
-  { key: "wow",   label: "😮" },
-  { key: "sad",   label: "😢" },
+  { key: "like", label: "👍" },
+  { key: "love", label: "❤️" },
+  { key: "haha", label: "😂" },
+  { key: "wow", label: "😮" },
+  { key: "sad", label: "😢" },
   { key: "angry", label: "😠" },
 ];
 
@@ -201,7 +201,7 @@ export function NoteCard({
       <div className="relative group pt-3">
         <div
           className={cn(
-            "absolute -top-0 left-4 z-20 flex items-center gap-1 h-5 px-2 rounded-b-md text-[8px] font-black uppercase tracking-widest border-x border-b shadow-sm",
+            "absolute top-0 left-4 z-20 flex items-center gap-1 h-5 px-2 rounded-b-md text-[8px] font-black uppercase tracking-widest border-x border-b shadow-sm",
             style.pin,
             "border-black/10 text-black/55 dark:text-black/60",
           )}

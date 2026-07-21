@@ -390,24 +390,24 @@ function MarketplacePluginCard({
   return (
     <Card
       className={cn(
-        "group relative h-full w-full flex flex-col bg-card border-border/40 hover:border-primary/40 transition-all duration-500 cursor-pointer overflow-hidden transform-gpu",
+        "group relative h-full w-full flex flex-col py-0 gap-0 bg-card border-border/40 hover:border-primary/40 transition-all duration-500 cursor-pointer overflow-hidden transform-gpu",
         isInstalled
           ? "ring-2 ring-primary/10 shadow-lg"
           : "hover:shadow-2xl hover:-translate-y-2",
       )}
       onClick={onClick}
     >
-      <CardHeader className="p-4 pb-3">
-        <div className="flex items-start justify-between mb-4">
+      <CardHeader className="p-4 pb-0 gap-0">
+        <div className="flex items-start justify-between mb-3">
           <div
             className={cn(
-              "size-12 rounded-2xl flex items-center justify-center transition-all duration-700 ring-4 ring-transparent shrink-0",
+              "size-11 rounded-2xl flex items-center justify-center transition-all duration-700 ring-4 ring-transparent shrink-0",
               isInstalled
                 ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
                 : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-xl group-hover:shadow-primary/20",
             )}
           >
-            <Icon className="size-6" />
+            <Icon className="size-5" />
           </div>
           <div className="flex flex-col items-end gap-2">
             {isInstalled && (
@@ -435,48 +435,50 @@ function MarketplacePluginCard({
             )}
           </div>
         </div>
-        <CardTitle className="text-lg font-black tracking-tight group-hover:text-primary transition-colors flex items-center gap-2">
+        <CardTitle className="text-base font-black tracking-tight group-hover:text-primary transition-colors flex items-center gap-2">
           {plugin.name}
           {isInstalled && (
             <span className="size-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" />
           )}
         </CardTitle>
-        <CardDescription className="text-xs text-muted-foreground/80 font-medium line-clamp-2 mt-1.5 leading-relaxed not-italic">
+        <CardDescription className="text-xs text-muted-foreground/80 font-medium line-clamp-2 mt-1 leading-relaxed not-italic">
           {plugin.description}
         </CardDescription>
+        <div className="flex items-center gap-1.5 mt-2.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+          <span className="size-1 rounded-full bg-current" />
+          {plugin.category}
+        </div>
       </CardHeader>
 
       <div
         className={cn(
-          "mt-auto p-3 pt-2.5 flex flex-col gap-2.5 border-t transition-colors",
+          "mt-auto p-3 pt-3 flex items-center gap-3 border-t transition-colors",
           isInstalled
             ? "bg-primary/5 border-primary/10"
             : "bg-muted/10 group-hover:bg-muted/30 border-border/20",
         )}
       >
-        <div className="w-full flex items-center justify-between min-h-6">
-          {isInstalled ? (
-            <div className="flex items-center gap-2 text-primary font-black text-[10px] uppercase tracking-widest min-w-0">
-              <TrendingUp className="size-3.5 shrink-0" />
-              <span className="truncate">Manage Scale</span>
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest">
-                Pricing
-              </span>
-              <span className="text-sm font-black text-primary">
-                {plugin.price}
-              </span>
-            </div>
-          )}
-        </div>
+        {isInstalled ? (
+          <div className="flex items-center gap-2 text-primary font-black text-[10px] uppercase tracking-widest min-w-0 shrink-0">
+            <TrendingUp className="size-3.5 shrink-0" />
+            <span className="truncate">Live</span>
+          </div>
+        ) : (
+          <div className="flex flex-col shrink-0">
+            <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest">
+              Pricing
+            </span>
+            <span className="text-sm font-black text-primary leading-tight">
+              {plugin.price}
+            </span>
+          </div>
+        )}
 
         <Button
           variant={isInstalled ? "default" : "ghost"}
           size="sm"
           className={cn(
-            "w-full h-7 text-[9px] font-black uppercase tracking-widest gap-2 shadow-none rounded-lg min-w-0",
+            "flex-1 h-8 text-[9px] font-black uppercase tracking-widest gap-2 shadow-none rounded-lg min-w-0",
             !isInstalled && "hover:bg-primary hover:text-primary-foreground",
           )}
         >
