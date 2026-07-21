@@ -370,27 +370,27 @@ export function ReportsFilesTab() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2">
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <div className="sticky top-0 z-10 grid grid-cols-2 gap-2 rounded-xl bg-background/90 py-2 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-transparent sm:py-0">
         <Button
           variant="outline"
           size="sm"
-          className="gap-2 h-10 sm:h-9"
+          className="h-10 shrink-0 gap-2 sm:h-9"
           onClick={openShareAccessDialog}
         >
           <Share2 className="size-4" /> Share Access
         </Button>
         <Button
           size="sm"
-          className="gap-2 h-10 sm:h-9 bg-primary"
+          className="h-10 shrink-0 gap-2 bg-primary sm:h-9"
           onClick={openBulkPrintDialog}
         >
           <Printer className="size-4" /> Bulk Print
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-        <ReportCategoryCard
+      <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
+        <div className="min-w-0"><ReportCategoryCard
           title="Transportation"
           description="Shipment tracking, delivery performance, route analysis, and quotes."
           count={transportationCount}
@@ -398,8 +398,8 @@ export function ReportsFilesTab() {
           active={activeCategory === "transportation"}
           onClick={() => handleCardClick("transportation")}
           onViewAll={() => router.push("/reports?tab=Transportation")}
-        />
-        <ReportCategoryCard
+        /></div>
+        <div className="min-w-0"><ReportCategoryCard
           title="Driver Reports"
           description="Driver assignments, delivery outcomes, and per-driver performance."
           count={driverCount}
@@ -407,8 +407,8 @@ export function ReportsFilesTab() {
           active={activeCategory === "driver"}
           onClick={() => handleCardClick("driver")}
           onViewAll={() => router.push("/reports?tab=Driver+Reports")}
-        />
-        <ReportCategoryCard
+        /></div>
+        <div className="min-w-0"><ReportCategoryCard
           title="Billings"
           description="Customer payments, driver payouts, and full transaction history."
           count={billingsCount}
@@ -416,11 +416,11 @@ export function ReportsFilesTab() {
           active={activeCategory === "billings"}
           onClick={() => handleCardClick("billings")}
           onViewAll={() => router.push("/reports?tab=Billings")}
-        />
+        /></div>
       </div>
 
-      <Card className="border-none shadow-sm bg-card">
-        <CardHeader className="border-b">
+      <Card className="min-w-0 overflow-hidden border-none bg-card shadow-sm">
+        <CardHeader className="border-b px-4 py-4 sm:px-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-3 flex-wrap">
               <CardTitle className="text-lg font-bold">
@@ -500,7 +500,7 @@ export function ReportsFilesTab() {
       />
 
       <Dialog open={isShareAccessOpen} onOpenChange={setIsShareAccessOpen}>
-        <DialogContent className="overflow-y-auto border-border bg-card text-card-foreground shadow-2xl sm:max-w-xl">
+        <DialogContent className="inset-0 h-dvh w-screen max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none border-0 bg-card text-card-foreground shadow-2xl sm:inset-auto sm:h-auto sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border">
           <DialogHeader className="space-y-2">
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-card-foreground">
               <span className="flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 shrink-0">
