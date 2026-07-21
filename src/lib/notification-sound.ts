@@ -129,6 +129,33 @@ export function stopCallSound(): void {
   _callCtx = null;
 }
 
+// ─── Shift Alerts dedicated warning sound ─────────────────────────────────────
+// Plain HTML Audio (not the shared AudioContext buffer above) since this file
+// is user-supplied and may change — see public/sound/warning_sound.wav. Capped
+// at 5s and never looped: even if the source file runs longer, playback is cut
+// off so it can't turn into a continuous alarm.
+const SHIFT_ALERT_SOUND_MAX_MS = 5000;
+let _shiftAlertAudio: HTMLAudioElement | null = null;
+let _shiftAlertStopTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function playShiftAlertSound(soundFile = '/sound/warning_sound.wav'): void {
+  if (!isSoundEnabled() || typeof window === 'undefined') return;
+
+  if (_shiftAlertStopTimer) { clearTimeout(_shiftAlertStopTimer); _shiftAlertStopTimer = null; }
+  if (_shiftAlertAudio) { try { _shiftAlertAudio.pause(); } catch {} }
+
+  try {
+    const audio = new Audio(soundFile);
+    audio.loop = false;
+    audio.volume = 0.8;
+    _shiftAlertAudio = audio;
+    audio.play().catch(() => {});
+    _shiftAlertStopTimer = setTimeout(() => {
+      try { audio.pause(); audio.currentTime = 0; } catch {}
+    }, SHIFT_ALERT_SOUND_MAX_MS);
+  } catch {}
+}
+
 // ─── Browser (OS-level) notifications ─────────────────────────────────────────
 
 export async function requestNotifPermission(): Promise<void> {

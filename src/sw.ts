@@ -108,8 +108,29 @@ self.addEventListener("push", (event: any) => {
         actions: data.actions || [],
         vibrate: [100, 50, 100],
       };
+
+      // Shift Alerts carry a dedicated warning sound — the OS/browser only
+      // plays its own default sound while the app is closed/locked (no
+      // "sound" field exists in the Push/Notification spec), but if a client
+      // is already open, tell it to play the real file via postMessage.
+      const notifyClients = data.data?.playSound
+        ? (self as any).clients
+            .matchAll({ type: "window", includeUncontrolled: true })
+            .then((clientList: any[]) => {
+              clientList.forEach((client) =>
+                client.postMessage({
+                  type: "PLAY_SHIFT_ALERT_SOUND",
+                  soundFile: data.data.soundFile,
+                }),
+              );
+            })
+        : Promise.resolve();
+
       event.waitUntil(
-        (self as any).registration.showNotification(data.title, options),
+        Promise.all([
+          (self as any).registration.showNotification(data.title, options),
+          notifyClients,
+        ]),
       );
     } catch (err) {
       console.error("[SW] Push event error:", err);
