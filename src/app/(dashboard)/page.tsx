@@ -15,7 +15,7 @@ import {
   User,
   ClipboardList,
   CreditCard,
-  LayoutGrid,
+  Crown,
   Settings,
   ArrowRight,
   Bell,
@@ -60,7 +60,7 @@ const QUICK_NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Driver Tracker", href: "/driver-tracker", icon: User },
   { label: "Reports", href: "/reports", icon: ClipboardList },
   { label: "SupraPay", href: "/billing", icon: CreditCard },
-  { label: "Plugins", href: "/plugins", icon: LayoutGrid },
+  { label: "Subscription", href: "/subscription", icon: Crown },
   { label: "Profile", href: "/profile", icon: User },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

@@ -1,7 +1,5 @@
-"use client";
-
-import PluginMarketplace from "@/components/expand/PluginMarketplace";
+import { redirect } from "next/navigation";
 
 export default function PluginsPage() {
-    return <PluginMarketplace />;
+    redirect("/subscription");
 }

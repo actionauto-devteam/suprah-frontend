@@ -285,6 +285,22 @@ class ApiClient {
     return this.patch(`/api/organizations/${id}`, data, config);
   }
 
+  async updateOrganizationSubscription(
+    id: string,
+    data: { tier: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.patch(`/api/organizations/${id}/subscription`, data, config);
+  }
+
+  async adminUpdateOrganizationSubscription(
+    id: string,
+    data: { tier?: string; status?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.put(`/api/admin/organizations/${id}/subscription`, data, config);
+  }
+
   async getUserOrganizations(config?: AxiosRequestConfig) {
     return this.get("/api/users/me/organizations", config);
   }

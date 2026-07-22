@@ -87,13 +87,6 @@ export interface UserProfile {
   theme: 'light' | 'dark';
   organizationId?: string;
   organizationRole?: 'admin' | 'member' | 'driver';
-  subscription?: {
-    plan: 'free' | 'starter' | 'professional' | 'enterprise';
-    status: 'active' | 'inactive' | 'trial' | 'cancelled';
-    startDate: string;
-    endDate?: string;
-    features: string[];
-  };
   createdAt: string;
   updatedAt: string;
 }

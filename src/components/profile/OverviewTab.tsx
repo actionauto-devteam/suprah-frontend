@@ -34,6 +34,8 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { fmtMonthYearMDT, fmtFullDateTimeMDT } from '@/lib/timezone';
 import { useRouter } from 'next/navigation';
+import { useOrg } from '@/hooks/useOrg';
+import { getTierDefinition } from '@/data/subscriptionTiers';
 
 interface OverviewTabProps {
   profile: UserProfile | null;
@@ -57,6 +59,8 @@ export function OverviewTab({
   onDisconnectGoogleCalendar,
 }: OverviewTabProps) {
   const router = useRouter();
+  const { organization } = useOrg();
+  const currentTier = getTierDefinition(organization?.subscription?.tier);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
@@ -153,7 +157,7 @@ export function OverviewTab({
               </Badge>
               <Badge className="bg-linear-to-r from-purple-100 to-violet-100 text-purple-700 dark:from-purple-900 dark:to-violet-900 dark:text-purple-300 border-purple-300 dark:border-purple-700 px-4 py-2 text-sm gap-2">
                 <Crown className="size-4" />
-                {(profile?.subscription?.plan || 'free').replace(/^\w/, c => c.toUpperCase())} Plan
+                {currentTier.name}
               </Badge>
             </div>
 
@@ -274,29 +278,29 @@ export function OverviewTab({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Current Plan</span>
-                <Badge className={cn("capitalize", profile?.subscription?.plan === 'enterprise' && 'bg-linear-to-r from-amber-500 to-yellow-500 text-white')}>
-                  {profile?.subscription?.plan || 'Free'}
+                <Badge className={cn(currentTier.id === 'suprah_premium_ultra' || currentTier.id === 'suprah_origin' ? 'bg-linear-to-r from-amber-500 to-yellow-500 text-white' : '')}>
+                  {currentTier.name}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Status</span>
-                <Badge className={cn(profile?.subscription?.status === 'active' && 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300')}>
-                  {profile?.subscription?.status || 'Active'}
+                <Badge className={cn((organization?.subscription?.status ?? 'active') === 'active' && 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300')}>
+                  {organization?.subscription?.status || 'Active'}
                 </Badge>
               </div>
               <Separator />
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500">Features</p>
-                {profile?.subscription?.features?.slice(0, 4).map((feature, i) => (
+                {currentTier.highlights.slice(0, 4).map((feature, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <CheckCircle2 className="size-4 text-green-500" />
                     <span>{feature}</span>
                   </div>
                 ))}
               </div>
-              <Button variant="outline" className="w-full" disabled>
+              <Button variant="outline" className="w-full" onClick={() => router.push('/subscription')}>
                 <Sparkles className="size-4 mr-2" />
-                Upgrade (Coming Soon)
+                Manage Plan
               </Button>
             </div>
           </CardContent>
