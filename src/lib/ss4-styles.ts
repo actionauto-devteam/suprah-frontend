@@ -161,322 +161,6 @@ export const SS4_CSS = `
     box-shadow: 0 0 0 3px var(--input-focus);
   }
   .ss4-search-icon { color: var(--text-tertiary); }
-  
-  /* ── Supra Podium Lead Conversation Layout ──────────── */
-  
-  .suprah-podium-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  height: 100%;
-  background: #080d0f;
-  border-left: 1px solid rgba(0, 255, 170, 0.12);
-  color: #e8fff8;
-}
-
-.suprah-chat-panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: #0b1013;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.suprah-chat-header {
-  height: 72px;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #10161a;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.suprah-contact-pill {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.suprah-avatar,
-.suprah-small-avatar,
-.suprah-large-avatar {
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, #00c98b, #07885f);
-  color: white;
-  font-weight: 700;
-}
-
-.suprah-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-}
-
-.suprah-small-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  font-size: 12px;
-}
-
-.suprah-large-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  font-size: 20px;
-}
-
-.suprah-chat-header h2,
-.suprah-profile-header h2 {
-  font-size: 16px;
-  margin: 0;
-  color: #ffffff;
-}
-
-.suprah-chat-header p,
-.suprah-profile-header p {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #9fb3ad;
-}
-
-.suprah-header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.suprah-header-actions button,
-.suprah-quick-actions button,
-.suprah-reply-actions button {
-  background: #151c20;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #dffff4;
-  border-radius: 8px;
-  height: 34px;
-  padding: 0 12px;
-  cursor: pointer;
-}
-
-.suprah-meta-bar {
-  height: 34px;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  font-size: 12px;
-  color: #8ba19b;
-  background: #0f1518;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.suprah-message-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 32px 42px;
-}
-
-.suprah-conversation-start {
-  text-align: center;
-  color: #9fb3ad;
-  margin-bottom: 34px;
-}
-
-.suprah-conversation-start h3 {
-  color: #eafff8;
-  margin: 10px 0 4px;
-}
-
-.suprah-phone-icon {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto;
-  border-radius: 50%;
-  background: #00b986;
-  display: grid;
-  place-items: center;
-  color: white;
-}
-
-.suprah-message-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  margin-bottom: 22px;
-}
-
-.suprah-message-row.outbound {
-  justify-content: flex-end;
-}
-
-.suprah-message-row.inbound {
-  justify-content: flex-start;
-}
-
-.suprah-message-bubble {
-  max-width: 560px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  font-size: 14px;
-  line-height: 1.45;
-  background: #1d252a;
-  color: #eafff8;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.suprah-message-row.outbound .suprah-message-bubble {
-  background: #243038;
-}
-
-.suprah-message-time {
-  display: block;
-  margin-top: 5px;
-  font-size: 11px;
-  color: #7f918c;
-}
-
-.suprah-reply-box {
-  margin: 18px 28px;
-  border-radius: 14px;
-  background: #151b20;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  overflow: hidden;
-}
-
-.suprah-reply-box textarea {
-  width: 100%;
-  min-height: 72px;
-  resize: none;
-  padding: 16px;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.suprah-reply-box textarea::placeholder {
-  color: #879892;
-}
-
-.suprah-reply-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px 12px;
-}
-
-.suprah-send-btn {
-  background: #00a875 !important;
-  color: white !important;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.suprah-details-panel {
-  background: #0f1518;
-  padding: 18px;
-  overflow-y: auto;
-}
-
-.suprah-profile-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.suprah-contact-type,
-.suprah-ai-summary {
-  font-size: 13px;
-  color: #c6d8d2;
-  line-height: 1.5;
-}
-
-.suprah-ai-summary {
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.suprah-quick-actions {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin: 18px 0;
-}
-
-.suprah-status-select {
-  width: 100%;
-  height: 38px;
-  background: #151c20;
-  color: #eafff8;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 0 10px;
-}
-
-.suprah-tabs {
-  display: flex;
-  margin-top: 22px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.suprah-tabs button {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: #8fa29c;
-  padding: 12px;
-  text-transform: uppercase;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.suprah-tabs button.active {
-  color: #ffffff;
-  border-bottom: 2px solid #00c98b;
-}
-
-.suprah-activity h3 {
-  font-size: 16px;
-  margin: 20px 0 14px;
-}
-
-.suprah-activity-card {
-  background: #151c20;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 14px;
-  font-size: 13px;
-}
-
-.suprah-activity-card p {
-  color: #b8cac4;
-}
-
-.suprah-activity-card span {
-  color: #758982;
-  font-size: 12px;
-}
-
-.suprah-conversation-empty {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  color: #8fa29c;
-  background: #0b1013;
-}
-
-@media (max-width: 1200px) {
-  .suprah-podium-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .suprah-details-panel {
-    display: none;
-  }
-}
 
   /* ── Chat Header ────────────────────────────────────── */
   .ss4-chat-header {
@@ -808,6 +492,18 @@ export const LEAD_DETAILS_PANEL_CSS = `
   }
   .suprah-empty-thread strong { color: var(--text-primary); font-size: 13px; }
   .suprah-empty-thread p { margin: 3px 0 0; font-size: 12px; }
+  .suprah-conversation-start { text-align: center; color: var(--text-secondary); margin-bottom: 34px; }
+  .suprah-conversation-start h3 { color: var(--text-primary); margin: 10px 0 4px; font-size: 15px; }
+  .suprah-conversation-start p { margin: 0; font-size: 12px; }
+  .suprah-phone-icon {
+    width: 44px; height: 44px; margin: 0 auto; border-radius: 50%;
+    background: var(--accent); display: grid; place-items: center; color: #fff;
+  }
+  .suprah-small-avatar {
+    width: 32px; height: 32px; border-radius: 9px; font-size: 12px;
+    display: grid; place-items: center; background: var(--bubble-own-bg);
+    color: #fff; font-weight: 700;
+  }
 
   .suprah-details-panel {
     display: none; width: 370px; flex: 0 0 370px; min-height: 0;
@@ -957,9 +653,11 @@ export const LEAD_DETAILS_PANEL_CSS = `
   .suprah-stage-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 9px 16px 14px; }
   .suprah-stage-track span { height: 3px; border-radius: 999px; background: var(--surface-2); }
   .suprah-stage-track span.active { background: var(--accent); }
-  .suprah-tabs { margin-top: 0; border-color: var(--border-1); }
-  .suprah-tabs button { color: var(--text-tertiary); }
-  .suprah-tabs button.active { color: var(--text-primary); border-color: var(--accent); }
+  .suprah-tabs { display: flex; align-items: center; gap: 4px; margin: 4px 16px 12px; border-bottom: 1px solid var(--border-1); }
+  .suprah-tabs button { position: relative; padding: 9px 14px; border: 0; border-radius: 7px 7px 0 0; background: transparent; color: var(--text-tertiary); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s ease, color .15s ease; }
+  .suprah-tabs button:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .suprah-tabs button.active { color: var(--text-primary); }
+  .suprah-tabs button.active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 999px; background: var(--accent); }
   .suprah-details-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 18px; }
   .suprah-detail-section { margin-bottom: 10px; border: 1px solid var(--border-1); border-radius: 11px; background: var(--bg-subtle); overflow: hidden; }
   .suprah-detail-section-title { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 0; background: transparent; color: var(--text-primary); font-size: 12px; font-weight: 700; }
@@ -1032,6 +730,23 @@ export const LEAD_DETAILS_PANEL_CSS = `
     align-items: stretch;
     overflow: hidden;
     background: var(--bg-base);
+    transition: padding-right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /*
+   * AUTRIX AI panel reserves its own width instead of floating over the
+   * workspace. Skipped on narrow viewports, where the panel already
+   * renders as a near-fullscreen sheet and the three-pane layout has no
+   * spare width to give up without breaking its tuned min-widths.
+   */
+  .ss4[data-autrix-open="true"]:not([data-viewport-mode="narrow"])
+    .suprah-responsive-workspace {
+    padding-right: min(424px, calc(100vw - 28px));
+  }
+
+  .ss4[data-autrix-open="true"][data-viewport-mode="compact"][data-has-active-lead="true"]
+    .suprah-center-panel {
+    min-width: 280px;
   }
 
   .suprah-leads-panel {

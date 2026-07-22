@@ -24,11 +24,11 @@ import {
   MapPin,
   Gift,
   Wallet,
-  LayoutGrid,
   PlusSquare,
   Rss,
   CalendarDays,
   Megaphone,
+  Crown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -64,6 +64,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import { useWhatsNew } from "@/context/WhatsNewContext";
+import { useFeedBadge } from "@/lib/feed-notification-store";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -187,9 +188,9 @@ const data = {
 
   premium: [
     {
-      title: "Plugins",
-      url: "/plugins",
-      icon: LayoutGrid,
+      title: "Subscription",
+      url: "/subscription",
+      icon: Crown,
       isNew: true,
     },
   ] satisfies SidebarNavItem[],
@@ -269,6 +270,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { totalUnread } = useSupraSpaceMessenger();
   const { unreadCount: pmUnread } = useProjectNotifications();
   const { unreadCount: whatsNewUnread } = useWhatsNew();
+  // Feeds badge — singleton useSyncExternalStore store (no provider needed).
+  // total = unseen posts since last visit + unread mentions/comments/@all.
+  const feedBadge = useFeedBadge();
 
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
@@ -306,7 +310,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/9 via-emerald-500/[0.04] to-emerald-500/12 dark:from-emerald-500/5 dark:via-emerald-500/2 dark:to-emerald-500/[0.07]" />
+        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/9 via-emerald-500/4 to-emerald-500/12 dark:from-emerald-500/5 dark:via-emerald-500/2 dark:to-emerald-500/[0.07]" />
 
         {/* digital grid — slowly drifts so the surface feels "live" */}
         <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
@@ -444,6 +448,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
                           >
                             New
+                          </Badge>
+                        )}
+
+                        {/* Feeds: unseen posts since last visit + unread
+                            mentions/comments/@all announcements. Comes from
+                            the feed-notification singleton store — polls every
+                            60s and listens on its own socket for feed:new /
+                            feed:notify, so it updates instantly even when the
+                            Feeds page is closed. Cleared when the Feeds page
+                            advances the read watermark. */}
+                        {item.title === "Feeds" && feedBadge.total > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            {feedBadge.total > 99 ? "99+" : feedBadge.total}
                           </Badge>
                         )}
 

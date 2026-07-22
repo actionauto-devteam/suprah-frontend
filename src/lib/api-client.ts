@@ -147,7 +147,7 @@ class ApiClient {
             const refreshResponse = await axios.post(
               `${API_URL}/api/auth/refresh-tokens`,
               {},
-              { withCredentials: true }
+              { withCredentials: true, timeout: 15000 }
             );
 
             const newToken =
@@ -283,6 +283,22 @@ class ApiClient {
     config?: AxiosRequestConfig
   ) {
     return this.patch(`/api/organizations/${id}`, data, config);
+  }
+
+  async updateOrganizationSubscription(
+    id: string,
+    data: { tier: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.patch(`/api/organizations/${id}/subscription`, data, config);
+  }
+
+  async adminUpdateOrganizationSubscription(
+    id: string,
+    data: { tier?: string; status?: string },
+    config?: AxiosRequestConfig
+  ) {
+    return this.put(`/api/admin/organizations/${id}/subscription`, data, config);
   }
 
   async getUserOrganizations(config?: AxiosRequestConfig) {

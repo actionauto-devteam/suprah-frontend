@@ -82,7 +82,7 @@ function ConvRow({ conv, active, onOpen }: { conv: MailConv; active: boolean; on
   return (
     <div
       onClick={onOpen}
-      className={cn('sm5-conv-row flex items-center gap-2.5 px-3 py-2.5', active && 'sm5-conv-active', unread && 'bg-emerald-500/[0.05]')}
+      className={cn('sm5-conv-row flex items-center gap-2.5 px-3 py-2.5', active && 'sm5-conv-active', unread && 'bg-emerald-500/5')}
     >
       <Avatar seed={convAvatarSeed(conv)} size={36} fontSize={12} icon={group ? <Users2 className="h-4 w-4" /> : undefined} />
       <div className="min-w-0 flex-1">
@@ -207,6 +207,7 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
   const [q, setQ] = React.useState('');
   const fileRef = React.useRef<HTMLInputElement>(null);
   const endRef = React.useRef<HTMLDivElement>(null);
+  const sendReqIdRef = React.useRef(0);
 
   const activeConv = convos.find((c) => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
@@ -339,15 +340,21 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
     if (!input.trim() && files.length === 0) return;
     const convId = activeId;
     const text = input.trim();
+    const hasFiles = files.length > 0;
+    const reqId = ++sendReqIdRef.current;
     setSending(true);
-    setProgress(files.length ? 0 : null);
+    setProgress(hasFiles ? 0 : null);
     try {
       const fd = new FormData();
       fd.append('text', text);
       files.forEach((f) => fd.append('files', f));
       const r = await apiClient.post(`/api/mail/conversations/${convId}/messages`, fd, {
         headers: { ...auth, 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (e: any) => { if (e.total) setProgress(Math.round((e.loaded / e.total) * 100)); },
+        onUploadProgress: (e: any) => {
+          if (hasFiles && e.total && sendReqIdRef.current === reqId) {
+            setProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        },
       });
       const message: ConvMessage = r.data?.data?.message;
       if (message) {
@@ -371,6 +378,7 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
       toast.error(getErrorMessage(e, 'Message failed to send.'));
       fetchMessages(convId, true);
     } finally {
+      sendReqIdRef.current++;
       setSending(false);
       setProgress(null);
     }

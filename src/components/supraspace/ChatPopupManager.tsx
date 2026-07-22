@@ -15,11 +15,11 @@ import { SSAttachment, SSMessage } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { toast } from 'sonner';
 
-const POPUP_W     = 400;
-const POPUP_GAP   = 8;
+const POPUP_W = 400;
+const POPUP_GAP = 8;
 const POPUP_RIGHT = 16;
-const POPUP_H     = 520;
-const HEADER_H    = 48;
+const POPUP_H = 520;
+const HEADER_H = 48;
 const MAX_VISIBLE_POPUPS = 3;
 const TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
 const MORE_TEXT_COLORS = [
@@ -32,7 +32,7 @@ const MORE_TEXT_COLORS = [
 ];
 type PendingPopupAttachment = { file: File; previewUrl: string };
 
-const AVATAR_COLORS = ['#5b7cf6','#34c97d','#f0a855','#e05b8a','#5bbdf6','#a05bf6','#f65b5b','#5bf6c8'];
+const AVATAR_COLORS = ['#5b7cf6', '#34c97d', '#f0a855', '#e05b8a', '#5bbdf6', '#a05bf6', '#f65b5b', '#5bf6c8'];
 async function copyImageToClipboard(url: string): Promise<void> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
   const res = await fetch(proxyUrl);
@@ -682,7 +682,7 @@ function ForwardModal({ message, token, myId, onClose }: {
   React.useEffect(() => {
     apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => setUsers((r.data?.data || []).filter((u: FwdUser) => u._id !== myId)))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingUsers(false));
   }, [token, myId]);
 
@@ -915,19 +915,19 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
   const router = useRouter();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
-  const [loading,  setLoading]  = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
   const [fetchError, setFetchError] = React.useState(false);
-  const [input,    setInput]    = React.useState('');
+  const [input, setInput] = React.useState('');
   const inputTextRef = React.useRef('');
   const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
-  const [sending,  setSending]  = React.useState(false);
+  const [sending, setSending] = React.useState(false);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
-  const [replyTo,  setReplyTo]  = React.useState<SSMessage | null>(null);
-  const bottomRef  = React.useRef<HTMLDivElement>(null);
-  const inputRef   = React.useRef<HTMLDivElement>(null);
-  const headerRef  = React.useRef<HTMLDivElement>(null);
+  const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLDivElement>(null);
+  const headerRef = React.useRef<HTMLDivElement>(null);
   const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
   const pendingAttachmentsRef = React.useRef<PendingPopupAttachment[]>([]);
@@ -941,7 +941,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     if (!chatSettingsOpen) return;
     const h = (e: MouseEvent) => {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node) &&
-          !headerRef.current?.contains(e.target as Node)) {
+        !headerRef.current?.contains(e.target as Node)) {
         setChatSettingsOpen(false);
       }
     };
@@ -950,9 +950,9 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, [chatSettingsOpen]);
 
   // @mention
-  const [mentionQuery,  setMentionQuery]  = React.useState<string | null>(null);
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
-  const [mentionIdx,    setMentionIdx]    = React.useState(0);
+  const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const syncComposerText = React.useCallback((value: string, commitToState = false) => {
     inputTextRef.current = value;
@@ -992,7 +992,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [hovMsg, setHovMsg] = React.useState<string | null>(null);
   const [barPos, setBarPos] = React.useState<{ top: number; left: number; isOwn: boolean } | null>(null);
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isOverBar  = React.useRef(false);
+  const isOverBar = React.useRef(false);
 
   // 3-dot more-actions dropdown
   const [moreMenuMsgId, setMoreMenuMsgId] = React.useState<string | null>(null);
@@ -1234,7 +1234,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           return [];
         });
         syncComposerText('', true);
-        try { localStorage.removeItem(draftStorageKey); } catch {}
+        try { localStorage.removeItem(draftStorageKey); } catch { }
         if (inputRef.current) inputRef.current.innerHTML = '';
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
       }
@@ -1409,7 +1409,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: nextDraft, isEdited: true } : m));
       }
       cancelEdit();
-    } catch {} finally { setEditSaving(false); }
+    } catch { } finally { setEditSaving(false); }
   };
 
   const openEmojiPickerForMsg = (msgId: string, e: React.MouseEvent) => {
@@ -1467,8 +1467,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 
   const displayName = getDisplayName(conv, crmUserId);
   const notificationPref = notifPrefs[conv._id] || conv.notificationPreference || { type: 'all' as const, muted: false };
-  const avatarSrc   = getAvatarSrc(conv, crmUserId);
-  const rightPx     = POPUP_RIGHT + stackIndex * (POPUP_W + POPUP_GAP);
+  const avatarSrc = getAvatarSrc(conv, crmUserId);
+  const rightPx = POPUP_RIGHT + stackIndex * (POPUP_W + POPUP_GAP);
 
   const mentionOptions = React.useMemo(() => {
     if (mentionQuery === null) return [];
@@ -1563,13 +1563,13 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       console.error('[ChatPopup] messages fetch failed:', err?.response?.status, err?.response?.data ?? err?.message);
       setFetchError(true);
     } finally { setLoading(false); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conv._id, crmToken]);
 
   React.useEffect(() => { fetchMessages(); }, [fetchMessages]);
   React.useEffect(() => {
     if (!isMinimized && messages.length > 0) markAsRead(conv._id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMinimized]);
   // Join/leave conversation room so we receive messages:read events from other members
   React.useEffect(() => {
@@ -1680,7 +1680,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       createdAt: new Date().toISOString(),
     }]);
     syncComposerText('', true);
-    try { localStorage.removeItem(draftStorageKey); } catch {}
+    try { localStorage.removeItem(draftStorageKey); } catch { }
     pastedPlainTextRef.current = '';
     if (inputRef.current) inputRef.current.innerHTML = '';
     setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null);
@@ -1699,7 +1699,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       const currentDraft = inputRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
       if (!currentDraft.trim()) {
         syncComposerText(text, true);
-        try { localStorage.setItem(draftStorageKey, text); } catch {}
+        try { localStorage.setItem(draftStorageKey, text); } catch { }
         if (inputRef.current) inputRef.current.textContent = text;
       }
     } finally { setSending(false); }
@@ -1797,7 +1797,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (mentionQuery !== null && mentionOptions.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
-      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
       if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
     }
@@ -1838,7 +1838,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         onDrop={handleDrop}
       >
         {draggingAttachment && !isMinimized && (
-          <div className="absolute inset-2 z-[60] flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400/80 bg-blue-500/15 backdrop-blur-sm pointer-events-none">
+          <div className="absolute inset-2 z-60 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400/80 bg-blue-500/15 backdrop-blur-sm pointer-events-none">
             <div className="rounded-xl bg-background/90 px-4 py-3 text-center shadow-xl">
               <ImageIcon className="mx-auto mb-2 h-6 w-6 text-blue-500" />
               <p className="text-sm font-bold text-foreground">Drop files to send</p>
@@ -1849,7 +1849,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         {/* Header */}
         <div
           ref={headerRef}
-          className="h-12 shrink-0 flex items-center gap-2.5 px-3 bg-gradient-to-r from-blue-600 to-blue-500 cursor-pointer select-none rounded-t-xl overflow-hidden"
+          className="h-12 shrink-0 flex items-center gap-2.5 px-3 bg-linear-to-r from-blue-600 to-blue-500 cursor-pointer select-none rounded-t-xl overflow-hidden"
           onClick={onToggleMinimize}
         >
           <Avatar className="h-7 w-7 shrink-0">
@@ -1948,11 +1948,11 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         </div>
                       )}
                       <div className={cn('min-w-0 flex flex-col', imageOnly ? 'max-w-[78%]' : 'max-w-[62%]')} style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
-                      {showName && !isOwn && (
-                        <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
-                          {msg.sender?.fullName}
-                        </span>
-                      )}
+                        {showName && !isOwn && (
+                          <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
+                            {msg.sender?.fullName}
+                          </span>
+                        )}
                         {/* Bubble */}
                         {editingMsgId === msg._id ? (
                           <div className="px-3 py-1.5 rounded-2xl text-[15px] leading-relaxed min-w-0 bg-blue-500 text-white rounded-br-sm" style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 190, maxWidth: '100%', overflowWrap: 'anywhere' }}>
@@ -2091,83 +2091,83 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                             </div>
                           </div>
                         ) : (
-                        <div className={cn(
-                          'text-[15px] leading-relaxed min-w-0',
-                          bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-1.5 rounded-2xl',
-                          !bareMessage && (isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
-                        )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere' }}>
-                          {/* Reply preview */}
-                          {msg.replyTo && (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                jumpToPopupRepliedMessage(msg.replyTo);
-                              }}
-                              className={cn(
-                                'mb-1 block px-2 py-1 rounded-lg text-left text-[12px] border-l-2 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/50',
-                                isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5 border-blue-400',
-                              )}
-                              style={{ maxWidth: 180 }}
-                              title="Jump to original message"
-                            >
-                              <div className={cn('font-semibold truncate', isOwn ? 'text-white/80' : 'text-blue-400')}>
-                                {(msg.replyTo as any)?.sender?.fullName || 'Reply'}
-                              </div>
-                              <div className={cn('truncate', isOwn ? 'text-white/60' : 'text-foreground/50')}>
-                                {messagePreviewText((msg.replyTo as any)?.content) || '📎 Attachment'}
-                              </div>
-                            </button>
-                          )}
-                          {imageAttachments.length > 0 && (
-                            <div className={cn(
-                              imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
-                              imageAttachments.length === 2 && 'grid-cols-2',
-                              imageAttachments.length >= 3 && 'grid-cols-2'
-                            )} style={imageAttachments.length > 1 ? { width: 190 } : undefined}>
-                              {imageAttachments.map((a: SSAttachment, i: number) => {
-                                const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
-                                const fullSrc = resolveImageUrl(a.url) || a.url;
-                                return (
-                                  <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
-                                    className={cn(
-                                      'block overflow-hidden border border-white/10 bg-black/20',
-                                      imageAttachments.length === 1 ? 'rounded-2xl' : 'aspect-square',
-                                      imageAttachments.length > 1 && 'h-24'
-                                    )}
-                                    style={imageAttachments.length === 1 ? { maxHeight: 180, maxWidth: 220, minWidth: 100 } : undefined}
-                                    title="Preview image"
-                                  >
-                                    <img
-                                      src={src}
-                                      alt={a.originalName || 'photo'}
+                          <div className={cn(
+                            'text-[15px] leading-relaxed min-w-0',
+                            bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-1.5 rounded-2xl',
+                            !bareMessage && (isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
+                          )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere' }}>
+                            {/* Reply preview */}
+                            {msg.replyTo && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  jumpToPopupRepliedMessage(msg.replyTo);
+                                }}
+                                className={cn(
+                                  'mb-1 block px-2 py-1 rounded-lg text-left text-[12px] border-l-2 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/50',
+                                  isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5 border-blue-400',
+                                )}
+                                style={{ maxWidth: 180 }}
+                                title="Jump to original message"
+                              >
+                                <div className={cn('font-semibold truncate', isOwn ? 'text-white/80' : 'text-blue-400')}>
+                                  {(msg.replyTo as any)?.sender?.fullName || 'Reply'}
+                                </div>
+                                <div className={cn('truncate', isOwn ? 'text-white/60' : 'text-foreground/50')}>
+                                  {messagePreviewText((msg.replyTo as any)?.content) || '📎 Attachment'}
+                                </div>
+                              </button>
+                            )}
+                            {imageAttachments.length > 0 && (
+                              <div className={cn(
+                                imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
+                                imageAttachments.length === 2 && 'grid-cols-2',
+                                imageAttachments.length >= 3 && 'grid-cols-2'
+                              )} style={imageAttachments.length > 1 ? { width: 190 } : undefined}>
+                                {imageAttachments.map((a: SSAttachment, i: number) => {
+                                  const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
+                                  const fullSrc = resolveImageUrl(a.url) || a.url;
+                                  return (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
                                       className={cn(
-                                        imageAttachments.length === 1
-                                          ? 'block max-h-[180px] w-full object-contain'
-                                          : 'h-full w-full object-cover'
+                                        'block overflow-hidden border border-white/10 bg-black/20',
+                                        imageAttachments.length === 1 ? 'rounded-2xl' : 'aspect-square',
+                                        imageAttachments.length > 1 && 'h-24'
                                       )}
-                                    />
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {msg.type !== 'image'
-                            ? emojiOnly
-                              ? <span className="block text-[32px] leading-none">{msg.content}</span>
-                              : renderContent(msg, isOwn)
-                            : msg.content ? <span>{msg.content}</span> : null}
-                          {(msg as any).isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
-                          {!hideTime && (
-                            <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
-                              <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
-                              {isOwn && seenMembers.length === 0 && <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} />}
-                            </div>
-                          )}
-                        </div>
+                                      style={imageAttachments.length === 1 ? { maxHeight: 180, maxWidth: 220, minWidth: 100 } : undefined}
+                                      title="Preview image"
+                                    >
+                                      <img
+                                        src={src}
+                                        alt={a.originalName || 'photo'}
+                                        className={cn(
+                                          imageAttachments.length === 1
+                                            ? 'block max-h-45 w-full object-contain'
+                                            : 'h-full w-full object-cover'
+                                        )}
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {msg.type !== 'image'
+                              ? emojiOnly
+                                ? <span className="block text-[32px] leading-none">{msg.content}</span>
+                                : renderContent(msg, isOwn)
+                              : msg.content ? <span>{msg.content}</span> : null}
+                            {(msg as any).isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
+                            {!hideTime && (
+                              <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
+                                <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
+                                {isOwn && seenMembers.length === 0 && <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} />}
+                              </div>
+                            )}
+                          </div>
                         )}
                         {/* Seen avatars — outside the bubble so they're always visible */}
                         {isOwn && seenMembers.length > 0 && (
@@ -2221,7 +2221,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                   </button>
                                   {isPopOpen && whoArr.length > 0 && (
                                     <div
-                                      className={cn('absolute z-50 bottom-full mb-1.5 px-2.5 py-1.5 rounded-lg text-[10px] min-w-[100px] max-w-[170px]',
+                                      className={cn('absolute z-50 bottom-full mb-1.5 px-2.5 py-1.5 rounded-lg text-[10px] min-w-25 max-w-42.5',
                                         isOwn ? 'right-0' : 'left-0')}
                                       style={{ background: '#1a1b1e', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', pointerEvents: 'none' }}
                                     >
@@ -2457,7 +2457,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {/* ── Fixed action bar portal (FB Messenger style: 3 buttons) ── */}
       {barPos && hovMsg && typeof document !== 'undefined' && createPortal(
         <div
-          className={cn('fixed z-[9998] flex items-center gap-0.5 px-0.5 py-0.5', barPos.isOwn && 'flex-row-reverse')}
+          className={cn('fixed z-9998 flex items-center gap-0.5 px-0.5 py-0.5', barPos.isOwn && 'flex-row-reverse')}
           style={{
             top: barPos.top,
             left: barPos.left,
@@ -2521,7 +2521,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {quickReactMsgId && quickReactPos && typeof document !== 'undefined' && createPortal(
         <div
           ref={quickReactRef}
-          className="fixed z-[9999] flex items-center gap-1 px-2 py-1.5 rounded-full"
+          className="fixed z-9999 flex items-center gap-1 px-2 py-1.5 rounded-full"
           style={{
             top: quickReactPos.top,
             left: quickReactPos.left,
@@ -2532,7 +2532,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           onMouseEnter={handleBarEnter}
           onMouseLeave={handleBarLeave}
         >
-          {['❤️','😂','😮','😢','👌','👍'].map(emoji => (
+          {['❤️', '😂', '😮', '😢', '👌', '👍'].map(emoji => (
             <button key={emoji}
               title={emoji}
               className="text-xl leading-none hover:scale-125 transition-transform"
@@ -2684,7 +2684,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {/* ── Chat settings dropdown ── */}
       {mediaPreview && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[10020] flex items-center justify-center overflow-hidden bg-black/90 p-4"
+          className="fixed inset-0 z-10020 flex items-center justify-center overflow-hidden bg-black/90 p-4"
           onClick={() => setMediaPreview(null)}
           onWheel={e => {
             e.preventDefault();
@@ -2850,7 +2850,7 @@ function ChatOverflowDock({
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-[52] w-72 overflow-hidden rounded-2xl border bg-card shadow-2xl"
+          className="fixed z-52 w-72 overflow-hidden rounded-2xl border bg-card shadow-2xl"
           style={{ borderColor: 'rgba(255,255,255,0.12)', right: dockRight, bottom: 64 }}
         >
           <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">
@@ -2865,8 +2865,8 @@ function ChatOverflowDock({
               const preview = unreadCount >= 2
                 ? `${unreadCount} new messages`
                 : conv.lastMessage?.isDeleted
-                ? 'Message deleted'
-                : messagePreviewText(conv.lastMessage?.content) || (conv.lastMessage ? 'Attachment' : 'No messages yet');
+                  ? 'Message deleted'
+                  : messagePreviewText(conv.lastMessage?.content) || (conv.lastMessage ? 'Attachment' : 'No messages yet');
               return (
                 <div
                   key={conv._id}
@@ -2904,7 +2904,7 @@ function ChatOverflowDock({
       )}
       <div
         ref={dockRef}
-        className="fixed bottom-3 z-[51]"
+        className="fixed bottom-3 z-51"
         style={{ right: dockRight }}
       >
         <button

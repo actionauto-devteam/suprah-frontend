@@ -23,8 +23,10 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { initializeSocket, getSocket } from '@/lib/socket.client';
-import { cn } from '@/lib/utils';
+import { cn, resolveImageUrl } from '@/lib/utils';
 import Link from 'next/link';
+
+const FALLBACK = "/vehicle-placeholder.jpg";
 
 interface AvailableLoad {
   _id: string;
@@ -421,21 +423,29 @@ function LoadCard({ load, onRequest }: { load: AvailableLoad; onRequest: () => v
         isRequested ? 'border-amber-500/30 bg-amber-500/3' : isRejected ? 'border-red-500/20 opacity-75' : 'hover:border-primary/25 hover:-translate-y-0.5')}>
         <CardContent className="p-0">
           <div className="flex flex-col sm:flex-row">
-            {quote?.vehicleImage && (
-              <div className="relative w-full sm:w-48 h-40 sm:h-auto shrink-0 overflow-hidden">
-                <img src={quote.vehicleImage} alt={vehicleName || 'Vehicle'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent" />
-                {isRequested && <div className="absolute top-2.5 left-2.5"><Badge className="text-[9px] bg-amber-500 text-white border-0 gap-1 shadow-lg"><Timer className="size-2.5" />Pending Review</Badge></div>}
-                {isRejected && <div className="absolute top-2.5 left-2.5"><Badge className="text-[9px] bg-red-500 text-white border-0 gap-1 shadow-lg"><XCircle className="size-2.5" />Declined</Badge></div>}
-                {pay > 0 && (
-                  <div className="absolute bottom-2.5 right-2.5">
-                    <div className="bg-black/70 backdrop-blur-sm rounded-lg px-2.5 py-1">
-                      <span className="text-base font-black text-emerald-400">${pay.toLocaleString()}</span>
-                    </div>
+            <div className="relative w-full sm:w-48 h-40 sm:h-auto shrink-0 overflow-hidden">
+              <img
+                src={resolveImageUrl(quote?.vehicleImage) || FALLBACK}
+                alt={vehicleName || 'Vehicle'}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src !== window.location.origin + FALLBACK) {
+                    img.src = FALLBACK;
+                  }
+                }}
+              />
+              <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent" />
+              {isRequested && <div className="absolute top-2.5 left-2.5"><Badge className="text-[9px] bg-amber-500 text-white border-0 gap-1 shadow-lg"><Timer className="size-2.5" />Pending Review</Badge></div>}
+              {isRejected && <div className="absolute top-2.5 left-2.5"><Badge className="text-[9px] bg-red-500 text-white border-0 gap-1 shadow-lg"><XCircle className="size-2.5" />Declined</Badge></div>}
+              {pay > 0 && (
+                <div className="absolute bottom-2.5 right-2.5">
+                  <div className="bg-black/70 backdrop-blur-sm rounded-lg px-2.5 py-1">
+                    <span className="text-base font-black text-emerald-400">${pay.toLocaleString()}</span>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
             <div className="flex-1 p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">

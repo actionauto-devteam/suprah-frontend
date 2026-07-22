@@ -185,3 +185,115 @@ export function quoteEta(q: Quote): string {
 export function quoteTransportType(q: Quote): string {
   return q.enclosedTrailer ? "Enclosed" : "Open"
 }
+
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+function bolAddressBlock(loc: Load["pickupLocation"]): string {
+  const lines = [
+    loc.companyName,
+    loc.contactName,
+    loc.street,
+    [loc.city, loc.state, loc.zip].filter(Boolean).join(", "),
+    loc.phone,
+  ].filter((v): v is string => !!v && v.trim().length > 0)
+  return lines.map(l => escapeHtml(l)).join("<br/>") || "N/A"
+}
+
+export function generateBolHtml(load: Load): string {
+  const generatedAt = new Date().toLocaleString("en-US", {
+    month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/Denver",
+  })
+
+  const vehicleRows = (load.vehicles || []).map((v, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(`${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "N/A")}</td>
+      <td>${escapeHtml(v.vin || "N/A")}</td>
+      <td>${escapeHtml(v.color || "N/A")}</td>
+      <td>${escapeHtml(v.condition || "N/A")}</td>
+      <td>${escapeHtml(v.lotNumber || "N/A")}</td>
+    </tr>`).join("")
+
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>BOL — ${escapeHtml(load.loadNumber)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; padding: 40px 48px; max-width: 800px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 20px; }
+  .company { font-size: 20px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; }
+  .doc-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-top: 4px; }
+  .load-number { text-align: right; font-size: 14px; font-weight: 700; }
+  .load-meta { text-align: right; font-size: 10px; color: #666; margin-top: 2px; }
+  .route-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
+  .route-box { border: 1px solid #ddd; border-radius: 6px; padding: 12px 14px; }
+  .route-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #888; margin-bottom: 6px; }
+  .route-value { font-size: 12px; line-height: 1.6; }
+  .dates-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; font-size: 11px; }
+  .dates-grid .item-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: 700; }
+  .section-title { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #444; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  table th, table td { padding: 8px 10px; font-size: 11px; border-bottom: 1px solid #eee; text-align: left; }
+  table th { background: #f4f4f5; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+  .financials { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .financials .amount { font-size: 15px; font-weight: 900; }
+  .financials .label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: 700; }
+  .sig-area { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
+  .sig-box { border-top: 1px solid #bbb; padding-top: 6px; font-size: 10px; color: #888; text-align: center; }
+  .footer { text-align: center; font-size: 9px; color: #bbb; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; letter-spacing: 1px; }
+  @media print { body { padding: 20px 28px; } @page { size: letter; margin: 15mm; } }
+</style></head><body>
+  <div class="header">
+    <div>
+      <div class="company">Action Auto</div>
+      <div class="doc-title">Bill of Lading</div>
+    </div>
+    <div>
+      <div class="load-number">${escapeHtml(load.loadNumber)}</div>
+      <div class="load-meta">${escapeHtml(load.status)} · Generated ${escapeHtml(generatedAt)}</div>
+    </div>
+  </div>
+
+  <div class="route-grid">
+    <div class="route-box">
+      <div class="route-label">Pickup</div>
+      <div class="route-value">${bolAddressBlock(load.pickupLocation)}</div>
+    </div>
+    <div class="route-box">
+      <div class="route-label">Delivery</div>
+      <div class="route-value">${bolAddressBlock(load.deliveryLocation)}</div>
+    </div>
+  </div>
+
+  <div class="dates-grid">
+    <div><div class="item-label">First Available</div>${escapeHtml(fmtDate(load.dates?.firstAvailable))}</div>
+    <div><div class="item-label">Pickup Deadline</div>${escapeHtml(fmtDate(load.dates?.pickupDeadline))}</div>
+    <div><div class="item-label">Delivery Deadline</div>${escapeHtml(fmtDate(load.dates?.deliveryDeadline))}</div>
+  </div>
+
+  <p class="section-title">Vehicles (${load.vehicles?.length || 0}) · ${escapeHtml(loadTransportType(load))}</p>
+  <table>
+    <thead><tr><th>#</th><th>Vehicle</th><th>VIN</th><th>Color</th><th>Condition</th><th>Lot #</th></tr></thead>
+    <tbody>${vehicleRows}</tbody>
+  </table>
+
+  <div class="financials">
+    <div><div class="label">Carrier Pay</div><div class="amount">${fmtCurrency(load.pricing?.carrierPayAmount || 0)}</div></div>
+    <div><div class="label">COD / COP</div><div class="amount">${fmtCurrency(load.pricing?.copCodAmount || 0)}</div></div>
+    <div><div class="label">Total Miles</div><div class="amount">${fmtNumber(load.pricing?.miles || 0)}</div></div>
+  </div>
+
+  <div class="sig-area">
+    <div class="sig-box">Shipper / Pickup Signature</div>
+    <div class="sig-box">Carrier / Delivery Signature</div>
+  </div>
+  <div class="footer">ACTION AUTO · BILL OF LADING · ${escapeHtml(load.loadNumber)}</div>
+</body></html>`
+}

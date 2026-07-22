@@ -9,6 +9,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Quote } from "@/types/transportation"
+import { resolveImageUrl } from "@/lib/utils"
+
+const FALLBACK = "/vehicle-placeholder.jpg"
 
 interface QuoteResultModalProps {
   open: boolean
@@ -53,24 +56,28 @@ export function QuoteResultModal({
 
         <div className="space-y-4 sm:space-y-6 mt-2 sm:mt-4">
           {/* Vehicle Information */}
-          {quote.vehicleImage && (
-            <div className="relative rounded-lg overflow-hidden">
-              <img
-                src={quote.vehicleImage}
-                alt={vehicleName}
-                className="w-full h-36 sm:h-48 object-cover"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3 sm:p-4">
-                <h3 className="text-white font-semibold text-base sm:text-lg truncate">{vehicleName}</h3>
-                {quote.vehicleLocation && (
-                  <div className="flex items-center gap-1 text-white/90 text-xs sm:text-sm mt-1">
-                    <MapPin className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{quote.vehicleLocation}</span>
-                  </div>
-                )}
-              </div>
+          <div className="relative rounded-lg overflow-hidden">
+            <img
+              src={resolveImageUrl(quote.vehicleImage) || FALLBACK}
+              alt={vehicleName}
+              className="w-full h-36 sm:h-48 object-cover"
+              onError={(e) => {
+                const img = e.currentTarget
+                if (img.src !== window.location.origin + FALLBACK) {
+                  img.src = FALLBACK
+                }
+              }}
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3 sm:p-4">
+              <h3 className="text-white font-semibold text-base sm:text-lg truncate">{vehicleName}</h3>
+              {quote.vehicleLocation && (
+                <div className="flex items-center gap-1 text-white/90 text-xs sm:text-sm mt-1">
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{quote.vehicleLocation}</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Customer Information */}
           <div className="bg-card border border-border rounded-lg p-3 sm:p-4">

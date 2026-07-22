@@ -79,7 +79,7 @@ function DetailRow({
 
       <div className="min-w-0">
         <span>{label}</span>
-        <p className="break-words">{value || "Not provided"}</p>
+        <p className="wrap-break-word">{value || "Not provided"}</p>
       </div>
     </div>
   );
@@ -224,6 +224,24 @@ export function LeadDetailsPanel({
     setNoteOpen(true);
   };
 
+  const handleCallLead = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const rawPhone = lead?.phone ? String(lead.phone).trim() : "";
+    const dialablePhone = rawPhone.replace(/[^\d+]/g, "");
+
+    if (!dialablePhone) {
+      event.preventDefault();
+      return;
+    }
+
+    try {
+      window.location.href = `tel:${dialablePhone}`;
+    } catch (error) {
+      console.error("Failed to initiate call:", error);
+    }
+
+    event.preventDefault();
+  };
+
   const closeNoteDialog = () => {
     if (isSavingNote) return;
 
@@ -275,10 +293,10 @@ export function LeadDetailsPanel({
   };
 
   return (
-  <aside
-    className="suprah-details-panel"
-    data-panel="lead-details"
-  >
+    <aside
+      className="suprah-details-panel"
+      data-panel="lead-details"
+    >
       <div className="suprah-profile-header">
         <Avatar
           first={lead?.firstName}
@@ -321,9 +339,15 @@ export function LeadDetailsPanel({
 
       <div className="suprah-quick-actions">
         <a
-          href={lead?.phone ? `tel:${lead.phone}` : undefined}
+          href={
+            lead?.phone
+              ? `tel:${String(lead.phone).trim().replace(/[^\d+]/g, "")}`
+              : undefined
+          }
+          onClick={handleCallLead}
           aria-disabled={!lead?.phone}
-          title="Call lead"
+          tabIndex={lead?.phone ? 0 : -1}
+          title={lead?.phone ? "Call lead" : "No phone number on file"}
         >
           <Phone size={16} />
           <span>Call</span>
@@ -369,7 +393,7 @@ export function LeadDetailsPanel({
 
       {noteOpen && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center p-4"
+          className="fixed inset-0 z-999 flex items-center justify-center p-4"
           style={{ background: "rgba(0, 0, 0, 0.58)" }}
           role="presentation"
           onMouseDown={(event) => {
@@ -382,7 +406,7 @@ export function LeadDetailsPanel({
             role="dialog"
             aria-modal="true"
             aria-labelledby="lead-note-dialog-title"
-            className="w-full max-w-[420px] rounded-xl border p-5"
+            className="w-full max-w-105 rounded-xl border p-5"
             style={{
               background: "var(--bg-elevated)",
               borderColor: "var(--border-2)",
@@ -652,8 +676,8 @@ export function LeadDetailsPanel({
                     value={
                       lead?.opportunityValue
                         ? `$${Number(
-                            lead.opportunityValue,
-                          ).toLocaleString()}`
+                          lead.opportunityValue,
+                        ).toLocaleString()}`
                         : undefined
                     }
                   />

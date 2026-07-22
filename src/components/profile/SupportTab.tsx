@@ -80,13 +80,17 @@ export const SupportTab: React.FC = () => {
                                 <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Salt Lake City, Utah</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50">
+                        <a
+                            href="tel:+18554316570"
+                            className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            aria-label="Call support at (855) 431-6570"
+                        >
                             <Phone className="size-4 text-emerald-500 shrink-0" />
                             <div>
                                 <p className="text-[9px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500">Contact</p>
-                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">support@actionautoutah.com</p>
+                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">(855) 431-6570</p>
                             </div>
-                        </div>
+                        </a>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50">

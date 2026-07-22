@@ -30,6 +30,7 @@ import { apiClient } from "@/lib/api-client";
 import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { fmtTimeMDT, fmtFullDateTimeMDT, MDT_TZ } from "@/lib/timezone";
+import { linkifyText } from "@/lib/chatFormat";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -493,11 +494,11 @@ function ThreadBubble({ msg, crmUserId }: { msg: ThreadMessage; crmUserId: strin
         {msg.content && (
           <div
             className={cn(
-              "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3 py-2 text-sm leading-relaxed wrap-break-word",
+              "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap",
               isCustomer ? "border-l-chart-2 bg-chart-2/6 text-foreground" : isOwn ? "border-l-primary bg-primary/7 text-foreground" : "border-l-border bg-muted/50 text-foreground"
             )}
           >
-            {msg.content}
+            {linkifyText(msg.content)}
           </div>
         )}
         {msg.attachments?.length > 0 && (

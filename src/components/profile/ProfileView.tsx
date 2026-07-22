@@ -20,7 +20,6 @@ import {
   Activity,
   HelpCircle,
   Sparkles,
-  Loader2,
   UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,40 +32,60 @@ import { NotificationsTab } from "./NotificationsTab";
 import { ActivityTab } from "./ActivityTab";
 import { SupportTab } from "./SupportTab";
 import { ProfileDialogs } from "./ProfileDialogs";
+import { ProfileSkeleton } from "./ProfileSkeleton";
 import { containsCurseWord } from "./profile-constants";
 
 export const ProfileView: React.FC = () => {
   const { user: authUser } = useUser();
   const { signOut, openUserProfile, refreshUser } = useAuthActions();
   const { getToken } = useAuth();
-  const { avatarUrl, setAvatarUrl, triggerRefresh, refreshKey } =
-    useProfileContext();
+  const {
+    avatarUrl,
+    setAvatarUrl,
+    triggerRefresh,
+    refreshKey,
+    cachedProfile,
+    setCachedProfile,
+  } = useProfileContext();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
+  const [isLoading, setIsLoading] = useState(!cachedProfile);
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "overview",
   );
 
-  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({});
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>(
+    () => cachedProfile?.personalInfo || {},
+  );
   const [editingPersonalInfo, setEditingPersonalInfo] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [bioError, setBioError] = useState("");
-  const [phoneCountryCode, setPhoneCountryCode] = useState("+1");
-  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+  const [phoneCountryCode, setPhoneCountryCode] = useState(
+    () => cachedProfile?.personalInfo?.phoneCountryCode || "+1",
+  );
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>(
+    () => cachedProfile?.personalInfo?.socialLinks || [],
+  );
 
-  const [preferences, setPreferences] =
-    useState<NotificationPreferences | null>(null);
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(
+    () => cachedProfile?.notificationPreferences || null,
+  );
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
 
-  const [activities, setActivities] = useState<RecentActivity[]>([]);
+  const [activities, setActivities] = useState<RecentActivity[]>(
+    () => cachedProfile?.recentActivities || [],
+  );
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [hasFetchedActivities, setHasFetchedActivities] = useState(false);
 
-  const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>("online");
-  const [customStatus, setCustomStatus] = useState("");
+  const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>(
+    () => cachedProfile?.onlineStatus || "online",
+  );
+  const [customStatus, setCustomStatus] = useState(
+    () => cachedProfile?.customStatus || "",
+  );
   const [customStatusError, setCustomStatusError] = useState<string | null>(
     null,
   );
@@ -83,13 +102,10 @@ export const ProfileView: React.FC = () => {
 
   const fetchProfile = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const token = await getToken();
-      const response = await apiClient.get("/api/profile", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get("/api/profile");
       const data = response.data.data;
       setProfile(data);
+      setCachedProfile(data);
       const pInfo = data.personalInfo || {};
       if (pInfo.dateOfBirth) {
         pInfo.dateOfBirth = pInfo.dateOfBirth.substring(0, 10);
@@ -117,7 +133,7 @@ export const ProfileView: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [getToken, setAvatarUrl]);
+  }, [setAvatarUrl, setCachedProfile]);
 
   const fetchActivities = useCallback(
     async (force = false) => {
@@ -396,16 +412,7 @@ export const ProfileView: React.FC = () => {
   };
 
   if (isLoading && !profile) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <div className="relative">
-          <Loader2 className="size-10 animate-spin text-emerald-600" />
-        </div>
-        <p className="text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest text-xs animate-pulse">
-          Loading Profile
-        </p>
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   const tabs = [

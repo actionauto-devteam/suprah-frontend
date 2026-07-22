@@ -61,6 +61,30 @@ function apiUrl(path: string): string {
   return `${base}${path}`
 }
 
+const AI_RATE_LIMIT_MESSAGE =
+  'Autrix is receiving too many AI requests right now. Please wait a moment, then try again.'
+const AI_TIMEOUT_MESSAGE =
+  'Autrix is taking longer than expected to respond. Please try again.'
+const AI_CREDIT_MESSAGE =
+  'Low Suprah Autrix credits — contact admin to upgrade.'
+const AI_REQUEST_TIMEOUT_MS = 45_000
+
+function normalizeAiErrorMessage(message: string, status?: number): string {
+  if (status === 429 || /\b429\b/i.test(message)) {
+    return AI_RATE_LIMIT_MESSAGE
+  }
+
+  if (/timeout|timed out|abort/i.test(message)) {
+    return AI_TIMEOUT_MESSAGE
+  }
+
+  if (/credit balance|plans? & billing|billing|upgrade|purchase credits/i.test(message)) {
+    return AI_CREDIT_MESSAGE
+  }
+
+  return message || 'Something went wrong. Please try again.'
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSupraLeoChat({
@@ -166,10 +190,16 @@ export function useSupraLeoChat({
 
       setMessages(prev => [...prev, userMsg, assistantMsg])
       setIsLoading(true)
+      let requestTimedOut = false
+      let timeoutId: number | null = null
 
       try {
         abortRef.current?.abort()
         abortRef.current = new AbortController()
+        timeoutId = window.setTimeout(() => {
+          requestTimedOut = true
+          abortRef.current?.abort()
+        }, AI_REQUEST_TIMEOUT_MS)
         const token = getToken()
 
         const res = await fetch(apiUrl('/api/supraleo/chat'), {
@@ -194,7 +224,7 @@ export function useSupraLeoChat({
           } catch {
             // ignore parse error
           }
-          throw new Error(errMsg)
+          throw new Error(normalizeAiErrorMessage(errMsg, res.status))
         }
 
         // ── SSE streaming reader ──
@@ -246,7 +276,7 @@ export function useSupraLeoChat({
                   )
                 }
               } else if (parsed.type === 'error') {
-                throw new Error(parsed.message || 'AI generation error')
+                throw new Error(normalizeAiErrorMessage(parsed.message || 'AI generation error'))
               }
             } catch (parseErr) {
               // Ignore JSON parse errors on incomplete SSE chunks
@@ -267,7 +297,7 @@ export function useSupraLeoChat({
       } catch (err: any) {
         if (!isMountedRef.current) return
 
-        if (err.name === 'AbortError') {
+        if (err.name === 'AbortError' && !requestTimedOut) {
           // User stopped generation — just stop the spinner
           setMessages(prev =>
             prev.map(m =>
@@ -275,7 +305,9 @@ export function useSupraLeoChat({
             )
           )
         } else {
-          const errMsg = err.message || 'Something went wrong. Please try again.'
+          const errMsg = requestTimedOut
+            ? AI_TIMEOUT_MESSAGE
+            : normalizeAiErrorMessage(err.message || 'Something went wrong. Please try again.')
           setError(errMsg)
           setMessages(prev =>
             prev.map(m =>
@@ -286,6 +318,7 @@ export function useSupraLeoChat({
           )
         }
       } finally {
+        if (timeoutId) window.clearTimeout(timeoutId)
         if (isMountedRef.current) setIsLoading(false)
       }
     },

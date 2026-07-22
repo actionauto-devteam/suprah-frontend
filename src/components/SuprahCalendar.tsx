@@ -145,6 +145,12 @@ function formatDuration(start: Date, end: Date): string {
   return `${hours} hr${hours === 1 ? "" : "s"} ${minutes} min`;
 }
 
+function quickSlot(hour: number): Date {
+  const d = zonedNow();
+  d.setHours(hour, 0, 0, 0);
+  return d;
+}
+
 export default function SuprahCalendar() {
   const [view, setView] = useState<CalendarView>("week");
   const [cursor, setCursor] = useState<Date>(startOfDay(zonedNow()));
@@ -184,11 +190,11 @@ export default function SuprahCalendar() {
   const headline =
     view === "day"
       ? cursor.toLocaleDateString([], {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
       : cursor.toLocaleDateString([], { month: "long", year: "numeric" });
 
   const openCreate = (presetStart?: Date) =>
@@ -246,11 +252,10 @@ export default function SuprahCalendar() {
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-xs capitalize transition ${
-                  view === v
-                    ? "bg-emerald-400/15 text-emerald-300"
-                    : "text-zinc-400 hover:bg-white/5"
-                }`}
+                className={`px-3 py-1.5 text-xs capitalize transition ${view === v
+                  ? "bg-emerald-400/15 text-emerald-300"
+                  : "text-zinc-400 hover:bg-white/5"
+                  }`}
               >
                 {v}
               </button>
@@ -258,11 +263,10 @@ export default function SuprahCalendar() {
           </div>
           <button
             onClick={() => setShowMySchedule((s) => !s)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-              showMySchedule
-                ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
-                : "border-white/10 text-zinc-300 hover:bg-white/5"
-            }`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${showMySchedule
+              ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+              : "border-white/10 text-zinc-300 hover:bg-white/5"
+              }`}
           >
             My Schedule
           </button>
@@ -312,7 +316,7 @@ export default function SuprahCalendar() {
         </div>
 
         {showMySchedule && (
-          <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-white/10 bg-zinc-950/95 shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.9)]">
+          <aside className="w-90 shrink-0 overflow-y-auto border-l border-white/10 bg-zinc-950/95 shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.9)]">
             <MySchedule onItemClick={openEdit} />
           </aside>
         )}
@@ -326,11 +330,11 @@ export default function SuprahCalendar() {
           onSave={handleSave}
           onDelete={
             modal.editing?.source === "calendarEvent" &&
-            modal.editing?.canEdit !== false
+              modal.editing?.canEdit !== false
               ? async () => {
-                  await deleteItem(modal.editing!.id);
-                  setModal({ open: false });
-                }
+                await deleteItem(modal.editing!.id);
+                setModal({ open: false });
+              }
               : undefined
           }
         />
@@ -416,121 +420,119 @@ function MonthView({
       `}</style>
 
       <div className="grid h-full grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))]">
-      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-        <div
-          key={d}
-          className="border-b border-r border-white/5 px-2 py-1.5 text-center text-[11px] font-medium uppercase tracking-wider text-zinc-500"
-        >
-          {d}
-        </div>
-      ))}
-
-      {days.map((day) => {
-        const today = sameDay(day, zonedNow());
-        const inMonth = day.getMonth() === cursor.getMonth();
-
-        const allOccurrences = occ
-          .filter((o) => sameDay(o.start, day))
-          .sort((a, b) => {
-            if (a.item.allDay !== b.item.allDay) {
-              return a.item.allDay ? -1 : 1;
-            }
-
-            return a.start.getTime() - b.start.getTime();
-          });
-
-        const dayOccurrences = allOccurrences;
-        return (
-          <button
-            key={day.toISOString()}
-            type="button"
-            onClick={() => onDayClick(day)}
-            className={`group flex min-h-0 flex-col gap-1.5 border-b border-r border-white/5 p-1.5 text-center align-top transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/50 ${
-              inMonth ? "" : "opacity-40"
-            }`}
-            aria-label={day.toLocaleDateString([], {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div
+            key={d}
+            className="border-b border-r border-white/5 px-2 py-1.5 text-center text-[11px] font-medium uppercase tracking-wider text-zinc-500"
           >
-            <span
-              className={`mx-auto inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-mono text-xs tabular-nums ${
-                today
-                  ? "bg-emerald-400/90 font-semibold text-zinc-950"
-                  : "text-zinc-400"
-              }`}
-            >
-              {day.getDate()}
-            </span>
+            {d}
+          </div>
+        ))}
 
-            <div
-              className="month-day-scrollbar flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden pr-1 focus-visible:outline-none"
-              tabIndex={0}
-              onPointerDown={(event) => {
-                event.currentTarget.focus({ preventScroll: true });
-              }}
-              onClick={(event) => event.stopPropagation()}
-              onWheel={(event) => event.stopPropagation()}
-              aria-label={`Schedules for ${day.toLocaleDateString([], {
+        {days.map((day) => {
+          const today = sameDay(day, zonedNow());
+          const inMonth = day.getMonth() === cursor.getMonth();
+
+          const allOccurrences = occ
+            .filter((o) => sameDay(o.start, day))
+            .sort((a, b) => {
+              if (a.item.allDay !== b.item.allDay) {
+                return a.item.allDay ? -1 : 1;
+              }
+
+              return a.start.getTime() - b.start.getTime();
+            });
+
+          const dayOccurrences = allOccurrences;
+          return (
+            <button
+              key={day.toISOString()}
+              type="button"
+              onClick={() => onDayClick(day)}
+              className={`group flex min-h-0 flex-col gap-1.5 border-b border-r border-white/5 p-1.5 text-center align-top transition hover:bg-white/4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/50 ${inMonth ? "" : "opacity-40"
+                }`}
+              aria-label={day.toLocaleDateString([], {
+                weekday: "long",
                 month: "long",
                 day: "numeric",
                 year: "numeric",
-              })}`}
+              })}
             >
-              {dayOccurrences.map((occurrence) => {
-                const { item, start, end } = occurrence;
-                const timeLabel = item.allDay
-                  ? "All Day"
-                  : formatSegmentTimeRange(start, end);
-                const durationLabel = item.allDay
-                  ? null
-                  : formatDuration(start, end);
+              <span
+                className={`mx-auto inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-mono text-xs tabular-nums ${today
+                    ? "bg-emerald-400/90 font-semibold text-zinc-950"
+                    : "text-zinc-400"
+                  }`}
+              >
+                {day.getDate()}
+              </span>
 
-                return (
-                  <span
-                    key={`${item.id}-${start.toISOString()}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onItemClick(item);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
+              <div
+                className="month-day-scrollbar flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden pr-1 focus-visible:outline-none"
+                tabIndex={0}
+                onPointerDown={(event) => {
+                  event.currentTarget.focus({ preventScroll: true });
+                }}
+                onClick={(event) => event.stopPropagation()}
+                onWheel={(event) => event.stopPropagation()}
+                aria-label={`Schedules for ${day.toLocaleDateString([], {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}`}
+              >
+                {dayOccurrences.map((occurrence) => {
+                  const { item, start, end } = occurrence;
+                  const timeLabel = item.allDay
+                    ? "All Day"
+                    : formatSegmentTimeRange(start, end);
+                  const durationLabel = item.allDay
+                    ? null
+                    : formatDuration(start, end);
+
+                  return (
+                    <span
+                      key={`${item.id}-${start.toISOString()}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) => {
                         event.stopPropagation();
                         onItemClick(item);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onItemClick(item);
+                        }
+                      }}
+                      title={
+                        item.allDay
+                          ? `${item.title} — All Day`
+                          : `${item.title} — ${timeLabel} (${durationLabel})`
                       }
-                    }}
-                    title={
-                      item.allDay
-                        ? `${item.title} — All Day`
-                        : `${item.title} — ${timeLabel} (${durationLabel})`
-                    }
-                    className={`flex min-h-[48px] w-full shrink-0 flex-col items-center justify-center rounded-md border px-2 py-1.5 text-center transition hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 ${TYPE_STYLES[item.type]}`}
-                  >
-                    <span className="block w-full truncate text-[11px] font-semibold leading-tight">
-                      {item.title}
-                    </span>
-
-                    <span className="mt-1 block w-full truncate font-mono text-[10px] font-semibold leading-tight tabular-nums opacity-95">
-                      {timeLabel}
-                    </span>
-
-                    {durationLabel && (
-                      <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-70">
-                        Duration: {durationLabel}
+                      className={`flex min-h-12 w-full shrink-0 flex-col items-center justify-center rounded-md border px-2 py-1.5 text-center transition hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 ${TYPE_STYLES[item.type]}`}
+                    >
+                      <span className="block w-full truncate text-[11px] font-semibold leading-tight">
+                        {item.title}
                       </span>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-          </button>
-        );
-      })}
+
+                      <span className="mt-1 block w-full truncate font-mono text-[10px] font-semibold leading-tight tabular-nums opacity-95">
+                        {timeLabel}
+                      </span>
+
+                      {durationLabel && (
+                        <span className="mt-0.5 block text-[9px] font-medium leading-tight opacity-70">
+                          Duration: {durationLabel}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </>
   );
@@ -558,19 +560,49 @@ function TimeGridView({
     anchor,
     rangeEnd,
   );
+  const isEmpty = occ.length === 0;
 
   const headerHeight = 64;
 
   return (
-    <div className="min-w-[760px] bg-zinc-950">
+    <div className="relative min-w-190 bg-zinc-950">
+      {isEmpty && (
+        <div className="pointer-events-none sticky left-0 z-20 flex h-0 w-full items-start justify-center">
+          <div className="pointer-events-auto mt-24 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-zinc-900/90 px-8 py-10 text-center shadow-xl backdrop-blur-md">
+            <span className="text-3xl" aria-hidden>
+              🗓️
+            </span>
+            <p className="text-sm font-medium text-zinc-200">
+              {days === 1 ? "Nothing scheduled today" : "Nothing scheduled this week"}
+            </p>
+            <p className="max-w-xs text-xs text-zinc-500">
+              Select any time slot on the grid to add an event, or use a quick shortcut below.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => onSlotClick(quickSlot(9))}
+                className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-400/20"
+              >
+                + 9:00 AM today
+              </button>
+              <button
+                onClick={() => onSlotClick(quickSlot(14))}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/5"
+              >
+                + 2:00 PM today
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div
-        className="sticky top-0 z-20 grid border-b border-white/[0.08] bg-zinc-950/95 backdrop-blur-xl"
+        className="sticky top-0 z-20 grid border-b border-white/8 bg-zinc-950/95 backdrop-blur-xl"
         style={{
           gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
           minHeight: headerHeight,
         }}
       >
-        <div className="flex items-center justify-center border-r border-white/[0.06] px-2">
+        <div className="flex items-center justify-center border-r border-white/6 px-2">
           <span className="inline-flex h-5 items-center justify-center rounded border border-emerald-400/20 bg-emerald-400/[0.07] px-2 text-[8px] font-semibold uppercase leading-none tracking-[0.14em] text-emerald-300">
             MDT
           </span>
@@ -581,25 +613,22 @@ function TimeGridView({
           return (
             <div
               key={`header-${day.toISOString()}`}
-              className={`min-w-0 border-r border-white/[0.06] px-2 py-1.5 text-center ${
-                today ? "bg-emerald-400/[0.035]" : ""
-              }`}
+              className={`min-w-0 border-r border-white/6 px-2 py-1.5 text-center ${today ? "bg-emerald-400/[0.035]" : ""
+                }`}
             >
-              <div className="flex min-h-[40px] flex-col items-center justify-center">
+              <div className="flex min-h-10 flex-col items-center justify-center">
                 <span
-                  className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                    today ? "text-emerald-300" : "text-zinc-500"
-                  }`}
+                  className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${today ? "text-emerald-300" : "text-zinc-500"
+                    }`}
                 >
                   {day.toLocaleDateString([], { weekday: "short" })}
                 </span>
 
                 <span
-                  className={`mt-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 font-mono text-sm font-semibold tabular-nums ${
-                    today
+                  className={`mt-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 font-mono text-sm font-semibold tabular-nums ${today
                       ? "bg-emerald-400 text-zinc-950 shadow-[0_0_18px_-5px_rgba(52,211,153,0.8)]"
                       : "text-zinc-200"
-                  }`}
+                    }`}
                 >
                   {day.getDate()}
                 </span>
@@ -615,7 +644,7 @@ function TimeGridView({
           gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
         }}
       >
-        <div className="relative border-r border-white/[0.06] bg-zinc-950">
+        <div className="relative border-r border-white/6 bg-zinc-950">
           {HOURS.map((h) => (
             <div
               key={h}
@@ -626,9 +655,8 @@ function TimeGridView({
               className="absolute inset-x-0"
             >
               <span
-                className={`absolute right-3 rounded bg-zinc-950 px-1.5 font-mono text-[10px] font-medium tabular-nums text-zinc-400 ${
-                  h === 0 ? "top-1.5" : "-top-2.5"
-                }`}
+                className={`absolute right-3 rounded bg-zinc-950 px-1.5 font-mono text-[10px] font-medium tabular-nums text-zinc-400 ${h === 0 ? "top-1.5" : "-top-2.5"
+                  }`}
               >
                 {new Date(2000, 0, 1, h).toLocaleTimeString([], {
                   hour: "numeric",
@@ -649,9 +677,8 @@ function TimeGridView({
           return (
             <div
               key={day.toISOString()}
-              className={`relative min-w-0 border-r border-white/[0.06] ${
-                today ? "bg-emerald-400/[0.015]" : ""
-              }`}
+              className={`relative min-w-0 border-r border-white/6 ${today ? "bg-emerald-400/1.5" : ""
+                }`}
             >
               <div className="relative" style={{ height: HOUR_PX * 24 }}>
                 {HOURS.map((h) => (
@@ -665,9 +692,8 @@ function TimeGridView({
                       onSlotClick(d);
                     }}
                     style={{ top: h * HOUR_PX, height: HOUR_PX }}
-                    className={`group absolute inset-x-0 border-b border-white/[0.045] transition hover:bg-emerald-400/[0.025] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-400/40 ${
-                      h === 0 ? "border-t border-white/[0.045]" : ""
-                    }`}
+                    className={`group absolute inset-x-0 border-b border-white/4.5 transition hover:bg-emerald-400/2.5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-400/40 ${h === 0 ? "border-t border-white/4.5" : ""
+                      }`}
                   >
                     <span className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-white/[0.018]" />
                   </button>
@@ -718,7 +744,7 @@ function TimeGridView({
                         o.start,
                         o.end,
                       )} (${formatDuration(o.start, o.end)})`}
-                      className={`absolute inset-x-1.5 z-[5] flex overflow-hidden rounded-lg border px-2.5 py-1.5 text-left backdrop-blur-md transition duration-150 hover:z-10 hover:brightness-125 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${TYPE_STYLES[o.item.type]}`}
+                      className={`absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-1.5 text-left backdrop-blur-md transition duration-150 hover:z-10 hover:brightness-125 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${TYPE_STYLES[o.item.type]}`}
                     >
                       <span className="flex min-w-0 flex-1 flex-col items-center justify-center text-center">
                         <span className="block w-full truncate text-[11px] font-semibold leading-tight">
@@ -760,9 +786,9 @@ function NowLine({ showLabel = false }: { showLabel?: boolean }) {
   return (
     <div
       style={{ top }}
-      className="pointer-events-none absolute inset-x-0 z-[8] h-px bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.75)]"
+      className="pointer-events-none absolute inset-x-0 z-8 h-px bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.75)]"
     >
-      <span className="absolute -left-1.5 -top-[5px] h-2.5 w-2.5 rounded-full border-2 border-zinc-950 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+      <span className="absolute -left-1.5 -top-1.25 h-2.5 w-2.5 rounded-full border-2 border-zinc-950 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
 
       {showLabel && (
         <span className="absolute left-2 top-1 rounded-md border border-emerald-400/25 bg-zinc-950/95 px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums text-emerald-300 shadow-sm">
@@ -799,8 +825,8 @@ function AgendaView({
 
   if (groupedByDay.size === 0) {
     return (
-      <div className="flex min-h-[360px] items-center justify-center px-6 py-12">
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-8 py-6 text-center">
+      <div className="flex min-h-90 items-center justify-center px-6 py-12">
+        <div className="rounded-xl border border-white/10 bg-white/3 px-8 py-6 text-center">
           <p className="text-sm font-semibold text-zinc-300">
             Nothing scheduled
           </p>
@@ -813,7 +839,7 @@ function AgendaView({
   }
 
   return (
-    <div className="w-full divide-y divide-white/[0.08]">
+    <div className="w-full divide-y divide-white/8">
       {[...groupedByDay.entries()].map(([dayKey, dayOccurrences]) => {
         const day = new Date(dayKey);
         const isToday = sameDay(day, zonedNow());
@@ -821,20 +847,18 @@ function AgendaView({
         return (
           <section
             key={dayKey}
-            className="grid grid-cols-[112px_minmax(0,1fr)] gap-4 px-5 py-4 transition hover:bg-white/[0.015]"
+            className="grid grid-cols-[112px_minmax(0,1fr)] gap-4 px-5 py-4 transition hover:bg-white/1.5"
           >
             <div className="pt-1">
               <div
-                className={`inline-flex min-w-[88px] flex-col rounded-lg border px-3 py-2 ${
-                  isToday
+                className={`inline-flex min-w-22 flex-col rounded-lg border px-3 py-2 ${isToday
                     ? "border-emerald-400/30 bg-emerald-400/10"
-                    : "border-white/[0.08] bg-white/[0.025]"
-                }`}
+                    : "border-white/8 bg-white/2.5"
+                  }`}
               >
                 <span
-                  className={`text-[11px] font-semibold ${
-                    isToday ? "text-emerald-300" : "text-zinc-300"
-                  }`}
+                  className={`text-[11px] font-semibold ${isToday ? "text-emerald-300" : "text-zinc-300"
+                    }`}
                 >
                   {day.toLocaleDateString([], { weekday: "short" })}
                 </span>
@@ -864,9 +888,9 @@ function AgendaView({
                     key={`${item.id}-${start.toISOString()}`}
                     type="button"
                     onClick={() => onItemClick(item)}
-                    className={`group flex min-h-[52px] w-full min-w-0 items-center rounded-lg border px-4 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${TYPE_STYLES[item.type]}`}
+                    className={`group flex min-h-13 w-full min-w-0 items-center rounded-lg border px-4 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${TYPE_STYLES[item.type]}`}
                   >
-                    <div className="w-[150px] shrink-0 border-r border-current/15 pr-4">
+                    <div className="w-37.5 shrink-0 border-r border-current/15 pr-4">
                       <span className="block whitespace-nowrap font-mono text-[11px] font-semibold tabular-nums opacity-95">
                         {timeLabel}
                       </span>
@@ -888,7 +912,7 @@ function AgendaView({
                       )}
                     </div>
 
-                    <span className="ml-3 shrink-0 rounded-md border border-current/15 bg-white/[0.06] px-2 py-1 text-[9px] font-semibold uppercase tracking-wider opacity-90">
+                    <span className="ml-3 shrink-0 rounded-md border border-current/15 bg-white/6 px-2 py-1 text-[9px] font-semibold uppercase tracking-wider opacity-90">
                       {item.type}
                     </span>
                   </button>

@@ -27,6 +27,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { fmtTimeMDT, fmtFullDateTimeMDT, fmtDateMDT, MDT_TZ, isTodayMDT, isYesterdayMDT } from "@/lib/timezone";
+import { linkifyText } from "@/lib/chatFormat";
 import {
   AttachmentLightbox,
   type LightboxAttachment,
@@ -245,7 +246,7 @@ function ConcernBubble({
         {message.content && (
           <div
             className={cn(
-              "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3.5 py-2 text-sm leading-relaxed wrap-break-word",
+              "rounded-r-lg rounded-l-[3px] border-l-[3px] px-3.5 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap",
               isCustomer
                 ? "border-l-chart-2 bg-chart-2/6 text-foreground"
                 : isOwn
@@ -253,7 +254,7 @@ function ConcernBubble({
                   : "border-l-border bg-muted/50 text-foreground"
             )}
           >
-            {message.content}
+            {linkifyText(message.content)}
           </div>
         )}
 

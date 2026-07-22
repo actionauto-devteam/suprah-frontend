@@ -51,6 +51,7 @@ function PremiumVehicleCardComponent({
     return uniqueCandidates.length > 0 ? uniqueCandidates : [FALLBACK_IMAGE];
   }, [vehicle.image, vehicle.images]);
 
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
   const [imageIndex, setImageIndex] = React.useState(0);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
@@ -59,9 +60,15 @@ function PremiumVehicleCardComponent({
     setImageIndex(0);
     setImgLoaded(false);
     setImgError(false);
-  }, [vehicle.id, imageCandidates]);
+  }, [vehicle.id]);
 
   const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE;
+
+  React.useLayoutEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setImgLoaded(true);
+    }
+  }, [activeImageSrc]);
   const safeEngine = vehicle.engine?.trim() || "Unknown";
   const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
   const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
@@ -145,6 +152,7 @@ function PremiumVehicleCardComponent({
             )}
 
             <img
+              ref={imgRef}
               key={`${vehicle.id}-${imageIndex}`}
               src={activeImageSrc}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}

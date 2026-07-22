@@ -280,8 +280,8 @@ export function CommunicationHub() {
   const smsSegments = smsBody.length === 0 ? 0 : Math.ceil(smsBody.length / 160);
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-3 p-3 sm:p-4 bg-(--bg-primary) text-(--text-primary)">
-      <div className="rounded-lg border border-(--border-primary) bg-(--bg-card) p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+    <div className="h-full min-h-0 flex flex-col gap-3 p-3 sm:p-4 bg-(--bg-base) text-(--text-primary)">
+      <div className="rounded-lg border border-(--border-1) bg-(--bg-elevated) p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <div className="space-y-1 min-w-0">
           <p className="text-xs uppercase tracking-widest text-(--text-tertiary) font-semibold truncate">
             Communication Hub
@@ -297,7 +297,7 @@ export function CommunicationHub() {
             onValueChange={setSelectedLeadId}
             disabled={leadsLoading || leads.length === 0}
           >
-            <SelectTrigger className="h-10 sm:h-9 w-full sm:w-85 max-w-full border border-(--border-primary) bg-(--bg-input) text-sm text-left">
+            <SelectTrigger className="h-10 sm:h-9 w-full sm:w-85 max-w-full border border-(--border-1) bg-(--input-bg) text-sm text-left">
               <SelectValue placeholder="Select a lead" />
             </SelectTrigger>
             <SelectContent align="end" position="popper" className="z-80">
@@ -317,7 +317,7 @@ export function CommunicationHub() {
           </Select>
           <button
             onClick={loadLogs}
-            className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 inline-flex items-center justify-center rounded-md border border-(--border-primary) hover:bg-(--bg-hover)"
+            className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 inline-flex items-center justify-center rounded-md border border-(--border-1) hover:bg-(--bg-hover)"
             title="Refresh timeline"
           >
             <RefreshCw
@@ -339,8 +339,8 @@ export function CommunicationHub() {
             className={cn(
               "shrink-0 flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold transition-colors",
               mobilePanel === panel.id
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
-                : "border-(--border-primary) text-(--text-secondary) hover:text-(--text-primary)",
+                ? "border-emerald-500/40 bg-emerald-500/10 text-(--accent-text)"
+                : "border-(--border-1) text-(--text-secondary) hover:text-(--text-primary)",
             )}
           >
             <panel.icon className="h-3.5 w-3.5" />
@@ -355,7 +355,7 @@ export function CommunicationHub() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 min-h-0 flex-1">
         <div
           className={cn(
-            "rounded-lg border border-(--border-primary) bg-(--bg-card) p-3 sm:p-4 space-y-3",
+            "rounded-lg border border-(--border-1) bg-(--bg-elevated) p-3 sm:p-4 space-y-3",
             mobilePanel === "sms" ? "block" : "hidden",
             "lg:block",
           )}
@@ -366,7 +366,7 @@ export function CommunicationHub() {
           </div>
 
           {/* Conversation context */}
-          <div className="rounded-md border border-(--border-primary) bg-(--bg-secondary) p-2.5 space-y-1.5">
+          <div className="rounded-md border border-(--border-1) bg-(--surface-2) p-2.5 space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               {selectedLead?.status ? (
                 <StatusPill status={selectedLead.status} />
@@ -395,7 +395,7 @@ export function CommunicationHub() {
               href={selectedLead?.phone ? `tel:${selectedLead.phone}` : undefined}
               aria-disabled={!selectedLead?.phone}
               className={cn(
-                "h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-primary) text-xs font-medium hover:bg-(--bg-hover)",
+                "h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-1) text-xs font-medium hover:bg-(--bg-hover)",
                 !selectedLead?.phone && "pointer-events-none opacity-40",
               )}
             >
@@ -406,7 +406,7 @@ export function CommunicationHub() {
               href={selectedLead?.email ? `mailto:${selectedLead.email}` : undefined}
               aria-disabled={!selectedLead?.email}
               className={cn(
-                "h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-primary) text-xs font-medium hover:bg-(--bg-hover)",
+                "h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-1) text-xs font-medium hover:bg-(--bg-hover)",
                 !selectedLead?.email && "pointer-events-none opacity-40",
               )}
             >
@@ -416,7 +416,7 @@ export function CommunicationHub() {
             <button
               onClick={copyPhone}
               disabled={!selectedLead?.phone}
-              className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-primary) text-xs font-medium hover:bg-(--bg-hover) disabled:opacity-40"
+              className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-1) text-xs font-medium hover:bg-(--bg-hover) disabled:opacity-40"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy #"}
@@ -424,7 +424,7 @@ export function CommunicationHub() {
             <button
               onClick={markContacted}
               disabled={contactBusy || !selectedLeadId || selectedLead?.status === "Contacted"}
-              className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-primary) text-xs font-medium hover:bg-(--bg-hover) disabled:opacity-40"
+              className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-(--border-1) text-xs font-medium hover:bg-(--bg-hover) disabled:opacity-40"
             >
               <Check className="h-3.5 w-3.5" />
               {contactBusy ? "Updating..." : "Mark Contacted"}
@@ -442,7 +442,7 @@ export function CommunicationHub() {
                 <button
                   key={template.label}
                   onClick={() => setSmsBody(template.text(selectedLead))}
-                  className="h-7 px-2.5 rounded-full border border-(--border-primary) text-[11px] font-medium text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)"
+                  className="h-7 px-2.5 rounded-full border border-(--border-1) text-[11px] font-medium text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-primary)"
                 >
                   {template.label}
                 </button>
@@ -451,7 +451,7 @@ export function CommunicationHub() {
           </div>
 
           <textarea
-            className="w-full min-h-24 rounded-md border border-(--border-primary) bg-(--bg-input) p-2 text-sm"
+            className="w-full min-h-24 rounded-md border border-(--border-1) bg-(--input-bg) p-2 text-sm"
             placeholder="Write SMS reply to customer..."
             value={smsBody}
             onChange={(event) => setSmsBody(event.target.value)}
@@ -463,18 +463,18 @@ export function CommunicationHub() {
           <button
             onClick={sendSms}
             disabled={smsBusy || !smsBody.trim() || !selectedLeadId}
-            className="h-10 sm:h-9 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 inline-flex items-center gap-2 text-sm font-medium w-full sm:w-auto justify-center sm:justify-start"
+            className="h-10 sm:h-9 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 inline-flex items-center gap-2 text-sm font-medium text-white w-full sm:w-auto justify-center sm:justify-start"
           >
             <Send className="h-3.5 w-3.5" />
             {smsBusy ? "Sending..." : "Send SMS"}
           </button>
 
-          <div className="pt-2 border-t border-(--border-primary) space-y-2">
+          <div className="pt-2 border-t border-(--border-1) space-y-2">
             <p className="text-xs uppercase tracking-widest text-(--text-tertiary) font-semibold">
               Inbound SMS
             </p>
             <textarea
-              className="w-full min-h-18 rounded-md border border-(--border-primary) bg-(--bg-input) p-2 text-sm"
+              className="w-full min-h-18 rounded-md border border-(--border-1) bg-(--input-bg) p-2 text-sm"
               placeholder="Log inbound customer SMS text..."
               value={inboundBody}
               onChange={(event) => setInboundBody(event.target.value)}
@@ -482,7 +482,7 @@ export function CommunicationHub() {
             <button
               onClick={logInboundSms}
               disabled={inboundBusy || !inboundBody.trim() || !selectedLeadId}
-              className="h-10 sm:h-9 px-3 rounded-md border border-(--border-primary) hover:bg-(--bg-hover) disabled:opacity-50 text-sm font-medium w-full sm:w-auto"
+              className="h-10 sm:h-9 px-3 rounded-md border border-(--border-1) hover:bg-(--bg-hover) disabled:opacity-50 text-sm font-medium w-full sm:w-auto"
             >
               {inboundBusy ? "Saving..." : "Log Inbound SMS"}
             </button>
@@ -491,7 +491,7 @@ export function CommunicationHub() {
 
         <div
           className={cn(
-            "rounded-lg border border-(--border-primary) bg-(--bg-card) p-3 sm:p-4 space-y-3",
+            "rounded-lg border border-(--border-1) bg-(--bg-elevated) p-3 sm:p-4 space-y-3",
             mobilePanel === "calls" ? "block" : "hidden",
             "lg:block",
           )}
@@ -507,7 +507,7 @@ export function CommunicationHub() {
                 setCallDirection(value as CommDirection)
               }
             >
-              <SelectTrigger className="h-10 sm:h-9 w-full border border-(--border-primary) bg-(--bg-input) text-sm z-50">
+              <SelectTrigger className="h-10 sm:h-9 w-full border border-(--border-1) bg-(--input-bg) text-sm z-50">
                 <SelectValue placeholder="Direction" />
               </SelectTrigger>
               <SelectContent align="start" position="popper" className="z-80">
@@ -517,7 +517,7 @@ export function CommunicationHub() {
             </Select>
 
             <Select value={callStatus} onValueChange={setCallStatus}>
-              <SelectTrigger className="h-10 sm:h-9 w-full border border-(--border-primary) bg-(--bg-input) text-sm z-50">
+              <SelectTrigger className="h-10 sm:h-9 w-full border border-(--border-1) bg-(--input-bg) text-sm z-50">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent align="start" position="popper" className="z-80">
@@ -535,7 +535,7 @@ export function CommunicationHub() {
             <input
               type="number"
               min={0}
-              className="w-full h-10 sm:h-9 rounded-md border border-(--border-primary) bg-(--bg-input) px-2 text-sm"
+              className="w-full h-10 sm:h-9 rounded-md border border-(--border-1) bg-(--input-bg) px-2 text-sm"
               value={callDuration}
               onChange={(event) =>
                 setCallDuration(Number(event.target.value) || 0)
@@ -544,7 +544,7 @@ export function CommunicationHub() {
           </div>
 
           <textarea
-            className="w-full min-h-24 rounded-md border border-(--border-primary) bg-(--bg-input) p-2 text-sm"
+            className="w-full min-h-24 rounded-md border border-(--border-1) bg-(--input-bg) p-2 text-sm"
             placeholder="Add call notes..."
             value={callNotes}
             onChange={(event) => setCallNotes(event.target.value)}
@@ -553,7 +553,7 @@ export function CommunicationHub() {
           <button
             onClick={logCall}
             disabled={callBusy || !selectedLeadId}
-            className="h-10 sm:h-9 px-3 rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-medium w-full sm:w-auto"
+            className="h-10 sm:h-9 px-3 rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-medium text-white w-full sm:w-auto"
           >
             {callBusy ? "Saving..." : "Log Call"}
           </button>
@@ -561,7 +561,7 @@ export function CommunicationHub() {
 
         <div
           className={cn(
-            "rounded-lg border border-(--border-primary) bg-(--bg-card) p-3 sm:p-4 min-h-90 lg:min-h-0",
+            "rounded-lg border border-(--border-1) bg-(--bg-elevated) p-3 sm:p-4 min-h-90 lg:min-h-0",
             mobilePanel === "timeline" ? "flex flex-col" : "hidden",
             "lg:flex lg:flex-col",
           )}
@@ -585,7 +585,7 @@ export function CommunicationHub() {
               logs.map((log) => (
                 <div
                   key={log._id}
-                  className="rounded-md border border-(--border-primary) bg-(--bg-secondary) p-2.5"
+                  className="rounded-md border border-(--border-1) bg-(--surface-2) p-2.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide">

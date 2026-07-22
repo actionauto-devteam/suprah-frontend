@@ -1085,19 +1085,58 @@ function Waveform({ active }: { active: boolean }) {
 }
 
 // ─── AI Generate helper ────────────────────────────────────────────────────────
+const AI_RATE_LIMIT_MESSAGE =
+  'Autrix is receiving too many AI requests right now. Please wait a moment, then try again.'
+const AI_TIMEOUT_MESSAGE =
+  'Autrix is taking longer than expected to respond. Please try again.'
+const AI_CREDIT_MESSAGE =
+  'Low Suprah Autrix credits — contact admin to upgrade.'
+const AI_REQUEST_TIMEOUT_MS = 45_000
+const AI_RETRY_COOLDOWN_MS = 30_000
+
+function normalizeAiErrorMessage(message: string, status?: number): string {
+  if (status === 429 || /\b429\b/i.test(message)) {
+    return AI_RATE_LIMIT_MESSAGE
+  }
+
+  if (/timeout|timed out|abort/i.test(message)) {
+    return AI_TIMEOUT_MESSAGE
+  }
+
+  if (/credit balance|plans? & billing|billing|upgrade|purchase credits/i.test(message)) {
+    return AI_CREDIT_MESSAGE
+  }
+
+  return message || 'Something went wrong. Please try again.'
+}
+
+function isAiRateLimitMessage(message: string): boolean {
+  return message === AI_RATE_LIMIT_MESSAGE || /\b429\b|too many AI requests|rate limit/i.test(message)
+}
+
 async function aiGenerate(prompt: string, module: string): Promise<string> {
   const token = getToken()
-  const res = await fetch(apiUrl('/api/supraleo/chat'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ message: prompt, module, stream: false }),
-  })
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS)
+  let res: Response
+  try {
+    res = await fetch(apiUrl('/api/supraleo/chat'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ message: prompt, module, stream: false }),
+      signal: controller.signal,
+    })
+  } catch (error: any) {
+    throw new Error(normalizeAiErrorMessage(error?.message || 'Request timeout'))
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
-    throw new Error(errBody?.message || `AI error ${res.status}`)
+    throw new Error(normalizeAiErrorMessage(errBody?.message || `AI error ${res.status}`, res.status))
   }
   const data = await res.json()
   return data?.data?.message || ''
@@ -1110,16 +1149,25 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
   const [messages, setMessages] = React.useState<ChatMsg[]>([])
   const [input, setInput] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [cooldownUntil, setCooldownUntil] = React.useState(0)
+  const [now, setNow] = React.useState(() => Date.now())
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const abortRef = React.useRef<AbortController | null>(null)
+  const cooldownRemaining = Math.max(0, Math.ceil((cooldownUntil - now) / 1000))
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
+  React.useEffect(() => {
+    if (!cooldownUntil) return
+    const intervalId = window.setInterval(() => setNow(Date.now()), 500)
+    return () => window.clearInterval(intervalId)
+  }, [cooldownUntil])
+
   const send = async (overrideText?: string) => {
     const text = (overrideText || input).trim()
-    if (!text || loading) return
+    if (!text || loading || cooldownRemaining > 0) return
     const uid = Date.now().toString()
     const lid = (Date.now() + 1).toString()
     setMessages(prev => [
@@ -1129,9 +1177,15 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
     ])
     setInput('')
     setLoading(true)
+    let requestTimedOut = false
+    let timeoutId: number | null = null
 
     try {
       abortRef.current = new AbortController()
+      timeoutId = window.setTimeout(() => {
+        requestTimedOut = true
+        abortRef.current?.abort()
+      }, AI_REQUEST_TIMEOUT_MS)
       const res = await fetch(apiUrl('/api/supraleo/chat'), {
         method: 'POST',
         headers: {
@@ -1144,40 +1198,58 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
 
       if (!res.ok || !res.body) {
         const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody?.message || 'API error')
+        throw new Error(normalizeAiErrorMessage(errBody?.message || 'API error', res.status))
       }
 
       const reader = res.body.getReader()
       const dec = new TextDecoder()
       let acc = ''
+      let buffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = dec.decode(value, { stream: true })
-        for (const line of chunk.split('\n')) {
+        buffer += dec.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6).trim()
           if (!raw) continue
+          let p: any
           try {
-            const p = JSON.parse(raw)
-            if (p.type === 'delta') {
-              acc += p.text
-              setMessages(prev => prev.map(m => m.id === lid ? { ...m, text: acc } : m))
-            } else if (p.type === 'done') {
-              setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
-            } else if (p.type === 'error') {
-              throw new Error(p.message || 'Stream error')
-            }
-          } catch { /* ignore chunk parse errors */ }
+            p = JSON.parse(raw)
+          } catch {
+            continue
+          }
+          if (p.type === 'delta') {
+            acc += p.text
+            setMessages(prev => prev.map(m => m.id === lid ? { ...m, text: acc } : m))
+          } else if (p.type === 'done') {
+            setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
+          } else if (p.type === 'error') {
+            throw new Error(normalizeAiErrorMessage(p.message || 'Stream error'))
+          }
         }
       }
+
+      setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
     } catch (err: any) {
-      const errMsg = err.name === 'AbortError' ? '' : (err.message || 'Something went wrong.')
+      const errMsg = err.name === 'AbortError' && !requestTimedOut
+        ? ''
+        : requestTimedOut
+          ? AI_TIMEOUT_MESSAGE
+          : normalizeAiErrorMessage(err.message || 'Something went wrong.')
+      if (isAiRateLimitMessage(errMsg)) {
+        setCooldownUntil(Date.now() + AI_RETRY_COOLDOWN_MS)
+        setNow(Date.now())
+      }
       setMessages(prev => prev.map(m =>
         m.id === lid ? { ...m, text: errMsg || m.text, streaming: false } : m
       ))
     } finally {
+      if (timeoutId) window.clearTimeout(timeoutId)
       setLoading(false)
     }
   }
@@ -1215,7 +1287,12 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {prompts.map(p => (
-                <button key={p} className="axp-quick-btn" onClick={() => send(p)}>
+                <button
+                  key={p}
+                  className="axp-quick-btn"
+                  onClick={() => send(p)}
+                  disabled={loading || cooldownRemaining > 0}
+                >
                   {p}
                   <ChevronRight size={11} style={{ opacity: 0.4, flexShrink: 0 }} />
                 </button>
@@ -1258,16 +1335,16 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Ask Autrix AI…"
+            placeholder={cooldownRemaining > 0 ? `Autrix cooldown: retry in ${cooldownRemaining}s` : "Ask Autrix AI…"}
             rows={1}
-            disabled={loading}
+            disabled={loading || cooldownRemaining > 0}
           />
           {loading ? (
             <button className="axp-send" onClick={() => abortRef.current?.abort()}>
               <Square size={11} />
             </button>
           ) : (
-            <button className="axp-send" onClick={() => send()} disabled={!input.trim()}>
+            <button className="axp-send" onClick={() => send()} disabled={!input.trim() || cooldownRemaining > 0}>
               <Send size={11} />
             </button>
           )}
