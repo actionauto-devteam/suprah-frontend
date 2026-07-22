@@ -1703,7 +1703,7 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
 
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, members = [], hideTime = false, onEditSave, onForward,
+  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -1715,6 +1715,7 @@ function Bubble({
   onJoinMeeting: (meetingId: string) => void;
   nameFor: (id: string) => string;
   disableActions?: boolean;
+  suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string }>;
   hideTime?: boolean;
   onEditSave?: (id: string, content: string, replacementFiles?: File[]) => Promise<void>;
@@ -1769,6 +1770,7 @@ function Bubble({
   const bubbleRef = React.useRef<HTMLDivElement>(null);
   const [actionBarPos, setActionBarPos] = React.useState<{ top: number; left: number } | null>(null);
   const swipeStartRef = React.useRef<{ x: number; y: number; active: boolean; direction: 1 | -1 } | null>(null);
+  const touchMovedRef = React.useRef(false);
   const swipeOffsetRef = React.useRef(0);
   const swipeRafRef = React.useRef<number | null>(null);
   const swipeCueRef = React.useRef<HTMLDivElement>(null);
@@ -2011,6 +2013,7 @@ function Bubble({
 
   const resetSwipeReply = React.useCallback(() => {
     swipeStartRef.current = null;
+    touchMovedRef.current = false;
     swipeOffsetRef.current = 0;
     if (swipeRafRef.current !== null) {
       cancelAnimationFrame(swipeRafRef.current);
@@ -2074,6 +2077,7 @@ function Bubble({
   const handleTouchStart = (event: React.TouchEvent) => {
     if (event.touches.length !== 1) return;
     if ((event.target as HTMLElement | null)?.closest('a, button, textarea, input, [contenteditable="true"], .ss4-reaction-chip')) return;
+    touchMovedRef.current = false;
     swipeStartRef.current = {
       x: event.touches[0].clientX,
       y: event.touches[0].clientY,
@@ -2082,6 +2086,7 @@ function Bubble({
     };
     if (columnRef.current) columnRef.current.style.transition = 'none';
     longPressTimer.current = setTimeout(() => {
+      if (touchMovedRef.current || !swipeStartRef.current?.active) return;
       openMobileActions();
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
     }, 500);
@@ -2103,21 +2108,26 @@ function Bubble({
     const dx = event.touches[0].clientX - start.x;
     const dy = event.touches[0].clientY - start.y;
     const directionalDx = dx * start.direction;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
 
-    if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx)) {
-      resetSwipeReply();
+    if (absDx > 8 || absDy > 8) {
+      touchMovedRef.current = true;
       if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    }
+
+    if (absDy > 10 && absDy > absDx) {
+      resetSwipeReply();
       return;
     }
 
-    if (directionalDx <= 0) {
+    if (directionalDx <= 10 || absDx <= absDy) {
       renderSwipeOffset(0, false);
       if (swipeCueVisible) setSwipeCueVisible(false);
       if (swipeReplyReady) setSwipeReplyReady(false);
       return;
     }
 
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     event.preventDefault();
     const nextOffset = Math.min(78, Math.sqrt(directionalDx) * 8.8);
     const signedOffset = nextOffset * start.direction;
@@ -2162,6 +2172,17 @@ function Bubble({
     return () => document.removeEventListener('mousedown', h);
   }, [hov]);
 
+  React.useEffect(() => {
+    if (!suppressActionsDuringScroll) return;
+    setHov(false);
+    setOpenReactPop(null);
+    if (pickerPosRef.current) closePicker();
+    if (moreActionsOpenRef.current) {
+      setMoreActionsOpen(false);
+      setDropdownFixedPos(null);
+    }
+  }, [suppressActionsDuringScroll]);
+
   if (message.isDeleted) {
     return (
       <div className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5', isOwn && 'flex-row-reverse')}>
@@ -2178,6 +2199,7 @@ function Bubble({
     <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
       onMouseEnter={() => {
         if (typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
+        if (suppressActionsDuringScroll) return;
         cancelHide();
         positionActionBar('desktop');
         setHov(true);
@@ -2447,7 +2469,7 @@ function Bubble({
           {hov && !disableActions && !editMode && actionBarPos && createPortal(
             <div ref={menuRef}
               className="ss4-msg-actions ss4-msg-actions-pop"
-              style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: '#1e1f22', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)', minWidth: 'max-content' }}
+              style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-md)', minWidth: 'max-content' }}
               onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
               {SS4_REACTIONS.slice(0, 3).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
@@ -2793,8 +2815,9 @@ function Bubble({
             style={{
               top: mobileReactionPos.top,
               left: mobileReactionPos.left,
-              background: '#2b2b2d',
-              boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
+              background: 'var(--surface-3)',
+              border: '1px solid var(--border-2)',
+              boxShadow: 'var(--shadow-lg)',
               animation: 'ss4-mobile-pop-in .16s cubic-bezier(.2,.8,.2,1) both',
             }}
             onClick={e => e.stopPropagation()}
@@ -2817,7 +2840,7 @@ function Bubble({
                 setMobileEmojiSheetOpen(true);
               }}
               className="flex h-12 w-12 items-center justify-center rounded-full text-4xl"
-              style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}
+              style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)' }}
               aria-label="More reactions"
             >
               +
@@ -2833,29 +2856,31 @@ function Bubble({
           <div
             className="absolute bottom-0 left-0 right-0 z-10 rounded-t-[28px] px-5 pb-5 pt-4"
             style={{
-              background: '#242526',
-              borderTop: '1px solid rgba(255,255,255,0.08)',
+              background: 'var(--surface-3)',
+              color: 'var(--text-primary)',
+              borderTop: '1px solid var(--border-2)',
+              boxShadow: '0 -18px 48px rgba(0,0,0,0.28)',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 18px)',
               animation: 'ss4-mobile-sheet-in .18s cubic-bezier(.2,.8,.2,1) both',
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full" style={{ background: 'var(--border-3)' }} />
             <div className="grid grid-cols-4 gap-2">
               <button onClick={() => { onReply(message); setMobileMenu(false); setMobileReactionPos(null); }}
-                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
                 <Reply className="h-8 w-8" style={{ color: '#4f7cff' }} />
                 <span className="text-center text-sm">Reply</span>
               </button>
               <button
                 onClick={() => { setMobileMenu(false); setMobileReactionPos(null); message.content ? copyMessageText() : toast.info('No text to copy'); }}
-                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
                 <Copy className="h-8 w-8" style={{ color: '#4f7cff' }} />
                 <span className="text-center text-sm">Copy</span>
               </button>
               <button
                 onClick={() => toast.info('Reminder feature coming soon')}
-                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
                 <Clock className="h-8 w-8" style={{ color: '#4f7cff' }} />
                 <span className="text-center text-sm">Set reminder</span>
               </button>
@@ -2866,7 +2891,7 @@ function Bubble({
                   setMobileReactionPos(null);
                   setMobileMoreOpen(true);
                 }}
-                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3 active:bg-white/5" style={{ color: '#f5f5f5' }}>
+                className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
                 <List className="h-8 w-8" style={{ color: '#4f7cff' }} />
                 <span className="text-center text-sm">More</span>
               </button>
@@ -2896,7 +2921,7 @@ function Bubble({
         >
           <div
             className="relative z-71 w-full max-w-sm rounded-[28px] px-7 py-6"
-            style={{ background: '#2b2b2b', color: '#f5f5f5', boxShadow: '0 24px 80px rgba(0,0,0,0.55)', animation: 'ss4-mobile-pop-in .16s cubic-bezier(.2,.8,.2,1) both' }}
+            style={{ background: 'var(--surface-3)', color: 'var(--text-primary)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)', animation: 'ss4-mobile-pop-in .16s cubic-bezier(.2,.8,.2,1) both' }}
             onClick={e => e.stopPropagation()}
           >
             <h3 className="mb-5 text-3xl font-medium">More</h3>
@@ -4028,6 +4053,8 @@ export default function SupraSpacePage() {
   const sendLongPressTriggeredRef = React.useRef(false);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = React.useState(false);
+  const [messageScrollActive, setMessageScrollActive] = React.useState(false);
+  const messageScrollIdleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' | 'space' }>({ open: false, tab: 'dm' });
   const [collapsedSections, setCollapsedSections] = React.useState<Set<string>>(new Set());
@@ -5504,6 +5531,36 @@ export default function SupraSpacePage() {
 
   const inspectMentionAnywhere = React.useCallback((value: string) => {
     if (!activeConv) return false;
+    const mentionTokenRe = /(^|[^\w@])@([A-Za-z0-9_]+(?:\s+[A-Za-z0-9_]+){0,2})/g;
+    const rawCandidates: Array<{ anchor: number; query: string; length: number }> = [];
+    let tokenMatch: RegExpExecArray | null;
+    while ((tokenMatch = mentionTokenRe.exec(value)) !== null) {
+      const anchor = tokenMatch.index + tokenMatch[1].length;
+      const rawQuery = tokenMatch[2].trim();
+      if (!rawQuery) continue;
+      const queryParts = rawQuery.split(/\s+/).filter(Boolean);
+      const queryVariants = queryParts
+        .map((_part, index) => queryParts.slice(0, queryParts.length - index).join(' '))
+        .filter(Boolean);
+
+      const matchedQuery = queryVariants.find(query => {
+        const queryLower = query.toLowerCase();
+        return queryLower === 'all' || activeConv.members.some(member => {
+          if (member._id === uid) return false;
+          const fullName = member.fullName.trim().toLowerCase();
+          const username = (member.username || '').trim().replace(/^@/, '').toLowerCase();
+          const parts = fullName.split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return fullName.includes(queryLower)
+            || display.startsWith(queryLower)
+            || parts[0]?.startsWith(queryLower)
+            || username.startsWith(queryLower);
+        });
+      });
+
+      if (matchedQuery) rawCandidates.push({ anchor, query: matchedQuery, length: matchedQuery.length });
+    }
+
     const aliases = [
       ...(activeConv.type === 'group' ? ['all'] : []),
       ...activeConv.members
@@ -5527,7 +5584,7 @@ export default function SupraSpacePage() {
       }
     });
 
-    const best = candidates.sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
+    const best = [...rawCandidates, ...candidates].sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
     if (!best) return false;
     setMentionQuery(best.query);
     setMentionAnchor(best.anchor);
@@ -6072,11 +6129,20 @@ export default function SupraSpacePage() {
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
     if (!el || !activeId) return;
+    setMessageScrollActive(true);
+    if (messageScrollIdleTimerRef.current) clearTimeout(messageScrollIdleTimerRef.current);
+    messageScrollIdleTimerRef.current = setTimeout(() => setMessageScrollActive(false), 220);
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowJumpToLatest(distanceFromBottom > 360);
     if (!hasMore[activeId] || loadingMsgs) return;
     if (el.scrollTop < 180) loadMore();
   }, [activeId, hasMore, loadingMsgs, loadMore]);
+
+  React.useEffect(() => {
+    return () => {
+      if (messageScrollIdleTimerRef.current) clearTimeout(messageScrollIdleTimerRef.current);
+    };
+  }, []);
 
   const openSearchResult = (convId: string, messageId: string) => {
     openConversation(convId); setQ('');
@@ -6807,7 +6873,7 @@ export default function SupraSpacePage() {
                           <React.Fragment key={msg._id}>
                             {showDate && <DateSep date={msg.createdAt} />}
                             <div id={`ss4-msg-${msg._id}`}>
-                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} />
+                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} suppressActionsDuringScroll={messageScrollActive} />
                             </div>
                             {pinEvents.find(e => e.msgId === msg._id) && (() => {
                               const ev = pinEvents.find(e => e.msgId === msg._id)!;

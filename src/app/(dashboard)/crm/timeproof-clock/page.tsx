@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { apiClient } from "@/lib/api-client"
 import { initializeSocket } from "@/lib/socket.client"
+import { playOverBreakAlarm, stopOverBreakAlarm } from "@/lib/notification-sound"
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -244,6 +245,19 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
   const BREAK_LIMIT_MS = 65 * 60 * 1000
   const breakExceeded = isOnBreak && totalBreakMs >= BREAK_LIMIT_MS
 
+  // Repeating alarm once break has gone past the limit — keeps playing until
+  // the user resumes their shift (breakExceeded flips false, either from
+  // isOnBreak going false or the duration no longer qualifying). Only heard
+  // while this page is open, same as any other in-app sound.
+  React.useEffect(() => {
+    if (breakExceeded) {
+      playOverBreakAlarm()
+    } else {
+      stopOverBreakAlarm()
+    }
+    return () => stopOverBreakAlarm()
+  }, [breakExceeded])
+
   const pad = (n: number) => n.toString().padStart(2, "0")
   const toHMS = (ms: number) => ({
     h: Math.floor(ms / 3600000),
@@ -341,6 +355,7 @@ export default function TimeprofClockPage() {
   const [resumeOriginalClockIn, setResumeOriginalClockIn] = React.useState<string | null>(null)
   const [showEarlyEndModal, setShowEarlyEndModal] = React.useState(false)
   const [showConfirmEndModal, setShowConfirmEndModal] = React.useState(false)
+  const [showBreakCapModal, setShowBreakCapModal] = React.useState(false)
   const [earlyEndReason, setEarlyEndReason] = React.useState("")
   const [earlyEndDetails, setEarlyEndDetails] = React.useState("")
   const [earlyEndSubmitting, setEarlyEndSubmitting] = React.useState(false)
@@ -818,16 +833,26 @@ export default function TimeprofClockPage() {
     const freshToken = isMain ? null : localStorage.getItem("crm_token")
     const breakHeaders = isMain ? {} : { headers: { Authorization: `Bearer ${freshToken}` } }
     if (!isOnBreak) {
-      setIsOnBreak(true)
-      setCurrentBreakStartAt(Date.now())
-      setActivityStartAt(null)
+      // Not optimistic here (unlike break-out below) — the backend can reject
+      // this once the cumulative 1-hour break cap for the shift is already
+      // used up, and flipping the UI to "on break" first would show a break
+      // timer running for a break that was never actually granted.
       try {
         const res = await apiClient.post(breakEndpoint, { type: "break-in" }, breakHeaders)
         const d = res.data?.data || res.data
         if (d?.todayLogs) setTodayLogs(d.todayLogs)
-      } catch { }
-      refreshShiftState()
-      setClockMsg(`Break started at ${fmt(new Date())}`)
+        setIsOnBreak(true)
+        setCurrentBreakStartAt(Date.now())
+        setActivityStartAt(null)
+        refreshShiftState()
+        setClockMsg(`Break started at ${fmt(new Date())}`)
+      } catch (err: any) {
+        const message = err?.response?.data?.message || ""
+        if (message.includes("already used your 1-hour break")) {
+          setShowBreakCapModal(true)
+        }
+        refreshShiftState()
+      }
     } else {
       setIsOnBreak(false)
       setCurrentBreakStartAt(null)
@@ -1744,6 +1769,34 @@ export default function TimeprofClockPage() {
                   <Play className="h-3.5 w-3.5" /> Resume Shift
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBreakCapModal && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBreakCapModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
+            <button onClick={() => setShowBreakCapModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <div className="px-6 pt-6 pb-5 space-y-4">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                  <Coffee className="h-7 w-7 text-red-400" />
+                </div>
+                <div>
+                  <p className="text-base font-black text-white">Break Already Used</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    You&apos;ve already used your 1-hour break for this shift. You can&apos;t start another break until your next shift.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowBreakCapModal(false)}
+                className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-bold transition-colors">
+                Got it
+              </button>
             </div>
           </div>
         </div>
