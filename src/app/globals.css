@@ -1486,3 +1486,52 @@ body.theme-switching *::after {
     transition-duration: 1ms;
   }
 }
+
+/* ==========================================================
+   Hidden Scrollbar Utility
+   Keeps scrolling functionality while hiding the scrollbar.
+   ========================================================== */
+
+.scrollbar-hide {
+  -ms-overflow-style: none;      /* IE & Edge */
+  scrollbar-width: none;         /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Optional:
+   Show scrollbar only while hovering.
+   Remove this block if you want it permanently hidden.
+*/
+
+.scrollbar-hover {
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.scrollbar-hover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-hover:hover {
+  scrollbar-width: thin;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background: rgba(100, 100, 100, 0.45);
+  border-radius: 999px;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-track {
+  background: transparent;
+}

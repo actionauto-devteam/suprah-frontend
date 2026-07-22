@@ -25,15 +25,15 @@ export function ReportCategoryCard({
   return (
     <Card
       onClick={onClick}
-      className={`border shadow-sm transition-all cursor-pointer bg-card p-0 md:p-4 group ${active
-        ? "border-primary/50 ring-2 ring-primary/20 bg-primary/5"
-        : "border-border/50 hover:border-primary/30 hover:ring-1 hover:ring-primary/20 hover:shadow-md"
+      className={`group cursor-pointer overflow-hidden rounded-xl border bg-card p-0 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ${active
+        ? "border-primary/60 bg-primary/[0.04] ring-2 ring-primary/10"
+        : "border-border/70 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
         }`}
     >
-      <CardContent className="p-3 md:p-6">
-        <div className="flex gap-2 md:items-center justify-between mb-4">
+      <CardContent className="p-4 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <div
-            className={`size-10 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${active ? "bg-primary/10 border-primary/30" : "bg-secondary"}`}
+            className={`flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${active ? "border-primary/30 bg-primary/10" : "border-border/70 bg-muted/50"}`}
           >
             {icon}
           </div>
@@ -45,11 +45,11 @@ export function ReportCategoryCard({
           </Badge>
         </div>
         <h3
-          className={`font-bold text-xs md:text-sm mb-1 transition-colors ${active ? "text-primary" : "text-foreground"}`}
+          className={`mb-1 text-sm font-bold transition-colors ${active ? "text-primary" : "text-foreground"}`}
         >
           {title}
         </h3>
-        <p className="text-[11px] text-muted-foreground leading-relaxed italic mb-3">
+        <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
           {description}
         </p>
         <button
@@ -57,7 +57,7 @@ export function ReportCategoryCard({
             e.stopPropagation();
             onViewAll();
           }}
-          className="flex items-center gap-1 text-[11px] font-medium text-primary opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:underline"
+          className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-opacity hover:underline"
         >
           View in Reports <ArrowRight className="size-3" />
         </button>

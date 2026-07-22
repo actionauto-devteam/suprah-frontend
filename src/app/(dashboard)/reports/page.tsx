@@ -8,6 +8,7 @@ import {
   Archive,
   MapPin,
   CreditCard,
+  DollarSign,
   Truck,
   CheckSquare,
   Calendar,
@@ -17,11 +18,14 @@ import {
   X,
   RefreshCw,
   Sparkles,
-  Menu,
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
   Download,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  WalletCards,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,6 +74,44 @@ function percentage(part: number, whole: number): string {
   return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "0%";
 }
 
+type TrendDirection = "up" | "down" | "flat";
+
+interface TrendInfo {
+  label: string;
+  direction: TrendDirection;
+}
+
+function getTrend(current: number, previous: number, suffix = "vs previous month"): TrendInfo {
+  if (current === previous) {
+    return { label: `No change ${suffix}`, direction: "flat" };
+  }
+
+  if (previous === 0) {
+    return current > 0
+      ? { label: `New activity ${suffix}`, direction: "up" }
+      : { label: `No activity ${suffix}`, direction: "flat" };
+  }
+
+  const change = Math.round(((current - previous) / Math.abs(previous)) * 100);
+  return {
+    label: `${change > 0 ? "+" : ""}${change}% ${suffix}`,
+    direction: change > 0 ? "up" : "down",
+  };
+}
+
+function getRateTrend(current: number, previous: number): TrendInfo {
+  const difference = Math.round((current - previous) * 10) / 10;
+
+  if (difference === 0) {
+    return { label: "No change vs previous month", direction: "flat" };
+  }
+
+  return {
+    label: `${difference > 0 ? "+" : ""}${difference} pts vs previous month`,
+    direction: difference > 0 ? "up" : "down",
+  };
+}
+
 function addFooter(doc: any, label: string, generatedAt: string) {
   const pages = doc.getNumberOfPages();
   for (let page = 1; page <= pages; page += 1) {
@@ -89,11 +131,17 @@ function addFooter(doc: any, label: string, generatedAt: string) {
   }
 }
 
-function drawHeader(doc: any, title: string, subtitle: string, period: string) {
+function drawHeader(
+  doc: any,
+  title: string,
+  subtitle: string,
+  period: string,
+  accent: [number, number, number] = [16, 185, 129],
+) {
   const width = doc.internal.pageSize.getWidth();
   doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, width, 25, "F");
-  doc.setFillColor(16, 185, 129);
+  doc.setFillColor(...accent);
   doc.roundedRect(14, 7, 10, 10, 2, 2, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
@@ -119,6 +167,7 @@ function drawSummaryCards(
   doc: any,
   items: Array<{ label: string; value: string }>,
   startY = 32,
+  valueColor: [number, number, number] = [5, 150, 105],
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const gap = 4;
@@ -137,7 +186,7 @@ function drawSummaryCards(
     doc.text(item.label, x + 3, startY + 5.5);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(5, 150, 105);
+    doc.setTextColor(...valueColor);
     doc.text(item.value, x + 3, startY + 12.5);
   });
 }
@@ -150,6 +199,7 @@ async function generateDriverPerformancePdf(
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF({ orientation: "landscape" });
+  const operationsBlue: [number, number, number] = [37, 99, 235];
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -174,6 +224,7 @@ async function generateDriverPerformancePdf(
     "Suprah AI Driver Performance",
     "Fleet productivity and settlement report",
     monthLabel,
+    operationsBlue,
   );
   drawSummaryCards(doc, [
     { label: "Assigned Loads", value: String(assigned.length) },
@@ -185,7 +236,7 @@ async function generateDriverPerformancePdf(
     { label: "POD Approved", value: String(approved.length) },
     { label: "Total Payouts", value: formatCurrency(payoutTotal) },
     { label: "Paid Settlements", value: String(paidPayouts.length) },
-  ]);
+  ], 32, operationsBlue);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
@@ -194,6 +245,9 @@ async function generateDriverPerformancePdf(
 
   autoTable(doc, {
     startY: 61,
+    showHead: "everyPage",
+    rowPageBreak: "avoid",
+    pageBreak: "auto",
     head: [
       [
         "Driver",
@@ -234,11 +288,41 @@ async function generateDriverPerformancePdf(
               "",
             ],
           ],
-    margin: { left: 14, right: 14, bottom: 18 },
-    styles: { fontSize: 7.2, cellPadding: 2.4, textColor: [30, 41, 59] },
-    headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+    margin: { top: 42, left: 14, right: 14, bottom: 18 },
+    styles: {
+      fontSize: 7.2,
+      cellPadding: 2.4,
+      overflow: "linebreak",
+      valign: "middle",
+      textColor: [30, 41, 59],
+    },
+    headStyles: {
+      fillColor: operationsBlue,
+      textColor: 255,
+      fontStyle: "bold",
+    },
     alternateRowStyles: { fillColor: [248, 250, 252] },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawHeader(
+          doc,
+          "Suprah AI Driver Performance",
+          "Driver Load Activity • Continued",
+          monthLabel,
+          operationsBlue,
+        );
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Driver Load Activity", 14, 40);
+      }
+    },
   });
+
+
+  // Keep the Driver Performance download consistent with its preview.
+  // Driver payout records are shown in Billings & Revenue and are not
+  // duplicated as an extra settlement page here.
 
   doc.addPage();
   drawHeader(
@@ -246,9 +330,19 @@ async function generateDriverPerformancePdf(
     "Suprah AI Driver Settlements",
     "Driver payout ledger",
     monthLabel,
+    operationsBlue,
   );
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  doc.text("Driver Settlement Details", 14, 32);
+
   autoTable(doc, {
-    startY: 32,
+    startY: 35,
+    showHead: "everyPage",
+    rowPageBreak: "avoid",
+    pageBreak: "auto",
     head: [
       [
         "Payout #",
@@ -277,12 +371,48 @@ async function generateDriverPerformancePdf(
             fmtDate(payout.paidAt),
             safeText(payout.failureReason),
           ])
-        : [["No payout records for this period", "", "", "", "", "", "", ""]],
-    margin: { left: 14, right: 14, bottom: 18 },
-    styles: { fontSize: 7.2, cellPadding: 2.4, textColor: [30, 41, 59] },
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+        : [
+            [
+              "No payout records for this period",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ],
+          ],
+    margin: { top: 42, left: 14, right: 14, bottom: 18 },
+    styles: {
+      fontSize: 7.2,
+      cellPadding: 2.4,
+      overflow: "linebreak",
+      valign: "middle",
+      textColor: [30, 41, 59],
+    },
+    headStyles: {
+      fillColor: operationsBlue,
+      textColor: 255,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [239, 246, 255] },
     columnStyles: { 4: { halign: "right" } },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawHeader(
+          doc,
+          "Suprah AI Driver Settlements",
+          "Driver payout ledger • Continued",
+          monthLabel,
+          operationsBlue,
+        );
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Driver Settlement Details", 14, 40);
+      }
+    },
   });
 
   addFooter(doc, "Driver Performance", generatedAt);
@@ -297,6 +427,7 @@ async function generateBillingRevenuePdf(
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF({ orientation: "landscape" });
+  const financeViolet: [number, number, number] = [124, 58, 237];
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -333,6 +464,7 @@ async function generateBillingRevenuePdf(
     "Suprah AI Billings & Revenue",
     "Payment audit and operating margin report",
     monthLabel,
+    financeViolet,
   );
   drawSummaryCards(doc, [
     { label: "Transactions", value: String(payments.length) },
@@ -341,15 +473,18 @@ async function generateBillingRevenuePdf(
     { label: "Pending", value: formatCurrency(pendingRevenue) },
     { label: "Driver Costs", value: formatCurrency(driverCosts) },
     { label: "Net Position", value: formatCurrency(netPosition) },
-  ]);
+  ], 32, financeViolet);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(30, 41, 59);
-  doc.text("Payment Ledger", 14, 58);
+  doc.text("Customer Payments to Dealer", 14, 58);
 
   autoTable(doc, {
     startY: 61,
+    showHead: "everyPage",
+    rowPageBreak: "avoid",
+    pageBreak: "auto",
     head: [
       [
         "Invoice",
@@ -375,85 +510,124 @@ async function generateBillingRevenuePdf(
             fmtDate(payment.dueDate),
           ])
         : [["No billing activity for this period", "", "", "", "", "", "", ""]],
-    margin: { left: 14, right: 14, bottom: 18 },
-    styles: { fontSize: 7.2, cellPadding: 2.4, textColor: [30, 41, 59] },
+    margin: { top: 42, left: 14, right: 14, bottom: 18 },
+    styles: {
+      fontSize: 7.2,
+      cellPadding: 2.4,
+      overflow: "linebreak",
+      valign: "middle",
+      textColor: [30, 41, 59],
+    },
     headStyles: {
-      fillColor: [124, 58, 237],
+      fillColor: financeViolet,
       textColor: 255,
       fontStyle: "bold",
     },
     alternateRowStyles: { fillColor: [250, 245, 255] },
     columnStyles: { 3: { halign: "right" } },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawHeader(
+          doc,
+          "Suprah AI Billings & Revenue",
+          "Customer Payments to Dealer • Continued",
+          monthLabel,
+          financeViolet,
+        );
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Customer Payments to Dealer", 14, 40);
+      }
+    },
   });
 
   doc.addPage();
   drawHeader(
     doc,
-    "Suprah AI Financial Audit",
-    "Status summary and payout reconciliation",
+    "Suprah AI Billings & Revenue",
+    "Driver Payouts from Dealer",
     monthLabel,
+    financeViolet,
   );
 
-  const statusRows = [
-    [
-      "Succeeded",
-      String(succeeded.length),
-      formatCurrency(grossRevenue),
-      percentage(succeeded.length, payments.length),
-    ],
-    [
-      "Pending / Processing",
-      String(pending.length),
-      formatCurrency(pendingRevenue),
-      percentage(pending.length, payments.length),
-    ],
-    [
-      "Failed / Cancelled",
-      String(failed.length),
-      formatCurrency(failed.reduce((s, p) => s + Number(p.amount || 0), 0)),
-      percentage(failed.length, payments.length),
-    ],
-  ];
-
-  autoTable(doc, {
-    startY: 32,
-    head: [["Payment Status", "Count", "Amount", "Share"]],
-    body: statusRows,
-    margin: { left: 14, right: 14 },
-    styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: {
-      1: { halign: "right" },
-      2: { halign: "right" },
-      3: { halign: "right" },
-    },
-  });
-
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 65;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(30, 41, 59);
-  doc.text("Driver Payout Reconciliation", 14, finalY + 12);
+  doc.text("Driver Payouts from Dealer", 14, 40);
 
   autoTable(doc, {
-    startY: finalY + 15,
-    head: [["Driver", "Payout #", "Amount", "Status", "Paid At"]],
+    startY: 43,
+    showHead: "everyPage",
+    rowPageBreak: "avoid",
+    pageBreak: "auto",
+    head: [
+      [
+        "Driver",
+        "Payout #",
+        "Load",
+        "Description",
+        "Amount",
+        "Status",
+        "Paid At",
+      ],
+    ],
     body:
       payouts.length > 0
         ? payouts.map((payout) => [
             safeText(payout.driverName),
             safeText(payout.payoutNumber),
+            typeof payout.loadId === "object"
+              ? safeText(
+                  payout.loadId.loadNumber || payout.loadId.trackingNumber,
+                )
+              : safeText(payout.loadId),
+            safeText(payout.description),
             formatCurrency(Number(payout.amount || 0)),
             safeText(payout.status),
             fmtDate(payout.paidAt),
           ])
-        : [["No payout activity for this period", "", "", "", ""]],
-    margin: { left: 14, right: 14, bottom: 18 },
-    styles: { fontSize: 7.5, cellPadding: 2.6 },
-    headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+        : [
+            [
+              "No payout activity for this period",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ],
+          ],
+    margin: { top: 42, left: 14, right: 14, bottom: 18 },
+    styles: {
+      fontSize: 7.2,
+      cellPadding: 2.4,
+      overflow: "linebreak",
+      valign: "middle",
+      textColor: [30, 41, 59],
+    },
+    headStyles: {
+      fillColor: financeViolet,
+      textColor: 255,
+      fontStyle: "bold",
+    },
     alternateRowStyles: { fillColor: [240, 253, 250] },
-    columnStyles: { 2: { halign: "right" } },
+    columnStyles: { 4: { halign: "right" } },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawHeader(
+          doc,
+          "Suprah AI Billings & Revenue",
+          "Driver Payouts from Dealer • Continued",
+          monthLabel,
+          financeViolet,
+        );
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Driver Payouts from Dealer", 14, 40);
+      }
+    },
   });
 
   addFooter(doc, "Billings & Revenue", generatedAt);
@@ -501,18 +675,23 @@ export default function ReportsPage() {
     new Date().getFullYear(),
   );
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isPeriodControlExpanded, setIsPeriodControlExpanded] =
+    React.useState(false);
+
+  const isPeriodControlOpen = isPeriodControlExpanded;
 
   const [reportData, setReportData] = React.useState<ReportData | null>(null);
+  const [previousReportData, setPreviousReportData] = React.useState<ReportData | null>(null);
   const [rawLoads, setRawLoads] = React.useState<Load[]>([]);
   const [rawQuotes, setRawQuotes] = React.useState<TransportQuote[]>([]);
   const [rawPayments, setRawPayments] = React.useState<Payment[]>([]);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [isMultiSelectMode, setIsMultiSelectMode] = React.useState(false);
   const [downloading, setDownloading] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const [showTransportationAnalytics, setShowTransportationAnalytics] = React.useState(false);
-  const [showOperationalAnalytics, setShowOperationalAnalytics] = React.useState(false);
+  const [showTransportationAnalytics, setShowTransportationAnalytics] = React.useState(true);
+  const [showOperationalAnalytics, setShowOperationalAnalytics] = React.useState(true);
 
   const [previewType, setPreviewType] = React.useState<string | null>(null);
   const [transportPreview, setTransportPreview] = React.useState<
@@ -524,15 +703,26 @@ export default function ReportsPage() {
     try {
       const token = await getToken();
       const month = selectedMonth + 1;
-      const monthStr = String(month).padStart(2, "0");
-      const yearMonth = `${selectedYear}-${monthStr}`;
-      const reportQuery = `report=true&month=${month}&year=${selectedYear}&limit=5000`;
+      const previousPeriod = new Date(selectedYear, selectedMonth - 1, 1);
+      const previousMonth = previousPeriod.getMonth() + 1;
+      const previousYear = previousPeriod.getFullYear();
 
-      const [lRes, qRes, pRes, payRes] = await Promise.all([
+      const reportQuery = `report=true&month=${month}&year=${selectedYear}&limit=5000`;
+      const previousReportQuery = `report=true&month=${previousMonth}&year=${previousYear}&limit=5000`;
+
+      const [
+        lRes,
+        qRes,
+        pRes,
+        payRes,
+        previousLoadsRes,
+        previousPaymentsRes,
+        previousPayoutsRes,
+      ] = await Promise.all([
         apiClient.get(`/api/loads?${reportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        apiClient.get(`/api/quotes?page=1&limit=100`, {
+        apiClient.get(`/api/quotes?page=1&limit=5000`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         apiClient.get(`/api/payments?${reportQuery}`, {
@@ -541,11 +731,23 @@ export default function ReportsPage() {
         apiClient.get(`/api/driver-payouts?${reportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        apiClient.get(`/api/loads?${previousReportQuery}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        apiClient.get(`/api/payments?${previousReportQuery}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        apiClient.get(`/api/driver-payouts?${previousReportQuery}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
       const loadPayload = lRes.data?.data;
       const paymentPayload = pRes.data?.data;
       const payoutPayload = payRes.data?.data;
+      const previousLoadPayload = previousLoadsRes.data?.data;
+      const previousPaymentPayload = previousPaymentsRes.data?.data;
+      const previousPayoutPayload = previousPayoutsRes.data?.data;
 
       const loads = Array.isArray(loadPayload)
         ? loadPayload
@@ -568,7 +770,28 @@ export default function ReportsPage() {
           ? qRes.data.data.quotes
           : [];
 
+      const previousLoads = Array.isArray(previousLoadPayload)
+        ? previousLoadPayload
+        : Array.isArray(previousLoadPayload?.loads)
+          ? previousLoadPayload.loads
+          : [];
+      const previousPayments = Array.isArray(previousPaymentPayload)
+        ? previousPaymentPayload
+        : Array.isArray(previousPaymentPayload?.payments)
+          ? previousPaymentPayload.payments
+          : [];
+      const previousPayouts = Array.isArray(previousPayoutPayload)
+        ? previousPayoutPayload
+        : Array.isArray(previousPayoutPayload?.payouts)
+          ? previousPayoutPayload.payouts
+          : [];
+
       setReportData({ loads, payments, payouts });
+      setPreviousReportData({
+        loads: previousLoads,
+        payments: previousPayments,
+        payouts: previousPayouts,
+      });
       setRawLoads(loads);
       setRawQuotes(quotes);
       setRawPayments(payments);
@@ -584,9 +807,12 @@ export default function ReportsPage() {
     fetchData();
   }, [fetchData]);
 
+
   // ─── Filter Logic ───────────────────────────────────────────────────────────
 
   const monthLabel = `${MONTHS[selectedMonth]} ${selectedYear}`;
+  const previousPeriodDate = new Date(selectedYear, selectedMonth - 1, 1);
+  const previousMonthLabel = `${MONTHS[previousPeriodDate.getMonth()]} ${previousPeriodDate.getFullYear()}`;
 
   const filteredLoads = React.useMemo(() => {
     if (!reportData?.loads) return [];
@@ -618,6 +844,14 @@ export default function ReportsPage() {
     });
   }, [rawQuotes, selectedMonth, selectedYear, searchQuery]);
 
+  const previousQuotes = React.useMemo(() => {
+    const previousKey = `${previousPeriodDate.getFullYear()}-${String(
+      previousPeriodDate.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+    return rawQuotes.filter((quote) => quote.createdAt?.startsWith(previousKey));
+  }, [rawQuotes, previousPeriodDate]);
+
   const loadSummary = React.useMemo(() => {
     return buildLoadSummary(filteredLoads);
   }, [filteredLoads]);
@@ -626,15 +860,71 @@ export default function ReportsPage() {
     return buildQuoteSummary(filteredQuotes);
   }, [filteredQuotes]);
 
-  const revenueTotal = React.useMemo(() => {
-    if (!reportData?.payments) return 0;
-    return reportData.payments.reduce((acc, p) => acc + (p.amount || 0), 0);
-  }, [reportData?.payments]);
+  const revenueTotal = React.useMemo(
+    () =>
+      (reportData?.payments || [])
+        .filter((payment) => payment.status === "succeeded")
+        .reduce((total, payment) => total + Number(payment.amount || 0), 0),
+    [reportData?.payments],
+  );
 
-  const payoutTotal = React.useMemo(() => {
-    if (!reportData?.payouts) return 0;
-    return reportData.payouts.reduce((acc, p) => acc + (p.amount || 0), 0);
-  }, [reportData?.payouts]);
+  const payoutTotal = React.useMemo(
+    () =>
+      (reportData?.payouts || []).reduce(
+        (total, payout) => total + Number(payout.amount || 0),
+        0,
+      ),
+    [reportData?.payouts],
+  );
+
+  const previousRevenueTotal = React.useMemo(
+    () =>
+      (previousReportData?.payments || [])
+        .filter((payment) => payment.status === "succeeded")
+        .reduce((total, payment) => total + Number(payment.amount || 0), 0),
+    [previousReportData?.payments],
+  );
+
+  const previousPayoutTotal = React.useMemo(
+    () =>
+      (previousReportData?.payouts || []).reduce(
+        (total, payout) => total + Number(payout.amount || 0),
+        0,
+      ),
+    [previousReportData?.payouts],
+  );
+
+  const deliveredLoads =
+    reportData?.loads.filter((load) => load.status === "Delivered").length || 0;
+  const previousDeliveredLoads =
+    previousReportData?.loads.filter((load) => load.status === "Delivered")
+      .length || 0;
+  const totalLoads = reportData?.loads.length || 0;
+  const previousTotalLoads = previousReportData?.loads.length || 0;
+  const deliveryRate = totalLoads > 0 ? (deliveredLoads / totalLoads) * 100 : 0;
+  const previousDeliveryRate =
+    previousTotalLoads > 0
+      ? (previousDeliveredLoads / previousTotalLoads) * 100
+      : 0;
+  const netRevenue = revenueTotal - payoutTotal;
+  const previousNetRevenue = previousRevenueTotal - previousPayoutTotal;
+
+  const previousLoadSummary = React.useMemo(
+    () => buildLoadSummary(previousReportData?.loads || []),
+    [previousReportData?.loads],
+  );
+  const previousQuoteSummary = React.useMemo(
+    () => buildQuoteSummary(previousQuotes),
+    [previousQuotes],
+  );
+
+  const succeededPayments =
+    reportData?.payments.filter((payment) => payment.status === "succeeded")
+      .length || 0;
+  const pendingPayments =
+    reportData?.payments.filter((payment) =>
+      ["pending", "processing"].includes(payment.status),
+    ).length || 0;
 
   // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -645,19 +935,45 @@ export default function ReportsPage() {
     setSelected(next);
   };
 
-  const toggleAll = () => {
-    const allIds =
-      activeTab === "ALL"
-        ? ["driver-report", "billing-report", "load-report", "quote-report"]
-        : activeTab === "Transportation"
-          ? ["load-report", "quote-report"]
-          : activeTab === "Driver Reports"
-            ? ["driver-report"]
-            : ["billing-report"];
+  const visibleReportIds = React.useMemo(() => {
+    if (activeTab === "Transportation") {
+      return ["load-report", "quote-report"];
+    }
 
-    if (selected.size === allIds.length) setSelected(new Set());
-    else setSelected(new Set(allIds));
+    if (activeTab === "Driver Reports") {
+      return ["driver-report"];
+    }
+
+    if (activeTab === "Billings") {
+      return ["billing-report"];
+    }
+
+    return ["load-report", "quote-report", "driver-report", "billing-report"];
+  }, [activeTab]);
+
+  const startMultiSelect = () => {
+    setIsMultiSelectMode((current) => {
+      const next = !current;
+
+      if (!next) {
+        setSelected(new Set());
+      }
+
+      return next;
+    });
   };
+
+  React.useEffect(() => {
+    setSelected((current) => {
+      const next = new Set(
+        Array.from(current).filter((id) => visibleReportIds.includes(id)),
+      );
+
+      return next.size === current.size ? current : next;
+    });
+
+    setIsMultiSelectMode(false);
+  }, [visibleReportIds]);
 
   const downloadReport = async (id: string) => {
     setDownloading(id);
@@ -718,11 +1034,11 @@ export default function ReportsPage() {
     }
   };
 
-  const bulkDownload = async () => {
-    const picks = Array.from(selected);
+  const bulkDownload = async (reportIds?: string[]) => {
+    const picks = reportIds ?? Array.from(selected);
     if (picks.length === 0) return;
 
-    toast.promise(
+    await toast.promise(
       (async () => {
         for (const id of picks) {
           await downloadReport(id);
@@ -739,119 +1055,297 @@ export default function ReportsPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen min-w-0 overflow-x-hidden bg-background pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
-      <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-xl">
-        <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-5 sm:py-4 xl:px-6">
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen min-w-0 bg-background text-foreground pb-[calc(5.5rem+env(safe-area-inset-bottom))] 2xl:pb-5">
+      <div
+        aria-label="Report period controls"
+        className={`fixed right-2 top-[calc(4.5rem+env(safe-area-inset-top))] z-[60] flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 transition-all duration-200 min-[430px]:right-3 sm:right-4 lg:right-4 lg:top-[calc(4rem+env(safe-area-inset-top))] xl:right-6 ${
+          isPeriodControlOpen
+            ? "opacity-100"
+            : "opacity-80 hover:opacity-100"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() =>
+            setIsPeriodControlExpanded((value) => !value)
+          }
+          className={`inline-flex items-center justify-center rounded-xl border bg-background/95 text-foreground shadow-lg backdrop-blur-xl transition-all duration-200 hover:border-primary/45 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
+            isPeriodControlOpen
+              ? "h-10 gap-2 border-primary/30 px-3"
+              : "size-11 border-primary/20 px-0"
+          }`}
+          aria-expanded={isPeriodControlOpen}
+          aria-controls="report-period-panel"
+          aria-label={
+            isPeriodControlOpen
+              ? "Collapse report period controls"
+              : "Expand report period controls"
+          }
+          title={
+            isPeriodControlOpen
+              ? "Collapse report period controls"
+              : `Choose report period: ${MONTHS[selectedMonth]} ${selectedYear}`
+          }
+        >
+          <span
+            className={`flex items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-200 ${
+              isPeriodControlOpen ? "size-7" : "size-8"
+            }`}
+          >
+            <Calendar
+              className={isPeriodControlOpen ? "size-4" : "size-[18px]"}
+              aria-hidden="true"
+            />
+          </span>
+
+          {isPeriodControlOpen && (
+            <>
+              <span className="whitespace-nowrap text-sm font-semibold">
+                {MONTHS[selectedMonth]} {selectedYear}
+              </span>
+              <ChevronUp className="size-4 text-muted-foreground" />
+            </>
+          )}
+        </button>
+
+        {isPeriodControlOpen && (
+          <div
+            id="report-period-panel"
+            className="flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-2xl border border-border/80 bg-background/95 p-2 shadow-xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-150"
+          >
+            <Select
+              value={String(selectedMonth)}
+              onValueChange={(value) =>
+                setSelectedMonth(Number(value))
+              }
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-10 w-auto min-w-[7.5rem] max-w-[11rem] items-center rounded-xl border border-border bg-muted/50 px-3 text-left text-xs font-semibold leading-none shadow-none [&>span]:flex [&>span]:h-full [&>span]:items-center [&>span]:whitespace-nowrap focus:ring-0 min-[430px]:text-sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                align="start"
+                className="border-border bg-popover text-popover-foreground shadow-xl"
+              >
+                {MONTHS.map((month, index) => (
+                  <SelectItem key={month} value={String(index)}>
+                    {month}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={String(selectedYear)}
+              onValueChange={(value) =>
+                setSelectedYear(Number(value))
+              }
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-10 w-auto min-w-[5.5rem] items-center rounded-xl border border-border bg-muted/50 px-3 text-left text-xs font-semibold leading-none shadow-none [&>span]:flex [&>span]:h-full [&>span]:items-center [&>span]:whitespace-nowrap focus:ring-0 min-[430px]:text-sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                align="end"
+                className="min-w-22 border-border bg-popover text-popover-foreground shadow-xl"
+              >
+                {Array.from(
+                  { length: 5 },
+                  (_, index) => new Date().getFullYear() - 3 + index,
+                ).map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <div className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-14 backdrop-blur-xl lg:pt-0">
+        <div className="mx-auto w-full max-w-[1680px] px-3 py-2.5 sm:px-4 sm:py-3 lg:pr-20 xl:px-5 xl:pr-24">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 sm:size-11 sm:rounded-2xl">
-                <Sparkles className="size-5" />
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+                <Sparkles className="size-4.5" />
               </div>
-              <div className="min-w-0">
+
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-2xl">Suprah AI Reports</h1>
-                  <span className="hidden rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary sm:inline-flex">Local Workspace</span>
+                  <h1 className="truncate text-base font-bold tracking-tight text-foreground sm:text-xl">
+                    Suprah AI Reports
+                  </h1>
+                  <span className="hidden rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary sm:inline-flex">
+                    Local Workspace
+                  </span>
                 </div>
-                <p className="hidden text-sm text-muted-foreground sm:block">Preview, generate, organize, and export operational reports.</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  Preview, generate, organize, and export operational reports.
+                </p>
               </div>
             </div>
 
-            <div className="grid w-full grid-cols-[auto_1fr] items-center gap-2 sm:flex sm:w-auto sm:shrink-0">
-              <Button variant="outline" size="icon" className="size-10 rounded-xl lg:hidden" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open report filters">
-                <Menu className="size-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="hidden h-10 gap-2 rounded-xl sm:inline-flex" onClick={fetchData} disabled={isRefreshing}>
-                <RefreshCw className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} /> Refresh
-              </Button>
-              <div className="min-w-0 flex items-center gap-1 rounded-xl border border-border bg-muted/50 p-1">
-                <Calendar className="ml-1 hidden size-4 text-muted-foreground sm:block" />
-                <Select value={String(selectedMonth)} onValueChange={(value) => setSelectedMonth(Number(value))}>
-                  <SelectTrigger size="sm" className="h-8 min-w-0 flex-1 border-0 bg-transparent px-2 text-xs font-semibold shadow-none focus:ring-0 sm:w-28 sm:flex-none sm:text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent position="popper" align="start" className="border-border bg-popover text-popover-foreground shadow-xl">
-                    {MONTHS.map((month, index) => <SelectItem key={month} value={String(index)}>{month}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <div className="h-4 w-px bg-border" />
-                <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(Number(value))}>
-                  <SelectTrigger size="sm" className="h-8 w-20 border-0 bg-transparent px-2 text-xs font-semibold shadow-none focus:ring-0 sm:w-22 sm:text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent position="popper" align="end" className="min-w-22 border-border bg-popover text-popover-foreground shadow-xl">
-                    {Array.from({ length: 5 }, (_, index) => new Date().getFullYear() - 3 + index).map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            <div className="flex min-w-0 items-center gap-1.5 lg:w-[360px] lg:shrink-0">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="report-search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search reports..."
+                  className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-10 text-sm outline-none transition-shadow focus:ring-2 focus:ring-primary/20"
+                />
+
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Clear report search"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
               </div>
+
+              {searchQuery && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 shrink-0 gap-2 rounded-lg px-3 text-xs font-semibold sm:text-sm"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <Database className="size-3.5" />
+                  Reset
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close filters" />
-          <aside className="absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col border-r border-border bg-card shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border p-4">
-              <div><p className="text-sm font-bold text-foreground">Reports Menu</p><p className="text-xs text-muted-foreground">Categories and filters</p></div>
-              <Button variant="ghost" size="icon" className="size-9" onClick={() => setIsMobileMenuOpen(false)}><X className="size-4" /></Button>
+      <div className="mx-auto w-full max-w-[1680px] min-w-0 space-y-4 px-3 py-3 sm:px-4 sm:py-4 xl:px-5">
+        <section aria-label="Reporting overview" className="min-w-0 space-y-3.5">
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-[1.65rem]">
+                Reporting Overview
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Key results for {monthLabel}, compared with {previousMonthLabel}.
+              </p>
             </div>
-            <div className="flex-1 space-y-5 overflow-y-auto p-4">
-              <nav className="space-y-1">
-                {CATEGORIES.map((cat) => (
-                  <button key={cat.id} onClick={() => { setActiveTab(cat.id); setIsMobileMenuOpen(false); }} className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${activeTab === cat.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                    <cat.icon className="size-4.5" />{cat.label}
-                  </button>
-                ))}
-              </nav>
-              <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Global Filters</p>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search reports..." className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-primary/20" />
-                  {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><X className="size-4" /></button>}
-                </div>
-                <Button variant="outline" className="h-11 w-full justify-start gap-2 rounded-xl border-dashed" onClick={() => setSearchQuery("")}><Database className="size-4" />Reset Filters</Button>
+          </div>
+
+          <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13.5rem),1fr))]">
+            <StatBox
+              label="Gross Revenue"
+              value={formatCurrency(revenueTotal)}
+              sub={`${succeededPayments} successful payment${succeededPayments === 1 ? "" : "s"}`}
+              icon={DollarSign}
+              color="text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40"
+              accentClass="bg-violet-500"
+              trend={getTrend(revenueTotal, previousRevenueTotal)}
+              emphasis
+            />
+            <StatBox
+              label="Net Position"
+              value={formatCurrency(netRevenue)}
+              sub="Revenue after driver payouts"
+              icon={WalletCards}
+              color="text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40"
+              accentClass="bg-violet-500"
+              trend={getTrend(netRevenue, previousNetRevenue)}
+              emphasis
+            />
+            <StatBox
+              label="Delivered Loads"
+              value={deliveredLoads}
+              sub={`${Math.round(deliveryRate)}% delivery rate`}
+              icon={CheckSquare}
+              color="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
+              accentClass="bg-emerald-500"
+              trend={getTrend(deliveredLoads, previousDeliveredLoads)}
+            />
+            <StatBox
+              label="Total Loads"
+              value={totalLoads}
+              sub="Loads in selected period"
+              icon={Truck}
+              color="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
+              accentClass="bg-blue-500"
+              trend={getTrend(totalLoads, previousTotalLoads)}
+            />
+            <StatBox
+              label="Driver Payouts"
+              value={formatCurrency(payoutTotal)}
+              sub={`${pendingPayments} payment${pendingPayments === 1 ? "" : "s"} pending`}
+              icon={Users}
+              color="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40"
+              accentClass="bg-amber-500"
+              trend={getTrend(payoutTotal, previousPayoutTotal)}
+              inverseTrend
+            />
+          </div>
+        </section>
+
+        <div className="min-w-0">
+          <main className="w-full min-w-0 space-y-3.5">
+            <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                  {activeTab === "ALL" ? "Available Reports" : activeTab}
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                  Showing results for {monthLabel}
+                </p>
+              </div>
+
+              <div className="flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end">
+                <Button
+                  variant={isMultiSelectMode ? "secondary" : "outline"}
+                  size="sm"
+                  className="h-9 gap-2 rounded-lg px-3 text-xs font-semibold sm:text-sm"
+                  onClick={startMultiSelect}
+                >
+                  <CheckSquare className="size-3.5" />
+                  {isMultiSelectMode ? "Cancel Select" : "Select Multiple"}
+                </Button>
+
+                {!isMultiSelectMode && (
+                  <Button
+                    size="sm"
+                    className="h-9 gap-2 rounded-lg px-3.5 text-xs font-semibold shadow-sm sm:text-sm"
+                    onClick={() => bulkDownload(visibleReportIds)}
+                    disabled={!!downloading}
+                  >
+                    <Download className="size-3.5" />
+                    Export All
+                  </Button>
+                )}
+
+                {isMultiSelectMode && selected.size > 0 && (
+                  <Button
+                    size="sm"
+                    className="h-9 gap-2 rounded-lg px-3.5 text-xs font-semibold shadow-sm sm:text-sm"
+                    onClick={() => bulkDownload()}
+                    disabled={!!downloading}
+                  >
+                    <Download className="size-3.5" />
+                    Export ({selected.size})
+                  </Button>
+                )}
               </div>
             </div>
-          </aside>
-        </div>
-      )}
 
-      <div className="mx-auto w-full max-w-7xl min-w-0 space-y-4 px-3 py-4 sm:px-5 sm:py-6 xl:px-6">
-        <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {CATEGORIES.map((cat) => (
-            <button key={cat.id} onClick={() => setActiveTab(cat.id)} className={`flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-all ${activeTab === cat.id ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/20" : "border-border bg-card text-muted-foreground"}`}><cat.icon className="size-3.5" />{cat.label}</button>
-          ))}
-        </div>
-
-        <div className="relative lg:hidden">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search loads, routes, and customers..." className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-10 text-sm shadow-sm outline-none focus:ring-2 focus:ring-primary/20" />
-          {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-3.5" /></button>}
-        </div>
-
-        <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatBox label="Total Loads" value={reportData?.loads.length || 0} sub="Current period" icon={Truck} color="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40" />
-          <StatBox label="Delivered" value={reportData?.loads.filter((s) => s.status === "Delivered").length || 0} sub="Successful cycles" icon={CheckSquare} color="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40" />
-          <StatBox label="Revenue" value={formatCurrency(reportData?.payments.reduce((s, p) => s + p.amount, 0) || 0)} sub="Successful payments" icon={CreditCard} color="text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40" />
-          <StatBox label="Driver Payouts" value={formatCurrency(reportData?.payouts.reduce((s, p) => s + p.amount, 0) || 0)} sub="Completed settlements" icon={Users} color="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40" />
-        </div>
-
-        <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-12">
-          <aside className="hidden space-y-4 lg:col-span-3 lg:block">
-            <div className="rounded-2xl border border-border bg-card p-2 shadow-sm">
-              <nav className="space-y-1">{CATEGORIES.map((cat) => <button key={cat.id} onClick={() => setActiveTab(cat.id)} className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${activeTab === cat.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><cat.icon className="size-4.5" />{cat.label}</button>)}</nav>
-            </div>
-            <div className="rounded-2xl border border-border/50 bg-muted/30 p-5">
-              <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Global Filters</h3>
-              <div className="space-y-4"><div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search reports..." className="w-full rounded-xl border border-border bg-background py-2 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-primary/20" />{searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><X className="size-3.5" /></button>}</div><Button variant="outline" className="h-11 w-full justify-start gap-2 rounded-xl border-dashed" onClick={() => setSearchQuery("")}><Database className="size-4" />Reset Filters</Button></div>
-            </div>
-          </aside>
-
-          <main className="min-w-0 space-y-4 lg:col-span-9">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0"><h2 className="truncate text-lg font-bold text-foreground">{activeTab === "ALL" ? "Available Reports" : activeTab}</h2><p className="text-xs text-muted-foreground">Showing results for {monthLabel}</p></div>
-              <div className="flex shrink-0 items-center gap-1"><Button variant="ghost" size="sm" className="h-9 rounded-lg px-2 sm:px-3" onClick={toggleAll}>{selected.size > 0 ? "Deselect" : "Select All"}</Button>{selected.size > 0 && <Button size="sm" className="hidden h-9 gap-2 rounded-lg shadow-md sm:inline-flex" onClick={bulkDownload}><CheckSquare className="size-4" />Export ({selected.size})</Button>}</div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]">
               {(activeTab === "ALL" || activeTab === "Transportation") && (
                 <>
                   <ReportCard
@@ -860,6 +1354,8 @@ export default function ReportsPage() {
                     description="Full delivery cycles, carrier payouts, and logistics efficiency tracking."
                     category="Logistics"
                     categoryClass="text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40"
+                    period={monthLabel}
+                    trend={getRateTrend(loadSummary.onTimeRate, previousLoadSummary.onTimeRate)}
                     stats={[
                       {
                         icon: <Truck className="size-3" />,
@@ -883,6 +1379,7 @@ export default function ReportsPage() {
                       },
                     ]}
                     isSelected={selected.has("load-report")}
+                    selectionMode={isMultiSelectMode}
                     isDownloading={downloading === "load-report"}
                     onToggle={() => toggleSelect("load-report")}
                     onDownload={() => downloadReport("load-report")}
@@ -894,6 +1391,8 @@ export default function ReportsPage() {
                     description="Market quote history, conversion rates and pending logistics drafts."
                     category="Transportation"
                     categoryClass="text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40"
+                    period={monthLabel}
+                    trend={getRateTrend(quoteSummary.conversionRate, previousQuoteSummary.conversionRate)}
                     stats={[
                       {
                         icon: <FileText className="size-3" />,
@@ -917,6 +1416,7 @@ export default function ReportsPage() {
                       },
                     ]}
                     isSelected={selected.has("quote-report")}
+                    selectionMode={isMultiSelectMode}
                     isDownloading={downloading === "quote-report"}
                     onToggle={() => toggleSelect("quote-report")}
                     onDownload={() => downloadReport("quote-report")}
@@ -932,6 +1432,8 @@ export default function ReportsPage() {
                   description="Individual driver metrics, completion rates and settlement logs."
                   category="Operations"
                   categoryClass="text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-950/40"
+                  period={monthLabel}
+                  trend={getTrend(payoutTotal, previousPayoutTotal)}
                   stats={[
                     { icon: <Truck className="size-3" />, label: "Fleet Wide" },
                     {
@@ -952,6 +1454,7 @@ export default function ReportsPage() {
                     },
                   ]}
                   isSelected={selected.has("driver-report")}
+                  selectionMode={isMultiSelectMode}
                   isDownloading={downloading === "driver-report"}
                   onToggle={() => toggleSelect("driver-report")}
                   onDownload={() => downloadReport("driver-report")}
@@ -966,6 +1469,8 @@ export default function ReportsPage() {
                   description="Complete financial audit of succeeding payments and gross revenue."
                   category="Finance"
                   categoryClass="text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-950/40"
+                  period={monthLabel}
+                  trend={getTrend(revenueTotal, previousRevenueTotal)}
                   stats={[
                     {
                       icon: <CreditCard className="size-3" />,
@@ -989,6 +1494,7 @@ export default function ReportsPage() {
                     },
                   ]}
                   isSelected={selected.has("billing-report")}
+                  selectionMode={isMultiSelectMode}
                   isDownloading={downloading === "billing-report"}
                   onToggle={() => toggleSelect("billing-report")}
                   onDownload={() => downloadReport("billing-report")}
@@ -999,31 +1505,45 @@ export default function ReportsPage() {
 
 
             {(activeTab === "ALL" || activeTab === "Transportation") && (
-              <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                <button onClick={() => setShowTransportationAnalytics((value) => !value)} className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5">
-                  <div><p className="font-bold text-foreground">Transportation Analytics</p><p className="text-xs text-muted-foreground">Loads, quotes, and route performance</p></div>
+              <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+                <button onClick={() => setShowTransportationAnalytics((value) => !value)} className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/35 sm:px-5 sm:py-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground sm:text-base">Transportation Analytics</p>
+                    <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                      {filteredLoads.length} loads · {filteredQuotes.length} quotes · {deliveredLoads} delivered · {Math.round(deliveryRate)}% delivery rate
+                    </p>
+                  </div>
                   {showTransportationAnalytics ? <ChevronUp className="size-5 text-primary" /> : <ChevronDown className="size-5 text-muted-foreground" />}
                 </button>
-                {showTransportationAnalytics && <div className="min-w-0 overflow-hidden border-t border-border p-2 sm:p-4"><TransportationAnalytics loads={filteredLoads} quotes={filteredQuotes} rawLoads={rawLoads} rawQuotes={rawQuotes} monthLabel={monthLabel} /></div>}
+                {showTransportationAnalytics && <div className="min-w-0 overflow-x-auto border-t border-border/70 p-3 sm:p-4 lg:p-5"><TransportationAnalytics loads={filteredLoads} quotes={filteredQuotes} rawLoads={rawLoads} rawQuotes={rawQuotes} monthLabel={monthLabel} /></div>}
               </section>
             )}
 
-            <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-              <button onClick={() => setShowOperationalAnalytics((value) => !value)} className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5">
-                <div><p className="font-bold text-foreground">Operational Analytics</p><p className="text-xs text-muted-foreground">Revenue and operational performance overview</p></div>
+            <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+              <button onClick={() => setShowOperationalAnalytics((value) => !value)} className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/35 sm:px-5 sm:py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-foreground sm:text-base">Operational Analytics</p>
+                  <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    {formatCurrency(revenueTotal)} gross · {formatCurrency(netRevenue)} net · {succeededPayments} successful · {pendingPayments} pending
+                  </p>
+                </div>
                 {showOperationalAnalytics ? <ChevronUp className="size-5 text-primary" /> : <ChevronDown className="size-5 text-muted-foreground" />}
               </button>
-              {showOperationalAnalytics && <div className="min-w-0 overflow-hidden border-t border-border p-2 sm:p-4"><ReportsAnalytics loads={rawLoads} rawPayments={rawPayments} monthLabel={monthLabel} /></div>}
+              {showOperationalAnalytics && <div className="min-w-0 overflow-x-auto border-t border-border/70 p-3 sm:p-4 lg:p-5"><ReportsAnalytics loads={rawLoads} rawPayments={rawPayments} monthLabel={monthLabel} /></div>}
             </section>
           </main>
         </div>
       </div>
 
-      <Button size="icon" className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-20 size-12 rounded-full shadow-xl shadow-primary/25 sm:hidden" onClick={fetchData} disabled={isRefreshing} aria-label="Refresh reports"><RefreshCw className={`size-5 ${isRefreshing ? "animate-spin" : ""}`} /></Button>
-
       {selected.size > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 pb-[calc(.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl backdrop-blur-xl lg:hidden">
-          <div className="mx-auto flex max-w-lg items-center gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-bold text-foreground">{selected.size} report{selected.size === 1 ? "" : "s"} selected</p><p className="truncate text-xs text-muted-foreground">Ready to generate and save</p></div><Button className="h-11 gap-2 rounded-xl px-5" onClick={bulkDownload} disabled={!!downloading}><Download className="size-4" />Export</Button></div>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 pb-[calc(.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl backdrop-blur-xl 2xl:hidden">
+          <div className="mx-auto flex max-w-lg items-center gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-bold text-foreground">{selected.size} report{selected.size === 1 ? "" : "s"} selected</p><p className="truncate text-xs text-muted-foreground">
+                  {isMultiSelectMode
+                    ? selected.size > 0
+                      ? "Export only the selected reports"
+                      : "Tap report cards to select them"
+                    : "Ready to generate and save"}
+                </p></div><Button className="h-11 gap-2 rounded-xl px-5" onClick={() => bulkDownload()} disabled={!!downloading}><Download className="size-4" />Export</Button></div>
         </div>
       )}
 
@@ -1073,32 +1593,87 @@ function StatBox({
   sub,
   icon: Icon,
   color,
+  accentClass,
+  trend,
+  emphasis = false,
+  inverseTrend = false,
 }: {
   label: string;
   value: string | number;
   sub: string;
   icon: any;
   color: string;
+  accentClass: string;
+  trend: TrendInfo;
+  emphasis?: boolean;
+  inverseTrend?: boolean;
 }) {
+  const isPositive = inverseTrend
+    ? trend.direction === "down"
+    : trend.direction === "up";
+  const isNegative = inverseTrend
+    ? trend.direction === "up"
+    : trend.direction === "down";
+
+  const TrendIcon =
+    trend.direction === "up"
+      ? ArrowUpRight
+      : trend.direction === "down"
+        ? ArrowDownRight
+        : Minus;
+
   return (
-    <div className="group min-w-[180px] flex-1 rounded-2xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md sm:min-w-0 sm:p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div
-          className={`size-10 rounded-xl flex items-center justify-center ${color}`}
-        >
+    <div
+      className={`group relative grid min-h-[168px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-xl border bg-card p-4 pt-5 shadow-sm transition-colors hover:border-primary/30 ${
+        emphasis
+          ? "border-primary/25 bg-linear-to-br from-primary/[0.05] via-card to-card"
+          : "border-border/80"
+      }`}
+    >
+      <div
+        aria-hidden="true"
+        className={`absolute inset-x-0 top-0 h-[3px] rounded-t-xl ${accentClass}`}
+      />
+
+      <div className="flex min-w-0 items-start gap-3">
+        <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${color}`}>
           <Icon className="size-5" />
         </div>
-      </div>
-      <div>
-        <p className="break-words text-lg font-bold tracking-tight text-foreground sm:text-2xl">
-          {value}
-        </p>
-        <p className="text-xs font-semibold text-foreground/80 mt-0.5">
-          {label}
-        </p>
-        <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-medium">
-          {sub}
-        </p>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="min-h-[1rem] break-words text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {label}
+              </p>
+              <p className="mt-2 min-h-[2rem] break-words text-2xl font-bold leading-none tracking-tight text-foreground sm:text-[1.9rem]">
+                {value}
+              </p>
+            </div>
+            {emphasis && (
+              <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
+                Key
+              </span>
+            )}
+          </div>
+
+          <p className="mt-2 min-h-[2.25rem] break-words text-xs leading-relaxed text-muted-foreground" title={sub}>
+            {sub}
+          </p>
+
+          <div
+            className={`flex min-w-0 items-start gap-1.5 pt-3 text-[11px] font-semibold ${
+              isPositive
+                ? "text-emerald-600 dark:text-emerald-400"
+                : isNegative
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-muted-foreground"
+            }`}
+          >
+            <TrendIcon className="mt-0.5 size-3.5 shrink-0" />
+            <span className="min-w-0 break-words leading-snug">{trend.label}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

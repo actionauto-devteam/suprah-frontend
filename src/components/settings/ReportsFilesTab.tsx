@@ -370,8 +370,8 @@ export function ReportsFilesTab() {
   };
 
   return (
-    <div className="min-w-0 space-y-4 sm:space-y-6">
-      <div className="sticky top-0 z-10 grid grid-cols-2 gap-2 rounded-xl bg-background/90 py-2 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-transparent sm:py-0">
+    <div className="min-w-0 space-y-4">
+      <div className="sticky top-[72px] z-20 grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-background/95 p-2 shadow-sm backdrop-blur sm:static sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <Button
           variant="outline"
           size="sm"
@@ -389,7 +389,7 @@ export function ReportsFilesTab() {
         </Button>
       </div>
 
-      <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <div className="min-w-0"><ReportCategoryCard
           title="Transportation"
           description="Shipment tracking, delivery performance, route analysis, and quotes."
@@ -419,9 +419,9 @@ export function ReportsFilesTab() {
         /></div>
       </div>
 
-      <Card className="min-w-0 overflow-hidden border-none bg-card shadow-sm">
-        <CardHeader className="border-b px-4 py-4 sm:px-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <Card className="min-w-0 min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+        <CardHeader className="border-b border-border/70 px-4 py-4 sm:px-5">
+          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3 flex-wrap">
               <CardTitle className="text-lg font-bold">
                 Recent Generated Files
@@ -468,7 +468,7 @@ export function ReportsFilesTab() {
               )}
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-border/70">
               {visibleFiles.map((file) => (
                 <FileRow
                   key={file.id}

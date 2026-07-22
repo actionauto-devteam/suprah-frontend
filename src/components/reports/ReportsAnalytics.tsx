@@ -58,8 +58,8 @@ function buildRevenueData(rawPayments: Payment[]) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-US", {
-      month: "short",
-      year: "2-digit",
+      month: "long",
+      year: "numeric",
     });
     const revenue = rawPayments
       .filter((p) => p.status === "succeeded" && p.createdAt?.startsWith(key))
@@ -74,9 +74,9 @@ function buildRevenueData(rawPayments: Payment[]) {
 function RevenueTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-lg text-xs">
-      <p className="text-muted-foreground mb-0.5">{label}</p>
-      <p className="font-semibold text-foreground">
+    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-xl">
+      <p className="mb-1 text-muted-foreground">{label}</p>
+      <p className="font-bold text-foreground">
         {formatCurrency(payload[0].value)}
       </p>
     </div>
@@ -87,8 +87,8 @@ function DeliveryTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const count = payload[0].value;
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-lg text-xs">
-      <p className="font-semibold text-foreground">{payload[0].name}</p>
+    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-xl">
+      <p className="font-bold text-foreground">{payload[0].name}</p>
       <p className="text-muted-foreground">{count} load{count !== 1 ? "s" : ""}</p>
     </div>
   );
@@ -108,17 +108,17 @@ function QuickStat({
   color: string;
 }) {
   return (
-    <div className="flex items-center gap-3 flex-1 min-w-35">
+    <div className="flex min-w-0 flex-1 items-center gap-3.5">
       <div
-        className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}
+        className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${color}`}
       >
         {icon}
       </div>
       <div>
-        <p className="text-[11px] text-muted-foreground font-medium leading-none mb-0.5">
+        <p className="mb-1 text-xs font-semibold leading-tight text-muted-foreground sm:text-sm">
           {label}
         </p>
-        <p className="text-base font-bold text-foreground leading-none">
+        <p className="text-xl font-bold leading-none text-foreground sm:text-2xl">
           {value}
         </p>
       </div>
@@ -154,71 +154,71 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
   const hasRevenueData = revenueData.some(d => d.revenue > 0)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Section label */}
-      <div className="flex items-center gap-2.5">
-        <BarChart2 className="size-4 text-muted-foreground" />
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <div className="flex items-center gap-3">
+        <BarChart2 className="size-5 text-muted-foreground" />
+        <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
           Analytics Overview
         </span>
         <div className="flex-1 h-px bg-border" />
       </div>
 
       {/* Quick stats strip */}
-      <div className="flex flex-wrap items-center gap-4 bg-card rounded-xl border border-border px-5 py-3.5">
+      <div className="grid min-w-0 grid-cols-1 gap-4 rounded-xl border border-border bg-card px-4 py-4 sm:grid-cols-3 sm:px-5">
         <QuickStat
           label={`Total Managed Loads — ${monthLabel}`}
           value={totalLoads}
-          icon={<PackageCheck className="size-4" />}
+          icon={<PackageCheck className="size-5" />}
           color="bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400"
         />
-        <div className="w-px h-8 bg-border hidden sm:block" />
+        
         <QuickStat
           label="Delivery Success Rate"
           value={`${successRate}%`}
-          icon={<TrendingUp className="size-4" />}
+          icon={<TrendingUp className="size-5" />}
           color="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400"
         />
-        <div className="w-px h-8 bg-border hidden sm:block" />
+        
         <QuickStat
           label="6-Month Total Revenue"
           value={formatCurrency(totalSixMoRev)}
-          icon={<TrendingUp className="size-4" />}
+          icon={<TrendingUp className="size-5" />}
           color="bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400"
         />
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Delivery Success Rate — Donut */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">
-              Delivery Breakdown
+        <Card className="min-w-0 border-border shadow-sm lg:min-h-[390px]">
+          <CardHeader className="space-y-1.5 pb-2 pt-5 sm:px-6">
+            <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
+              Delivery Performance
             </CardTitle>
-            <CardDescription className="text-xs">
-              {monthLabel} — {totalLoads} total load{totalLoads !== 1 ? "s" : ""}
+            <CardDescription className="text-sm leading-relaxed">
+              {monthLabel} — how effectively loads reached delivery
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-3 sm:px-6 sm:pb-6">
             {totalLoads === 0 ? (
-              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+              <div className="flex h-56 items-center justify-center text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
                 No load data for this period.
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+              <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
                 {/* Fixed-size donut wrapper */}
-                <div className="relative w-40 h-40 shrink-0 mx-auto sm:mx-0">
-                  <PieChart width={160} height={160}>
+                <div className="relative mx-auto size-[210px] shrink-0 sm:mx-0">
+                  <PieChart width={210} height={210}>
                     <Tooltip content={<DeliveryTooltip />} />
                     <Pie
                       data={deliveryData}
                       dataKey="value"
                       nameKey="name"
-                      cx={80}
-                      cy={80}
-                      innerRadius={48}
-                      outerRadius={72}
+                      cx={105}
+                      cy={105}
+                      innerRadius={62}
+                      outerRadius={94}
                       paddingAngle={2}
                       strokeWidth={0}
                     >
@@ -232,32 +232,32 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                   </PieChart>
                   {/* Center label overlay */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-2xl font-bold text-foreground leading-none">
+                    <span className="text-3xl font-bold leading-none text-foreground sm:text-4xl">
                       {successRate}%
                     </span>
-                    <span className="text-[10px] text-muted-foreground mt-1">
+                    <span className="mt-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
                       delivered
                     </span>
                   </div>
                 </div>
 
                 {/* Legend */}
-                <div className="flex flex-col gap-2.5 w-full sm:flex-1 sm:min-w-0">
+                <div className="flex w-full flex-col gap-3 sm:min-w-0 sm:flex-1">
                   {deliveryData.map(entry => {
                     const pct = Math.round((entry.value / totalLoads) * 100)
                     return (
-                      <div key={entry.name} className="flex items-center gap-2">
+                      <div key={entry.name} className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
                         <span
-                          className="size-2.5 rounded-full shrink-0"
+                          className="size-3 shrink-0 rounded-full"
                           style={{
                             backgroundColor:
                               STATUS_FILL[entry.name] ?? "var(--chart-3)",
                           }}
                         />
-                        <span className="text-xs text-muted-foreground truncate flex-1">
+                        <span className="min-w-0 flex-1 break-words text-sm font-medium text-muted-foreground">
                           {entry.name}
                         </span>
-                        <span className="text-xs font-semibold text-foreground shrink-0">
+                        <span className="shrink-0 text-sm font-bold text-foreground sm:text-base">
                           {entry.value}
                           <span className="font-normal text-muted-foreground ml-1">
                             ({pct}%)
@@ -273,26 +273,26 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
         </Card>
 
         {/* Monthly Revenue — Bar */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">
+        <Card className="min-w-0 border-border shadow-sm lg:min-h-[390px]">
+          <CardHeader className="space-y-1.5 pb-2 pt-5 sm:px-6">
+            <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
               Monthly Revenue
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-sm leading-relaxed">
               Last 6 months — succeeded payments only
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-3 sm:px-6 sm:pb-6">
             {!hasRevenueData ? (
-              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+              <div className="flex h-56 items-center justify-center text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
                 No payment data available for the last 6 months.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
+              <ResponsiveContainer width="100%" height={290}>
                 <BarChart
                   data={revenueData}
-                  barSize={30}
-                  margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                  barSize={38}
+                  margin={{ top: 10, right: 12, left: 8, bottom: 14 }}
                 >
                   <CartesianGrid
                     vertical={false}
@@ -303,13 +303,13 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                     dataKey="month"
                     tickLine={false}
                     axisLine={false}
-                    tick={{ fontSize: 11, fill: tickColor }}
+                    tick={{ fontSize: 13, fill: tickColor }}
                   />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
-                    width={46}
-                    tick={{ fontSize: 11, fill: tickColor }}
+                    width={58}
+                    tick={{ fontSize: 13, fill: tickColor }}
                     tickFormatter={(v) =>
                       v === 0
                         ? "$0"

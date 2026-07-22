@@ -195,6 +195,9 @@ export async function generateLoadReportPdf(
   } else {
     autoTable(doc, {
       startY: shipmentsTitleY + 3,
+      showHead: "everyPage",
+      rowPageBreak: "avoid",
+      pageBreak: "auto",
       head: [
         [
           "Load #",
@@ -221,11 +224,18 @@ export async function generateLoadReportPdf(
         fmtCurrency(loadRate(l)),
         driverName(l),
       ]),
-      margin: { left, right, bottom: 16 },
+      margin: {
+        top: 31,
+        left,
+        right,
+        bottom: 18,
+      },
       styles: {
         fontSize: 7.2,
         cellPadding: { top: 2.6, right: 2.8, bottom: 2.6, left: 2.8 },
         minCellHeight: 7,
+        overflow: "linebreak",
+        valign: "middle",
         textColor: [36, 44, 56],
         lineColor: [226, 232, 240],
         lineWidth: 0.12,
@@ -250,145 +260,20 @@ export async function generateLoadReportPdf(
         8: { cellWidth: 22, halign: "right" },
         9: { cellWidth: 28 },
       },
+      didDrawPage: (data) => {
+        if (data.pageNumber > 1) {
+          drawReportHeader("Detailed Load Ledger • Continued");
+          drawSectionTitle("Detailed Load Ledger", 28);
+        }
+      },
     });
   }
 
-  // Page 2 analytics sections
-  doc.addPage();
-  drawReportHeader("Load Analytics • Deep Dive");
-
-  const statusGroups: Record<string, Load[]> = {};
-  loads.forEach((l) => {
-    if (!statusGroups[l.status]) statusGroups[l.status] = [];
-    statusGroups[l.status].push(l);
-  });
-
-  drawSectionTitle("Lifecycle Distribution", 31);
-  const breakdownRows = Object.entries(statusGroups)
-    .sort((a, b) => b[1].length - a[1].length)
-    .map(([status, items]) => {
-      const totalRate = items.reduce(
-        (sum, l) => sum + (l.pricing?.carrierPayAmount || 0),
-        0,
-      );
-      const avgRate = items.length > 0 ? totalRate / items.length : 0;
-      const withDriver = items.filter((l) => l.assignedDriverId).length;
-      const pct =
-        loads.length > 0
-          ? `${Math.round((items.length / loads.length) * 100)}%`
-          : "0%";
-      return [
-        status,
-        String(items.length),
-        pct,
-        fmtCurrency(totalRate),
-        fmtCurrency(avgRate),
-        String(withDriver),
-      ];
-    });
-
-  autoTable(doc, {
-    startY: 34,
-    head: [
-      [
-        "Status",
-        "Count",
-        "Percentage",
-        "Total Carrier Pay",
-        "Avg Rate",
-        "Assigned Drivers",
-      ],
-    ],
-    body:
-      breakdownRows.length > 0
-        ? breakdownRows
-        : [["No status data", "0", "0%", "$0.00", "$0.00", "0"]],
-    margin: { left, right, bottom: 16 },
-    styles: {
-      fontSize: 7.6,
-      cellPadding: { top: 2.8, right: 3, bottom: 2.8, left: 3 },
-      minCellHeight: 7.5,
-      textColor: [36, 44, 56],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.12,
-    },
-    headStyles: {
-      fillColor: [16, 132, 96],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      halign: "left",
-    },
-    alternateRowStyles: { fillColor: [247, 250, 248] },
-    columnStyles: {
-      1: { halign: "right" },
-      2: { halign: "right" },
-      3: { halign: "right" },
-      4: { halign: "right" },
-      5: { halign: "right" },
-    },
-  });
-
-  const lastY = (doc as any).lastAutoTable?.finalY ?? 76;
-  const routeMap = new Map<
-    string,
-    { count: number; totalRate: number; totalMiles: number }
-  >();
-  loads.forEach((l) => {
-    const key = `${l.pickupLocation?.city || "?"} → ${l.deliveryLocation?.city || "?"}`;
-    const existing = routeMap.get(key) || {
-      count: 0,
-      totalRate: 0,
-      totalMiles: 0,
-    };
-    existing.count++;
-    existing.totalRate += l.pricing?.carrierPayAmount || 0;
-    existing.totalMiles += l.pricing?.miles || 0;
-    routeMap.set(key, existing);
-  });
-
-  const routeRows = Array.from(routeMap.entries())
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 15)
-    .map(([route, data]) => [
-      route,
-      String(data.count),
-      fmtNumber(data.totalMiles),
-      fmtCurrency(data.totalRate),
-      fmtCurrency(data.count > 0 ? data.totalRate / data.count : 0),
-    ]);
-
-  const routeTitleY = lastY + 12;
-  drawSectionTitle("Traffic Corridors", routeTitleY);
-  autoTable(doc, {
-    startY: routeTitleY + 3,
-    head: [["Route", "Loads", "Total Miles", "Total Revenue", "Avg Rate"]],
-    body:
-      routeRows.length > 0
-        ? routeRows
-        : [["No route data", "0", "0", "$0.00", "$0.00"]],
-    margin: { left, right, bottom: 16 },
-    styles: {
-      fontSize: 7.6,
-      cellPadding: { top: 2.8, right: 3, bottom: 2.8, left: 3 },
-      minCellHeight: 7.5,
-      textColor: [36, 44, 56],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.12,
-    },
-    headStyles: {
-      fillColor: [11, 116, 84],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      halign: "left",
-    },
-    alternateRowStyles: { fillColor: [247, 250, 248] },
-    columnStyles: {
-      1: { halign: "right" },
-      2: { halign: "right" },
-      3: { halign: "right" },
-      4: { halign: "right" },
-    },
-  });
+  // The downloaded Unified Load Report intentionally contains only the
+  // report summary and the complete detailed load ledger. The ledger may
+  // continue across multiple pages depending on the selected period.
+  // Extra analytics pages were removed because they duplicated or derived
+  // information that was not part of the visible Unified Load preview.
 
   // Footer on all pages
   const totalPages = doc.getNumberOfPages();
@@ -403,7 +288,7 @@ export async function generateLoadReportPdf(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(115, 125, 141);
-    doc.text("Action Auto Utah · Logistics Report", left, footerY);
+    doc.text("Action Auto Utah · Unified Load Report", left, footerY);
     doc.text(`Generated ${generatedAtLabel}`, pageWidth / 2, footerY, {
       align: "center",
     });
@@ -421,30 +306,44 @@ export async function generateQuoteReportPdf(
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF({ orientation: "landscape" });
   const summary = buildQuoteSummary(quotes);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const left = 14;
+  const right = pageWidth - 14;
 
-  doc.setFillColor(245, 158, 11);
-  doc.rect(0, 0, 297, 22, "F");
-  doc.setTextColor(255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("ACTION AUTO UTAH", 14, 10);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Quotes & Drafts Report", 14, 17);
-  doc.setTextColor(0);
+  const drawQuoteHeader = (subtitle = "Quotes & Drafts Report") => {
+    doc.setFillColor(245, 158, 11);
+    doc.rect(0, 0, pageWidth, 22, "F");
 
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text(`Period: ${monthLabel}`, 14, 29);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text(
-    `Generated: ${new Date().toLocaleDateString("en-US", { dateStyle: "long", timeZone: "America/Denver" } as Intl.DateTimeFormatOptions)}`,
-    14,
-    35,
-  );
-  doc.setTextColor(0);
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("ACTION AUTO UTAH", left, 10);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(subtitle, left, 17);
+
+    doc.setTextColor(0);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Period: ${monthLabel}`, left, 29);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(
+      `Generated: ${new Date().toLocaleDateString("en-US", {
+        dateStyle: "long",
+        timeZone: "America/Denver",
+      } as Intl.DateTimeFormatOptions)}`,
+      left,
+      35,
+    );
+    doc.setTextColor(0);
+  };
+
+  drawQuoteHeader();
 
   const stats = [
     { label: "Total Quotes", value: String(summary.total) },
@@ -479,6 +378,9 @@ export async function generateQuoteReportPdf(
 
   autoTable(doc, {
     startY: 66,
+    showHead: "everyPage",
+    rowPageBreak: "avoid",
+    pageBreak: "auto",
     head: [
       [
         "Customer",
@@ -508,129 +410,43 @@ export async function generateQuoteReportPdf(
           q.status,
         ])
         : [["No quotes this period", "", "", "", "", "", "", "", "", ""]],
-    styles: { fontSize: 6.5, cellPadding: 1.8 },
+    margin: { top: 42, left, right: 14, bottom: 18 },
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 1.8,
+      overflow: "linebreak",
+      valign: "middle",
+    },
     headStyles: {
       fillColor: [245, 158, 11],
       textColor: 255,
       fontStyle: "bold",
     },
     alternateRowStyles: { fillColor: [255, 251, 235] },
-    margin: { left: 14, right: 14 },
-  });
-
-  doc.addPage();
-
-  doc.setFillColor(245, 158, 11);
-  doc.rect(0, 0, 297, 10, "F");
-  doc.setTextColor(255);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.text(
-    `ACTION AUTO UTAH  —  Quotes & Drafts Report  —  ${monthLabel}  (continued)`,
-    14,
-    7,
-  );
-  doc.setTextColor(0);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("Quote Status Breakdown", 14, 20);
-
-  const statusMap: Record<string, Quote[]> = {};
-  quotes.forEach((q) => {
-    const key = q.status || "unknown";
-    if (!statusMap[key]) statusMap[key] = [];
-    statusMap[key].push(q);
-  });
-
-  const statusRows = Object.entries(statusMap).map(([status, items]) => {
-    const totalRate = items.reduce((sum, q) => sum + (q.rate || 0), 0);
-    const avgRate = items.length > 0 ? totalRate / items.length : 0;
-    const totalMiles = items.reduce((sum, q) => sum + (q.miles || 0), 0);
-    return [
-      status.charAt(0).toUpperCase() + status.slice(1),
-      String(items.length),
-      `${Math.round((items.length / quotes.length) * 100)}%`,
-      fmtCurrency(totalRate),
-      fmtCurrency(avgRate),
-      fmtNumber(totalMiles),
-    ];
-  });
-
-  autoTable(doc, {
-    startY: 23,
-    head: [
-      [
-        "Status",
-        "Count",
-        "Percentage",
-        "Total Value",
-        "Avg Rate",
-        "Total Miles",
-      ],
-    ],
-    body:
-      statusRows.length > 0 ? statusRows : [["No data", "", "", "", "", ""]],
-    styles: { fontSize: 7.5, cellPadding: 2.5 },
-    headStyles: {
-      fillColor: [245, 158, 11],
-      textColor: 255,
-      fontStyle: "bold",
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawQuoteHeader("Quotes & Drafts Report • Continued");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text("All Quotes & Drafts", left, 40);
+      }
     },
-    alternateRowStyles: { fillColor: [255, 251, 235] },
-    margin: { left: 14, right: 14 },
   });
 
-  const lastY = (doc as any).lastAutoTable?.finalY ?? 70;
-  if (lastY < 150) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("Vehicle & Service Analysis", 14, lastY + 12);
 
-    const enclosed = quotes.filter((q) => q.enclosedTrailer).length;
-    const open = quotes.length - enclosed;
-    const inoperable = quotes.filter((q) => q.vehicleInoperable).length;
-    const operable = quotes.length - inoperable;
-    const multiUnit = quotes.filter((q) => q.units > 1).length;
-
-    autoTable(doc, {
-      startY: lastY + 15,
-      head: [["Metric", "Value", "Percentage"]],
-      body: [
-        [
-          "Enclosed Trailer",
-          String(enclosed),
-          `${quotes.length > 0 ? Math.round((enclosed / quotes.length) * 100) : 0}%`,
-        ],
-        [
-          "Open Trailer",
-          String(open),
-          `${quotes.length > 0 ? Math.round((open / quotes.length) * 100) : 0}%`,
-        ],
-        [
-          "Inoperable Vehicles",
-          String(inoperable),
-          `${quotes.length > 0 ? Math.round((inoperable / quotes.length) * 100) : 0}%`,
-        ],
-        [
-          "Operable Vehicles",
-          String(operable),
-          `${quotes.length > 0 ? Math.round((operable / quotes.length) * 100) : 0}%`,
-        ],
-        [
-          "Multi-Unit Loads",
-          String(multiUnit),
-          `${quotes.length > 0 ? Math.round((multiUnit / quotes.length) * 100) : 0}%`,
-        ],
-      ],
-      styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: {
-        fillColor: [217, 119, 6],
-        textColor: 255,
-        fontStyle: "bold",
-      },
-      alternateRowStyles: { fillColor: [255, 251, 235] },
-      margin: { left: 14, right: 110 },
+  const totalPages = doc.getNumberOfPages();
+  for (let page = 1; page <= totalPages; page++) {
+    doc.setPage(page);
+    const footerY = pageHeight - 8;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(left, footerY - 4, right, footerY - 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(100);
+    doc.text("Action Auto Utah · Quotes & Drafts Report", left, footerY);
+    doc.text(`Page ${page} of ${totalPages}`, right, footerY, {
+      align: "right",
     });
   }
 
@@ -678,13 +494,13 @@ function StatCard({
 }) {
   return (
     <div
-      className={`min-w-0 rounded-lg border bg-card px-3 py-3 sm:px-4 ${accent}`}
+      className={`flex-1 min-w-27.5 rounded-lg border bg-card px-4 py-3 ${accent}`}
     >
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
         <span className="opacity-60">{icon}</span>
       </div>
-      <p className="break-words text-lg font-bold leading-tight text-foreground sm:text-xl">{value}</p>
+      <p className="text-xl font-bold text-foreground leading-none">{value}</p>
     </div>
   );
 }
@@ -705,7 +521,7 @@ function LoadPreview({ loads }: { loads: Load[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid min-w-0 grid-cols-2 gap-2.5 lg:grid-cols-4">
+      <div className="flex flex-wrap gap-2.5">
         <StatCard
           label="Total Loads"
           value={summary.total}
@@ -889,7 +705,7 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid min-w-0 grid-cols-2 gap-2.5 lg:grid-cols-4">
+      <div className="flex flex-wrap gap-2.5">
         <StatCard
           label="Total Quotes"
           value={summary.total}
@@ -1086,10 +902,10 @@ export function TransportationPreviewModal({
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/65 backdrop-blur-sm"
-        className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-background p-0 shadow-2xl sm:inset-auto sm:h-auto sm:min-h-[62dvh] sm:max-h-[92dvh] sm:w-[96vw] sm:max-w-[min(96vw,1200px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:border-border/60 sm:bg-background/95"
+        className="w-[96vw] max-w-300 sm:max-w-[min(96vw,1200px)] p-0 gap-0 overflow-hidden max-h-[92dvh] min-h-[62dvh] flex flex-col rounded-2xl border-border/60 bg-background/95 shadow-2xl"
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:pb-4 sm:pt-6">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-start gap-3 min-w-0">
             <div
               className={`size-10 rounded-lg flex items-center justify-center border shrink-0 ${isLoad
@@ -1114,10 +930,10 @@ export function TransportationPreviewModal({
               </p>
             </div>
           </div>
-          <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2 sm:flex sm:w-auto sm:shrink-0 sm:self-auto sm:mt-0.5">
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto sm:mt-0.5">
             <Button
               size="sm"
-              className="h-10 gap-1.5 text-xs font-medium sm:h-9"
+              className="gap-1.5 text-xs font-medium h-9"
               onClick={onDownload}
               disabled={isDownloading}
             >
@@ -1142,7 +958,7 @@ export function TransportationPreviewModal({
           </div>
         </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-6 sm:py-5">
+        <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
           {isLoad ? (
             <LoadPreview loads={loads} />
           ) : (
