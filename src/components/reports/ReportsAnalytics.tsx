@@ -33,11 +33,18 @@ interface Props {
 
 
 const STATUS_FILL: Record<string, string> = {
+  Draft: "#94A3B8",
+  draft: "#94A3B8",
+
   Delivered: "var(--chart-1)",
+  delivered: "var(--chart-1)",
+
   "In-Transit": "var(--chart-2)",
-  "Picked Up": "var(--chart-2)",
+  "Picked Up": "var(--chart-3)",
+
   Assigned: "var(--chart-3)",
   Accepted: "var(--chart-3)",
+
   Posted: "var(--chart-4)",
   Cancelled: "var(--chart-5)",
 };
@@ -51,21 +58,63 @@ function buildDeliveryData(loads: Load[]) {
   return Object.entries(counts).map(([name, value]) => ({ name, value }))
 }
 
-function buildRevenueData(rawPayments: Payment[]) {
-  const now = new Date();
+function parseSelectedPeriod(monthLabel: string): Date {
+  const [monthName, yearText] = monthLabel.trim().split(/\s+/);
+  const monthIndex = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ].findIndex(
+    (month) => month.toLowerCase() === monthName?.toLowerCase(),
+  );
+  const year = Number(yearText);
+
+  if (monthIndex < 0 || !Number.isFinite(year)) {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  return new Date(year, monthIndex, 1);
+}
+
+function buildRevenueData(rawPayments: Payment[], monthLabel: string) {
+  const selectedPeriod = parseSelectedPeriod(monthLabel);
   const result = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+
+  for (let offset = 5; offset >= 0; offset--) {
+    const d = new Date(
+      selectedPeriod.getFullYear(),
+      selectedPeriod.getMonth() - offset,
+      1,
+    );
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-US", {
       month: "long",
       year: "numeric",
     });
     const revenue = rawPayments
-      .filter((p) => p.status === "succeeded" && p.createdAt?.startsWith(key))
-      .reduce((sum, p) => sum + p.amount, 0);
+      .filter(
+        (payment) =>
+          payment.status === "succeeded" &&
+          payment.createdAt?.startsWith(key),
+      )
+      .reduce(
+        (sum, payment) => sum + Number(payment.amount || 0),
+        0,
+      );
+
     result.push({ month: label, revenue });
   }
+
   return result;
 }
 
@@ -85,11 +134,30 @@ function RevenueTooltip({ active, payload, label }: any) {
 
 function DeliveryTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
-  const count = payload[0].value;
+
+  const entry = payload[0];
+  const count = Number(entry.value ?? 0);
+  const accentColor =
+    entry.color ||
+    entry.fill ||
+    entry.payload?.fill ||
+    STATUS_FILL[entry.name] ||
+    "var(--chart-1)";
+
   return (
-    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-xl">
-      <p className="font-bold text-foreground">{payload[0].name}</p>
-      <p className="text-muted-foreground">{count} load{count !== 1 ? "s" : ""}</p>
+    <div
+      className="pointer-events-none relative z-[100] min-w-[8.5rem] rounded-xl border bg-card/98 px-4 py-3 text-sm shadow-2xl backdrop-blur-sm"
+      style={{
+        borderColor: accentColor,
+        boxShadow: `0 14px 32px color-mix(in srgb, ${accentColor} 24%, transparent)`,
+      }}
+    >
+      <p className="font-bold" style={{ color: accentColor }}>
+        {entry.name}
+      </p>
+      <p className="mt-0.5 font-semibold text-foreground">
+        {count} load{count !== 1 ? "s" : ""}
+      </p>
     </div>
   );
 }
@@ -130,7 +198,10 @@ function QuickStat({
 
 export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
   const deliveryData = React.useMemo(() => buildDeliveryData(loads), [loads])
-  const revenueData = React.useMemo(() => buildRevenueData(rawPayments), [rawPayments])
+  const revenueData = React.useMemo(
+    () => buildRevenueData(rawPayments, monthLabel),
+    [rawPayments, monthLabel],
+  )
 
   const [tickColor, setTickColor] = React.useState("#6b7280");
   React.useEffect(() => {
@@ -208,9 +279,18 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
             ) : (
               <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
                 {/* Fixed-size donut wrapper */}
-                <div className="relative mx-auto size-[210px] shrink-0 sm:mx-0">
-                  <PieChart width={210} height={210}>
-                    <Tooltip content={<DeliveryTooltip />} />
+                <div className="relative isolate z-0 mx-auto size-[210px] shrink-0 overflow-visible sm:mx-0">
+                  <PieChart width={210} height={210} style={{ overflow: "visible" }}>
+                    <Tooltip
+                      content={<DeliveryTooltip />}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      cursor={false}
+                      wrapperStyle={{
+                        zIndex: 100,
+                        pointerEvents: "none",
+                        overflow: "visible",
+                      }}
+                    />
                     <Pie
                       data={deliveryData}
                       dataKey="value"
@@ -231,7 +311,7 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                     </Pie>
                   </PieChart>
                   {/* Center label overlay */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
                     <span className="text-3xl font-bold leading-none text-foreground sm:text-4xl">
                       {successRate}%
                     </span>

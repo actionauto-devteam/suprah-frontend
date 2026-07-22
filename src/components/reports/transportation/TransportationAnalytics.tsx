@@ -34,13 +34,20 @@ interface Props {
 }
 
 const STATUS_FILL: Record<string, string> = {
+  Draft: "#94A3B8",
+  draft: "#94A3B8",
+
   Delivered: "var(--chart-1)",
+  delivered: "var(--chart-1)",
+
   "In-Transit": "var(--chart-2)",
   "Picked Up": "var(--chart-3)",
-  Posted: "var(--chart-4)",
-  Cancelled: "var(--chart-5)",
+
   Assigned: "var(--chart-3)",
   Accepted: "var(--chart-3)",
+
+  Posted: "var(--chart-4)",
+  Cancelled: "var(--chart-5)",
 };
 
 const QUOTE_STATUS_FILL: Record<string, string> = {
@@ -51,8 +58,31 @@ const QUOTE_STATUS_FILL: Record<string, string> = {
 };
 
 function parseSelectedPeriod(monthLabel: string): Date {
-  const parsed = new Date(`${monthLabel} 1`);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const [monthName, yearText] = monthLabel.trim().split(/\s+/);
+  const monthIndex = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ].findIndex(
+    (month) => month.toLowerCase() === monthName?.toLowerCase(),
+  );
+  const year = Number(yearText);
+
+  if (monthIndex < 0 || !Number.isFinite(year)) {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  return new Date(year, monthIndex, 1);
 }
 
 function buildLoadStatusData(loads: Load[]) {
@@ -80,10 +110,10 @@ function buildMonthlyLoadTrend(rawLoads: Load[], monthLabel: string) {
   const selectedPeriod = parseSelectedPeriod(monthLabel);
   const months: { key: string; label: string }[] = [];
 
-  for (let i = 3; i >= 0; i--) {
+  for (let offset = 3; offset >= 0; offset--) {
     const d = new Date(
       selectedPeriod.getFullYear(),
-      selectedPeriod.getMonth() - i,
+      selectedPeriod.getMonth() - offset,
       1,
     );
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -120,10 +150,10 @@ function buildMonthlyQuoteTrend(rawQuotes: Quote[], monthLabel: string) {
   const selectedPeriod = parseSelectedPeriod(monthLabel);
   const months: { key: string; label: string }[] = [];
 
-  for (let i = 3; i >= 0; i--) {
+  for (let offset = 3; offset >= 0; offset--) {
     const d = new Date(
       selectedPeriod.getFullYear(),
-      selectedPeriod.getMonth() - i,
+      selectedPeriod.getMonth() - offset,
       1,
     );
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -186,18 +216,44 @@ function ChartTooltip({ active, payload, label }: TrendTooltipProps) {
   );
 }
 
+interface PieTooltipEntry {
+  color?: string;
+  fill?: string;
+  name: string;
+  value: number;
+  payload?: {
+    fill?: string;
+  };
+}
+
 interface PieTooltipProps {
   active?: boolean;
-  payload?: Array<{ name: string; value: number }>;
+  payload?: PieTooltipEntry[];
 }
 
 function PieTooltip({ active, payload }: PieTooltipProps) {
   if (!active || !payload?.length) return null;
+
+  const entry = payload[0];
+  const accentColor =
+    entry.color ||
+    entry.fill ||
+    entry.payload?.fill ||
+    "var(--chart-1)";
+
   return (
-    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-lg">
-      <p className="font-semibold text-foreground">{payload[0].name}</p>
-      <p className="text-muted-foreground">
-        {payload[0].value} item{payload[0].value !== 1 ? "s" : ""}
+    <div
+      className="pointer-events-none relative z-[100] min-w-[8.5rem] rounded-xl border bg-card/98 px-4 py-3 text-sm shadow-2xl backdrop-blur-sm"
+      style={{
+        borderColor: accentColor,
+        boxShadow: `0 14px 32px color-mix(in srgb, ${accentColor} 24%, transparent)`,
+      }}
+    >
+      <p className="font-bold" style={{ color: accentColor }}>
+        {entry.name}
+      </p>
+      <p className="mt-0.5 font-semibold text-foreground">
+        {entry.value} item{entry.value !== 1 ? "s" : ""}
       </p>
     </div>
   );
@@ -230,6 +286,7 @@ export function TransportationAnalytics({
     () => loadTrend.slice(-4),
     [loadTrend],
   );
+
   const quoteTrendData = React.useMemo(
     () => quoteTrend.slice(-4),
     [quoteTrend],
@@ -237,10 +294,14 @@ export function TransportationAnalytics({
   const hasLoadTrendData = React.useMemo(
     () =>
       loadTrendData.some(
-        (point) => point.total > 0 || point.delivered > 0 || point.revenue > 0,
+        (point) =>
+          point.total > 0 ||
+          point.delivered > 0 ||
+          point.revenue > 0,
       ),
     [loadTrendData],
   );
+
   const hasQuoteTrendData = React.useMemo(
     () =>
       quoteTrendData.some(
@@ -277,10 +338,19 @@ export function TransportationAnalytics({
             </p>
           ) : (
             <>
-              <div className="relative mx-auto shrink-0 sm:mx-0">
-                <ResponsiveContainer width={210} height={210}>
-                  <PieChart>
-                    <Tooltip content={<PieTooltip />} />
+              <div className="relative isolate z-0 mx-auto shrink-0 overflow-visible sm:mx-0">
+                <ResponsiveContainer width={210} height={210} className="relative z-20 overflow-visible">
+                  <PieChart style={{ overflow: "visible" }}>
+                    <Tooltip
+                      content={<PieTooltip />}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      cursor={false}
+                      wrapperStyle={{
+                        zIndex: 100,
+                        pointerEvents: "none",
+                        overflow: "visible",
+                      }}
+                    />
                     <Pie
                       data={loadStatusData}
                       dataKey="value"
@@ -299,7 +369,7 @@ export function TransportationAnalytics({
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
                   {successRate > 0 ? (
                     <>
                       <span className="text-3xl font-bold leading-none text-foreground sm:text-4xl">
@@ -366,10 +436,19 @@ export function TransportationAnalytics({
             </p>
           ) : (
             <>
-              <div className="relative mx-auto shrink-0 sm:mx-0">
-                <ResponsiveContainer width={210} height={210}>
-                  <PieChart>
-                    <Tooltip content={<PieTooltip />} />
+              <div className="relative isolate z-0 mx-auto shrink-0 overflow-visible sm:mx-0">
+                <ResponsiveContainer width={210} height={210} className="relative z-20 overflow-visible">
+                  <PieChart style={{ overflow: "visible" }}>
+                    <Tooltip
+                      content={<PieTooltip />}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      cursor={false}
+                      wrapperStyle={{
+                        zIndex: 100,
+                        pointerEvents: "none",
+                        overflow: "visible",
+                      }}
+                    />
                     <Pie
                       data={quoteStatusData}
                       dataKey="value"
@@ -390,7 +469,7 @@ export function TransportationAnalytics({
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
                   {conversionRate > 0 ? (
                     <>
                       <span className="text-3xl font-bold leading-none text-foreground sm:text-4xl">
@@ -503,7 +582,7 @@ export function TransportationAnalytics({
         <CardHeader className="space-y-1.5 pb-2 pt-5 sm:px-6">
           <CardTitle className="text-base font-bold tracking-tight sm:text-lg">Revenue & Demand Trend</CardTitle>
           <CardDescription className="text-sm leading-relaxed">
-            Last 4 months — market engagement
+            Latest 4 months — market engagement
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-3 sm:px-6 sm:pb-6">
