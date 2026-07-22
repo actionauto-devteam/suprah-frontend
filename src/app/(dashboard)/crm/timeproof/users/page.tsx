@@ -16,6 +16,8 @@ import {
   Zap,
   Apple,
   ChevronDown,
+  Search,
+  X,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -103,6 +105,27 @@ const DEPARTMENTS = [
   "Price Check",
   "Other",
 ]
+
+// Users created through the normal flow have `department` stored as the
+// canonical key (e.g. "LotTechTeam" — see normalizeDepartmentValue on the
+// backend), not this dropdown's display label ("Lot Tech") — matching on
+// label alone silently dropped every user whose record already held the
+// key. Filtering against both catches legacy label-stored data too.
+const DEPARTMENT_KEY_BY_LABEL: Record<string, string> = {
+  "Sales & Finance": "SalesAndFinance",
+  "Accounting": "Accounting",
+  "Recon": "Recon",
+  "Marketing": "Marketing",
+  "Online Team": "OnlineTeam",
+  "Web Dev": "WebDevTeam",
+  "Wholesale": "WholesaleTeam",
+  "Buying": "BuyingTeam",
+  "Operations": "OperationsTeam",
+  "Lot Tech": "LotTechTeam",
+  "Funding": "FundingTeam",
+  "Prospects": "ProspectsTeam",
+  "Price Check": "PriceCheckTeam",
+}
 
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 
@@ -300,6 +323,7 @@ export default function AdminShiftBoardPage() {
   const [error, setError] = React.useState("")
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null)
   const [selectedDept, setSelectedDept] = React.useState<string>("all")
+  const [searchQuery, setSearchQuery] = React.useState<string>("")
 
   const fetchData = React.useCallback(async () => {
     const token = localStorage.getItem("crm_token")
@@ -421,17 +445,23 @@ export default function AdminShiftBoardPage() {
 
   // selectedDept values: "all" | "role:<role>" | "dept:<dept>"
   const filteredUsers = React.useMemo(() => {
-    if (selectedDept === "all") return users
+    const query = searchQuery.trim().toLowerCase()
+    const bySearch = query
+      ? users.filter((u) => u.fullName.toLowerCase().includes(query))
+      : users
+
+    if (selectedDept === "all") return bySearch
     if (selectedDept.startsWith("role:")) {
       const role = selectedDept.slice(5)
-      return users.filter((u) => u.role === role)
+      return bySearch.filter((u) => u.role === role)
     }
     if (selectedDept.startsWith("dept:")) {
       const dept = selectedDept.slice(5)
-      return users.filter((u) => u.department === dept)
+      const key = DEPARTMENT_KEY_BY_LABEL[dept]
+      return bySearch.filter((u) => u.department === dept || (key && u.department === key))
     }
-    return users
-  }, [users, selectedDept])
+    return bySearch
+  }, [users, selectedDept, searchQuery])
 
   // Online = anyone on shift (any state) OR with an active tray/CRM connection
   const onlineCount = filteredUsers.filter((u) => u.isLive || u.isOnline).length
@@ -467,6 +497,25 @@ export default function AdminShiftBoardPage() {
 
           <div className="ml-auto flex items-center gap-2">
             <LiveClock />
+            {/* Search by name */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search name..."
+                className="h-9 pl-8 pr-7 w-36 sm:w-44 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-[11px] font-bold placeholder:text-zinc-600 placeholder:font-medium focus:outline-none focus:border-zinc-600"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </div>
             {/* Department filter */}
             <div className="relative">
               <select

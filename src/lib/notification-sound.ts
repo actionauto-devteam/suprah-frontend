@@ -156,6 +156,35 @@ export function playShiftAlertSound(soundFile = '/sound/warning_sound.wav'): voi
   } catch {}
 }
 
+// ─── Over-break alarm (repeating, until the user resumes) ─────────────────────
+// Deliberately DOES loop, unlike playShiftAlertSound above — once a break has
+// gone past the admin-escalation limit (1h05m — see BREAK_ADMIN_NOTIFY_SECONDS
+// in crmTimeproof.controller.ts), the point is a persistent nudge for the
+// affected user specifically, not a one-off ping. Only reachable while the
+// TimeProof Clock page itself is open (same fundamental limitation as any
+// other in-app sound); the caller is responsible for stopping it the moment
+// the user resumes their shift.
+let _overBreakAudio: HTMLAudioElement | null = null;
+
+export function playOverBreakAlarm(soundFile = '/sound/warning_sound.wav'): void {
+  if (!isSoundEnabled() || typeof window === 'undefined') return;
+  if (_overBreakAudio) return; // already playing — don't restart/stack a second loop
+
+  try {
+    const audio = new Audio(soundFile);
+    audio.loop = true;
+    audio.volume = 0.8;
+    _overBreakAudio = audio;
+    audio.play().catch(() => {});
+  } catch {}
+}
+
+export function stopOverBreakAlarm(): void {
+  if (!_overBreakAudio) return;
+  try { _overBreakAudio.pause(); _overBreakAudio.currentTime = 0; } catch {}
+  _overBreakAudio = null;
+}
+
 // ─── Browser (OS-level) notifications ─────────────────────────────────────────
 
 export async function requestNotifPermission(): Promise<void> {

@@ -400,8 +400,8 @@ const Lightbox = ({
 /* ─────────────────────────────────────────────────────────────────────────
    Lot Tech Activity Log View
 ───────────────────────────────────────────────────────────────────────── */
-function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
-  dateStr: string; totalSecondsFromParam: number; formattedDate: string
+function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate, userId }: {
+  dateStr: string; totalSecondsFromParam: number; formattedDate: string; userId?: string
 }) {
   const router = useRouter()
   const [dayData, setDayData] = React.useState<LotTechDayData | null>(null)
@@ -411,9 +411,19 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
 
   React.useEffect(() => {
     setLoading(true)
+    // /api/timeclock/my is strictly self — it resolves the calendar from
+    // whoever's token is calling it, with no way to view someone else's.
+    // An admin viewing a Lot Tech employee's day needs the admin-scoped
+    // equivalent (getUserTimeproof) instead, or this would silently show
+    // the ADMIN's own calendar rather than the employee's.
+    const crmToken = localStorage.getItem("crm_token")
+    const calendarRequest = userId && crmToken
+      ? apiClient.get(`/api/crm/timeproof/user/${userId}?range=365`, { headers: { Authorization: `Bearer ${crmToken}` } })
+      : apiClient.get("/api/timeclock/my?range=365")
+
     Promise.all([
-      apiClient.get("/api/timeclock/my?range=365"),
-      apiClient.getDailyActivityLog({ date: dateStr }).catch(() => null),
+      calendarRequest,
+      apiClient.getDailyActivityLog({ date: dateStr, userId }).catch(() => null),
     ])
       .then(([tpRes, moveRes]) => {
         const cal = tpRes.data?.data?.calendar ?? {}
@@ -427,7 +437,7 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate }: {
       })
       .catch(() => setError("Failed to load activity log."))
       .finally(() => setLoading(false))
-  }, [dateStr])
+  }, [dateStr, userId])
 
   const fmtSec = (s: number) => {
     const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60)
@@ -696,13 +706,33 @@ export default function ScreenshotGalleryPage() {
     })
   }, [dateStr])
 
-  // Detect Lot Tech main User mode: no crm_token + main token exists
+  // Detect Lot Tech / main-User-model mode. Two cases:
+  //  - Self-view (no userId param): based on which token THIS session has —
+  //    correct here, since you can only be viewing your own day this way.
+  //  - Admin viewing someone else's day (userId param present): the case
+  //    above was checking the ADMIN's own tokens instead of the TARGET
+  //    employee's account type — an admin (who always has a crm_token) would
+  //    always fall through to the screenshot gallery even when looking at a
+  //    Lot Tech employee who has no screenshots at all, instead of their
+  //    actual GPS/movement data. Ask the backend which account model the
+  //    target actually is instead of guessing from local tokens.
   React.useEffect(() => {
+    if (userId) {
+      const crmToken = localStorage.getItem("crm_token")
+      if (!crmToken) { setIsLotTechMain(false); return }
+      apiClient.get(`/api/crm/timeproof/user/${userId}`, { headers: { Authorization: `Bearer ${crmToken}` } })
+        .then((res) => {
+          const accountModel = res.data?.data?.user?.accountModel
+          setIsLotTechMain(accountModel === "User")
+        })
+        .catch(() => setIsLotTechMain(false))
+      return
+    }
     const crmToken = localStorage.getItem("crm_token")
     const mainToken = typeof window !== "undefined" ? (window as any).__AUTH_TOKEN__ : null
     if (!crmToken && mainToken) { setIsLotTechMain(true); return }
     setIsLotTechMain(false)
-  }, [])
+  }, [userId])
 
   // Screenshot + break fetch — only runs for CRM users (isLotTechMain === false)
   React.useEffect(() => {
@@ -788,7 +818,7 @@ export default function ScreenshotGalleryPage() {
   // All hooks declared — conditional renders safe from here
   if (isLotTechMain === null) return null
   if (isLotTechMain === true) {
-    return <LotTechDayView dateStr={dateStr} totalSecondsFromParam={totalSecondsFromParam} formattedDate={formattedDate} />
+    return <LotTechDayView dateStr={dateStr} totalSecondsFromParam={totalSecondsFromParam} formattedDate={formattedDate} userId={userId} />
   }
 
   return (
