@@ -40,9 +40,9 @@ export function IOSInstallHint() {
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed bottom-0 left-0 right-0 z-[60] p-4 lg:hidden"
+                className="fixed bottom-0 left-0 right-0 z-60 p-4 lg:hidden"
             >
-                <div className="relative overflow-hidden rounded-t-[32px] bg-background border-t border-x border-border/50 p-7 shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.5)]">
+                <div className="relative overflow-hidden rounded-t-4xl bg-background border-t border-x border-border/50 p-7 shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.5)]">
                     {/* Handlebar Decoration */}
                     <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 mb-6" />
 

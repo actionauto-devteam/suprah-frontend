@@ -44,60 +44,11 @@ function popupSharingDuration(sinceIso?: string) {
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 const PLACES_SOURCE_ID = "locator-places";
 const TRAIL_SOURCE_ID = "locator-trail";
-const CLUSTER_RADIUS_PX = 45;
-const CLUSTER_AVATAR_SIZE = 26;
-const CLUSTER_AVATAR_OVERLAP = 10;
-const CLUSTER_STACK_MAX = 3;
 // A "last known spot" pin is only useful while recent — a days-old pin (stale device,
 // abandoned test account, dead ping loop) is just clutter, especially paired with a name
 // that can never resolve. Keeps the live map map to what's actually still relevant; the
 // roster's own "Last seen X ago" text is unaffected — this only trims map markers.
 const MAP_PIN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-// Deterministic, purely-local pixel-distance clustering — no dependency on Mapbox's async
-// tile/worker pipeline (the previous cluster:true GeoJSON source + querySourceFeatures
-// approach could report an empty result before its internal tiles finished building, which
-// hid every single marker until it settled — this can't have that failure mode since
-// map.project() is synchronous camera math, never tied to tile/style loading). Grouping
-// self-adjusts with zoom for free: at low zoom, far-apart people become pixel-close and
-// merge into a stack; at high zoom the same real-world distance spreads back out in pixels
-// and they separate again, with no manual max-zoom cutoff needed.
-function groupByPixelDistance(
-  visible: ActiveEmployeeLocation[],
-  project: (lngLat: [number, number]) => { x: number; y: number },
-  pinnedIds: Set<string>,
-): ActiveEmployeeLocation[][] {
-  const sorted = [...visible].sort((a, b) => a.userId.localeCompare(b.userId));
-  const points = new Map(sorted.map((l) => [l.userId, project([l.coords.lng, l.coords.lat])]));
-  const assigned = new Set<string>();
-  const groups: ActiveEmployeeLocation[][] = [];
-
-  for (const loc of sorted) {
-    if (pinnedIds.has(loc.userId)) {
-      groups.push([loc]);
-      assigned.add(loc.userId);
-    }
-  }
-
-  for (const loc of sorted) {
-    if (assigned.has(loc.userId)) continue;
-    const p1 = points.get(loc.userId)!;
-    const group = [loc];
-    assigned.add(loc.userId);
-    for (const other of sorted) {
-      if (assigned.has(other.userId)) continue;
-      const p2 = points.get(other.userId)!;
-      const dx = p1.x - p2.x;
-      const dy = p1.y - p2.y;
-      if (Math.sqrt(dx * dx + dy * dy) <= CLUSTER_RADIUS_PX) {
-        group.push(other);
-        assigned.add(other.userId);
-      }
-    }
-    groups.push(group);
-  }
-  return groups;
-}
 
 export type MapFocus = (lat: number, lng: number) => void;
 
@@ -167,30 +118,6 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
-function stackAvatarBadge(member: { userAvatar?: string; userName: string }, size: number) {
-  return member.userAvatar
-    ? `<img src="${escapeHtml(member.userAvatar)}" style="width:${size}px;height:${size}px;border-radius:9999px;object-fit:cover;border:2px solid #ffffff;display:block;background:#e5e7eb" />`
-    : `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#64748b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.4)}px;font-weight:900;border:2px solid #ffffff">${escapeHtml(initialsOf(member.userName || "?"))}</div>`;
-}
-
-// Renders a Slack/Discord-style overlapping avatar stack for a Mapbox cluster bubble instead
-// of a plain numbered circle — the boss's own feedback ("stack their icons rather than
-// number") for people who are grouped together on the map at the current zoom.
-function buildClusterStackHtml(members: { userAvatar?: string; userName: string }[], totalCount: number) {
-  const shown = members.slice(0, CLUSTER_STACK_MAX);
-  const step = CLUSTER_AVATAR_SIZE - CLUSTER_AVATAR_OVERLAP;
-  const avatarsHtml = shown
-    .map((m, i) => `<div style="position:absolute;left:${i * step}px;top:0;z-index:${shown.length - i}">${stackAvatarBadge(m, CLUSTER_AVATAR_SIZE)}</div>`)
-    .join("");
-  const extra = totalCount - shown.length;
-  const badgeLeft = shown.length * step;
-  const extraHtml = extra > 0
-    ? `<div style="position:absolute;left:${badgeLeft}px;top:0;height:${CLUSTER_AVATAR_SIZE}px;min-width:${CLUSTER_AVATAR_SIZE}px;padding:0 4px;border-radius:9999px;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;border:2px solid #ffffff;box-sizing:border-box">+${extra}</div>`
-    : "";
-  const width = badgeLeft + (extra > 0 ? CLUSTER_AVATAR_SIZE + 4 : CLUSTER_AVATAR_SIZE);
-  return `<div style="position:relative;height:${CLUSTER_AVATAR_SIZE}px;width:${width}px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))">${avatarsHtml}${extraHtml}</div>`;
-}
-
 const POPUP_PALETTE = {
   light: {
     bg: "#ffffff", border: "rgba(15,23,42,0.08)", shadow: "0 8px 24px rgba(15,23,42,0.14)",
@@ -249,6 +176,13 @@ function buildPopupHtml(
   const distanceMi = !isSelf && viewerCoords ? haversineMi(viewerCoords, loc.coords) : null;
   const stationaryMin = stationaryMinutes(loc);
 
+  // Above this, the dot is worth flagging as "approximate" rather than letting an admin
+  // assume a slightly-off pin means the app itself is broken — matches haloScale()'s own
+  // "notably imprecise" tier so the chip and the visual halo agree with each other.
+  const gpsAccuracy = typeof loc.accuracyM === "number" && loc.accuracyM > 40
+    ? popupChip(pal, "GPS", `±${Math.round(loc.accuracyM)}m — approximate`)
+    : null;
+
   const chips = [
     duration ? popupChip(pal, "Sharing For", duration) : null,
     typeof loc.speedMph === "number" ? popupChip(pal, "Speed", `${loc.speedMph} mph`) : null,
@@ -256,6 +190,7 @@ function buildPopupHtml(
     loc.sharingState === "sharing" ? popupChip(pal, "Signal", signal.label) : null,
     loc.deviceType ? popupChip(pal, "Device", loc.deviceType === "mobile" ? "📱 Phone" : "💻 Computer") : null,
     distanceMi !== null ? popupChip(pal, "Distance", `${formatDistanceMi(distanceMi)} away`) : null,
+    gpsAccuracy,
   ].filter((c): c is string => !!c);
 
   const safeUserName = escapeHtml(loc.userName);
@@ -333,6 +268,12 @@ interface Props {
   onSelectUser?: (userId: string) => void;
   onClearSelection?: () => void;
   historyPoints?: LocationHistoryPoint[];
+  /** Off-road personnel (Lot Tech) get their raw GPS breadcrumb trail — forcing Mapbox's
+   * driving-profile Map Matching onto someone walking/driving around a vehicle lot (not a
+   * mapped road) produces the "route jumps backward" artifact: it tries to snap slow/near-
+   * stationary noise onto the nearest driveable road and can zig-zag doing so. Defaults to
+   * true (road-snapping stays on for everyone else, e.g. sales reps driving to appointments). */
+  snapHistoryToRoads?: boolean;
   focusRef?: React.MutableRefObject<MapFocus | null>;
   myUserId?: string | null;
   placePickMode?: boolean;
@@ -341,7 +282,7 @@ interface Props {
 }
 
 export function LocatorLiveMapSection({
-  selectedUserId, onSelectUser, onClearSelection, historyPoints = [], focusRef,
+  selectedUserId, onSelectUser, onClearSelection, historyPoints = [], snapHistoryToRoads = true, focusRef,
   myUserId, placePickMode, onPlacePicked, draftPlace,
 }: Props) {
   const { theme } = useTheme();
@@ -357,29 +298,15 @@ export function LocatorLiveMapSection({
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<any>(null);
   const markersRef = React.useRef<Map<string, {
-    marker: any; popup: any; circleEl: HTMLDivElement; haloEl: HTMLDivElement;
-    lastState: string; lastSelected: boolean; lastHaloScale: number | null; isSelf: boolean;
+    marker: any; popup: any; circleEl: HTMLDivElement; haloEl: HTMLDivElement; approxEl: HTMLSpanElement;
+    lastState: string; lastSelected: boolean; lastHaloScale: number | null; lastApprox: boolean; isSelf: boolean;
   }>>(new Map());
   const placeMarkersRef = React.useRef<Map<string, { marker: any; badgeEl: HTMLDivElement; popup: any }>>(new Map());
   const locationsRef = React.useRef(locations);
   locationsRef.current = locations;
-  const clusterMarkersRef = React.useRef<Map<string, { marker: any; el: HTMLDivElement }>>(new Map());
   const hasAutoFitRef = React.useRef(false);
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
-  const [viewGeneration, setViewGeneration] = React.useState(0);
-  const viewUpdateRafRef = React.useRef<number | null>(null);
-  // Coalesces the many zoom/move ticks a single drag or pinch gesture fires into at most one
-  // regroup per animation frame — recomputing only on zoomend/moveend (gesture-end) made
-  // clustering visibly "pop" into place only after you let go, instead of tracking the
-  // gesture live.
-  const scheduleViewUpdate = React.useCallback(() => {
-    if (viewUpdateRafRef.current !== null) return;
-    viewUpdateRafRef.current = requestAnimationFrame(() => {
-      viewUpdateRafRef.current = null;
-      setViewGeneration((g) => g + 1);
-    });
-  }, []);
 
   const selectRef = React.useRef(onSelectUser);
   selectRef.current = onSelectUser;
@@ -482,8 +409,6 @@ export function LocatorLiveMapSection({
         });
         map.on("zoom", () => setZoom(map.getZoom()));
         map.on("rotate", () => setBearing(map.getBearing()));
-        map.on("zoom", scheduleViewUpdate);
-        map.on("move", scheduleViewUpdate);
 
         // Container size can change without the window resizing (maximize toggle, device
         // rotation, sidebar collapse) — Mapbox only auto-detects the very first layout, so
@@ -521,16 +446,12 @@ export function LocatorLiveMapSection({
       if (focusRef) focusRef.current = null;
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
-      if (viewUpdateRafRef.current !== null) {
-        cancelAnimationFrame(viewUpdateRafRef.current);
-        viewUpdateRafRef.current = null;
-      }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, [mapboxToken, scheduleViewUpdate]);
+  }, [mapboxToken]);
 
   React.useEffect(() => {
     document.body.style.overflow = isMaximized ? "hidden" : "";
@@ -603,6 +524,15 @@ export function LocatorLiveMapSection({
         }
       });
 
+      // Every visible person always gets their own marker at their own true coordinate, at
+      // every zoom level — no clustering into a synthetic averaged/anchored group position.
+      // A prior clustering system hid individual markers behind a merged badge once people
+      // became pixel-close (which happens to ANYONE at a low enough zoom, not just people who
+      // are actually near each other in the real world) and only revealed the true position
+      // once zoomed in past the pixel threshold — reading as "his icon is way out of place
+      // until I fully zoom in," which is exactly what it was. Overlapping markers at very low
+      // zoom now simply stack (z-index below), same as any normal map's pins — always honest
+      // about where someone actually is.
       visible.forEach((loc) => {
         const color = STATE_HEX[loc.sharingState] ?? STATE_HEX.off_duty;
         const isSelected = loc.userId === selectedUserId;
@@ -613,12 +543,18 @@ export function LocatorLiveMapSection({
         const existing = markers.get(loc.userId);
 
         const haloScaleNow = haloScale(loc.accuracyM);
+        // Same "loose" tier haloScale() already uses — surfaced as a visible badge on the
+        // icon itself (not just inside the hover popup), so a genuinely weak-signal pin
+        // reads as "approximate" instead of looking like a bug when someone glances at the map.
+        const isApprox = typeof loc.accuracyM === "number" && loc.accuracyM > 100;
+        const zIndex = isSelected ? 30 : isSelf ? 20 : 10;
 
         if (existing) {
           existing.marker.setLngLat(lngLat);
           existing.popup.setLngLat(lngLat);
           existing.popup.setHTML(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
           existing.marker.getElement().style.opacity = isLastSeen ? "0.55" : "1";
+          existing.marker.getElement().style.zIndex = String(zIndex);
 
           if (existing.lastState !== loc.sharingState) {
             existing.circleEl.style.borderColor = color;
@@ -643,6 +579,10 @@ export function LocatorLiveMapSection({
             }
             existing.lastHaloScale = haloScaleNow;
           }
+          if (existing.lastApprox !== isApprox) {
+            existing.approxEl.style.display = isApprox ? "flex" : "none";
+            existing.lastApprox = isApprox;
+          }
           return;
         }
 
@@ -653,6 +593,7 @@ export function LocatorLiveMapSection({
         wrapper.style.width = `${size}px`;
         wrapper.style.height = `${size}px`;
         wrapper.style.opacity = isLastSeen ? "0.55" : "1";
+        wrapper.style.zIndex = String(zIndex);
 
         const haloEl = document.createElement("div");
         haloEl.style.position = "absolute";
@@ -716,6 +657,27 @@ export function LocatorLiveMapSection({
           wrapper.appendChild(dot);
         }
 
+        const approxEl = document.createElement("span");
+        approxEl.title = "Approximate location — weak GPS signal right now";
+        approxEl.textContent = "~";
+        approxEl.style.position = "absolute";
+        approxEl.style.top = "-2px";
+        approxEl.style.left = "-2px";
+        approxEl.style.width = "13px";
+        approxEl.style.height = "13px";
+        approxEl.style.borderRadius = "9999px";
+        approxEl.style.background = "#f59e0b";
+        approxEl.style.border = "2px solid white";
+        approxEl.style.color = "#ffffff";
+        approxEl.style.fontSize = "9px";
+        approxEl.style.fontWeight = "900";
+        approxEl.style.lineHeight = "1";
+        approxEl.style.display = isApprox ? "flex" : "none";
+        approxEl.style.alignItems = "center";
+        approxEl.style.justifyContent = "center";
+        approxEl.style.zIndex = "2";
+        wrapper.appendChild(approxEl);
+
         const popup = new mapboxgl.Popup({ offset: [0, -(size / 2) - 6], closeButton: false, closeOnClick: false, className: "locator-popup" })
           .setLngLat(lngLat)
           .setHTML(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
@@ -738,8 +700,8 @@ export function LocatorLiveMapSection({
           .addTo(map);
 
         markers.set(loc.userId, {
-          marker, popup, circleEl, haloEl, isSelf,
-          lastState: loc.sharingState, lastSelected: isSelected, lastHaloScale: haloScaleNow,
+          marker, popup, circleEl, haloEl, approxEl, isSelf,
+          lastState: loc.sharingState, lastSelected: isSelected, lastHaloScale: haloScaleNow, lastApprox: isApprox,
         });
       });
 
@@ -747,59 +709,10 @@ export function LocatorLiveMapSection({
         if (userId === selectedUserId) entry.popup.addTo(map);
         else entry.popup.remove();
       });
-
-      const pinnedIds = new Set<string>();
-      if (selectedUserId) pinnedIds.add(selectedUserId);
-      if (myUserId) pinnedIds.add(myUserId);
-      const groups = groupByPixelDistance(visible, (lngLat) => map.project(lngLat), pinnedIds);
-      const clusterGroups = groups.filter((g) => g.length > 1);
-
-      const hiddenIds = new Set<string>();
-      for (const g of clusterGroups) for (const l of g) hiddenIds.add(l.userId);
-      markers.forEach((entry, userId) => {
-        entry.marker.getElement().style.display = hiddenIds.has(userId) ? "none" : "";
-      });
-
-      const clusterMarkers = clusterMarkersRef.current;
-      const nextClusterKeys = new Set(clusterGroups.map((g) => g.map((l) => l.userId).sort().join("|")));
-      clusterMarkers.forEach((entry, key) => {
-        if (!nextClusterKeys.has(key)) {
-          entry.marker.remove();
-          clusterMarkers.delete(key);
-        }
-      });
-
-      clusterGroups.forEach((group) => {
-        const sortedGroup = [...group].sort((a, b) => a.userId.localeCompare(b.userId));
-        const key = sortedGroup.map((l) => l.userId).join("|");
-        const anchor = sortedGroup[0];
-        const lngLat: [number, number] = [anchor.coords.lng, anchor.coords.lat];
-        const html = buildClusterStackHtml(
-          sortedGroup.slice(0, CLUSTER_STACK_MAX).map((l) => ({ userAvatar: l.userAvatar, userName: l.userName })),
-          sortedGroup.length,
-        );
-
-        const existingCluster = clusterMarkers.get(key);
-        if (existingCluster) {
-          existingCluster.marker.setLngLat(lngLat);
-          existingCluster.el.innerHTML = html;
-          return;
-        }
-
-        const el = document.createElement("div");
-        el.style.cursor = "pointer";
-        el.innerHTML = html;
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          map.easeTo({ center: lngLat, zoom: Math.min(MAX_ZOOM, map.getZoom() + 3) });
-        });
-        const marker = new mapboxgl.Marker({ element: el, anchor: "center" }).setLngLat(lngLat).addTo(map);
-        clusterMarkers.set(key, { marker, el });
-      });
     };
 
     run();
-  }, [locations, places, selectedUserId, myUserId, myLocation, theme, viewGeneration]);
+  }, [locations, places, selectedUserId, myUserId, myLocation, theme]);
 
   const trailGeojsonRef = React.useRef<any>(null);
 
@@ -874,7 +787,7 @@ export function LocatorLiveMapSection({
         map.fitBounds(bounds, { padding: 50, maxZoom: 16 });
       }
 
-      if (mapboxToken && coords.length > 1) {
+      if (snapHistoryToRoads && mapboxToken && coords.length > 1) {
         const matched = await matchToRoads(coords, mapboxToken);
         if (cancelled) return;
         trailGeojsonRef.current = trailGeojson(matched, coords);
@@ -888,7 +801,7 @@ export function LocatorLiveMapSection({
       cancelled = true;
       map.off("styledata", repaint);
     };
-  }, [historyPoints, mapboxToken]);
+  }, [historyPoints, mapboxToken, snapHistoryToRoads]);
 
   React.useEffect(() => {
     if (!mapInstanceRef.current) return;

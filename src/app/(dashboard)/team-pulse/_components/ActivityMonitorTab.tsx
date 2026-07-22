@@ -34,7 +34,7 @@ import {
 import { useLocationSharing } from "@/hooks/useLocationSharing";
 import { useLocatorSocket } from "@/hooks/useLocatorSocket";
 import { haversineMi, formatDistanceMi } from "@/lib/geo";
-import { DEPARTMENTS } from "@/lib/departments";
+import { DEPARTMENTS, isMobileMonitoringDept } from "@/lib/departments";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Props {
@@ -267,10 +267,12 @@ function RosterCard({ person, isAdmin, isSelected, onSelect, isShiftGoverned }: 
         )}
       </div>
 
-      {person.hasPresence && isAdmin && (
+      {person.hasPresence && (person.isMe || isAdmin) && (
         <div className="flex flex-col items-end gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <EmploymentTypeToggle userId={person.id} employmentLocationType={person.employmentLocationType} />
-          {!person.isMe && !sharing && (
+          {person.isMe && (
+            <EmploymentTypeToggle userId={person.id} employmentLocationType={person.employmentLocationType} />
+          )}
+          {isAdmin && !person.isMe && !sharing && (
             <RequestLocationButton userId={person.id} userName={person.name} />
           )}
         </div>
@@ -586,6 +588,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
               onSelectUser={handleSelect}
               onClearSelection={handleClosePanel}
               historyPoints={history}
+              snapHistoryToRoads={!isMobileMonitoringDept(viewingLoc?.department)}
               focusRef={focusRef}
               myUserId={myUserId}
               placePickMode={placePickMode}

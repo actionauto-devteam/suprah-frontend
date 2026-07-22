@@ -340,7 +340,7 @@ function getCaretCoordinates(el: HTMLTextAreaElement, position: number): CaretCo
   div.style.whiteSpace = "pre-wrap"
   div.style.wordWrap = "break-word"
   for (const prop of CARET_MIRROR_PROPS) {
-    ;(div.style as any)[prop] = (style as any)[prop]
+    ; (div.style as any)[prop] = (style as any)[prop]
   }
   div.textContent = el.value.substring(0, position)
   const marker = document.createElement("span")
@@ -1664,7 +1664,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
 }) {
   const hasUnread = items.some((n) => !n.readAt)
   return (
-    <div className="absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30">
+    <div className="absolute right-0 top-full z-50 mt-2 w-88 max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30">
       <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
         <div className="flex items-center gap-2">
           <Bell className="h-3.5 w-3.5 text-emerald-500" />
@@ -1686,7 +1686,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
         </div>
       </div>
 
-      <div className="max-h-[26rem] overflow-y-auto p-1.5">
+      <div className="max-h-104 overflow-y-auto p-1.5">
         {loading && (
           <div className="flex justify-center py-8">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
@@ -1698,7 +1698,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
               <Bell className="h-4 w-4 text-muted-foreground/25" />
             </div>
             <p className="text-xs text-muted-foreground/50">No activity yet.</p>
-            <p className="text-[10px] text-muted-foreground/40 max-w-[15rem]">Mentions, comments on your posts, and team-wide announcements will show up here.</p>
+            <p className="text-[10px] text-muted-foreground/40 max-w-60">Mentions, comments on your posts, and team-wide announcements will show up here.</p>
           </div>
         )}
         {!loading && items.map((n) => {

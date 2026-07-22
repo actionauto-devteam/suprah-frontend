@@ -34,7 +34,6 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -46,7 +45,7 @@ import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departments"
+import { isMobileMonitoringDept } from "@/lib/departments"
 import { useLocationSharing } from "@/hooks/useLocationSharing"
 import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
 import {
@@ -361,8 +360,6 @@ export default function TimeprofClockPage() {
   const [earlyEndSubmitting, setEarlyEndSubmitting] = React.useState(false)
   const [locatorStatus, setLocatorStatus] = React.useState<{
     consentGranted: boolean
-    isMandatoryDept: boolean
-    locationSharingOptOut: boolean
   } | null>(null)
   const locatorWasEligibleRef = React.useRef(false)
 
@@ -426,43 +423,43 @@ export default function TimeprofClockPage() {
       const d = data?.data || data
       setLocatorStatus({
         consentGranted: !!d?.locationConsent?.granted,
-        isMandatoryDept: !!d?.isMandatoryDept,
-        locationSharingOptOut: !!d?.locationSharingOptOut,
       })
     } catch { }
   }, [getCrmLocatorHeaders])
 
-  const [autoShareSaving, setAutoShareSaving] = React.useState(false)
-  const [pendingAutoShareValue, setPendingAutoShareValue] = React.useState<boolean | null>(null)
-  const [stopSharingConfirmOpen, setStopSharingConfirmOpen] = React.useState(false)
-  const [stopSharingSaving, setStopSharingSaving] = React.useState(false)
-
-  const handleAutoShareToggle = React.useCallback(async (checked: boolean) => {
-    setAutoShareSaving(true)
+  // Location sharing is now required to clock in — no more pre-shift opt-out. Requests
+  // a real GPS fix (forces the permission prompt on a fresh install) and grants consent
+  // server-side before the actual clock-in call, so the backend's own mandatory-location
+  // gate (generalTimeclock.controller.ts / crm.controller.ts) never has to reject it.
+  const requestLocationForShiftStart = React.useCallback(async (): Promise<boolean> => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Location is required to start your shift, and this device doesn't support it.")
+      return false
+    }
     try {
+      await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 })
+      )
       const headers = await getCrmLocatorHeaders()
-      await apiClient.setLocationSharingOptOut({ optOut: !checked }, headers)
-      toast.message(checked ? "Will auto-share when you start your shift" : "Won't auto-share on shift start anymore")
+      await apiClient.setLocationConsent({ granted: true, deviceHint: getDeviceHint() }, headers)
       await refreshLocatorStatus()
+      return true
     } catch {
-      toast.error("Could not update your sharing preference")
-    } finally {
-      setAutoShareSaving(false)
+      toast.error("Location is required to start your shift. Please allow location access and try again.")
+      return false
     }
   }, [getCrmLocatorHeaders, refreshLocatorStatus])
 
-  const confirmAutoShareToggle = React.useCallback(async () => {
-    if (pendingAutoShareValue === null) return
-    await handleAutoShareToggle(pendingAutoShareValue)
-    setPendingAutoShareValue(null)
-  }, [pendingAutoShareValue, handleAutoShareToggle])
+  const [stopSharingConfirmOpen, setStopSharingConfirmOpen] = React.useState(false)
+  const [stopSharingSaving, setStopSharingSaving] = React.useState(false)
+  const [resumeSharingSaving, setResumeSharingSaving] = React.useState(false)
 
   const handleStopSharingNow = React.useCallback(async () => {
     setStopSharingSaving(true)
     try {
       const headers = await getCrmLocatorHeaders()
       await apiClient.setLocationConsent({ granted: false }, headers)
-      toast.message("Location sharing turned off")
+      toast.message("Location sharing turned off — your shift stays active. Admins have been notified.")
       await refreshLocatorStatus()
     } catch {
       toast.error("Could not turn off location sharing")
@@ -471,6 +468,16 @@ export default function TimeprofClockPage() {
       setStopSharingConfirmOpen(false)
     }
   }, [getCrmLocatorHeaders, refreshLocatorStatus])
+
+  const handleResumeSharingNow = React.useCallback(async () => {
+    setResumeSharingSaving(true)
+    try {
+      const locationOk = await requestLocationForShiftStart()
+      if (locationOk) toast.success("Location sharing turned back on")
+    } finally {
+      setResumeSharingSaving(false)
+    }
+  }, [requestLocationForShiftStart])
 
   React.useEffect(() => { refreshLocatorStatus() }, [refreshLocatorStatus])
 
@@ -692,6 +699,10 @@ export default function TimeprofClockPage() {
   }, [token])
 
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
+    if (type === "time-in") {
+      const locationOk = await requestLocationForShiftStart()
+      if (!locationOk) return
+    }
     setIsClocking(true)
     setClockMsg("")
     const isMain = authModeRef.current === 'main'
@@ -884,6 +895,11 @@ export default function TimeprofClockPage() {
   const isActive = hasClockedIn && !hasClockedOut
   const isComplete = hasClockedOut
 
+  // Consent is now granted up front by requestLocationForShiftStart before time-in ever
+  // succeeds, so this effect only needs to handle the other end: revoke it on clock-out.
+  // It deliberately does NOT re-grant consent just because a shift is active — doing so
+  // used to silently undo an explicit "Stop Sharing" click the instant locatorStatus
+  // refreshed, since isActive && !isOnBreak stayed true right through that action.
   React.useEffect(() => {
     if (!isActive) {
       if (locatorWasEligibleRef.current) {
@@ -896,15 +912,7 @@ export default function TimeprofClockPage() {
       return
     }
     locatorWasEligibleRef.current = true
-
-    if (isOnBreak || !locatorStatus || locatorStatus.consentGranted) return
-    if (!locatorStatus.isMandatoryDept && locatorStatus.locationSharingOptOut) return
-
-    getCrmLocatorHeaders()
-      .then((headers) => apiClient.setLocationConsent({ granted: true, deviceHint: getDeviceHint() }, headers))
-      .then(() => refreshLocatorStatus())
-      .catch(() => null)
-  }, [isActive, isOnBreak, locatorStatus, getCrmLocatorHeaders, refreshLocatorStatus])
+  }, [isActive, getCrmLocatorHeaders, refreshLocatorStatus])
 
   React.useEffect(() => {
     const sessionStartMs = timeIn
@@ -1327,7 +1335,6 @@ export default function TimeprofClockPage() {
 
             {(() => {
               const meta = locatorStateMeta(locatorState, locatorError, locatorAwaitingFirstFix)
-              const shiftGoverned = isActive && !isOnBreak && locatorState === "sharing"
               return (
                 <div className="w-full rounded-2xl border border-border/40 bg-card">
                   <div className="flex items-center justify-between gap-3 px-5 py-4">
@@ -1361,39 +1368,35 @@ export default function TimeprofClockPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
-                    {locatorStatus?.isMandatoryDept ? (
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
-                        <Lock className="h-3 w-3 shrink-0" />
-                        Auto-share is required for your department — always on during your shift.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-bold text-foreground">Auto-share when I start my shift</p>
-                          <p className="mt-0.5 text-[9px] text-muted-foreground/50">Turns location sharing on the moment you clock in.</p>
-                        </div>
-                        <Switch
-                          checked={!locatorStatus?.locationSharingOptOut}
-                          disabled={autoShareSaving || !locatorStatus}
-                          onCheckedChange={(checked) => setPendingAutoShareValue(checked)}
-                        />
-                      </>
-                    )}
-                  </div>
-
-                  {shiftGoverned && (
+                  {isActive && !isOnBreak && (
                     <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-bold text-foreground">Sharing via your active shift</p>
-                        <p className="mt-0.5 text-[9px] text-muted-foreground/50">Turns off automatically when your shift ends — or stop it now.</p>
-                      </div>
-                      <Button
-                        size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
-                        className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
-                      >
-                        <Power className="h-3 w-3" /> Stop Sharing
-                      </Button>
+                      {locatorStatus?.consentGranted ? (
+                        <>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-foreground">Sharing during your active shift</p>
+                            <p className="mt-0.5 text-[9px] text-muted-foreground/50">Required to clock in. You can pause it now — admins will be notified — and turn it back on any time.</p>
+                          </div>
+                          <Button
+                            size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
+                            className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
+                          >
+                            <Power className="h-3 w-3" /> Stop Sharing
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-red-500">Location sharing is off</p>
+                            <p className="mt-0.5 text-[9px] text-muted-foreground/50">Admins have been notified. Turn it back on any time.</p>
+                          </div>
+                          <Button
+                            size="sm" onClick={handleResumeSharingNow} disabled={resumeSharingSaving}
+                            className="h-7 gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 px-2.5 text-[10px] font-bold text-white shrink-0"
+                          >
+                            {resumeSharingSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Play className="h-3 w-3" /> Turn Back On</>}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2000,33 +2003,12 @@ export default function TimeprofClockPage() {
         </div>
       )}
 
-      <AlertDialog open={pendingAutoShareValue !== null} onOpenChange={(open) => !open && setPendingAutoShareValue(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingAutoShareValue ? "Turn on auto-share?" : "Turn off auto-share?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingAutoShareValue
-                ? "Your location will automatically share with the team the moment you clock in for a shift, and turns off automatically when you clock out. If you don't turn this on, you'll need to share manually from Team Pulse Beacon each time."
-                : "Your location will no longer be shared automatically when you clock in. If you leave this off, nobody will see your location during your shift unless you manually share it from Team Pulse Beacon."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={autoShareSaving}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAutoShareToggle} disabled={autoShareSaving}>
-              {autoShareSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <AlertDialog open={stopSharingConfirmOpen} onOpenChange={setStopSharingConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Stop sharing your location?</AlertDialogTitle>
             <AlertDialogDescription>
-              You're currently sharing because of your active shift. Stopping now turns it off for the rest of this shift — it won't automatically turn back on unless you clock in again later.
+              Your shift stays active — this only pauses location sharing. Admins will be notified that it's off, and you can turn it back on any time from this page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -42,7 +42,7 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
         initial={{ y: -20, opacity: 0, scale: 0.95 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: -10, opacity: 0, scale: 0.95 }}
-        className="fixed top-20 right-6 z-50 w-[360px]"
+        className="fixed top-20 right-6 z-50 w-90"
       >
         <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 p-5 shadow-2xl backdrop-blur-xl ring-1 ring-white/5">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-500/10 blur-3xl" />

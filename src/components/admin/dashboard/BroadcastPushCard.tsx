@@ -132,7 +132,7 @@ export function BroadcastPushCard() {
                             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Campaign Message</label>
                             <Textarea
                                 placeholder="Engage your users with a clear message..."
-                                className="bg-muted/30 border-none min-h-[100px] resize-none text-sm"
+                                className="bg-muted/30 border-none min-h-25 resize-none text-sm"
                                 value={body}
                                 onChange={(e) => setBody(e.target.value)}
                             />
@@ -143,7 +143,7 @@ export function BroadcastPushCard() {
                     <div className="flex flex-col items-center justify-center bg-muted/20 rounded-2xl p-6 border border-dashed border-muted-foreground/20">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Real-Time Mobile Preview</label>
 
-                        <div className="w-[280px] bg-[#1a1a1a] rounded-3xl p-3 shadow-2xl border border-white/5 ring-4 ring-black">
+                        <div className="w-70 bg-[#1a1a1a] rounded-3xl p-3 shadow-2xl border border-white/5 ring-4 ring-black">
                             {/* Notification Mockup */}
                             <div className="bg-[#2a2a2a]/90 backdrop-blur-md rounded-2xl p-4 shadow-lg">
                                 <div className="flex items-center justify-between mb-2">
