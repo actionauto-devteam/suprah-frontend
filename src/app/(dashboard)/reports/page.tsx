@@ -15,7 +15,6 @@ import {
   Database,
   Users,
   Search,
-  X,
   RefreshCw,
   Sparkles,
   SlidersHorizontal,
@@ -689,7 +688,7 @@ export default function ReportsPage() {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = React.useState(false);
   const [downloading, setDownloading] = React.useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const searchQuery = "";
   const [showTransportationAnalytics, setShowTransportationAnalytics] = React.useState(true);
   const [showOperationalAnalytics, setShowOperationalAnalytics] = React.useState(true);
 
@@ -712,8 +711,10 @@ export default function ReportsPage() {
 
       const [
         lRes,
+        allLoadsRes,
         qRes,
         pRes,
+        allPaymentsRes,
         payRes,
         previousLoadsRes,
         previousPaymentsRes,
@@ -722,10 +723,16 @@ export default function ReportsPage() {
         apiClient.get(`/api/loads?${reportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        apiClient.get(`/api/loads?page=1&limit=5000`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
         apiClient.get(`/api/quotes?page=1&limit=5000`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         apiClient.get(`/api/payments?${reportQuery}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        apiClient.get(`/api/payments?page=1&limit=5000`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         apiClient.get(`/api/driver-payouts?${reportQuery}`, {
@@ -743,7 +750,9 @@ export default function ReportsPage() {
       ]);
 
       const loadPayload = lRes.data?.data;
+      const allLoadsPayload = allLoadsRes.data?.data;
       const paymentPayload = pRes.data?.data;
+      const allPaymentsPayload = allPaymentsRes.data?.data;
       const payoutPayload = payRes.data?.data;
       const previousLoadPayload = previousLoadsRes.data?.data;
       const previousPaymentPayload = previousPaymentsRes.data?.data;
@@ -754,11 +763,25 @@ export default function ReportsPage() {
         : Array.isArray(loadPayload?.loads)
           ? loadPayload.loads
           : [];
+
+      const allLoads = Array.isArray(allLoadsPayload)
+        ? allLoadsPayload
+        : Array.isArray(allLoadsPayload?.loads)
+          ? allLoadsPayload.loads
+          : [];
+
       const payments = Array.isArray(paymentPayload)
         ? paymentPayload
         : Array.isArray(paymentPayload?.payments)
           ? paymentPayload.payments
           : [];
+
+      const allPayments = Array.isArray(allPaymentsPayload)
+        ? allPaymentsPayload
+        : Array.isArray(allPaymentsPayload?.payments)
+          ? allPaymentsPayload.payments
+          : [];
+
       const payouts = Array.isArray(payoutPayload)
         ? payoutPayload
         : Array.isArray(payoutPayload?.payouts)
@@ -792,9 +815,9 @@ export default function ReportsPage() {
         payments: previousPayments,
         payouts: previousPayouts,
       });
-      setRawLoads(loads);
+      setRawLoads(allLoads);
       setRawQuotes(quotes);
-      setRawPayments(payments);
+      setRawPayments(allPayments);
     } catch (error) {
       console.error("Report fetch error:", error);
       toast.error("Failed to load report data");
@@ -1171,7 +1194,7 @@ export default function ReportsPage() {
 
       <div className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-14 backdrop-blur-xl lg:pt-0">
         <div className="mx-auto w-full max-w-[1680px] px-3 py-2.5 sm:px-4 sm:py-3 lg:pr-20 xl:px-5 xl:pr-24">
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
                 <Sparkles className="size-4.5" />
@@ -1192,41 +1215,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="flex min-w-0 items-center gap-1.5 lg:w-[360px] lg:shrink-0">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  id="report-search"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search reports..."
-                  className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-10 text-sm outline-none transition-shadow focus:ring-2 focus:ring-primary/20"
-                />
-
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    aria-label="Clear report search"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {searchQuery && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 shrink-0 gap-2 rounded-lg px-3 text-xs font-semibold sm:text-sm"
-                  onClick={() => setSearchQuery("")}
-                >
-                  <Database className="size-3.5" />
-                  Reset
-                </Button>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -1529,7 +1517,7 @@ export default function ReportsPage() {
                 </div>
                 {showOperationalAnalytics ? <ChevronUp className="size-5 text-primary" /> : <ChevronDown className="size-5 text-muted-foreground" />}
               </button>
-              {showOperationalAnalytics && <div className="min-w-0 overflow-x-auto border-t border-border/70 p-3 sm:p-4 lg:p-5"><ReportsAnalytics loads={rawLoads} rawPayments={rawPayments} monthLabel={monthLabel} /></div>}
+              {showOperationalAnalytics && <div className="min-w-0 overflow-x-auto border-t border-border/70 p-3 sm:p-4 lg:p-5"><ReportsAnalytics loads={filteredLoads} rawPayments={rawPayments} monthLabel={monthLabel} /></div>}
             </section>
           </main>
         </div>
