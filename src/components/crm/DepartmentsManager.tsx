@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, Plus, Building2, GripVertical, Star, Users } from "lucide-react"
+import { Loader2, Plus, Building2, GripVertical, Star, Users, Search, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -26,12 +26,17 @@ function SortableDeptRow({
   dept,
   selected,
   onSelect,
+  dragDisabled,
 }: {
   dept: DepartmentRow
   selected: boolean
   onSelect: () => void
+  dragDisabled: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dept._id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dept._id,
+    disabled: dragDisabled,
+  })
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -53,8 +58,15 @@ function SortableDeptRow({
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="size-6 flex items-center justify-center rounded-lg text-foreground/30 hover:text-foreground/60 hover:bg-black/5 dark:hover:bg-white/10 cursor-grab active:cursor-grabbing touch-none shrink-0"
-        aria-label="Drag to reorder"
+        disabled={dragDisabled}
+        className={cn(
+          "size-6 flex items-center justify-center rounded-lg text-foreground/30 shrink-0",
+          dragDisabled
+            ? "cursor-default opacity-30"
+            : "hover:text-foreground/60 hover:bg-black/5 dark:hover:bg-white/10 cursor-grab active:cursor-grabbing touch-none"
+        )}
+        aria-label={dragDisabled ? "Clear search to reorder departments" : "Drag to reorder"}
+        title={dragDisabled ? "Clear search to reorder departments" : "Drag to reorder"}
       >
         <GripVertical className="size-3.5" />
       </button>
@@ -81,6 +93,7 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
   const [isLoading, setIsLoading] = React.useState(true)
   const [modalOpen, setModalOpen] = React.useState(false)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = React.useState("")
 
   const load = React.useCallback(async () => {
     setIsLoading(true)
@@ -102,7 +115,18 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
     load()
   }, [load])
 
+  const normalizedSearch = searchQuery.trim().toLowerCase()
+
+  const filteredDepartments = React.useMemo(() => {
+    if (!normalizedSearch) return departments
+
+    return departments.filter((department) =>
+      department.label.toLowerCase().includes(normalizedSearch)
+    )
+  }, [departments, normalizedSearch])
+
   const selected = departments.find((d) => d._id === selectedId) || null
+  const isSearching = normalizedSearch.length > 0
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -136,7 +160,11 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-bold truncate">Departments</p>
-              <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">{departments.length} total · drag to reorder</p>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">
+                {isSearching
+                  ? `${filteredDepartments.length} of ${departments.length} found`
+                  : `${departments.length} total · drag to reorder`}
+              </p>
             </div>
           </div>
           <Button
@@ -149,6 +177,34 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
           </Button>
         </div>
 
+        <div className="px-4 sm:px-6 py-3 border-b border-border/30">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search departments..."
+              aria-label="Search departments by name"
+              className="h-9 w-full rounded-xl border border-border/50 bg-background pl-9 pr-9 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/10"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Clear department search"
+                title="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/50" />
@@ -156,14 +212,15 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
         ) : (
           <div className="flex-1 overflow-y-auto py-2">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={departments.map((d) => d._id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={filteredDepartments.map((d) => d._id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-0.5">
-                  {departments.map((dept) => (
+                  {filteredDepartments.map((dept) => (
                     <SortableDeptRow
                       key={dept._id}
                       dept={dept}
                       selected={selectedId === dept._id}
                       onSelect={() => setSelectedId(dept._id)}
+                      dragDisabled={isSearching}
                     />
                   ))}
                 </div>
@@ -173,6 +230,27 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
               <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                 <p className="text-sm font-semibold text-muted-foreground/80">No departments yet</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">Add one to get started.</p>
+              </div>
+            )}
+
+            {departments.length > 0 && filteredDepartments.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted/40">
+                  <Search className="h-4 w-4 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm font-semibold text-muted-foreground/80">No departments found</p>
+                <p className="mt-1 text-xs text-muted-foreground/60">
+                  Try a different department name.
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchQuery("")}
+                  className="mt-3 h-8 rounded-xl px-3 text-xs"
+                >
+                  Clear search
+                </Button>
               </div>
             )}
           </div>
