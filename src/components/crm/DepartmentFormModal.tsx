@@ -33,6 +33,7 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
   const [isMobileMonitoringDept, setIsMobileMonitoringDept] = React.useState(false)
   const [isTimeEditExempt, setIsTimeEditExempt] = React.useState(false)
   const [isMandatoryLocationDept, setIsMandatoryLocationDept] = React.useState(false)
+  const [locationRequiredForTimeproof, setLocationRequiredForTimeproof] = React.useState(true)
   const [isSaving, setIsSaving] = React.useState(false)
 
   React.useEffect(() => {
@@ -42,6 +43,10 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
     setIsMobileMonitoringDept(!!department?.isMobileMonitoringDept)
     setIsTimeEditExempt(!!department?.isTimeEditExempt)
     setIsMandatoryLocationDept(!!department?.isMandatoryLocationDept)
+    // Defaults ON for a brand-new department (isEdit false, department null) —
+    // matches the feature's existing behavior for everyone unless an admin
+    // explicitly exempts this department.
+    setLocationRequiredForTimeproof(department ? department.locationRequiredForTimeproof !== false : true)
   }, [open, department])
 
   const handleSubmit = async () => {
@@ -57,6 +62,7 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
         isMobileMonitoringDept,
         isTimeEditExempt,
         isMandatoryLocationDept,
+        locationRequiredForTimeproof,
       }
       if (isEdit) {
         await apiClient.patch(`/api/crm/departments/${department!._id}`, payload, {
@@ -151,6 +157,13 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
                 <p className="text-[11px] text-muted-foreground/60">Location sharing is required for this department</p>
               </div>
               <Switch checked={isMandatoryLocationDept} onCheckedChange={setIsMandatoryLocationDept} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold">Require Location for TimeProof</p>
+                <p className="text-[11px] text-muted-foreground/60">Off = no location alerts, no auto-clockout — TimeProof works normally without location sharing</p>
+              </div>
+              <Switch checked={locationRequiredForTimeproof} onCheckedChange={setLocationRequiredForTimeproof} />
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ArrowLeft, Loader2, Trash2, Eye, Users, Save, Star, Smartphone, Clock, MapPin,
-  CalendarDays, History, Hash, UserPlus, Search, X, ShieldCheck,
+  CalendarDays, History, Hash, UserPlus, Search, X, ShieldCheck, Radio,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -71,6 +71,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
   const [isMobileMonitoringDept, setIsMobileMonitoringDept] = React.useState(dept.isMobileMonitoringDept)
   const [isTimeEditExempt, setIsTimeEditExempt] = React.useState(dept.isTimeEditExempt)
   const [isMandatoryLocationDept, setIsMandatoryLocationDept] = React.useState(dept.isMandatoryLocationDept)
+  const [locationRequiredForTimeproof, setLocationRequiredForTimeproof] = React.useState(dept.locationRequiredForTimeproof !== false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [isBusy, setIsBusy] = React.useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = React.useState(false)
@@ -93,7 +94,8 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
     isDefault !== !!dept.isDefault ||
     isMobileMonitoringDept !== dept.isMobileMonitoringDept ||
     isTimeEditExempt !== dept.isTimeEditExempt ||
-    isMandatoryLocationDept !== dept.isMandatoryLocationDept
+    isMandatoryLocationDept !== dept.isMandatoryLocationDept ||
+    locationRequiredForTimeproof !== (dept.locationRequiredForTimeproof !== false)
 
   React.useEffect(() => {
     setLabel(dept.label)
@@ -102,6 +104,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
     setIsMobileMonitoringDept(dept.isMobileMonitoringDept)
     setIsTimeEditExempt(dept.isTimeEditExempt)
     setIsMandatoryLocationDept(dept.isMandatoryLocationDept)
+    setLocationRequiredForTimeproof(dept.locationRequiredForTimeproof !== false)
     setMembers(null)
     setMemberFilter("")
     setConfirmRemoveId(null)
@@ -162,6 +165,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
         isMobileMonitoringDept,
         isTimeEditExempt,
         isMandatoryLocationDept,
+        locationRequiredForTimeproof,
       }, { headers: { Authorization: `Bearer ${token}` } })
       toast.success("Department updated")
       onSaved()
@@ -455,6 +459,17 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
                 <p className="text-[11px] text-muted-foreground/60">Location sharing is required for this department</p>
               </div>
               <Switch checked={isMandatoryLocationDept} onCheckedChange={setIsMandatoryLocationDept} />
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
+              <div className="h-9 w-9 rounded-xl bg-orange-500/10 flex items-center justify-center shrink-0">
+                <Radio className="h-4 w-4 text-orange-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold">Require Location for TimeProof</p>
+                <p className="text-[11px] text-muted-foreground/60">Off = no location alerts, no auto-clockout — TimeProof works normally without location sharing</p>
+              </div>
+              <Switch checked={locationRequiredForTimeproof} onCheckedChange={setLocationRequiredForTimeproof} />
             </div>
           </div>
         </TabsContent>

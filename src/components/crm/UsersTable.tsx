@@ -53,6 +53,7 @@ import { apiClient } from "@/lib/api-client"
 import { EditUserModal } from "@/components/crm/EditUserModal"
 import { ResetPasswordModal } from "@/components/crm/ResetPasswordModal"
 import { OffboardModal } from "@/components/crm/OffboardModal"
+import { DEPARTMENTS, onDepartmentsChange } from "@/lib/departments"
 
 
 interface CrmUserRow {
@@ -89,6 +90,7 @@ interface UsersTableProps {
 type SortField = "fullName" | "username" | "role" | "status" | "createdAt"
 type SortOrder = "asc" | "desc"
 type RoleFilter = "all" | "employee" | "manager" | "admin"
+type DepartmentFilter = string // "all" or a department key
 type StatusFilter = "all" | "active" | "inactive"
 type DateJoinedFilter = "all" | "7d" | "30d" | "90d" | "year"
 
@@ -252,6 +254,8 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
   const [offboardTarget, setOffboardTarget] = React.useState<CrmUserRow | null>(null)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all")
+  const [departmentFilter, setDepartmentFilter] = React.useState<DepartmentFilter>("all")
+  const [, forceDepartmentsTick] = React.useReducer((c) => c + 1, 0)
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
   const [dateJoinedFilter, setDateJoinedFilter] = React.useState<DateJoinedFilter>("all")
   const [sortBy, setSortBy] = React.useState<SortField>("createdAt")
@@ -259,15 +263,22 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
 
+  // DEPARTMENTS is a shared module-level array kept in sync by DepartmentsProvider —
+  // subscribe so this dropdown re-renders once the live (admin-managed) list loads,
+  // instead of only ever seeing the seed defaults baked in at import time.
+  React.useEffect(() => onDepartmentsChange(forceDepartmentsTick), [])
+
   const hasFilters =
     searchTerm.trim().length > 0 ||
     roleFilter !== "all" ||
+    departmentFilter !== "all" ||
     statusFilter !== "all" ||
     dateJoinedFilter !== "all"
 
   const clearFilters = () => {
     setSearchTerm("")
     setRoleFilter("all")
+    setDepartmentFilter("all")
     setStatusFilter("all")
     setDateJoinedFilter("all")
     setSortBy("createdAt")
@@ -297,6 +308,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
     if (roleFilter !== "all") {
       params.set("role", roleFilter)
+    }
+
+    if (departmentFilter !== "all") {
+      params.set("department", departmentFilter)
     }
 
     if (statusFilter !== "all") {
@@ -350,7 +365,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
     } finally {
       setLoading(false)
     }
-  }, [token, pageSize, sortBy, sortOrder, searchTerm, roleFilter, statusFilter, dateJoinedFilter])
+  }, [token, pageSize, sortBy, sortOrder, searchTerm, roleFilter, departmentFilter, statusFilter, dateJoinedFilter])
 
   const buildUserQueryParams = React.useCallback((targetPage: number, limit: number) => {
     const params = new URLSearchParams({
@@ -362,11 +377,12 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
     if (searchTerm.trim()) params.set("search", searchTerm.trim())
     if (roleFilter !== "all") params.set("role", roleFilter)
+    if (departmentFilter !== "all") params.set("department", departmentFilter)
     if (statusFilter !== "all") params.set("status", statusFilter)
     if (dateJoinedFilter !== "all") params.set("dateJoined", dateJoinedFilter)
 
     return params
-  }, [dateJoinedFilter, roleFilter, searchTerm, sortBy, sortOrder, statusFilter])
+  }, [dateJoinedFilter, roleFilter, departmentFilter, searchTerm, sortBy, sortOrder, statusFilter])
 
   const exportUsers = React.useCallback(async () => {
     if (!token) return
@@ -618,7 +634,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
             )}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(4,minmax(0,1fr))]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_repeat(5,minmax(0,1fr))]">
             <div className="relative lg:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
               <Input
@@ -647,6 +663,24 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                 <SelectItem value="employee">Employee</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={departmentFilter}
+              onValueChange={(value) => {
+                setDepartmentFilter(value)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl border-border/40 bg-background/60 text-xs">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All departments</SelectItem>
+                {DEPARTMENTS.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 

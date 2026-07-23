@@ -2011,6 +2011,14 @@ function Bubble({
     });
   }, [isOwn]);
 
+  const showDesktopActions = React.useCallback(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
+    if (suppressActionsDuringScroll) return;
+    cancelHide();
+    positionActionBar('desktop');
+    setHov(true);
+  }, [positionActionBar, suppressActionsDuringScroll]);
+
   const resetSwipeReply = React.useCallback(() => {
     swipeStartRef.current = null;
     touchMovedRef.current = false;
@@ -2194,16 +2202,16 @@ function Bubble({
 
   const aColor = getAvaColor(message.sender?.fullName || '');
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
+  const isLightTheme =
+    typeof document !== 'undefined' &&
+    bubbleRowRef.current?.closest<HTMLElement>('.ss4')?.dataset.theme === 'light';
+  const actionSurface = isLightTheme ? '#ffffff' : '#1f232a';
+  const actionSurfaceHover = isLightTheme ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.10)';
+  const actionText = isLightTheme ? '#111827' : '#f8fafc';
+  const actionBorder = isLightTheme ? 'rgba(15,23,42,0.14)' : 'rgba(255,255,255,0.14)';
 
   return (
     <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
-      onMouseEnter={() => {
-        if (typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
-        if (suppressActionsDuringScroll) return;
-        cancelHide();
-        positionActionBar('desktop');
-        setHov(true);
-      }} onMouseLeave={scheduleHide}
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onTouchMove={handleTouchMove} onContextMenu={handleMobileContextMenu}>
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
@@ -2219,6 +2227,8 @@ function Bubble({
         style={{
           transition: 'transform 180ms cubic-bezier(.2,.8,.2,1)',
         }}
+        onMouseEnter={showDesktopActions}
+        onMouseLeave={scheduleHide}
       >
         {swipeCueVisible && (
           <div
@@ -2469,16 +2479,29 @@ function Bubble({
           {hov && !disableActions && !editMode && actionBarPos && createPortal(
             <div ref={menuRef}
               className="ss4-msg-actions ss4-msg-actions-pop"
-              style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-md)', minWidth: 'max-content' }}
+              style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: actionSurface, color: actionText, border: `1px solid ${actionBorder}`, boxShadow: '0 8px 28px rgba(0,0,0,0.38)', minWidth: 'max-content' }}
               onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
               {SS4_REACTIONS.slice(0, 3).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
-                  className="ss4-action-emoji h-7 w-7 flex items-center justify-center text-base hover:bg-white/10 rounded-lg transition-all hover:scale-125 active:scale-95">
+                  className="ss4-action-emoji h-7 w-7 flex items-center justify-center text-base rounded-lg transition-all hover:scale-125 active:scale-95"
+                  style={{ ['--ss4-action-hover' as any]: actionSurfaceHover }}
+                  onMouseEnter={(event) => { event.currentTarget.style.background = actionSurfaceHover; }}
+                  onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
+                >
                   {emoji}
                 </button>
               ))}
-              <div className="ss4-action-divider w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }} />
-              <button onClick={() => onReply(message)} className="ss4-action-btn ss4-icon-btn h-7 w-7" title="Reply"><Reply className="h-3.5 w-3.5" /></button>
+              <div className="ss4-action-divider w-px h-4 mx-0.5 shrink-0" style={{ background: actionBorder }} />
+              <button
+                onClick={() => onReply(message)}
+                className="ss4-action-btn h-7 w-7 rounded-lg flex items-center justify-center transition-colors"
+                title="Reply"
+                style={{ color: actionText }}
+                onMouseEnter={(event) => { event.currentTarget.style.background = actionSurfaceHover; }}
+                onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
+              >
+                <Reply className="h-3.5 w-3.5" />
+              </button>
               <div className="relative">
                 <button
                   onClick={(e) => {
@@ -2500,9 +2523,11 @@ function Bubble({
                     };
                     pickerPosRef.current ? closePicker() : openPicker(pos);
                   }}
-                  className="ss4-action-btn ss4-icon-btn h-7 w-7"
+                  className="ss4-action-btn h-7 w-7 rounded-lg flex items-center justify-center transition-colors"
                   title="More reactions"
-                  style={{ color: pickerPos ? 'var(--positive)' : undefined }}
+                  style={{ color: pickerPos ? '#22c55e' : actionText }}
+                  onMouseEnter={(event) => { event.currentTarget.style.background = actionSurfaceHover; }}
+                  onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
                 >
                   <SmilePlus className="h-3.5 w-3.5" />
                 </button>
@@ -2534,9 +2559,11 @@ function Bubble({
                     }
                     setMoreActionsOpen(!moreActionsOpen);
                   }}
-                  className="ss4-action-btn ss4-icon-btn h-7 w-7"
+                  className="ss4-action-btn h-7 w-7 rounded-lg flex items-center justify-center transition-colors"
                   title="More actions"
-                  style={{ color: moreActionsOpen ? 'var(--accent)' : undefined }}
+                  style={{ color: moreActionsOpen ? '#5b7cf6' : actionText }}
+                  onMouseEnter={(event) => { event.currentTarget.style.background = actionSurfaceHover; }}
+                  onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
@@ -2679,16 +2706,16 @@ function Bubble({
               if (images.length === 0) return null;
               if (images.length === 1) return (
                 <button onClick={() => onOpenMedia?.({ src: images[0].url, type: 'image', name: images[0].originalName })}
-                  className="block text-left rounded-xl overflow-hidden cursor-zoom-in" style={{ maxWidth: 260 }}>
-                  <img src={images[0].thumbnailUrl || images[0].url} alt={images[0].originalName} className="rounded-xl object-cover hover:opacity-90 transition-opacity" style={{ maxHeight: 200, maxWidth: 260, display: 'block' }} />
+                  className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                  <img src={images[0].thumbnailUrl || images[0].url} alt={images[0].originalName} className="h-full w-full rounded-xl object-contain" style={{ display: 'block' }} />
                 </button>
               );
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 3, maxWidth: 280 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
                   {images.map((att, i) => (
                     <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName })}
-                      className="block text-left rounded-xl overflow-hidden cursor-zoom-in" style={{ aspectRatio: '1/1' }}>
-                      <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-cover hover:opacity-90 transition-opacity rounded-xl" style={{ display: 'block' }} />
+                      className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                      <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-contain rounded-xl" style={{ display: 'block' }} />
                     </button>
                   ))}
                 </div>
@@ -3338,13 +3365,13 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
     if (isImg || isVid) { const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }
   }, [file, isImg, isVid]);
   return (
-    <div className="relative flex flex-col rounded-xl overflow-hidden shrink-0" style={{ width: 80, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-      {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 60 }} />
-        : preview && isVid ? <video src={preview} className="w-full object-cover" style={{ height: 60 }} muted />
-          : <div className="flex items-center justify-center" style={{ height: 60, background: 'var(--accent-muted)' }}><FileText className="h-6 w-6" style={{ color: 'var(--accent)' }} /></div>}
-      <div className="px-1.5 py-1">
-        <p className="truncate" style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600 }}>{file.name}</p>
-        <p className="ss4-mono" style={{ fontSize: 8, color: 'var(--text-secondary)' }}>{fmtSize(file.size)}</p>
+    <div className="relative flex flex-col rounded-xl overflow-hidden shrink-0" style={{ width: 180, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+      {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} />
+        : preview && isVid ? <video src={preview} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} muted />
+          : <div className="flex items-center justify-center" style={{ height: 128, background: 'var(--accent-muted)' }}><FileText className="h-8 w-8" style={{ color: 'var(--accent)' }} /></div>}
+      <div className="px-2 py-1.5">
+        <p className="truncate" style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700 }}>{file.name}</p>
+        <p className="ss4-mono" style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{fmtSize(file.size)}</p>
       </div>
       <button onClick={onRemove} className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}><X className="h-2.5 w-2.5" style={{ color: '#fff' }} /></button>
     </div>
@@ -4152,7 +4179,9 @@ export default function SupraSpacePage() {
   const messageScrollRef = React.useRef<HTMLDivElement>(null);
   const pendingScrollRestoreRef = React.useRef<{ convId: string; scrollHeight: number; scrollTop: number } | null>(null);
   const forceScrollToBottomRef = React.useRef<string | null>(null);
+  const openBottomLockUntilRef = React.useRef(0);
   const openScrollTimersRef = React.useRef<number[]>([]);
+  const openBottomReleaseTimerRef = React.useRef<number | null>(null);
   const suppressAutoScrollOnceRef = React.useRef(false);
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -4200,41 +4229,71 @@ export default function SupraSpacePage() {
     setConversationDraft(conversationId, inputTextRef.current);
   }, [input, setConversationDraft]);
 
+  const pinMessageViewportToBottom = React.useCallback((conversationId = activeIdRef.current) => {
+    if (conversationId && activeIdRef.current !== conversationId) return;
+    const el = messageScrollRef.current;
+    if (!el) return;
+    const messageNodes = Array.from(el.querySelectorAll<HTMLElement>('[id^="ss4-msg-"]'));
+    const latestNode = messageNodes[messageNodes.length - 1];
+    if (latestNode && latestNode.offsetHeight > el.clientHeight * 0.62) {
+      el.scrollTop = Math.max(0, latestNode.offsetTop - 16);
+    } else {
+      el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    }
+    setShowJumpToLatest(false);
+  }, []);
+
   const scrollToLatest = React.useCallback((behavior: ScrollBehavior = 'smooth', conversationId = activeIdRef.current) => {
     if (conversationId) forceScrollToBottomRef.current = conversationId;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (conversationId && activeIdRef.current !== conversationId) return;
-        const el = messageScrollRef.current;
-        if (!el) return;
-        el.scrollTop = el.scrollHeight;
-        endRef.current?.scrollIntoView({ behavior, block: 'end' });
-        forceScrollToBottomRef.current = null;
-        setShowJumpToLatest(false);
+        pinMessageViewportToBottom(conversationId);
+        if (behavior !== 'auto') {
+          endRef.current?.scrollIntoView({ behavior, block: 'end' });
+        }
+        if (Date.now() > openBottomLockUntilRef.current) {
+          forceScrollToBottomRef.current = null;
+        }
       });
     });
-  }, []);
+  }, [pinMessageViewportToBottom]);
 
   const lockConversationOpenToBottom = React.useCallback((conversationId: string) => {
     openScrollTimersRef.current.forEach(clearTimeout);
     openScrollTimersRef.current = [];
+    if (openBottomReleaseTimerRef.current) window.clearTimeout(openBottomReleaseTimerRef.current);
+    openBottomReleaseTimerRef.current = null;
     pendingScrollRestoreRef.current = null;
     suppressAutoScrollOnceRef.current = false;
     forceScrollToBottomRef.current = conversationId;
+    openBottomLockUntilRef.current = Date.now() + 6500;
 
-    [0, 60, 160, 360, 720].forEach(delay => {
+    [0, 50, 120, 240, 420, 720, 1200, 2000, 3200, 4800, 6500].forEach(delay => {
       const timer = window.setTimeout(() => {
         if (activeIdRef.current !== conversationId) return;
         scrollToLatest('auto', conversationId);
       }, delay);
       openScrollTimersRef.current.push(timer);
     });
+
+    openBottomReleaseTimerRef.current = window.setTimeout(() => {
+      if (activeIdRef.current === conversationId) {
+        pinMessageViewportToBottom(conversationId);
+      }
+      if (forceScrollToBottomRef.current === conversationId) {
+        forceScrollToBottomRef.current = null;
+      }
+      openBottomReleaseTimerRef.current = null;
+    }, 6700);
   }, [scrollToLatest]);
 
   React.useEffect(() => {
     return () => {
       openScrollTimersRef.current.forEach(clearTimeout);
       openScrollTimersRef.current = [];
+      if (openBottomReleaseTimerRef.current) window.clearTimeout(openBottomReleaseTimerRef.current);
+      openBottomReleaseTimerRef.current = null;
     };
   }, []);
 
@@ -4917,7 +4976,9 @@ export default function SupraSpacePage() {
         if (!scrollEl || forceScrollToBottomRef.current !== activeId) return;
         scrollEl.scrollTop = scrollEl.scrollHeight;
         endRef.current?.scrollIntoView({ behavior: 'auto' });
-        forceScrollToBottomRef.current = null;
+        if (Date.now() > openBottomLockUntilRef.current) {
+          forceScrollToBottomRef.current = null;
+        }
         setShowJumpToLatest(false);
       });
       return;
@@ -4930,6 +4991,60 @@ export default function SupraSpacePage() {
       setShowJumpToLatest(false);
     }
   }, [activeId, activeMsgs.length]);
+
+  React.useEffect(() => {
+    if (!activeId) return;
+    const scrollEl = messageScrollRef.current;
+    if (!scrollEl || forceScrollToBottomRef.current !== activeId) return;
+
+    const shouldKeepPinned = () =>
+      forceScrollToBottomRef.current === activeId &&
+      Date.now() <= openBottomLockUntilRef.current;
+
+    const pinIfOpening = () => {
+      if (!shouldKeepPinned()) return;
+      requestAnimationFrame(() => pinMessageViewportToBottom(activeId));
+    };
+
+    const observed = new Set<Element>();
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(pinIfOpening)
+        : null;
+
+    const observeChildren = () => {
+      if (!resizeObserver) return;
+      Array.from(scrollEl.children).forEach((child) => {
+        if (observed.has(child)) return;
+        observed.add(child);
+        resizeObserver.observe(child);
+      });
+    };
+
+    observeChildren();
+    pinIfOpening();
+
+    const mutationObserver =
+      typeof MutationObserver !== 'undefined'
+        ? new MutationObserver(() => {
+            observeChildren();
+            pinIfOpening();
+          })
+        : null;
+
+    mutationObserver?.observe(scrollEl, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['src', 'style', 'class'],
+    });
+
+    return () => {
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [activeId, activeMsgs.length, pinMessageViewportToBottom]);
 
   React.useEffect(() => {
     const THRESH = 5;
@@ -6129,6 +6244,10 @@ export default function SupraSpacePage() {
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
     if (!el || !activeId) return;
+    if (forceScrollToBottomRef.current === activeId && Date.now() <= openBottomLockUntilRef.current) {
+      setShowJumpToLatest(false);
+      return;
+    }
     setMessageScrollActive(true);
     if (messageScrollIdleTimerRef.current) clearTimeout(messageScrollIdleTimerRef.current);
     messageScrollIdleTimerRef.current = setTimeout(() => setMessageScrollActive(false), 220);
@@ -6836,7 +6955,12 @@ export default function SupraSpacePage() {
                       onScroll={handleMessageScroll}
                       data-supraspace-message-scroll="true"
                       className="h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
-                      style={wallpaper ? { backgroundImage: wallpaper } : undefined}
+                      style={{ ...(wallpaper ? { backgroundImage: wallpaper } : {}), overflowAnchor: 'none' }}
+                      onLoadCapture={() => {
+                        if (activeId && forceScrollToBottomRef.current === activeId && Date.now() <= openBottomLockUntilRef.current) {
+                          scrollToLatest('auto', activeId);
+                        }
+                      }}
                     >
                       {hasMore[activeId] && (
                         <div className="flex justify-center pb-3">
