@@ -2033,11 +2033,11 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                     {editReplacementFiles.map((item, index) => {
                                       const isImage = item.file.type.startsWith('image/');
                                       return (
-                                        <div key={`${item.file.name}-${item.file.lastModified}-${index}`} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/20">
+                                        <div key={`${item.file.name}-${item.file.lastModified}-${index}`} className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/20">
                                           {isImage ? (
-                                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-contain" />
                                           ) : (
-                                            <div className="flex h-full w-full items-center justify-center px-1 text-center text-[8px] font-semibold text-white/70">{item.file.name}</div>
+                                            <div className="flex h-full w-full items-center justify-center px-2 text-center text-[10px] font-semibold text-white/70">{item.file.name}</div>
                                           )}
                                           <button
                                             type="button"
@@ -2124,7 +2124,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                 imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
                                 imageAttachments.length === 2 && 'grid-cols-2',
                                 imageAttachments.length >= 3 && 'grid-cols-2'
-                              )} style={imageAttachments.length > 1 ? { width: 190 } : undefined}>
+                              )} style={imageAttachments.length > 1 ? { width: 260 } : undefined}>
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
@@ -2135,20 +2135,15 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                       onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
                                       className={cn(
                                         'block overflow-hidden border border-white/10 bg-black/20',
-                                        imageAttachments.length === 1 ? 'rounded-2xl' : 'aspect-square',
-                                        imageAttachments.length > 1 && 'h-24'
+                                        imageAttachments.length === 1 ? 'rounded-2xl' : 'h-32',
                                       )}
-                                      style={imageAttachments.length === 1 ? { maxHeight: 180, maxWidth: 220, minWidth: 100 } : undefined}
+                                      style={imageAttachments.length === 1 ? { width: 280, maxWidth: '100%', height: 180 } : undefined}
                                       title="Preview image"
                                     >
                                       <img
                                         src={src}
                                         alt={a.originalName || 'photo'}
-                                        className={cn(
-                                          imageAttachments.length === 1
-                                            ? 'block max-h-45 w-full object-contain'
-                                            : 'h-full w-full object-cover'
-                                        )}
+                                        className="h-full w-full object-contain"
                                       />
                                     </button>
                                   );
@@ -2279,7 +2274,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   {pendingAttachments.map((item, index) => {
                     const isImage = item.file.type.startsWith('image/');
                     return (
-                      <div key={`${item.file.name}-${index}`} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
+                      <div key={`${item.file.name}-${index}`} className="relative h-32 w-44 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
                         {isImage ? (
                           <button
                             type="button"
@@ -2287,10 +2282,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                             className="block h-full w-full"
                             title="Preview image"
                           >
-                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-contain bg-black/10" />
                           </button>
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] font-semibold text-muted-foreground">
+                          <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-semibold text-muted-foreground">
                             {item.file.name}
                           </div>
                         )}

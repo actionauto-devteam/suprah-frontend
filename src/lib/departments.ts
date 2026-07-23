@@ -5,6 +5,7 @@ export type DepartmentEntry = {
   isMobileMonitoringDept: boolean;
   isTimeEditExempt: boolean;
   isMandatoryLocationDept: boolean;
+  locationRequiredForTimeproof: boolean;
   isActive?: boolean;
   isDefault?: boolean;
   sortOrder?: number;
@@ -19,19 +20,19 @@ export type DepartmentEntry = {
 // DEPARTMENTS directly (via .map()) or call the helper functions below always see the
 // latest admin-managed list without needing to consume a hook themselves.
 export const DEPARTMENTS: DepartmentEntry[] = [
-  { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "Accounting", label: "Accounting", color: "sky", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "Recon", label: "Recon", color: "amber", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "Marketing", label: "Marketing", color: "pink", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "OnlineTeam", label: "Online Team", color: "violet", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "WebDevTeam", label: "Web Dev", color: "blue", isMobileMonitoringDept: false, isTimeEditExempt: true, isMandatoryLocationDept: false },
-  { key: "WholesaleTeam", label: "Wholesale", color: "orange", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "BuyingTeam", label: "Buying", color: "teal", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "OperationsTeam", label: "Operations", color: "rose", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "LotTechTeam", label: "Lot Tech", color: "indigo", isMobileMonitoringDept: true, isTimeEditExempt: false, isMandatoryLocationDept: true },
-  { key: "FundingTeam", label: "Funding", color: "lime", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "ProspectsTeam", label: "Prospects", color: "cyan", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
-  { key: "PriceCheckTeam", label: "Price Check", color: "fuchsia", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false },
+  { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "Accounting", label: "Accounting", color: "sky", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "Recon", label: "Recon", color: "amber", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "Marketing", label: "Marketing", color: "pink", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "OnlineTeam", label: "Online Team", color: "violet", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "WebDevTeam", label: "Web Dev", color: "blue", isMobileMonitoringDept: false, isTimeEditExempt: true, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "WholesaleTeam", label: "Wholesale", color: "orange", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "BuyingTeam", label: "Buying", color: "teal", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "OperationsTeam", label: "Operations", color: "rose", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "LotTechTeam", label: "Lot Tech", color: "indigo", isMobileMonitoringDept: true, isTimeEditExempt: false, isMandatoryLocationDept: true, locationRequiredForTimeproof: true },
+  { key: "FundingTeam", label: "Funding", color: "lime", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "ProspectsTeam", label: "Prospects", color: "cyan", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
+  { key: "PriceCheckTeam", label: "Price Check", color: "fuchsia", isMobileMonitoringDept: false, isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true },
 ];
 
 export const DEPT_COLORS: Record<string, string> = Object.fromEntries(
