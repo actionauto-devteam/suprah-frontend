@@ -1,6 +1,15 @@
 "use client";
 
 import * as React from "react";
+import "leaflet/dist/leaflet.css";
+import type {
+  Map as LeafletMap,
+  Marker as LeafletMarker,
+  Popup as LeafletPopup,
+  TileLayer as LeafletTileLayer,
+  LayerGroup as LeafletLayerGroup,
+  LeafletMouseEvent,
+} from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import { formatDistanceToNowStrict, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -29,6 +38,13 @@ function placeIconSvg(icon?: string) {
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
 
+const TILE_URL = {
+  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+};
+const TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
 function popupSharingDuration(sinceIso?: string) {
   if (!sinceIso) return "";
   try {
@@ -41,9 +57,15 @@ function popupSharingDuration(sinceIso?: string) {
   }
 }
 
-const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
-const PLACES_SOURCE_ID = "locator-places";
-const TRAIL_SOURCE_ID = "locator-trail";
+// The map's default view is the company's own Utah HQ (see the "Action Auto (HQ)" company
+// Place), NOT an auto-computed fit over wherever everyone currently is. This org has staff in
+// two real, far-apart regions (Utah and the Philippines) — fitting bounds to include both forces
+// an extremely low zoom, at which even genuinely-separate nearby cities visually collapse onto
+// each other. That's honest map behavior, not a bug, but it read as "the map is broken" — so the
+// default view now shows the home region clearly, with a separate affordance (see `elsewhere`
+// below) to fly out to anyone sharing from elsewhere instead of forcing everyone into one view.
+const DEFAULT_MAP_VIEW = { lat: 40.349619, lng: -112.073198, zoom: 10.5 };
+const FAR_REGION_THRESHOLD_MI = 300;
 // A "last known spot" pin is only useful while recent — a days-old pin (stale device,
 // abandoned test account, dead ping loop) is just clutter, especially paired with a name
 // that can never resolve. Keeps the live map map to what's actually still relevant; the
@@ -52,21 +74,13 @@ const MAP_PIN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export type MapFocus = (lat: number, lng: number) => void;
 
-function circlePolygon(lat: number, lng: number, radiusM: number, points = 48): [number, number][] {
-  const coords: [number, number][] = [];
-  const earthRadiusM = 6371000;
-  for (let i = 0; i <= points; i++) {
-    const angle = (i / points) * 2 * Math.PI;
-    const dx = (radiusM * Math.cos(angle)) / (earthRadiusM * Math.cos((lat * Math.PI) / 180));
-    const dy = (radiusM * Math.sin(angle)) / earthRadiusM;
-    coords.push([lng + (dx * 180) / Math.PI, lat + (dy * 180) / Math.PI]);
-  }
-  return coords;
-}
-
 const MATCH_CHUNK_SIZE = 100;
 
-async function matchToRoads(coords: [number, number][], token: string): Promise<[number, number][]> {
+// Snaps a raw GPS breadcrumb trail onto the actual road network using OSRM's public Match API
+// (osrm-project.org — free, no key; the same open-source engine Mapbox's own paid Map Matching
+// API is built on, so this is a like-for-like replacement, not a downgrade). Coordinates are
+// [lat, lng] (Leaflet convention) in and out; OSRM's wire format wants lng,lat like Mapbox's did.
+async function matchToRoads(coords: [number, number][]): Promise<[number, number][]> {
   const chunks: [number, number][][] = [];
   for (let i = 0; i < coords.length; i += MATCH_CHUNK_SIZE - 1) {
     const chunk = coords.slice(i, i + MATCH_CHUNK_SIZE);
@@ -76,14 +90,16 @@ async function matchToRoads(coords: [number, number][], token: string): Promise<
   const matchedChunks = await Promise.all(
     chunks.map(async (chunk) => {
       try {
-        const coordStr = chunk.map(([lng, lat]) => `${lng},${lat}`).join(";");
+        const coordStr = chunk.map(([lat, lng]) => `${lng},${lat}`).join(";");
         const radiuses = chunk.map(() => "25").join(";");
-        const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordStr}?geometries=geojson&overview=full&tidy=true&radiuses=${radiuses}&access_token=${token}`;
+        const url = `https://router.project-osrm.org/match/v1/driving/${coordStr}?geometries=geojson&overview=full&radiuses=${radiuses}`;
         const res = await fetch(url);
         if (!res.ok) return chunk;
         const data = await res.json();
         const matched = data?.code === "Ok" ? data.matchings?.[0]?.geometry?.coordinates : null;
-        return Array.isArray(matched) && matched.length > 1 ? (matched as [number, number][]) : chunk;
+        return Array.isArray(matched) && matched.length > 1
+          ? (matched.map(([lng, lat]: [number, number]) => [lat, lng]) as [number, number][])
+          : chunk;
       } catch {
         return chunk;
       }
@@ -268,11 +284,13 @@ interface Props {
   onSelectUser?: (userId: string) => void;
   onClearSelection?: () => void;
   historyPoints?: LocationHistoryPoint[];
-  /** Off-road personnel (Lot Tech) get their raw GPS breadcrumb trail — forcing Mapbox's
-   * driving-profile Map Matching onto someone walking/driving around a vehicle lot (not a
-   * mapped road) produces the "route jumps backward" artifact: it tries to snap slow/near-
-   * stationary noise onto the nearest driveable road and can zig-zag doing so. Defaults to
-   * true (road-snapping stays on for everyone else, e.g. sales reps driving to appointments). */
+  /** Off-road personnel (Lot Tech) get their raw GPS breadcrumb trail — forcing driving-profile
+   * road matching onto someone walking/driving around a vehicle lot (not a mapped road) produces
+   * a "route jumps backward" artifact: it tries to snap slow/near-stationary noise onto the
+   * nearest driveable road and can zig-zag doing so. Defaults to true (road-snapping stays on
+   * for everyone else, e.g. sales reps driving to appointments). Same trade-off as before the
+   * move off Mapbox — this flag was never about per-point indoor/outdoor detection, just a
+   * department-level toggle, and still is. */
   snapHistoryToRoads?: boolean;
   focusRef?: React.MutableRefObject<MapFocus | null>;
   myUserId?: string | null;
@@ -290,30 +308,33 @@ export function LocatorLiveMapSection({
   const { data: locations = [], isLoading } = useActiveEmployeeLocations(true);
   const { data: places = [] } = usePlaces();
   const [jumpTarget, setJumpTarget] = React.useState("");
-  const [zoom, setZoom] = React.useState(4);
-  const [bearing, setBearing] = React.useState(0);
+  const [zoom, setZoom] = React.useState(DEFAULT_MAP_VIEW.zoom);
   const [isMaximized, setIsMaximized] = React.useState(false);
+  // The Leaflet map itself is created inside an async effect (dynamic `import("leaflet")`), so
+  // on first mount every other effect below can run BEFORE `mapInstanceRef.current` exists and
+  // silently no-op — with nothing in their own dependency arrays to guarantee a retry once the
+  // map actually becomes ready. This flips exactly once, right when the map is constructed, and
+  // is included as a dependency everywhere so each effect is guaranteed at least one real run.
+  const [mapReady, setMapReady] = React.useState(false);
   const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
 
   const mapRef = React.useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = React.useRef<any>(null);
+  const mapInstanceRef = React.useRef<LeafletMap | null>(null);
+  const tileLayerRef = React.useRef<LeafletTileLayer | null>(null);
   const markersRef = React.useRef<Map<string, {
-    marker: any; popup: any; circleEl: HTMLDivElement; haloEl: HTMLDivElement; approxEl: HTMLSpanElement;
+    marker: LeafletMarker; popup: LeafletPopup; circleEl: HTMLDivElement; haloEl: HTMLDivElement; approxEl: HTMLSpanElement;
     lastState: string; lastSelected: boolean; lastHaloScale: number | null; lastApprox: boolean; isSelf: boolean;
   }>>(new Map());
-  const placeMarkersRef = React.useRef<Map<string, { marker: any; badgeEl: HTMLDivElement; popup: any }>>(new Map());
+  const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
+  const trailLayerRef = React.useRef<LeafletLayerGroup | null>(null);
   const locationsRef = React.useRef(locations);
   locationsRef.current = locations;
-  const hasAutoFitRef = React.useRef(false);
-  const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
 
   const selectRef = React.useRef(onSelectUser);
   selectRef.current = onSelectUser;
   const clearSelectionRef = React.useRef(onClearSelection);
   clearSelectionRef.current = onClearSelection;
-  const zoomRef = React.useRef(zoom);
-  zoomRef.current = zoom;
 
   const placesRef = React.useRef(places);
   placesRef.current = places;
@@ -330,7 +351,6 @@ export function LocatorLiveMapSection({
   const onPlacePickedRef = React.useRef(onPlacePicked);
   onPlacePickedRef.current = onPlacePicked;
 
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
   const sharingCount = locations.filter((l) => l.sharingState === "sharing").length;
   const myLocation = myUserId ? locations.find((l) => l.userId === myUserId) : undefined;
   const stateCounts = React.useMemo(() => {
@@ -339,10 +359,18 @@ export function LocatorLiveMapSection({
     return counts;
   }, [locations]);
 
+  // People sharing from far outside the home region (see DEFAULT_MAP_VIEW) — surfaced as an
+  // explicit "N elsewhere" affordance instead of folding them into the default view, which is
+  // what used to force the map to zoom out to a near-useless level. Real-world distance, not
+  // screen pixels — has nothing to do with the marker-clustering approaches tried (and reverted)
+  // before, and doesn't hide or merge anyone's individual marker.
+  const elsewhere = React.useMemo(
+    () => locations.filter((l) => l.coords && haversineMi(DEFAULT_MAP_VIEW, l.coords) > FAR_REGION_THRESHOLD_MI),
+    [locations],
+  );
+
   function flyToPlace(place: Place) {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    map.flyTo({ center: [place.coords.lng, place.coords.lat], zoom: 16, essential: true });
+    mapInstanceRef.current?.flyTo([place.coords.lat, place.coords.lng], 16);
   }
 
   function handleJumpToPlace() {
@@ -350,79 +378,67 @@ export function LocatorLiveMapSection({
     if (place) flyToPlace(place);
   }
 
-  React.useEffect(() => {
-    if (!mapboxToken || !mapRef.current || mapInstanceRef.current) return;
-    let cancelled = false;
+  function viewElsewhere() {
+    const map = mapInstanceRef.current;
+    if (!map || elsewhere.length === 0) return;
+    const bounds = elsewhere.map((l) => [l.coords.lat, l.coords.lng] as [number, number]);
+    map.flyToBounds(bounds, { padding: [80, 80], maxZoom: 12, duration: 0.8 });
+  }
 
-    let loadTimeout: number | undefined;
+  function goHome() {
+    mapInstanceRef.current?.flyTo([DEFAULT_MAP_VIEW.lat, DEFAULT_MAP_VIEW.lng], DEFAULT_MAP_VIEW.zoom);
+  }
+
+  React.useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
+    let cancelled = false;
 
     const initMap = async () => {
       try {
-        const mapboxgl = (await import("mapbox-gl")).default;
+        const L = (await import("leaflet")).default;
         if (cancelled || !mapRef.current) return;
 
-        if (!mapboxToken.startsWith("pk.")) {
-          setMapNotice("Invalid Mapbox token. Use a public token starting with pk.");
-          return;
-        }
-        if (!mapboxgl.supported()) {
-          setMapNotice("Mapbox requires WebGL. Please enable hardware acceleration.");
-          return;
-        }
-
-        mapboxgl.accessToken = mapboxToken;
-        mapThemeRef.current = theme;
-        const map = new mapboxgl.Map({
-          container: mapRef.current,
-          style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12",
-          center: [MAP_CENTER.lng, MAP_CENTER.lat],
-          zoom: 4,
-          attributionControl: false,
+        const map = L.map(mapRef.current, {
+          center: [DEFAULT_MAP_VIEW.lat, DEFAULT_MAP_VIEW.lng],
+          zoom: DEFAULT_MAP_VIEW.zoom,
+          minZoom: MIN_ZOOM,
+          maxZoom: MAX_ZOOM,
+          zoomControl: false,
+          attributionControl: true,
         });
-
         mapInstanceRef.current = map;
-        setMapNotice("Loading map tiles...");
 
-        // Mapbox's "idle" event is the only thing that clears the loading notice — if the
-        // style/tile request stalls or fails silently without emitting an "error" event, the
-        // notice would otherwise stay stuck forever. This timeout guarantees the user always
-        // sees a terminal state.
-        loadTimeout = window.setTimeout(() => {
-          if (!map.isStyleLoaded()) {
-            setMapNotice("Map style not loaded. Check token or network.");
-          }
-        }, 8000);
+        const tileLayer = L.tileLayer(TILE_URL[theme], {
+          subdomains: "abcd",
+          maxZoom: MAX_ZOOM,
+          attribution: TILE_ATTRIBUTION,
+          // Raster tiles always show a brief blank/white flash while a new tile image loads —
+          // normal for any slippy map (Google Maps/OSM do the same), not specific to this app.
+          // These options trade a little extra network/memory for noticeably less of it: keep a
+          // wider ring of already-loaded tiles around the viewport so panning/zooming out reuses
+          // them instead of blanking, and don't throw away/refetch tiles on every intermediate
+          // frame of a zoom gesture, only once it settles.
+          keepBuffer: 4,
+          updateWhenZooming: false,
+          detectRetina: true,
+        }).addTo(map);
+        tileLayerRef.current = tileLayer;
 
-        map.on("load", () => {
-          window.clearTimeout(loadTimeout);
-          map.resize();
-        });
-        map.on("idle", () => {
-          window.clearTimeout(loadTimeout);
-          setMapNotice(null);
-        });
-        map.on("error", (e: any) => {
-          window.clearTimeout(loadTimeout);
-          const status = e?.error?.status;
-          const message = e?.error?.message || "Map failed to load";
-          setMapNotice(status ? `${message} (HTTP ${status})` : message);
-        });
+        setMapReady(true);
         map.on("zoom", () => setZoom(map.getZoom()));
-        map.on("rotate", () => setBearing(map.getBearing()));
 
         // Container size can change without the window resizing (maximize toggle, device
-        // rotation, sidebar collapse) — Mapbox only auto-detects the very first layout, so
-        // without this the canvas keeps rendering at its old size until something else
-        // happens to call resize().
+        // rotation, sidebar collapse) — Leaflet doesn't auto-detect that, so without this the
+        // canvas keeps rendering at its old size until something else triggers a recalculation.
         if (typeof ResizeObserver !== "undefined" && mapRef.current) {
-          const observer = new ResizeObserver(() => map.resize());
+          const observer = new ResizeObserver(() => map.invalidateSize());
           observer.observe(mapRef.current);
           resizeObserverRef.current = observer;
         }
 
-        map.on("click", (e: any) => {
+        map.on("click", (e: LeafletMouseEvent) => {
           if (placePickModeRef.current) {
-            onPlacePickedRef.current?.(e.lngLat.lat, e.lngLat.lng);
+            onPlacePickedRef.current?.(e.latlng.lat, e.latlng.lng);
             return;
           }
           clearSelectionRef.current?.();
@@ -430,7 +446,7 @@ export function LocatorLiveMapSection({
 
         if (focusRef) {
           focusRef.current = (lat: number, lng: number) => {
-            map.flyTo({ center: [lng, lat], zoom: 15, essential: true });
+            map.flyTo([lat, lng], 15);
             mapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
           };
         }
@@ -442,7 +458,7 @@ export function LocatorLiveMapSection({
     initMap();
     return () => {
       cancelled = true;
-      window.clearTimeout(loadTimeout);
+      setMapReady(false);
       if (focusRef) focusRef.current = null;
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
@@ -451,62 +467,32 @@ export function LocatorLiveMapSection({
         mapInstanceRef.current = null;
       }
     };
-  }, [mapboxToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   React.useEffect(() => {
     document.body.style.overflow = isMaximized ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [isMaximized]);
 
-  const resetNorth = () => {
-    mapInstanceRef.current?.easeTo({ bearing: 0, pitch: 0, duration: 300 });
-  };
-
   React.useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || mapThemeRef.current === theme) return;
-    mapThemeRef.current = theme;
-    setMapNotice("Applying theme...");
-    map.setStyle(theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12");
-    const themeTimeout = window.setTimeout(() => setMapNotice(null), 8000);
-    map.once("idle", () => {
-      window.clearTimeout(themeTimeout);
-      setMapNotice(null);
-    });
-    return () => window.clearTimeout(themeTimeout);
+    tileLayerRef.current?.setUrl(TILE_URL[theme]);
   }, [theme]);
 
   React.useEffect(() => {
-    if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
-    const markers = markersRef.current;
+    if (!map) return;
+    let cancelled = false;
 
-    const run = async () => {
-      const mapboxgl = (await import("mapbox-gl")).default;
-      if (!map.isStyleLoaded()) {
-        map.once("idle", run);
-        return;
-      }
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled) return;
+      const markers = markersRef.current;
 
       const visible = locations.filter(
         (l) => l.coords && Date.now() - new Date(l.lastSeenAt).getTime() <= MAP_PIN_MAX_AGE_MS,
       );
 
-      if (!hasAutoFitRef.current) {
-        const fitPoints: [number, number][] = [
-          ...visible.map((l) => [l.coords.lng, l.coords.lat] as [number, number]),
-          ...placesRef.current.map((p) => [p.coords.lng, p.coords.lat] as [number, number]),
-        ];
-        if (fitPoints.length > 0) {
-          hasAutoFitRef.current = true;
-          if (fitPoints.length === 1) {
-            map.flyTo({ center: fitPoints[0], zoom: 14, essential: true });
-          } else {
-            const bounds = fitPoints.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(fitPoints[0], fitPoints[0]));
-            map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 0 });
-          }
-        }
-      }
       const nextIds = new Set(visible.map((l) => l.userId));
       const viewerCoords = myLocation?.coords ?? null;
 
@@ -518,27 +504,25 @@ export function LocatorLiveMapSection({
 
       markers.forEach((entry, userId) => {
         if (!nextIds.has(userId)) {
-          entry.marker.remove();
-          entry.popup.remove();
+          map.removeLayer(entry.marker);
+          map.removeLayer(entry.popup);
           markers.delete(userId);
         }
       });
 
       // Every visible person always gets their own marker at their own true coordinate, at
       // every zoom level — no clustering into a synthetic averaged/anchored group position.
-      // A prior clustering system hid individual markers behind a merged badge once people
-      // became pixel-close (which happens to ANYONE at a low enough zoom, not just people who
-      // are actually near each other in the real world) and only revealed the true position
-      // once zoomed in past the pixel threshold — reading as "his icon is way out of place
-      // until I fully zoom in," which is exactly what it was. Overlapping markers at very low
-      // zoom now simply stack (z-index below), same as any normal map's pins — always honest
-      // about where someone actually is.
+      // Multiple clustering rewrites (11th/12th/13th/19th/21st passes) each reintroduced this
+      // same bug in a new shape — hiding someone's real marker behind a merged badge always
+      // means their icon isn't at their real spot. Overlapping markers at very low zoom simply
+      // stack (z-index below), same as any normal map's pins — always honest about where
+      // someone actually is. Do not reintroduce clustering here again.
       visible.forEach((loc) => {
         const color = STATE_HEX[loc.sharingState] ?? STATE_HEX.off_duty;
         const isSelected = loc.userId === selectedUserId;
         const isSelf = !!myUserId && loc.userId === myUserId;
         const isLastSeen = loc.sharingState === "off_duty";
-        const lngLat: [number, number] = [loc.coords.lng, loc.coords.lat];
+        const latLng: [number, number] = [loc.coords.lat, loc.coords.lng];
         const place = loc.currentPlaceId ? placesRef.current.find((p) => p._id === loc.currentPlaceId) : undefined;
         const existing = markers.get(loc.userId);
 
@@ -550,11 +534,14 @@ export function LocatorLiveMapSection({
         const zIndex = isSelected ? 30 : isSelf ? 20 : 10;
 
         if (existing) {
-          existing.marker.setLngLat(lngLat);
-          existing.popup.setLngLat(lngLat);
-          existing.popup.setHTML(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
-          existing.marker.getElement().style.opacity = isLastSeen ? "0.55" : "1";
-          existing.marker.getElement().style.zIndex = String(zIndex);
+          existing.marker.setLatLng(latLng);
+          existing.popup.setLatLng(latLng);
+          existing.popup.setContent(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
+          const el = existing.marker.getElement();
+          if (el) {
+            el.style.opacity = isLastSeen ? "0.55" : "1";
+            el.style.zIndex = String(zIndex);
+          }
 
           if (existing.lastState !== loc.sharingState) {
             existing.circleEl.style.borderColor = color;
@@ -678,26 +665,33 @@ export function LocatorLiveMapSection({
         approxEl.style.zIndex = "2";
         wrapper.appendChild(approxEl);
 
-        const popup = new mapboxgl.Popup({ offset: [0, -(size / 2) - 6], closeButton: false, closeOnClick: false, className: "locator-popup" })
-          .setLngLat(lngLat)
-          .setHTML(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
-
-        popup.on("open", () => {
-          const closeBtn = popup.getElement()?.querySelector<HTMLButtonElement>(".popup-close-btn");
-          closeBtn?.addEventListener("click", (e) => {
-            e.stopPropagation();
-            clearSelectionRef.current?.();
-          });
-        });
-
         wrapper.addEventListener("click", (e) => {
           e.stopPropagation();
           selectRef.current?.(loc.userId);
         });
 
-        const marker = new mapboxgl.Marker({ element: wrapper, anchor: "center" })
-          .setLngLat(lngLat)
-          .addTo(map);
+        const marker = L.marker(latLng, {
+          icon: L.divIcon({ html: wrapper, className: "locator-marker-icon", iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        }).addTo(map);
+
+        const popup = L.popup({ offset: [0, -(size / 2) - 6], closeButton: false, autoClose: false, closeOnClick: false, className: "locator-popup" })
+          .setLatLng(latLng)
+          .setContent(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
+
+        // The close button lives inside popup content that gets replaced wholesale on every
+        // `.setContent()` call (every live location update — as often as every few seconds) —
+        // Leaflet swaps the inner HTML, which destroys whatever specific button element a
+        // direct listener was attached to. Binding once, on the popup's own stable outer
+        // container (which `setContent()` never replaces, only its inner content), and
+        // delegating by checking the click target survives every future content refresh.
+        popup.once("add", () => {
+          popup.getElement()?.addEventListener("click", (e) => {
+            if ((e.target as HTMLElement).closest(".popup-close-btn")) {
+              e.stopPropagation();
+              clearSelectionRef.current?.();
+            }
+          });
+        });
 
         markers.set(loc.userId, {
           marker, popup, circleEl, haloEl, approxEl, isSelf,
@@ -707,233 +701,185 @@ export function LocatorLiveMapSection({
 
       markers.forEach((entry, userId) => {
         if (userId === selectedUserId) entry.popup.addTo(map);
-        else entry.popup.remove();
+        else map.removeLayer(entry.popup);
       });
-    };
+    })();
 
-    run();
-  }, [locations, places, selectedUserId, myUserId, myLocation, theme]);
-
-  const trailGeojsonRef = React.useRef<any>(null);
-
-  React.useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-    let cancelled = false;
-
-    const removeTrail = () => {
-      trailGeojsonRef.current = null;
-      if (map.getLayer(`${TRAIL_SOURCE_ID}-line`)) map.removeLayer(`${TRAIL_SOURCE_ID}-line`);
-      if (map.getLayer(`${TRAIL_SOURCE_ID}-pts`)) map.removeLayer(`${TRAIL_SOURCE_ID}-pts`);
-      if (map.getSource(TRAIL_SOURCE_ID)) map.removeSource(TRAIL_SOURCE_ID);
-    };
-
-    const trailGeojson = (lineCoords: [number, number][], pointCoords: [number, number][]) => ({
-      type: "FeatureCollection" as const,
-      features: [
-        { type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: lineCoords } },
-        ...pointCoords.map((c, i) => ({
-          type: "Feature" as const,
-          properties: { edge: i === 0 || i === pointCoords.length - 1 ? 1 : 0 },
-          geometry: { type: "Point" as const, coordinates: c },
-        })),
-      ],
-    });
-
-    const repaint = () => {
-      if (!map.isStyleLoaded() || !trailGeojsonRef.current) return;
-      const geojson = trailGeojsonRef.current;
-      const source = map.getSource(TRAIL_SOURCE_ID);
-      if (source) {
-        source.setData(geojson);
-        return;
-      }
-      map.addSource(TRAIL_SOURCE_ID, { type: "geojson", data: geojson });
-      map.addLayer({
-        id: `${TRAIL_SOURCE_ID}-line`,
-        type: "line",
-        source: TRAIL_SOURCE_ID,
-        filter: ["==", "$type", "LineString"],
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3b82f6", "line-width": 3, "line-opacity": 0.85 },
-      });
-      map.addLayer({
-        id: `${TRAIL_SOURCE_ID}-pts`,
-        type: "circle",
-        source: TRAIL_SOURCE_ID,
-        filter: ["==", "$type", "Point"],
-        paint: {
-          "circle-radius": ["case", ["==", ["get", "edge"], 1], 6, 3],
-          "circle-color": ["case", ["==", ["get", "edge"], 1], "#2563eb", "#93c5fd"],
-          "circle-stroke-width": 1.5,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
-    };
-
-    const run = async () => {
-      if (historyPoints.length === 0) {
-        removeTrail();
-        return;
-      }
-      const mapboxgl = (await import("mapbox-gl")).default;
-      const coords = historyPoints.map((h) => [h.coords.lng, h.coords.lat] as [number, number]);
-
-      trailGeojsonRef.current = trailGeojson(coords, coords);
-      repaint();
-
-      if (coords.length > 1) {
-        const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
-        map.fitBounds(bounds, { padding: 50, maxZoom: 16 });
-      }
-
-      if (snapHistoryToRoads && mapboxToken && coords.length > 1) {
-        const matched = await matchToRoads(coords, mapboxToken);
-        if (cancelled) return;
-        trailGeojsonRef.current = trailGeojson(matched, coords);
-        repaint();
-      }
-    };
-
-    run();
-    map.on("styledata", repaint);
     return () => {
       cancelled = true;
-      map.off("styledata", repaint);
     };
-  }, [historyPoints, mapboxToken, snapHistoryToRoads]);
+  }, [locations, places, selectedUserId, myUserId, myLocation, theme, mapReady]);
+
+  // Identifies WHICH trail is currently on screen (who + what span of time) — not the specific
+  // array reference, which changes on every background refetch of the exact same trail (React
+  // Query's staleTime/refetch-on-focus keeps producing fresh arrays for identical data). Only a
+  // genuinely new trail (different person, or a different date range for the same person) should
+  // ever recenter the camera; re-fitting on every routine refresh was yanking the view back to
+  // whoever's trail is showing — which defaults to your OWN — every time it silently refreshed,
+  // fighting any manual pan/zoom you'd just done.
+  const historyFitKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
-    const placeMarkers = placeMarkersRef.current;
+    if (!map) return;
+    let cancelled = false;
 
-    const renderPlaces = () => {
-      if (!map.isStyleLoaded()) return;
-      const features = overlayPlacesRef.current.map((p) => ({
-        type: "Feature" as const,
-        properties: { name: p.name, color: p.color || "#3b82f6" },
-        geometry: { type: "Polygon" as const, coordinates: [circlePolygon(p.coords.lat, p.coords.lng, p.radiusM)] },
-      }));
-      const geojson = { type: "FeatureCollection" as const, features };
+    const paintTrail = async (L: typeof import("leaflet"), coords: [number, number][]) => {
+      trailLayerRef.current?.remove();
+      const group = L.layerGroup();
 
-      const source = map.getSource(PLACES_SOURCE_ID);
-      if (source) {
-        source.setData(geojson);
-      } else {
-        map.addSource(PLACES_SOURCE_ID, { type: "geojson", data: geojson });
-        map.addLayer({
-          id: `${PLACES_SOURCE_ID}-glow`,
-          type: "line",
-          source: PLACES_SOURCE_ID,
-          paint: { "line-color": ["get", "color"], "line-width": 9, "line-blur": 4, "line-opacity": 0.35 },
-        });
-        map.addLayer({
-          id: `${PLACES_SOURCE_ID}-fill`,
-          type: "fill",
-          source: PLACES_SOURCE_ID,
-          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.16 },
-        });
-        map.addLayer({
-          id: `${PLACES_SOURCE_ID}-outline`,
-          type: "line",
-          source: PLACES_SOURCE_ID,
-          paint: { "line-color": ["get", "color"], "line-width": 2.5 },
-        });
-      }
+      L.polyline(coords, { color: "#3b82f6", weight: 3, opacity: 0.85 }).addTo(group);
+      coords.forEach((c, i) => {
+        const isEdge = i === 0 || i === coords.length - 1;
+        L.circleMarker(c, {
+          radius: isEdge ? 6 : 3,
+          color: "#ffffff",
+          weight: 1.5,
+          fillColor: isEdge ? "#2563eb" : "#93c5fd",
+          fillOpacity: 1,
+        }).addTo(group);
+      });
 
-      const run = async () => {
-        const mapboxgl = (await import("mapbox-gl")).default;
-        const nextIds = new Set(overlayPlacesRef.current.map((p) => p._id));
-
-        placeMarkers.forEach((entry, id) => {
-          if (!nextIds.has(id)) {
-            entry.marker.remove();
-            entry.popup.remove();
-            placeMarkers.delete(id);
-          }
-        });
-
-        const hereNowFor = (placeId: string) =>
-          locationsRef.current.filter((l) => l.sharingState === "sharing" && l.currentPlaceId === placeId).length;
-
-        overlayPlacesRef.current.forEach((p) => {
-          const color = p.color || "#3b82f6";
-          const existing = placeMarkers.get(p._id);
-          if (existing) {
-            existing.marker.setLngLat([p.coords.lng, p.coords.lat]);
-            existing.badgeEl.style.background = color;
-            existing.badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
-            existing.badgeEl.innerHTML = placeIconSvg(p.icon);
-            existing.popup.setLngLat([p.coords.lng, p.coords.lat]);
-            const labelEl = existing.badgeEl.nextElementSibling as HTMLDivElement | null;
-            if (labelEl) labelEl.textContent = p.name;
-            return;
-          }
-
-          const wrapper = document.createElement("div");
-          wrapper.style.display = "flex";
-          wrapper.style.flexDirection = "column";
-          wrapper.style.alignItems = "center";
-          wrapper.style.gap = "3px";
-          wrapper.style.cursor = "pointer";
-          wrapper.style.pointerEvents = "auto";
-
-          const badgeEl = document.createElement("div");
-          badgeEl.style.width = "30px";
-          badgeEl.style.height = "30px";
-          badgeEl.style.borderRadius = "9999px";
-          badgeEl.style.display = "flex";
-          badgeEl.style.alignItems = "center";
-          badgeEl.style.justifyContent = "center";
-          badgeEl.style.background = color;
-          badgeEl.style.border = "2.5px solid white";
-          badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
-          badgeEl.innerHTML = placeIconSvg(p.icon);
-          wrapper.appendChild(badgeEl);
-
-          const labelEl = document.createElement("div");
-          labelEl.style.fontSize = "9.5px";
-          labelEl.style.fontWeight = "800";
-          labelEl.style.color = "#ffffff";
-          labelEl.style.background = "rgba(15,23,42,0.72)";
-          labelEl.style.padding = "1.5px 6px";
-          labelEl.style.borderRadius = "9999px";
-          labelEl.style.whiteSpace = "nowrap";
-          labelEl.style.maxWidth = "110px";
-          labelEl.style.overflow = "hidden";
-          labelEl.style.textOverflow = "ellipsis";
-          labelEl.textContent = p.name;
-          wrapper.appendChild(labelEl);
-
-          const popup = new mapboxgl.Popup({ offset: [0, -34], closeButton: false, closeOnClick: false, className: "locator-popup" })
-            .setLngLat([p.coords.lng, p.coords.lat]);
-
-          wrapper.addEventListener("mouseenter", () => {
-            popup.setHTML(buildPlacePopupHtml(overlayPlacesRef.current.find((op) => op._id === p._id) ?? p, hereNowFor(p._id), mapThemeRef.current ?? "light"));
-            popup.addTo(map);
-          });
-          wrapper.addEventListener("mouseleave", () => popup.remove());
-
-          wrapper.addEventListener("click", (e) => {
-            e.stopPropagation();
-            map.flyTo({ center: [p.coords.lng, p.coords.lat], zoom: 16, essential: true });
-          });
-
-          const marker = new mapboxgl.Marker({ element: wrapper, anchor: "bottom" })
-            .setLngLat([p.coords.lng, p.coords.lat])
-            .addTo(map);
-
-          placeMarkers.set(p._id, { marker, badgeEl, popup });
-        });
-      };
-      run();
+      group.addTo(map);
+      trailLayerRef.current = group;
     };
 
-    renderPlaces();
-    map.on("styledata", renderPlaces);
-    return () => map.off("styledata", renderPlaces);
-  }, [overlayPlaces, mapNotice, theme]);
+    (async () => {
+      if (historyPoints.length === 0) {
+        trailLayerRef.current?.remove();
+        trailLayerRef.current = null;
+        historyFitKeyRef.current = null;
+        return;
+      }
+      const L = (await import("leaflet")).default;
+      if (cancelled) return;
+
+      const coords = historyPoints.map((h) => [h.coords.lat, h.coords.lng] as [number, number]);
+      await paintTrail(L, coords);
+
+      const subject = selectedUserId ?? myUserId ?? "";
+      const fitKey = `${subject}:${historyPoints[0].recordedAt}:${historyPoints[historyPoints.length - 1].recordedAt}`;
+      if (coords.length > 1 && historyFitKeyRef.current !== fitKey) {
+        historyFitKeyRef.current = fitKey;
+        map.fitBounds(coords, { padding: [50, 50], maxZoom: 16 });
+      }
+
+      if (snapHistoryToRoads && coords.length > 1) {
+        const matched = await matchToRoads(coords);
+        if (cancelled) return;
+        await paintTrail(L, matched);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historyPoints, snapHistoryToRoads, mapReady, selectedUserId, myUserId]);
+
+  React.useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    let cancelled = false;
+
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled) return;
+      const placeMarkers = placeMarkersRef.current;
+      const nextIds = new Set(overlayPlaces.map((p) => p._id));
+
+      placeMarkers.forEach((entry, id) => {
+        if (!nextIds.has(id)) {
+          map.removeLayer(entry.marker);
+          map.removeLayer(entry.layerGroup);
+          map.removeLayer(entry.popup);
+          placeMarkers.delete(id);
+        }
+      });
+
+      const hereNowFor = (placeId: string) =>
+        locationsRef.current.filter((l) => l.sharingState === "sharing" && l.currentPlaceId === placeId).length;
+
+      overlayPlaces.forEach((p) => {
+        const color = p.color || "#3b82f6";
+        const latLng: [number, number] = [p.coords.lat, p.coords.lng];
+        const existing = placeMarkers.get(p._id);
+        if (existing) {
+          existing.marker.setLatLng(latLng);
+          existing.badgeEl.style.background = color;
+          existing.badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
+          existing.badgeEl.innerHTML = placeIconSvg(p.icon);
+          existing.popup.setLatLng(latLng);
+          const labelEl = existing.badgeEl.nextElementSibling as HTMLDivElement | null;
+          if (labelEl) labelEl.textContent = p.name;
+          return;
+        }
+
+        const geofence = L.layerGroup();
+        L.circle(latLng, { radius: p.radiusM * 1.4, color, weight: 0, fillColor: color, fillOpacity: 0.1 }).addTo(geofence);
+        L.circle(latLng, { radius: p.radiusM, color, weight: 2.5, fillColor: color, fillOpacity: 0.16 }).addTo(geofence);
+        geofence.addTo(map);
+
+        const wrapper = document.createElement("div");
+        wrapper.style.display = "flex";
+        wrapper.style.flexDirection = "column";
+        wrapper.style.alignItems = "center";
+        wrapper.style.gap = "3px";
+        wrapper.style.cursor = "pointer";
+        wrapper.style.pointerEvents = "auto";
+
+        const badgeEl = document.createElement("div");
+        badgeEl.style.width = "30px";
+        badgeEl.style.height = "30px";
+        badgeEl.style.borderRadius = "9999px";
+        badgeEl.style.display = "flex";
+        badgeEl.style.alignItems = "center";
+        badgeEl.style.justifyContent = "center";
+        badgeEl.style.background = color;
+        badgeEl.style.border = "2.5px solid white";
+        badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
+        badgeEl.innerHTML = placeIconSvg(p.icon);
+        wrapper.appendChild(badgeEl);
+
+        const labelEl = document.createElement("div");
+        labelEl.style.fontSize = "9.5px";
+        labelEl.style.fontWeight = "800";
+        labelEl.style.color = "#ffffff";
+        labelEl.style.background = "rgba(15,23,42,0.72)";
+        labelEl.style.padding = "1.5px 6px";
+        labelEl.style.borderRadius = "9999px";
+        labelEl.style.whiteSpace = "nowrap";
+        labelEl.style.maxWidth = "110px";
+        labelEl.style.overflow = "hidden";
+        labelEl.style.textOverflow = "ellipsis";
+        labelEl.textContent = p.name;
+        wrapper.appendChild(labelEl);
+
+        const popup = L.popup({ offset: [0, -34], closeButton: false, autoClose: false, closeOnClick: false, className: "locator-popup" })
+          .setLatLng(latLng);
+
+        wrapper.addEventListener("mouseenter", () => {
+          popup.setContent(buildPlacePopupHtml(overlayPlacesRef.current.find((op) => op._id === p._id) ?? p, hereNowFor(p._id), theme));
+          popup.addTo(map);
+        });
+        wrapper.addEventListener("mouseleave", () => map.removeLayer(popup));
+
+        wrapper.addEventListener("click", (e) => {
+          e.stopPropagation();
+          map.flyTo(latLng, 16);
+        });
+
+        const marker = L.marker(latLng, {
+          icon: L.divIcon({ html: wrapper, className: "locator-marker-icon", iconSize: [30, 49], iconAnchor: [15, 49] }),
+        }).addTo(map);
+
+        placeMarkers.set(p._id, { marker, layerGroup: geofence, badgeEl, popup });
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayPlaces, theme, mapReady]);
 
   const zoomMap = (delta: number) => {
     const map = mapInstanceRef.current;
@@ -948,22 +894,22 @@ export function LocatorLiveMapSection({
       toast.error("You're not sharing your location right now");
       return;
     }
-    map.flyTo({ center: [myLocation.coords.lng, myLocation.coords.lat], zoom: 15, essential: true });
+    map.flyTo([myLocation.coords.lat, myLocation.coords.lng], 15);
   };
 
   return (
     <div className="space-y-2 h-full flex flex-col">
       { }
       <style>{`
-        .locator-popup { pointer-events: none; }
-        .locator-popup .mapboxgl-popup-content { background: transparent; box-shadow: none; padding: 0; border-radius: 14px; }
-        .locator-popup .mapboxgl-popup-tip { display: none; }
+        .locator-marker-icon { background: transparent; border: none; }
+        .locator-popup .leaflet-popup-content-wrapper { background: transparent; box-shadow: none; padding: 0; border-radius: 14px; }
+        .locator-popup .leaflet-popup-content { margin: 0; }
+        .locator-popup .leaflet-popup-tip { display: none; }
         .locator-popup .popup-close-btn { pointer-events: auto; }
         .locator-popup .popup-close-btn:hover { opacity: .8; }
       `}</style>
 
       <LocatorMap
-        mapboxToken={mapboxToken}
         mapRef={mapRef}
         onZoomIn={() => zoomMap(1)}
         onZoomOut={() => zoomMap(-1)}
@@ -980,8 +926,9 @@ export function LocatorLiveMapSection({
         onJump={handleJumpToPlace}
         isMaximized={isMaximized}
         onToggleMaximize={() => setIsMaximized((v) => !v)}
-        bearing={bearing}
-        onResetNorth={resetNorth}
+        elsewhereCount={elsewhere.length}
+        onViewElsewhere={viewElsewhere}
+        onGoHome={goHome}
       />
 
       {!isLoading && locations.filter((l) => l.sharingState !== "off_duty").length === 0 && (
