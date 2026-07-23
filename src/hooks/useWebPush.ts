@@ -12,7 +12,12 @@ const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 // "Service Worker timeout" warning that isn't an actual error.
 const SW_ENABLED = process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 
-export function useWebPush() {
+type UseWebPushOptions = {
+    disabled?: boolean;
+};
+
+export function useWebPush(options: UseWebPushOptions = {}) {
+    const { disabled = false } = options;
     const [isSupported, setIsSupported] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +61,13 @@ export function useWebPush() {
     };
 
     const getSubscription = useCallback(async () => {
+        if (disabled) {
+            setIsSupported(false);
+            setIsSubscribed(false);
+            setIsLoading(false);
+            return null;
+        }
+
         if (
             typeof window === "undefined" ||
             !("serviceWorker" in navigator) ||
@@ -102,13 +114,17 @@ export function useWebPush() {
             setIsLoading(false);
         }
         return null;
-    }, [getServiceWorkerRegistration]);
+    }, [disabled, getServiceWorkerRegistration]);
 
     useEffect(() => {
         getSubscription();
     }, [getSubscription]);
 
     const subscribe = async () => {
+        if (disabled) {
+            return;
+        }
+
         if (!VAPID_PUBLIC_KEY) {
             console.error("VAPID Public Key missing from environment variables.");
             toast.error("Push key is missing. Please contact support.");
