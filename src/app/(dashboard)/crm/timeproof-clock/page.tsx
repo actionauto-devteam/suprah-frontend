@@ -62,6 +62,7 @@ interface CrmUserData {
   avatar?: string
   role: string
   department?: string
+  locationRequiredForTimeproof?: boolean
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
@@ -699,7 +700,12 @@ export default function TimeprofClockPage() {
   }, [token])
 
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
-    if (type === "time-in") {
+    // Skip the GPS-permission gate entirely for a department exempted via
+    // "Require Location for TimeProof" (Settings → Departments) — the backend
+    // no longer requires it for them either, so forcing this prompt here was
+    // blocking exempted users on a location permission they were never
+    // supposed to need in the first place.
+    if (type === "time-in" && user?.locationRequiredForTimeproof !== false) {
       const locationOk = await requestLocationForShiftStart()
       if (!locationOk) return
     }
@@ -1333,7 +1339,7 @@ export default function TimeprofClockPage() {
               </div>
             </div>
 
-            {(() => {
+            {user?.locationRequiredForTimeproof !== false && (() => {
               const meta = locatorStateMeta(locatorState, locatorError, locatorAwaitingFirstFix)
               return (
                 <div className="w-full rounded-2xl border border-border/40 bg-card">

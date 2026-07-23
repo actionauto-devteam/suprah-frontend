@@ -266,7 +266,14 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
     return members.filter((m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
   }, [members, memberFilter])
 
-  const permissionCount = [isMobileMonitoringDept, isTimeEditExempt, isMandatoryLocationDept].filter(Boolean).length
+  // Time-Edit Exempt still works exactly as before (Web Dev keeps the flag
+  // enforced on the backend) — this only controls whether the toggle is
+  // shown in this panel. Admins see and can edit it normally for every
+  // OTHER department; it's specifically hidden for Web Dev by explicit
+  // request, so nobody can see/toggle it there via the UI.
+  const isWebDev = dept.key === 'WebDevTeam'
+  const visibleToggleCount = isWebDev ? 2 : 3
+  const permissionCount = [isMobileMonitoringDept, !isWebDev && isTimeEditExempt, isMandatoryLocationDept].filter(Boolean).length
 
   return (
     <div className="flex flex-col h-full">
@@ -423,7 +430,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
             <ShieldCheck className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
               These settings apply department-wide and currently govern <span className="font-semibold text-foreground">{dept.memberCount ?? 0} member(s)</span> in {dept.label}.
-              {" "}{permissionCount} of 3 toggles are active.
+              {" "}{permissionCount} of {visibleToggleCount} toggles are active.
             </p>
           </div>
 
@@ -439,16 +446,18 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
               <Switch checked={isMobileMonitoringDept} onCheckedChange={setIsMobileMonitoringDept} />
             </div>
 
-            <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
-              <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Clock className="h-4 w-4 text-amber-500" />
+            {!isWebDev && (
+              <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
+                <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold">Time-Edit Exempt</p>
+                  <p className="text-[11px] text-muted-foreground/60">Admins cannot correct this department&apos;s time logs</p>
+                </div>
+                <Switch checked={isTimeEditExempt} onCheckedChange={setIsTimeEditExempt} />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold">Time-Edit Exempt</p>
-                <p className="text-[11px] text-muted-foreground/60">Admins cannot correct this department&apos;s time logs</p>
-              </div>
-              <Switch checked={isTimeEditExempt} onCheckedChange={setIsTimeEditExempt} />
-            </div>
+            )}
 
             <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
               <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">

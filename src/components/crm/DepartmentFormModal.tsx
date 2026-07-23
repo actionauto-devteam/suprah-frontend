@@ -144,13 +144,15 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
               </div>
               <Switch checked={isMobileMonitoringDept} onCheckedChange={setIsMobileMonitoringDept} />
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold">Time-Edit Exempt</p>
-                <p className="text-[11px] text-muted-foreground/60">Admins cannot correct this department's time logs</p>
+            {department?.key !== "WebDevTeam" && (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold">Time-Edit Exempt</p>
+                  <p className="text-[11px] text-muted-foreground/60">Admins cannot correct this department's time logs</p>
+                </div>
+                <Switch checked={isTimeEditExempt} onCheckedChange={setIsTimeEditExempt} />
               </div>
-              <Switch checked={isTimeEditExempt} onCheckedChange={setIsTimeEditExempt} />
-            </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold">Mandatory Location</p>
