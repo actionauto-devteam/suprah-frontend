@@ -1193,7 +1193,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-14 backdrop-blur-xl lg:pt-0">
-        <div className="mx-auto w-full max-w-[1680px] px-3 py-2.5 sm:px-4 sm:py-3 lg:pr-20 xl:px-5 xl:pr-24">
+        <div className="mx-auto w-full max-w-[1880px] px-3 py-2.5 sm:px-4 sm:py-3 lg:pr-20 xl:px-5 xl:pr-24">
           <div className="flex min-w-0 items-center">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
@@ -1219,7 +1219,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1680px] min-w-0 space-y-4 px-3 py-3 sm:px-4 sm:py-4 xl:px-5">
+      <div className="mx-auto w-full max-w-[1880px] min-w-0 space-y-4 px-3 py-3 sm:px-4 sm:py-4 xl:px-5">
         <section aria-label="Reporting overview" className="min-w-0 space-y-3.5">
           <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -1333,7 +1333,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]">
+            <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
               {(activeTab === "ALL" || activeTab === "Transportation") && (
                 <>
                   <ReportCard
