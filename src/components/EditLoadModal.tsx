@@ -14,10 +14,55 @@ interface EditLoadModalProps {
   onSave: (id: string, updatedLoad: Partial<Load>) => Promise<void>;
 }
 
-export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalProps) {
-  const [isSaving, setIsSaving] = React.useState(false)
-  const [formData, setFormData] = React.useState({
-    status: load.status,
+const VALID_LOAD_STATUSES: LoadStatus[] = [
+  "Posted",
+  "Assigned",
+  "Accepted",
+  "Picked Up",
+  "In-Transit",
+  "Delivered",
+  "Cancelled",
+]
+
+function normalizeLoadStatus(status?: string): LoadStatus {
+  const normalized = status?.trim().toLowerCase()
+
+  switch (normalized) {
+    case "assigned":
+      return "Assigned"
+
+    case "accepted":
+      return "Accepted"
+
+    case "picked up":
+    case "picked-up":
+    case "picked_up":
+      return "Picked Up"
+
+    case "in transit":
+    case "in-transit":
+    case "in_transit":
+      return "In-Transit"
+
+    case "delivered":
+      return "Delivered"
+
+    case "cancelled":
+    case "canceled":
+      return "Cancelled"
+
+    case "posted":
+    case "pending":
+    case "draft":
+    case "quoted":
+    default:
+      return "Posted"
+  }
+}
+
+function createFormData(load: Load) {
+  return {
+    status: normalizeLoadStatus(load.status),
     pickupLocation: {
       city: load.pickupLocation?.city || '',
       state: load.pickupLocation?.state || '',
@@ -42,15 +87,32 @@ export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalPr
     visibility: load.additionalInfo?.visibility || 'private',
     trailerTypeRequired: load.trailerType || '',
     pricing: {
-      carrierPayAmount: load.pricing?.carrierPayAmount || 0,
-      copCodAmount: load.pricing?.copCodAmount || 0,
+      carrierPayAmount:
+        load.pricing?.carrierPayAmount != null
+          ? String(load.pricing.carrierPayAmount)
+          : "",
+      copCodAmount:
+        load.pricing?.copCodAmount != null
+          ? String(load.pricing.copCodAmount)
+          : "",
     },
     additionalInfo: {
       notes: load.additionalInfo?.notes || '',
       instructions: load.additionalInfo?.instructions || '',
     },
     loadNumber: load.loadNumber || '',
-  })
+  }
+}
+
+export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalProps) {
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [formData, setFormData] = React.useState(() => createFormData(load))
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData(createFormData(load))
+    }
+  }, [load, isOpen])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -74,40 +136,64 @@ export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSaving(true)
+
     try {
       const payload: Partial<Load> = {
-        status: formData.status as LoadStatus,
+        status: normalizeLoadStatus(formData.status),
+
         pickupLocation: {
           ...load.pickupLocation,
-          ...formData.pickupLocation
+          ...formData.pickupLocation,
         },
+
         deliveryLocation: {
           ...load.deliveryLocation,
-          ...formData.deliveryLocation
+          ...formData.deliveryLocation,
         },
+
         dates: {
           ...load.dates,
-          ...formData.dates
+          firstAvailable:
+            formData.dates.firstAvailable || load.dates?.firstAvailable,
+          pickupDeadline:
+            formData.dates.pickupDeadline || load.dates?.pickupDeadline,
+          deliveryDeadline:
+            formData.dates.deliveryDeadline || load.dates?.deliveryDeadline,
         },
-        pickedUpAt: formData.pickedUpAt,
-        deliveredAt: formData.deliveredAt,
+
         additionalInfo: {
           ...load.additionalInfo,
           visibility: formData.visibility as any,
           notes: formData.additionalInfo.notes,
           instructions: formData.additionalInfo.instructions,
         },
-        trailerType: formData.trailerTypeRequired,
+
         pricing: {
           ...load.pricing,
-          carrierPayAmount: Number(formData.pricing.carrierPayAmount),
-          copCodAmount: Number(formData.pricing.copCodAmount),
-        }
+          carrierPayAmount:
+            formData.pricing.carrierPayAmount === ""
+              ? load.pricing?.carrierPayAmount
+              : Number(formData.pricing.carrierPayAmount),
+
+          copCodAmount:
+            formData.pricing.copCodAmount === ""
+              ? load.pricing?.copCodAmount
+              : Number(formData.pricing.copCodAmount),
+        },
       }
+
+      if (formData.trailerTypeRequired?.trim()) {
+        payload.trailerType = formData.trailerTypeRequired.trim()
+      }
+
       await onSave(load._id, payload)
       onClose()
-    } catch (error) {
-      console.error('Error saving load:', error)
+    } catch (error: any) {
+      console.error("Error saving load:", {
+        status: error?.response?.status,
+        response: error?.response?.data,
+        message: error?.message,
+      })
     } finally {
       setIsSaving(false)
     }
@@ -115,15 +201,7 @@ export function EditLoadModal({ load, isOpen, onClose, onSave }: EditLoadModalPr
 
   if (!isOpen) return null
 
-  const statusOptions: LoadStatus[] = [
-    "Posted",
-    "Assigned",
-    "Accepted",
-    "Picked Up",
-    "In-Transit",
-    "Delivered",
-    "Cancelled"
-  ]
+  const statusOptions = VALID_LOAD_STATUSES
 
   const fieldClass = "w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
   const dateFieldClass = cn(fieldClass, "dark:scheme-dark")

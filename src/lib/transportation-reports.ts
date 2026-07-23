@@ -208,92 +208,551 @@ function bolAddressBlock(loc: Load["pickupLocation"]): string {
 
 export function generateBolHtml(load: Load): string {
   const generatedAt = new Date().toLocaleString("en-US", {
-    month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/Denver",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/Denver",
   })
 
-  const vehicleRows = (load.vehicles || []).map((v, i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td>${escapeHtml(`${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "N/A")}</td>
-      <td>${escapeHtml(v.vin || "N/A")}</td>
-      <td>${escapeHtml(v.color || "N/A")}</td>
-      <td>${escapeHtml(v.condition || "N/A")}</td>
-      <td>${escapeHtml(v.lotNumber || "N/A")}</td>
-    </tr>`).join("")
+  const vehicles = load.vehicles || []
+  const vehicleRows = vehicles.length > 0
+    ? vehicles.map((v, i) => `
+      <tr>
+        <td class="cell-index">${i + 1}</td>
+        <td class="cell-vehicle">${escapeHtml(`${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "N/A")}</td>
+        <td class="cell-vin">${escapeHtml(v.vin || "N/A")}</td>
+        <td>${escapeHtml(v.color || "N/A")}</td>
+        <td>${escapeHtml(v.condition || "N/A")}</td>
+        <td>${escapeHtml(v.lotNumber || "N/A")}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="6" class="empty-cell">No vehicles are attached to this load.</td></tr>`
+
+  const instructions = load.additionalInfo?.instructions?.trim()
+  const notes = load.additionalInfo?.notes?.trim()
+  const hasNotes = Boolean(instructions || notes)
+
+  const noteBlocks = [
+    instructions
+      ? `<div class="note-block"><div class="note-label">Carrier Instructions</div><div class="note-text">${escapeHtml(instructions)}</div></div>`
+      : "",
+    notes
+      ? `<div class="note-block"><div class="note-label">Internal Notes</div><div class="note-text">${escapeHtml(notes)}</div></div>`
+      : "",
+  ].filter(Boolean).join("")
+
+  const contractName = load.contract?.signatureName?.trim()
+  const contractMeta = load.contract?.agreedToTerms
+    ? `Signed${contractName ? ` by ${escapeHtml(contractName)}` : ""}${load.contract?.signedAt ? ` on ${escapeHtml(fmtDate(load.contract.signedAt))}` : ""}`
+    : "No signed contract recorded"
+
+  const statusClass = String(load.status || "").toLowerCase().replace(/[^a-z]+/g, "-")
 
   return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<title>BOL — ${escapeHtml(load.loadNumber)}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; padding: 40px 48px; max-width: 800px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 20px; }
-  .company { font-size: 20px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; }
-  .doc-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-top: 4px; }
-  .load-number { text-align: right; font-size: 14px; font-weight: 700; }
-  .load-meta { text-align: right; font-size: 10px; color: #666; margin-top: 2px; }
-  .route-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
-  .route-box { border: 1px solid #ddd; border-radius: 6px; padding: 12px 14px; }
-  .route-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #888; margin-bottom: 6px; }
-  .route-value { font-size: 12px; line-height: 1.6; }
-  .dates-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; font-size: 11px; }
-  .dates-grid .item-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: 700; }
-  .section-title { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #444; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  table th, table td { padding: 8px 10px; font-size: 11px; border-bottom: 1px solid #eee; text-align: left; }
-  table th { background: #f4f4f5; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
-  .financials { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-  .financials .amount { font-size: 15px; font-weight: 900; }
-  .financials .label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: 700; }
-  .sig-area { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
-  .sig-box { border-top: 1px solid #bbb; padding-top: 6px; font-size: 10px; color: #888; text-align: center; }
-  .footer { text-align: center; font-size: 9px; color: #bbb; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; letter-spacing: 1px; }
-  @media print { body { padding: 20px 28px; } @page { size: letter; margin: 15mm; } }
-</style></head><body>
-  <div class="header">
-    <div>
-      <div class="company">Action Auto</div>
-      <div class="doc-title">Bill of Lading</div>
-    </div>
-    <div>
-      <div class="load-number">${escapeHtml(load.loadNumber)}</div>
-      <div class="load-meta">${escapeHtml(load.status)} · Generated ${escapeHtml(generatedAt)}</div>
-    </div>
-  </div>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOL — ${escapeHtml(load.loadNumber)}</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9dee8;
+      --soft: #f5f7fa;
+      --soft-blue: #eef5ff;
+      --soft-green: #edf9f2;
+      --blue: #2563eb;
+      --green: #15803d;
+    }
 
-  <div class="route-grid">
-    <div class="route-box">
-      <div class="route-label">Pickup</div>
-      <div class="route-value">${bolAddressBlock(load.pickupLocation)}</div>
-    </div>
-    <div class="route-box">
-      <div class="route-label">Delivery</div>
-      <div class="route-value">${bolAddressBlock(load.deliveryLocation)}</div>
-    </div>
-  </div>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  <div class="dates-grid">
-    <div><div class="item-label">First Available</div>${escapeHtml(fmtDate(load.dates?.firstAvailable))}</div>
-    <div><div class="item-label">Pickup Deadline</div>${escapeHtml(fmtDate(load.dates?.pickupDeadline))}</div>
-    <div><div class="item-label">Delivery Deadline</div>${escapeHtml(fmtDate(load.dates?.deliveryDeadline))}</div>
-  </div>
+    html,
+    body {
+      background: #ffffff;
+    }
 
-  <p class="section-title">Vehicles (${load.vehicles?.length || 0}) · ${escapeHtml(loadTransportType(load))}</p>
-  <table>
-    <thead><tr><th>#</th><th>Vehicle</th><th>VIN</th><th>Color</th><th>Condition</th><th>Lot #</th></tr></thead>
-    <tbody>${vehicleRows}</tbody>
-  </table>
+    body {
+      width: 100%;
+      max-width: 8.5in;
+      margin: 0 auto;
+      padding: 18px 22px;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      line-height: 1.35;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
 
-  <div class="financials">
-    <div><div class="label">Carrier Pay</div><div class="amount">${fmtCurrency(load.pricing?.carrierPayAmount || 0)}</div></div>
-    <div><div class="label">COD / COP</div><div class="amount">${fmtCurrency(load.pricing?.copCodAmount || 0)}</div></div>
-    <div><div class="label">Total Miles</div><div class="amount">${fmtNumber(load.pricing?.miles || 0)}</div></div>
-  </div>
+    .document {
+      width: 100%;
+      min-width: 0;
+    }
 
-  <div class="sig-area">
-    <div class="sig-box">Shipper / Pickup Signature</div>
-    <div class="sig-box">Carrier / Delivery Signature</div>
-  </div>
-  <div class="footer">ACTION AUTO · BILL OF LADING · ${escapeHtml(load.loadNumber)}</div>
-</body></html>`
+    .header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 18px;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .brand {
+      min-width: 0;
+    }
+
+    .company {
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: 2.6px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .doc-title {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+    }
+
+    .header-meta {
+      min-width: 210px;
+      text-align: right;
+    }
+
+    .load-number {
+      font-size: 14px;
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 5px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #cfd5df;
+      border-radius: 999px;
+      padding: 2px 8px;
+      background: var(--soft);
+      color: #344054;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-delivered { border-color: #a7e2bd; background: #edf9f2; color: #15803d; }
+    .status-in-transit { border-color: #a8d8f0; background: #eef8ff; color: #0369a1; }
+    .status-picked-up { border-color: #f5d48c; background: #fff8e8; color: #a16207; }
+    .status-assigned { border-color: #b9cdfb; background: #eef5ff; color: #1d4ed8; }
+    .status-accepted { border-color: #d4bafb; background: #f6f0ff; color: #7e22ce; }
+    .status-cancelled { border-color: #f4b4b4; background: #fff0f0; color: #b42318; }
+
+    .generated {
+      color: var(--muted);
+      font-size: 8px;
+      white-space: nowrap;
+    }
+
+    .route-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .route-box {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 10px;
+      overflow: hidden;
+      break-inside: avoid;
+    }
+
+    .route-box.pickup { background: var(--soft-blue); }
+    .route-box.delivery { background: var(--soft-green); }
+
+    .route-label,
+    .section-title,
+    .item-label,
+    .note-label,
+    .metric-label {
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .route-label {
+      margin-bottom: 4px;
+    }
+
+    .pickup .route-label { color: var(--blue); }
+    .delivery .route-label { color: var(--green); }
+
+    .route-value {
+      min-width: 0;
+      color: #273142;
+      font-size: 10px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .dates-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+
+    .date-item,
+    .metric {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 9px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .item-label,
+    .metric-label {
+      margin-bottom: 2px;
+      color: var(--muted);
+    }
+
+    .date-value,
+    .metric-value {
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .section {
+      margin-bottom: 8px;
+      break-inside: avoid;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 5px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--line);
+      color: #344054;
+    }
+
+    .section-title span:last-child {
+      color: var(--muted);
+      font-size: 8px;
+      letter-spacing: .5px;
+      white-space: nowrap;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      min-width: 0;
+      padding: 5px 6px;
+      border-right: 1px solid #e8ebf0;
+      border-bottom: 1px solid #e8ebf0;
+      text-align: left;
+      vertical-align: middle;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    th:last-child,
+    td:last-child { border-right: 0; }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    th {
+      background: var(--soft);
+      color: #475467;
+      font-size: 7.5px;
+      font-weight: 900;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+    }
+
+    td {
+      color: #344054;
+      font-size: 8.5px;
+    }
+
+    th:nth-child(1), td:nth-child(1) { width: 5%; text-align: center; }
+    th:nth-child(2), td:nth-child(2) { width: 25%; }
+    th:nth-child(3), td:nth-child(3) { width: 29%; }
+    th:nth-child(4), td:nth-child(4) { width: 12%; }
+    th:nth-child(5), td:nth-child(5) { width: 16%; }
+    th:nth-child(6), td:nth-child(6) { width: 13%; }
+
+    .cell-index { font-weight: 900; }
+    .cell-vehicle { font-weight: 800; }
+    .cell-vin { font-family: "Courier New", monospace; font-size: 8px; }
+    .empty-cell { padding: 12px; color: var(--muted); font-style: italic; text-align: center; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 12px;
+      line-height: 1.15;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: ${hasNotes ? "minmax(0, 1.35fr) minmax(0, .65fr)" : "1fr"};
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 2px;
+    }
+
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 8px 9px;
+      overflow: hidden;
+      break-inside: avoid;
+    }
+
+    .notes-grid {
+      display: grid;
+      grid-template-columns: ${instructions && notes ? "1fr 1fr" : "1fr"};
+      gap: 7px;
+    }
+
+    .note-block {
+      min-width: 0;
+      padding: 7px;
+      border: 1px solid #e5e9f0;
+      border-radius: 5px;
+      background: var(--soft);
+      overflow: hidden;
+    }
+
+    .note-label {
+      margin-bottom: 3px;
+      color: var(--muted);
+    }
+
+    .note-text {
+      max-height: 66px;
+      color: #344054;
+      font-size: 8.5px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .contract-line {
+      color: #344054;
+      font-size: 8.5px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .signature-area {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 17px;
+      padding: 0 2px;
+    }
+
+    .signature-box {
+      min-width: 0;
+      padding-top: 5px;
+      border-top: 1px solid #98a2b3;
+      color: var(--muted);
+      font-size: 8px;
+      text-align: center;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+      padding-top: 6px;
+      border-top: 1px solid #eaecf0;
+      color: #98a2b3;
+      font-size: 7px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    @media print {
+      @page {
+        size: Letter portrait;
+        margin: 0.32in;
+      }
+
+      html,
+      body {
+        width: auto;
+        max-width: none;
+      }
+
+      body {
+        padding: 0;
+      }
+
+      .document {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="document">
+    <header class="header">
+      <div class="brand">
+        <div class="company">Action Auto</div>
+        <div class="doc-title">Bill of Lading</div>
+      </div>
+      <div class="header-meta">
+        <div class="load-number">${escapeHtml(load.loadNumber)}</div>
+        <div class="status-row">
+          <span class="status status-${statusClass}">${escapeHtml(load.status || "Unknown")}</span>
+          <span class="generated">Generated ${escapeHtml(generatedAt)} MT</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="route-grid">
+      <div class="route-box pickup">
+        <div class="route-label">Pickup</div>
+        <div class="route-value">${bolAddressBlock(load.pickupLocation)}</div>
+      </div>
+      <div class="route-box delivery">
+        <div class="route-label">Delivery</div>
+        <div class="route-value">${bolAddressBlock(load.deliveryLocation)}</div>
+      </div>
+    </section>
+
+    <section class="dates-grid">
+      <div class="date-item">
+        <div class="item-label">First Available</div>
+        <div class="date-value">${escapeHtml(fmtDate(load.dates?.firstAvailable))}</div>
+      </div>
+      <div class="date-item">
+        <div class="item-label">Pickup Deadline</div>
+        <div class="date-value">${escapeHtml(fmtDate(load.dates?.pickupDeadline))}</div>
+      </div>
+      <div class="date-item">
+        <div class="item-label">Delivery Deadline</div>
+        <div class="date-value">${escapeHtml(fmtDate(load.dates?.deliveryDeadline))}</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <span>Vehicle Information</span>
+        <span>${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} · ${escapeHtml(loadTransportType(load))}</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Vehicle</th>
+              <th>VIN</th>
+              <th>Color</th>
+              <th>Condition</th>
+              <th>Lot #</th>
+            </tr>
+          </thead>
+          <tbody>${vehicleRows}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="metric">
+        <div class="metric-label">Carrier Pay</div>
+        <div class="metric-value">${fmtCurrency(load.pricing?.carrierPayAmount || 0)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">COD / COP</div>
+        <div class="metric-value">${fmtCurrency(load.pricing?.copCodAmount || 0)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Total Miles</div>
+        <div class="metric-value">${fmtNumber(load.pricing?.miles || 0)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Transport Type</div>
+        <div class="metric-value">${escapeHtml(loadTransportType(load))}</div>
+      </div>
+    </section>
+
+    <section class="bottom-grid">
+      ${hasNotes ? `
+      <div class="panel">
+        <div class="section-title"><span>Notes & Instructions</span></div>
+        <div class="notes-grid">${noteBlocks}</div>
+      </div>` : ""}
+
+      <div class="panel">
+        <div class="section-title"><span>Contract</span></div>
+        <div class="contract-line">${contractMeta}</div>
+        <div class="signature-area">
+          <div class="signature-box">Shipper / Pickup Signature</div>
+          <div class="signature-box">Carrier / Delivery Signature</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Action Auto · Bill of Lading</span>
+      <span>${escapeHtml(load.loadNumber)}</span>
+    </footer>
+  </main>
+</body>
+</html>`
 }

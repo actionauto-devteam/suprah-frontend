@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { T, FONT, MONO } from "@/components/billing/ui";
 import {
   linkedAccountApi,
   LinkedProvider,
@@ -14,31 +15,27 @@ const GREEN_DARK = "#0F7A39";
 const MINT = "#34F5A3";
 const GREEN_SOFT = "rgba(22,163,74,0.16)";
 const GREEN_BORDER = "rgba(52,245,163,0.30)";
-const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-const MONO = "'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, monospace";
-
 const C = {
-  base: "#0A0E15",
-  surface: "rgba(255,255,255,0.035)",
-  surfaceAlt: "rgba(255,255,255,0.06)",
-  border: "rgba(255,255,255,0.09)",
-  borderBright: "rgba(255,255,255,0.16)",
-  text: "#EAF0F7",
-  textSub: "#98A4B4",
-  textMute: "#5C6776",
-  danger: "#F87171",
-  dangerBg: "rgba(248,113,113,0.10)",
+  base: T.surface,
+  surface: T.surfaceAlt,
+  surfaceAlt: T.surfaceAlt,
+  border: T.border,
+  borderBright: T.borderHi,
+  text: T.text,
+  textSub: T.textSub,
+  textMute: T.textMute,
+  danger: T.danger,
+  dangerBg: T.dangerBg,
 };
 
 const cardSurface: React.CSSProperties = {
   backgroundColor: C.base,
   backgroundImage:
-    "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 38%, rgba(255,255,255,0) 100%)",
+    "radial-gradient(120% 100% at 0% 0%, rgba(22,163,74,0.08), transparent 55%)",
   backdropFilter: "blur(18px)",
   WebkitBackdropFilter: "blur(18px)",
   border: `1px solid ${C.border}`,
-  boxShadow:
-    "0 1px 0 0 rgba(255,255,255,0.06) inset, 0 28px 70px -28px rgba(0,0,0,0.85)",
+  boxShadow: "0 12px 30px rgba(0,0,0,0.08)",
 };
 
 /* Ambient glow blob — drop inside a position:relative card */
@@ -253,9 +250,9 @@ function GreenButton({
         width: full ? "100%" : undefined,
         display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
         padding: "12px 18px", borderRadius: 12,
-        border: `1px solid ${disabled ? "rgba(255,255,255,0.10)" : GREEN_BORDER}`,
+        border: `1px solid ${disabled ? C.border : GREEN_BORDER}`,
         background: disabled
-          ? "rgba(255,255,255,0.06)"
+          ? C.surface
           : `linear-gradient(180deg, ${MINT} -20%, ${GREEN} 55%, ${GREEN_DARK} 130%)`,
         color: disabled ? C.textMute : "#06130C",
         fontFamily: FONT, fontSize: 14, fontWeight: 800, letterSpacing: "0.01em",
@@ -282,7 +279,7 @@ function Banner({ type, text, onClose }: { type: "success" | "error"; text: stri
       marginBottom: 14, fontFamily: FONT, fontSize: 13, fontWeight: 600,
       background: ok ? GREEN_SOFT : C.dangerBg,
       border: `1px solid ${ok ? GREEN_BORDER : "rgba(248,113,113,0.28)"}`,
-      color: ok ? MINT : C.danger,
+      color: ok ? GREEN : C.danger,
       backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
     }}>
       <span style={{ flex: 1 }}>{text}</span>
@@ -335,7 +332,7 @@ function ProviderPicker() {
         <div style={{
           border: `1px solid ${C.border}`, borderRadius: 14, padding: "18px 20px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 20, flexWrap: "wrap", background: "rgba(255,255,255,0.025)",
+          gap: 20, flexWrap: "wrap", background: C.surface,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0, flex: "1 1 320px" }}>
             <div style={{
@@ -456,7 +453,7 @@ function ConnectedCard() {
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               fontSize: 11, fontWeight: 700, padding: "4px 11px", borderRadius: 999,
-              background: GREEN_SOFT, color: MINT, border: `1px solid ${GREEN_BORDER}`,
+              background: GREEN_SOFT, color: GREEN, border: `1px solid ${GREEN_BORDER}`,
             }}>
               <span className="la-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: MINT }} />
               Connected
@@ -483,7 +480,7 @@ function ConnectedCard() {
                 padding: "6px 14px 10px", border: "none", background: "transparent",
                 borderBottom: activeCurrency === b.currency ? `2px solid ${MINT}` : "2px solid transparent",
                 fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em",
-                color: activeCurrency === b.currency ? MINT : C.textMute, fontFamily: MONO,
+                color: activeCurrency === b.currency ? GREEN : C.textMute, fontFamily: MONO,
               }}>{b.currency}</button>
             ))}
           </div>

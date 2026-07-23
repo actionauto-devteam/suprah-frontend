@@ -197,9 +197,34 @@ if (typeof document !== 'undefined') {
     .ss4-vcall-screen { background:radial-gradient(ellipse at 50% 30%,#141e3a 0%,#0a0d14 100%); position:relative; overflow:hidden; }
     @keyframes ss4-call-ring { 0%,100%{box-shadow:0 0 0 0 rgba(91,124,246,0.4);} 50%{box-shadow:0 0 0 12px rgba(91,124,246,0);} }
     .ss4-calling-ring { animation:ss4-call-ring 2s ease-in-out infinite; }
-    .ss4-tab-bar { background:rgba(127,127,127,0.08); border-radius:8px; padding:3px; }
-    .ss4-tab { border-radius:6px; font-size:11px; font-weight:600; letter-spacing:.03em; transition:all .15s ease; color:var(--text-secondary); }
-    .ss4-tab-active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(91,124,246,0.35); }
+.ss4-tab-bar {
+  background: rgba(127, 127, 127, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.ss4-tab {
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+  color: var(--text-primary, #18181b);
+}
+
+.ss4-tab:hover {
+  color: var(--text-primary, #18181b);
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.ss4-tab-active {
+  background: var(--accent);
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(91, 124, 246, 0.35);
+}
     .ss4-logo-mark { background:linear-gradient(140deg,#16a34a,#34c97d); box-shadow:0 0 0 1px rgba(52,201,125,0.3),0 4px 16px rgba(52,201,125,0.25); border-radius:10px; }
     .ss4-new-btn { background:rgba(91,124,246,0.15); border:1px solid rgba(91,124,246,0.25); border-radius:8px; color:var(--accent-text); transition:all .15s ease; }
     .ss4-new-btn:hover { background:rgba(91,124,246,0.25); }

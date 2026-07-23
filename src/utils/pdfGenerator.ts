@@ -4,37 +4,45 @@ import { Load, LoadStatus } from "@/types/load";
 export type ShipmentPDFResult = "saved" | "cancelled" | "initiated";
 export type LoadPDFResult = ShipmentPDFResult;
 
-// ─── Font loader ─────────────────────────────────────────────────────────────
+// ─── Asset loaders ────────────────────────────────────────────────────────────
 async function loadFontBase64(url: string): Promise<string> {
   try {
     const res = await fetch(url);
     if (!res.ok) return "";
+
     const buf = await res.arrayBuffer();
     const bytes = new Uint8Array(buf);
     let bin = "";
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+
+    bytes.forEach((byte) => {
+      bin += String.fromCharCode(byte);
+    });
+
     return btoa(bin);
   } catch {
     return "";
   }
 }
 
-// ─── Logo loader (same pattern as reportPdfTemplate) ─────────────────────────
 async function loadLogoBase64(): Promise<string> {
   try {
     const res = await fetch("/icon-192x192.png");
     if (!res.ok) return "";
+
     const buf = await res.arrayBuffer();
     const bytes = new Uint8Array(buf);
     let bin = "";
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
-    return "data:image/png;base64," + btoa(bin);
+
+    bytes.forEach((byte) => {
+      bin += String.fromCharCode(byte);
+    });
+
+    return `data:image/png;base64,${btoa(bin)}`;
   } catch {
     return "";
   }
 }
 
-// Google Fonts GitHub — stable permanent TTF URLs
 const FONT_URLS = {
   poppinsSemiBold:
     "https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-SemiBold.ttf",
@@ -44,16 +52,12 @@ const FONT_URLS = {
     "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/static/Inter-Medium.ttf",
 };
 
-/**
- * Embed custom fonts into a jsPDF instance.
- * Falls back gracefully to helvetica if a font fails to load.
- */
 async function embedFonts(pdf: jsPDF): Promise<{
   heading: string;
   body: string;
-  mono: string;
+  medium: string;
 }> {
-  const [poppins, interR, interM] = await Promise.all([
+  const [poppins, interRegular, interMedium] = await Promise.all([
     loadFontBase64(FONT_URLS.poppinsSemiBold),
     loadFontBase64(FONT_URLS.interRegular),
     loadFontBase64(FONT_URLS.interMedium),
@@ -61,30 +65,103 @@ async function embedFonts(pdf: jsPDF): Promise<{
 
   let heading = "helvetica";
   let body = "helvetica";
-  let mono = "courier";
+  let medium = "helvetica";
 
   if (poppins) {
     pdf.addFileToVFS("Poppins-SemiBold.ttf", poppins);
     pdf.addFont("Poppins-SemiBold.ttf", "Poppins", "bold");
     heading = "Poppins";
   }
-  if (interR) {
-    pdf.addFileToVFS("Inter-Regular.ttf", interR);
+
+  if (interRegular) {
+    pdf.addFileToVFS("Inter-Regular.ttf", interRegular);
     pdf.addFont("Inter-Regular.ttf", "Inter", "normal");
     body = "Inter";
   }
-  if (interM) {
-    pdf.addFileToVFS("Inter-Medium.ttf", interM);
+
+  if (interMedium) {
+    pdf.addFileToVFS("Inter-Medium.ttf", interMedium);
     pdf.addFont("Inter-Medium.ttf", "Inter", "medium");
-    mono = "Inter";
+    medium = "Inter";
   }
 
-  return { heading, body, mono };
+  return { heading, body, medium };
+}
+
+// ─── General helpers ──────────────────────────────────────────────────────────
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : { r: 0, g: 0, b: 0 };
+}
+
+function safeText(value: unknown, fallback = "N/A"): string {
+  if (value === null || value === undefined) return fallback;
+
+  const text = String(value).trim();
+  return text.length > 0 ? text : fallback;
+}
+
+function formatCurrency(value?: number): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDate(value?: string): string {
+  if (!value) return "Not Scheduled";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not Scheduled";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/Denver",
+  });
+}
+
+function getStatusColor(status?: LoadStatus): string {
+  switch (status) {
+    case "Posted":
+      return "#f59e0b";
+    case "Assigned":
+      return "#3b82f6";
+    case "Accepted":
+      return "#8b5cf6";
+    case "Picked Up":
+      return "#f97316";
+    case "In-Transit":
+      return "#0ea5e9";
+    case "Delivered":
+      return "#10b981";
+    case "Cancelled":
+      return "#ef4444";
+    default:
+      return "#64748b";
+  }
 }
 
 /**
- * Generate and download a professional PDF of shipment details
- * Action Auto Utah — Powered by Supra AI
+ * Generates the downloadable Load Documentation / Load Manifest PDF.
+ *
+ * The layout is optimized for a single A4 page for normal load data:
+ * - compact header
+ * - side-by-side customer and vehicle information
+ * - wrapped route text
+ * - two-column timeline
+ * - financial details beside the total rate
  */
 export const generateLoadPDF = async (
   load: Load,
@@ -93,463 +170,613 @@ export const generateLoadPDF = async (
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
 
-  // Get data
-  const vehicle = load.vehicles?.[0];
-  const vehicleName = vehicle
-    ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim()
-    : "N/A";
+  const marginX = 12;
+  const contentWidth = pageWidth - marginX * 2;
+  const generatedAt = new Date();
 
-  // Updated color system aligned with dashboard
   const colors = {
     page: "#f8fafc",
     card: "#ffffff",
     border: "#dbe3ee",
+    divider: "#e7edf5",
     headerDark: "#0f172a",
     headerTone: "#132339",
     brand: "#22c55e",
     brandDark: "#16a34a",
     text: "#111827",
-    textMuted: "#6b7280",
+    textMuted: "#64748b",
     textSoft: "#94a3b8",
+    softFill: "#f8fafc",
+    alternateFill: "#f4f7fb",
   };
 
-  // Helper function to format dates
-  const formatDate = (date?: string) => {
-    if (!date) return "Not Scheduled";
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "America/Denver",
+  const [logoBase64, fonts] = await Promise.all([
+    loadLogoBase64(),
+    embedFonts(pdf),
+  ]);
+
+  const F = fonts;
+
+  const setFillHex = (hex: string) => {
+    const rgb = hexToRgb(hex);
+    pdf.setFillColor(rgb.r, rgb.g, rgb.b);
+  };
+
+  const setTextHex = (hex: string) => {
+    const rgb = hexToRgb(hex);
+    pdf.setTextColor(rgb.r, rgb.g, rgb.b);
+  };
+
+  const setDrawHex = (hex: string) => {
+    const rgb = hexToRgb(hex);
+    pdf.setDrawColor(rgb.r, rgb.g, rgb.b);
+  };
+
+  const drawRoundedCard = (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius = 2.2,
+  ) => {
+    setFillHex(colors.card);
+    setDrawHex(colors.border);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(x, y, width, height, radius, radius, "FD");
+  };
+
+  const drawSectionHeader = (
+    title: string,
+    x: number,
+    y: number,
+    width: number,
+  ) => {
+    setTextHex(colors.text);
+    pdf.setFont(F.heading, "bold");
+    pdf.setFontSize(8.8);
+    pdf.text(title, x, y);
+
+    const titleWidth = pdf.getTextWidth(title);
+    setDrawHex("#cbd5e1");
+    pdf.setLineWidth(0.25);
+    pdf.line(x + titleWidth + 3, y - 0.7, x + width, y - 0.7);
+  };
+
+  const fitText = (
+    text: string,
+    maxWidth: number,
+    maxLines = 2,
+  ): string[] => {
+    const lines = pdf.splitTextToSize(safeText(text), maxWidth) as string[];
+    return lines.slice(0, maxLines);
+  };
+
+  const drawWrappedValue = (
+    value: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    maxLines = 2,
+    fontSize = 8.2,
+    align: "left" | "right" = "left",
+  ) => {
+    setTextHex(colors.text);
+    pdf.setFont(F.body, "normal");
+    pdf.setFontSize(fontSize);
+
+    const lines = fitText(value, maxWidth, maxLines);
+    pdf.text(lines, x, y, {
+      align,
+      lineHeightFactor: 1.15,
     });
   };
 
-  // Helper function to get status color
-  const getStatusColor = (status: LoadStatus) => {
-    switch (status) {
-      case "Posted":
-        return "#f59e0b";
-      case "Delivered":
-        return "#10b981";
-      case "Cancelled":
-        return "#ef4444";
-      case "In-Transit":
-        return "#3b82f6";
-      case "Accepted":
-        return "#8b5cf6";
-      case "Picked Up":
-        return "#f97316";
-      default:
-        return "#6b7280";
-    }
+  const drawLabel = (
+    label: string,
+    x: number,
+    y: number,
+    align: "left" | "right" = "left",
+  ) => {
+    setTextHex(colors.textMuted);
+    pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
+    pdf.setFontSize(6.7);
+    pdf.text(label.toUpperCase(), x, y, { align });
   };
 
-  const marginX = 14;
-  const contentWidth = pageWidth - marginX * 2;
-  let yPosition = 12;
-  const generatedAt = new Date();
+  const drawCompactRows = (
+    rows: Array<{ label: string; value: string }>,
+    x: number,
+    y: number,
+    width: number,
+    rowHeight = 8,
+    labelWidth = 38,
+  ) => {
+    rows.forEach((row, index) => {
+      const rowTop = y + index * rowHeight;
 
-  const currentDate = generatedAt.toLocaleDateString("en-US", {
+      if (index % 2 === 1) {
+        setFillHex(colors.alternateFill);
+        pdf.rect(x + 0.8, rowTop, width - 1.6, rowHeight, "F");
+      }
+
+      drawLabel(row.label, x + 4, rowTop + 5.1);
+      drawWrappedValue(
+        row.value,
+        x + labelWidth,
+        rowTop + 5.1,
+        width - labelWidth - 4,
+        1,
+        7.8,
+      );
+    });
+  };
+
+  // ─── Page background ───────────────────────────────────────────────────────
+  setFillHex(colors.page);
+  pdf.rect(0, 0, pageWidth, pageHeight, "F");
+
+  // ─── Header ────────────────────────────────────────────────────────────────
+  const headerHeight = 28;
+  setFillHex(colors.headerDark);
+  pdf.rect(0, 0, pageWidth, headerHeight, "F");
+
+  setFillHex(colors.headerTone);
+  pdf.rect(pageWidth * 0.64, 0, pageWidth * 0.36, headerHeight, "F");
+
+  setFillHex(colors.brand);
+  pdf.rect(0, 0, 4.5, headerHeight, "F");
+
+  if (logoBase64) {
+    pdf.addImage(logoBase64, "PNG", marginX, 6.2, 9, 9);
+  } else {
+    setFillHex(colors.brand);
+    pdf.roundedRect(marginX, 6.2, 9, 9, 1.5, 1.5, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(6.5);
+    pdf.text("AA", marginX + 4.5, 11.9, { align: "center" });
+  }
+
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont(F.heading, "bold");
+  pdf.setFontSize(11.3);
+  pdf.text("ACTION AUTO UTAH", marginX + 12.5, 11);
+
+  pdf.setFont(F.body, "normal");
+  pdf.setFontSize(6.8);
+  pdf.text("Powered by Supra AI", marginX + 12.5, 15.5);
+
+  const issueDate = generatedAt.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
     timeZone: "America/Denver",
   });
 
-  // Load logo + embed fonts in parallel
-  const [logoBase64, fonts] = await Promise.all([
-    loadLogoBase64(),
-    embedFonts(pdf),
-  ]);
+  pdf.setFont(F.heading, "bold");
+  pdf.setFontSize(9.3);
+  pdf.text("Load Documentation", pageWidth - marginX, 9.5, {
+    align: "right",
+  });
 
-  // Font aliases for QA spec
-  // heading  → Poppins SemiBold (falls back to helvetica bold)
-  // body     → Inter Regular    (falls back to helvetica normal)
-  // mono     → Inter Medium     (falls back to courier normal)
-  const F = fonts;
-
-  const drawPageBackground = () => {
-    const bg = hexToRgb(colors.page);
-    pdf.setFillColor(bg.r, bg.g, bg.b);
-    pdf.rect(0, 0, pageWidth, pageHeight, "F");
-  };
-
-  const drawHeader = (isContinuation = false) => {
-    drawPageBackground();
-
-    const dark = hexToRgb(colors.headerDark);
-    const tone = hexToRgb(colors.headerTone);
-    const brand = hexToRgb(colors.brand);
-
-    pdf.setFillColor(dark.r, dark.g, dark.b);
-    pdf.rect(0, 0, pageWidth, 34, "F");
-    pdf.setFillColor(tone.r, tone.g, tone.b);
-    pdf.rect(pageWidth * 0.62, 0, pageWidth * 0.38, 34, "F");
-    pdf.setFillColor(brand.r, brand.g, brand.b);
-    pdf.rect(0, 0, 5, 34, "F");
-
-    // Logo image (10×10 mm) or "AA" badge fallback
-    if (logoBase64) {
-      pdf.addImage(logoBase64, "PNG", marginX, 8, 10, 10);
-    } else {
-      pdf.setFillColor(brand.r, brand.g, brand.b);
-      pdf.roundedRect(marginX, 8, 10, 10, 2, 2, "F");
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(7);
-      pdf.text("AA", marginX + 5, 14.5, { align: "center" });
-    }
-
-    // Company name — Poppins SemiBold (heading font)
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFont(F.heading, "bold");
-    pdf.setFontSize(13);
-    pdf.text("ACTION AUTO UTAH", marginX + 14, 13);
-    pdf.setFont(F.body, "normal");
-    pdf.setFontSize(7.5);
-    pdf.text("Powered by Supra AI", marginX + 14, 17.5);
-
-    // Right side — Poppins SemiBold for title, Inter Regular for meta
-    pdf.setFont(F.heading, "bold");
-    pdf.setFontSize(10.5);
-    pdf.text("Load Documentation", pageWidth - marginX, 12.5, {
-      align: "right",
-    });
-    pdf.setFont(F.body, "normal");
-    pdf.setFontSize(7.5);
-    pdf.text(`Issue Date: ${currentDate}`, pageWidth - marginX, 17, {
-      align: "right",
-    });
-    pdf.text(`Report Type: Load Manifest`, pageWidth - marginX, 21, {
-      align: "right",
-    });
-
-    pdf.setDrawColor(46, 58, 77);
-    pdf.setLineWidth(0.3);
-    pdf.line(marginX, 26.5, pageWidth - marginX, 26.5);
-
-    if (isContinuation) {
-      pdf.setTextColor(188, 199, 215);
-      pdf.setFont(F.body, "normal");
-      pdf.setFontSize(7.2);
-      pdf.text("Continued", pageWidth - marginX, 30.5, { align: "right" });
-    }
-
-    yPosition = 42;
-  };
-
-  const ensureSpace = (neededHeight: number) => {
-    if (yPosition + neededHeight <= pageHeight - 26) return;
-    pdf.addPage();
-    drawHeader(true);
-  };
-
-  const drawSectionTitle = (title: string) => {
-    pdf.setTextColor(17, 24, 39);
-    // QA spec: Poppins SemiBold for section headings
-    pdf.setFont(F.heading, "bold");
-    pdf.setFontSize(10.5);
-    pdf.text(title, marginX, yPosition);
-
-    const lineStart = marginX + pdf.getTextWidth(title) + 3;
-    pdf.setDrawColor(198, 208, 222);
-    pdf.setLineWidth(0.35);
-    pdf.line(lineStart, yPosition - 0.8, pageWidth - marginX, yPosition - 0.8);
-    yPosition += 5;
-  };
-
-  const drawCard = (x: number, y: number, width: number, height: number) => {
-    const card = hexToRgb(colors.card);
-    pdf.setFillColor(card.r, card.g, card.b);
-    pdf.setDrawColor(216, 225, 237);
-    pdf.setLineWidth(0.35);
-    pdf.roundedRect(x, y, width, height, 2.2, 2.2, "FD");
-  };
-
-  const drawKeyValueRows = (
-    rows: Array<{ label: string; value: string }>,
-    valueX: number,
-    rowHeight = 8.5,
-  ) => {
-    rows.forEach((row, index) => {
-      const rowY = yPosition + index * rowHeight;
-      if (index % 2 === 1) {
-        pdf.setFillColor(250, 252, 255);
-        pdf.rect(marginX + 1.2, rowY - 4.8, contentWidth - 2.4, rowHeight, "F");
-      }
-
-      // QA spec: labels = Inter Medium (uppercase), values = Inter Regular
-      pdf.setTextColor(100, 116, 139);
-      pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-      pdf.setFontSize(7.8);
-      pdf.text(row.label.toUpperCase(), marginX + 5, rowY);
-
-      pdf.setTextColor(30, 41, 59);
-      pdf.setFont(F.body, "normal");
-      pdf.setFontSize(8.7);
-      pdf.text(row.value || "N/A", valueX, rowY);
-    });
-
-    yPosition += rows.length * rowHeight + 2;
-  };
-
-  drawHeader(false);
-
-  // Hero: Load Number / Vehicle / Status
-  ensureSpace(27);
-  drawCard(marginX, yPosition, contentWidth, 23);
-
-  // QA spec: label = Inter Medium, tracking number = Inter Medium, vehicle = Inter Regular
-  pdf.setTextColor(100, 116, 139);
-  pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(8);
-  pdf.text("Load Number", marginX + 5, yPosition + 7);
-
-  pdf.setTextColor(17, 24, 39);
-  pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(13);
-  pdf.text(
-    load.loadNumber || "Not Assigned",
-    marginX + 5,
-    yPosition + 14.5,
-  );
-
-  pdf.setTextColor(100, 116, 139);
-  pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(7.8);
-  pdf.text("Primary Vehicle", marginX + 5, yPosition + 19.5);
-  pdf.setTextColor(36, 52, 76);
   pdf.setFont(F.body, "normal");
-  pdf.setFontSize(8.3);
-  pdf.text(vehicleName, marginX + 30, yPosition + 19.5);
+  pdf.setFontSize(6.6);
+  pdf.text(`Issue Date: ${issueDate}`, pageWidth - marginX, 14, {
+    align: "right",
+  });
+  pdf.text("Report Type: Load Manifest", pageWidth - marginX, 18, {
+    align: "right",
+  });
 
+  setDrawHex("#334155");
+  pdf.setLineWidth(0.25);
+  pdf.line(marginX, 22.3, pageWidth - marginX, 22.3);
+
+  let y = 33;
+
+  // ─── Hero summary ──────────────────────────────────────────────────────────
+  const heroHeight = 17;
+  drawRoundedCard(marginX, y, contentWidth, heroHeight);
+
+  const vehicle = load.vehicles?.[0];
+  const vehicleName = vehicle
+    ? `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim()
+    : "N/A";
+
+  drawLabel("Load Number", marginX + 5, y + 5.4);
+  setTextHex(colors.text);
+  pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
+  pdf.setFontSize(11.5);
+
+  const loadNumber = safeText(load.loadNumber, "Not Assigned");
+  const loadNumberLines = fitText(loadNumber, 72, 1);
+  pdf.text(loadNumberLines, marginX + 5, y + 11.7);
+
+  drawLabel("Primary Vehicle", marginX + 86, y + 5.4);
+  drawWrappedValue(vehicleName, marginX + 86, y + 11.6, 57, 1, 8.1);
+
+  const statusText = safeText(load.status, "Unknown").toUpperCase();
   const statusColor = getStatusColor(load.status);
   const statusRgb = hexToRgb(statusColor);
-  const statusText = (load.status || "Unknown").toUpperCase();
+
   pdf.setFont(F.heading, "bold");
-  pdf.setFontSize(8);
-  const statusWidth = Math.max(42, pdf.getTextWidth(statusText) + 16);
-  const statusX = pageWidth - marginX - statusWidth;
+  pdf.setFontSize(7.3);
+  const statusWidth = Math.min(
+    42,
+    Math.max(28, pdf.getTextWidth(statusText) + 10),
+  );
+  const statusX = pageWidth - marginX - statusWidth - 4;
+
   pdf.setFillColor(statusRgb.r, statusRgb.g, statusRgb.b);
-  pdf.roundedRect(statusX, yPosition + 5.2, statusWidth, 8.4, 4, 4, "F");
+  pdf.roundedRect(statusX, y + 4.5, statusWidth, 8, 4, 4, "F");
   pdf.setTextColor(255, 255, 255);
-  pdf.text(statusText, statusX + statusWidth / 2, yPosition + 10.9, {
+  pdf.text(statusText, statusX + statusWidth / 2, y + 9.8, {
     align: "center",
   });
 
-  yPosition += 30;
+  y += heroHeight + 7;
 
-  // Customer Information (if available in load.customer)
-  ensureSpace(40);
-  drawSectionTitle("Customer Information");
+  // ─── Customer + Vehicle information ───────────────────────────────────────
+  const gap = 5;
+  const halfWidth = (contentWidth - gap) / 2;
+  const infoTitleY = y;
+
+  drawSectionHeader("Customer Information", marginX, infoTitleY, halfWidth);
+  drawSectionHeader(
+    "Vehicle Information",
+    marginX + halfWidth + gap,
+    infoTitleY,
+    halfWidth,
+  );
+
+  y += 4.5;
+
+  const infoCardHeight = 31;
+  drawRoundedCard(marginX, y, halfWidth, infoCardHeight);
+  drawRoundedCard(
+    marginX + halfWidth + gap,
+    y,
+    halfWidth,
+    infoCardHeight,
+  );
+
   const customerRows = [
     {
-      label: "Customer Name",
-      value: load.pickupLocation?.contactName || "N/A",
+      label: "Customer",
+      value: safeText(load.pickupLocation?.contactName),
     },
-    { label: "Contact Phone", value: load.pickupLocation?.phone || "N/A" },
-    { label: "Contact Email", value: load.pickupLocation?.email || "N/A" },
+    {
+      label: "Phone",
+      value: safeText(load.pickupLocation?.phone),
+    },
+    {
+      label: "Email",
+      value: safeText(load.pickupLocation?.email),
+    },
   ];
-  const customerCardHeight = customerRows.length * 8.5 + 4;
-  drawCard(marginX, yPosition - 1.2, contentWidth, customerCardHeight);
-  drawKeyValueRows(customerRows, marginX + 60);
-  yPosition += 3;
 
-  // Vehicle Information (Iterate through all vehicles if needed, but here we show primary)
-  ensureSpace(48);
-  drawSectionTitle("Vehicle Information");
   const vehicleRows = [
-    { label: "Vehicle", value: vehicleName },
-    { label: "VIN Number", value: vehicle?.vin || "N/A" },
     {
-      label: "Stock Number",
-      value: vehicle?.lotNumber || "N/A",
+      label: "Vehicle",
+      value: vehicleName,
     },
-    { label: "Condition", value: vehicle?.condition || "Operable" },
-  ];
-  const vehicleCardHeight = vehicleRows.length * 8.5 + 4;
-  drawCard(marginX, yPosition - 1.2, contentWidth, vehicleCardHeight);
-  drawKeyValueRows(vehicleRows, marginX + 60);
-  yPosition += 3;
-
-  // Route Information
-  ensureSpace(38);
-  drawSectionTitle("Route Information");
-  drawCard(marginX, yPosition - 1.2, contentWidth, 29);
-
-  const routeX = marginX + 7;
-  const routeTop = yPosition + 5;
-  pdf.setDrawColor(205, 214, 229);
-  pdf.setLineWidth(0.9);
-  pdf.line(routeX, routeTop + 2.5, routeX, routeTop + 12.5);
-
-  pdf.setFillColor(34, 197, 94);
-  pdf.circle(routeX, routeTop, 2.5, "F");
-  pdf.setTextColor(100, 116, 139);
-  pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(7.6);
-  pdf.text("ORIGIN", routeX + 6, routeTop - 0.8);
-  pdf.setTextColor(30, 41, 59);
-  pdf.setFont(F.body, "normal");
-  pdf.setFontSize(9);
-  pdf.text(`${load.pickupLocation.city}, ${load.pickupLocation.state} ${load.pickupLocation.zip || ''}`, routeX + 6, routeTop + 3.8);
-
-  pdf.setFillColor(239, 68, 68);
-  pdf.circle(routeX, routeTop + 15.2, 2.5, "F");
-  pdf.setTextColor(100, 116, 139);
-  pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(7.6);
-  pdf.text("DESTINATION", routeX + 6, routeTop + 14.6);
-  pdf.setTextColor(30, 41, 59);
-  pdf.setFont(F.body, "normal");
-  pdf.setFontSize(9);
-  pdf.text(`${load.deliveryLocation.city}, ${load.deliveryLocation.state} ${load.deliveryLocation.zip || ""}`.trim(), routeX + 6, routeTop + 19);
-
-  yPosition += 34;
-
-  // Load Timeline
-  const timelineData = [
     {
+      label: "VIN",
+      value: safeText(vehicle?.vin),
+    },
+    {
+      label: "Stock",
+      value: safeText(vehicle?.lotNumber),
+    },
+    {
+      label: "Condition",
+      value: safeText(vehicle?.condition, "Operable"),
+    },
+  ];
+
+  drawCompactRows(
+    customerRows,
+    marginX,
+    y + 1,
+    halfWidth,
+    9.4,
+    28,
+  );
+  drawCompactRows(
+    vehicleRows,
+    marginX + halfWidth + gap,
+    y + 0.7,
+    halfWidth,
+    7.25,
+    27,
+  );
+
+  y += infoCardHeight + 7;
+
+  // ─── Route information ─────────────────────────────────────────────────────
+  drawSectionHeader("Route Information", marginX, y, contentWidth);
+  y += 4.5;
+
+  const routeHeight = 28;
+  drawRoundedCard(marginX, y, contentWidth, routeHeight);
+
+  const routePadding = 6;
+  const routeColumnGap = 8;
+  const routeColumnWidth = (contentWidth - routePadding * 2 - routeColumnGap) / 2;
+  const routeLeftX = marginX + routePadding;
+  const routeRightX = routeLeftX + routeColumnWidth + routeColumnGap;
+
+  const pickupLocation = [
+    load.pickupLocation?.street,
+    [load.pickupLocation?.city, load.pickupLocation?.state]
+      .filter(Boolean)
+      .join(", "),
+    load.pickupLocation?.zip,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const deliveryLocation = [
+    load.deliveryLocation?.street,
+    [load.deliveryLocation?.city, load.deliveryLocation?.state]
+      .filter(Boolean)
+      .join(", "),
+    load.deliveryLocation?.zip,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  setFillHex("#dcfce7");
+  pdf.circle(routeLeftX + 2, y + 8, 2.6, "F");
+  setFillHex("#22c55e");
+  pdf.circle(routeLeftX + 2, y + 8, 1.45, "F");
+
+  drawLabel("Origin", routeLeftX + 7, y + 5.8);
+  drawWrappedValue(
+    safeText(pickupLocation, "Location not provided"),
+    routeLeftX + 7,
+    y + 11,
+    routeColumnWidth - 9,
+    2,
+    8.1,
+  );
+
+  setDrawHex(colors.divider);
+  pdf.setLineWidth(0.25);
+  pdf.line(
+    marginX + contentWidth / 2,
+    y + 4,
+    marginX + contentWidth / 2,
+    y + routeHeight - 4,
+  );
+
+  setFillHex("#fee2e2");
+  pdf.circle(routeRightX + 2, y + 8, 2.6, "F");
+  setFillHex("#ef4444");
+  pdf.circle(routeRightX + 2, y + 8, 1.45, "F");
+
+  drawLabel("Destination", routeRightX + 7, y + 5.8);
+  drawWrappedValue(
+    safeText(deliveryLocation, "Location not provided"),
+    routeRightX + 7,
+    y + 11,
+    routeColumnWidth - 9,
+    2,
+    8.1,
+  );
+
+  y += routeHeight + 7;
+
+  // ─── Timeline ──────────────────────────────────────────────────────────────
+  drawSectionHeader("Load Timeline", marginX, y, contentWidth);
+  y += 4.5;
+
+  const timelineHeight = 29;
+  drawRoundedCard(marginX, y, contentWidth, timelineHeight);
+
+  const timelineItems = [
+    {
+      number: "1",
       label: "Pickup Deadline",
-      date: formatDate(load.dates?.pickupDeadline),
+      value: formatDate(load.dates?.pickupDeadline),
     },
-    { label: "Actual Pickup", date: formatDate(load.pickedUpAt) },
     {
-      label: "Delivery Deadline",
-      date: formatDate(load.dates?.deliveryDeadline),
+      number: "2",
+      label: "Actual Pickup",
+      value: formatDate(load.pickedUpAt),
     },
-    { label: "Actual Delivery", date: formatDate(load.deliveredAt) },
+    {
+      number: "3",
+      label: "Delivery Deadline",
+      value: formatDate(load.dates?.deliveryDeadline),
+    },
+    {
+      number: "4",
+      label: "Actual Delivery",
+      value: formatDate(load.deliveredAt),
+    },
   ];
 
-  ensureSpace(58);
-  drawSectionTitle("Load Timeline");
-  const timelineCardHeight = timelineData.length * 9 + 5;
-  drawCard(marginX, yPosition - 1.2, contentWidth, timelineCardHeight);
+  const timelineCellWidth = contentWidth / 2;
+  const timelineCellHeight = timelineHeight / 2;
 
-  timelineData.forEach((item, index) => {
-    const rowY = yPosition + index * 9;
-    if (index % 2 === 1) {
-      pdf.setFillColor(250, 252, 255);
-      pdf.rect(marginX + 1.2, rowY - 5, contentWidth - 2.4, 9, "F");
+  timelineItems.forEach((item, index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const cellX = marginX + column * timelineCellWidth;
+    const cellY = y + row * timelineCellHeight;
+
+    if (row === 1) {
+      setFillHex(colors.alternateFill);
+      pdf.rect(
+        cellX + 0.8,
+        cellY,
+        timelineCellWidth - 1.6,
+        timelineCellHeight - 0.8,
+        "F",
+      );
     }
 
-    const stepColor = index === 0 ? [37, 99, 235] : [99, 102, 241];
-    pdf.setFillColor(stepColor[0], stepColor[1], stepColor[2]);
-    pdf.circle(marginX + 7, rowY - 0.2, 2.3, "F");
+    if (column === 1) {
+      setDrawHex(colors.divider);
+      pdf.setLineWidth(0.25);
+      pdf.line(cellX, cellY + 2, cellX, cellY + timelineCellHeight - 2);
+    }
+
+    const circleColor = index === 0 ? "#2563eb" : "#6366f1";
+    setFillHex(circleColor);
+    pdf.circle(cellX + 7, cellY + 7, 2.4, "F");
+
     pdf.setTextColor(255, 255, 255);
     pdf.setFont(F.heading, "bold");
-    pdf.setFontSize(6.8);
-    pdf.text(String(index + 1), marginX + 7, rowY + 0.9, { align: "center" });
+    pdf.setFontSize(6.3);
+    pdf.text(item.number, cellX + 7, cellY + 7.8, {
+      align: "center",
+    });
 
-    // QA spec: label = Inter Medium, date = Inter Regular
-    pdf.setTextColor(71, 85, 105);
-    pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
-    pdf.setFontSize(8.1);
-    pdf.text(item.label, marginX + 12, rowY);
-
-    pdf.setTextColor(30, 41, 59);
-    pdf.setFont(F.body, "normal");
-    pdf.setFontSize(8.6);
-    pdf.text(item.date, pageWidth - marginX - 4, rowY, { align: "right" });
+    drawLabel(item.label, cellX + 12, cellY + 5.5);
+    drawWrappedValue(
+      item.value,
+      cellX + 12,
+      cellY + 10.5,
+      timelineCellWidth - 17,
+      1,
+      7.8,
+    );
   });
 
-  yPosition += timelineData.length * 9 + 8;
+  y += timelineHeight + 7;
 
-  // Pricing & Financials
-  ensureSpace(56);
-  drawSectionTitle("Financial Details");
+  // ─── Financial summary ─────────────────────────────────────────────────────
+  drawSectionHeader("Financial Details", marginX, y, contentWidth);
+  y += 4.5;
 
-  const pricingRows = [
+  const financeHeight = 31;
+  const financeLeftWidth = contentWidth * 0.58;
+  const totalRateWidth = contentWidth - financeLeftWidth - gap;
+
+  drawRoundedCard(marginX, y, financeLeftWidth, financeHeight);
+
+  const financeRows = [
     {
       label: "Carrier Pay",
-      value: load.pricing?.carrierPayAmount != null ? `$${load.pricing.carrierPayAmount.toLocaleString()}` : "N/A",
+      value: formatCurrency(load.pricing?.carrierPayAmount),
     },
     {
-      label: "COP/COD Amount",
-      value: load.pricing?.copCodAmount != null ? `$${load.pricing.copCodAmount.toLocaleString()}` : "None",
+      label: "COP/COD",
+      value:
+        load.pricing?.copCodAmount != null
+          ? formatCurrency(load.pricing.copCodAmount)
+          : "None",
     },
-    { label: "Payment Method", value: "Direct Deposit" },
+    {
+      label: "Payment",
+      value: "Direct Deposit",
+    },
   ];
 
-  const pricingCardHeight = pricingRows.length * 8.5 + 4;
-  drawCard(marginX, yPosition - 1.2, contentWidth, pricingCardHeight);
-  drawKeyValueRows(pricingRows, marginX + 60);
+  drawCompactRows(
+    financeRows,
+    marginX,
+    y + 1.1,
+    financeLeftWidth,
+    9.2,
+    34,
+  );
 
-  // ✅ rateBoxY captured AFTER drawKeyValueRows advances yPosition
-  ensureSpace(22);
-  const rateBoxY = yPosition + 2;
-  const brand = hexToRgb(colors.brandDark);
-  const brandSoft = hexToRgb(colors.brand);
-  pdf.setFillColor(brand.r, brand.g, brand.b);
-  pdf.roundedRect(marginX, rateBoxY, contentWidth, 15, 2, 2, "F");
-  pdf.setFillColor(brandSoft.r, brandSoft.g, brandSoft.b);
-  pdf.rect(marginX, rateBoxY, contentWidth * 0.28, 15, "F");
+  const totalRateX = marginX + financeLeftWidth + gap;
+  const rateGreen = hexToRgb(colors.brandDark);
+  const rateGreenSoft = hexToRgb(colors.brand);
+
+  pdf.setFillColor(rateGreen.r, rateGreen.g, rateGreen.b);
+  pdf.roundedRect(
+    totalRateX,
+    y,
+    totalRateWidth,
+    financeHeight,
+    2.2,
+    2.2,
+    "F",
+  );
+
+  pdf.setFillColor(rateGreenSoft.r, rateGreenSoft.g, rateGreenSoft.b);
+  pdf.roundedRect(
+    totalRateX,
+    y,
+    totalRateWidth,
+    9,
+    2.2,
+    2.2,
+    "F",
+  );
+  pdf.rect(totalRateX, y + 5, totalRateWidth, 4, "F");
+
   pdf.setTextColor(255, 255, 255);
-  // QA spec: Poppins SemiBold for rate label, Inter Medium for amount
   pdf.setFont(F.heading, "bold");
-  pdf.setFontSize(8.5);
-  pdf.text("TOTAL TRANSPORT RATE", marginX + 5, rateBoxY + 6.2);
-  pdf.setFont(F.mono, F.mono === "Inter" ? "medium" : "bold");
+  pdf.setFontSize(7.3);
+  pdf.text(
+    "TOTAL TRANSPORT RATE",
+    totalRateX + totalRateWidth / 2,
+    y + 6,
+    { align: "center" },
+  );
+
+  pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
   pdf.setFontSize(15);
   pdf.text(
-    `$${load.pricing?.carrierPayAmount?.toLocaleString() || "N/A"}`,
-    marginX + 5,
-    rateBoxY + 12.3,
+    formatCurrency(load.pricing?.carrierPayAmount),
+    totalRateX + totalRateWidth / 2,
+    y + 19.2,
+    { align: "center" },
   );
-  pdf.setFont(F.body, "normal");
-  pdf.setFontSize(8.2);
-  pdf.text("USD", pageWidth - marginX - 5, rateBoxY + 12.1, { align: "right" });
 
-  // ── Footer on all pages (QA spec) ────────────────────────────────────────
-  // Line 1 (center): Document ID: TRK-xxx • Generated: Apr 30, 2026, 07:08 AM • Page X of Y
-  // Line 2 (center): Action Auto Utah • support@actionautoutah.com
-  const totalPages = pdf.getNumberOfPages();
-  const genLabel = generatedAt.toLocaleString("en-US", {
+  pdf.setFont(F.body, "normal");
+  pdf.setFontSize(6.7);
+  pdf.text("USD", totalRateX + totalRateWidth / 2, y + 25, {
+    align: "center",
+  });
+
+  // ─── Footer ────────────────────────────────────────────────────────────────
+  const footerY = pageHeight - 10;
+  const generatedLabel = generatedAt.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
-  const docIdLabel = load.loadNumber || load._id;
+  const docIdLabel = safeText(load.loadNumber || load._id);
 
-  for (let i = 1; i <= totalPages; i++) {
-    pdf.setPage(i);
-    const footerY = pageHeight - 10;
-    pdf.setDrawColor(220, 228, 239);
-    pdf.setLineWidth(0.3);
-    pdf.line(marginX, footerY - 6, pageWidth - marginX, footerY - 6);
+  setDrawHex("#dce4ef");
+  pdf.setLineWidth(0.25);
+  pdf.line(marginX, footerY - 6, pageWidth - marginX, footerY - 6);
 
-    // Line 1 — center: metadata  |  right: page number
-    pdf.setFont(F.body, "normal");
-    pdf.setFontSize(6.8);
-    pdf.setTextColor(100, 116, 139);
-    pdf.text(
-      `Document ID: ${docIdLabel}  •  Generated: ${genLabel}`,
-      pageWidth / 2,
-      footerY - 2,
-      { align: "center" },
-    );
-    pdf.setFont(F.heading, "bold");
-    pdf.text(`Page ${i} of ${totalPages}`, pageWidth - marginX, footerY - 2, {
-      align: "right",
-    });
+  pdf.setFont(F.body, "normal");
+  pdf.setFontSize(6.4);
+  setTextHex(colors.textMuted);
+  pdf.text(
+    `Document ID: ${docIdLabel}  •  Generated: ${generatedLabel}`,
+    pageWidth / 2,
+    footerY - 2,
+    { align: "center" },
+  );
 
-    // Line 2 — left: company  |  center: email
-    pdf.setFont(F.body, "normal");
-    pdf.setFontSize(6.5);
-    pdf.setTextColor(148, 163, 184);
-    pdf.text(
-      "Action Auto Utah  •  support@actionautoutah.com",
-      pageWidth / 2,
-      footerY + 3,
-      { align: "center" },
-    );
-  }
+  pdf.setFont(F.heading, "bold");
+  pdf.text("Page 1 of 1", pageWidth - marginX, footerY - 2, {
+    align: "right",
+  });
 
-  // ============================================
-  // SAVE PDF
-  // ============================================
+  pdf.setFont(F.body, "normal");
+  pdf.setFontSize(6.2);
+  setTextHex(colors.textSoft);
+  pdf.text(
+    "Action Auto Utah  •  support@actionautoutah.com",
+    pageWidth / 2,
+    footerY + 2.8,
+    { align: "center" },
+  );
+
+  // ─── Save PDF ──────────────────────────────────────────────────────────────
   const fileName = `ActionAutoUtah_Load_${load.loadNumber || load._id}.pdf`;
   const pdfBlob = pdf.output("blob");
 
@@ -568,11 +795,13 @@ export const generateLoadPDF = async (
       const writable = await fileHandle.createWritable();
       await writable.write(pdfBlob);
       await writable.close();
+
       return "saved";
     } catch (error: any) {
       if (error?.name === "AbortError") {
         return "cancelled";
       }
+
       throw error;
     }
   }
@@ -580,15 +809,3 @@ export const generateLoadPDF = async (
   await (pdf as any).save(fileName, { returnPromise: true });
   return "initiated";
 };
-
-// Helper function to convert hex to RGB
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16),
-    }
-    : { r: 0, g: 0, b: 0 };
-}

@@ -16,15 +16,15 @@ export const T = {
   brandSofter: "rgba(22,163,74,0.08)",
   brandBorder: "rgba(52,245,163,0.30)",
 
-  bg: "#070A10",
-  surface: "#0C111A",
-  surfaceAlt: "rgba(255,255,255,0.05)",
-  border: "rgba(255,255,255,0.09)",
-  borderHi: "rgba(255,255,255,0.16)",
+  bg: "var(--background)",
+  surface: "var(--card)",
+  surfaceAlt: "var(--muted)",
+  border: "var(--border)",
+  borderHi: "var(--border)",
 
-  text: "#EAF0F7",
-  textSub: "#98A4B4",
-  textMute: "#5C6776",
+  text: "var(--foreground)",
+  textSub: "var(--text-secondary)",
+  textMute: "var(--text-tertiary)",
 
   success: "#34F5A3",
   successBg: "rgba(52,245,163,0.14)",

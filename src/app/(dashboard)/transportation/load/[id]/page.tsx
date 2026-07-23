@@ -3,8 +3,8 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { getLoadById } from "@/lib/api/loads"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLoadById, updateLoad } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,8 @@ import { fmtDateMDT, fmtTimeMDT } from "@/lib/timezone"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { EditLoadModal } from "@/components/EditLoadModal"
+import type { Load } from "@/types/load"
 
 function LoadDetailsSkeleton() {
   return (
@@ -116,6 +118,7 @@ function formatLocationLine(location?: LoadLocation) {
 }
 
 type LoadTimeline = {
+  status?: string;
   assignedAt?: string;
   acceptedAt?: string;
   driverAcceptedAt?: string;
@@ -124,94 +127,224 @@ type LoadTimeline = {
   deliveredAt?: string;
 };
 
+const LOAD_JOURNEY_STATUSES = [
+  "Assigned",
+  "Accepted",
+  "Picked Up",
+  "In-Transit",
+  "Delivered",
+] as const
+
+type LoadJourneyStatus = (typeof LOAD_JOURNEY_STATUSES)[number]
+
+function normalizeLoadJourneyStatus(
+  status?: string,
+): LoadJourneyStatus | null {
+  const normalized = status?.trim().toLowerCase()
+
+  switch (normalized) {
+    case "assigned":
+      return "Assigned"
+
+    case "accepted":
+      return "Accepted"
+
+    case "picked up":
+    case "picked-up":
+    case "picked_up":
+      return "Picked Up"
+
+    case "in transit":
+    case "in-transit":
+    case "in_transit":
+      return "In-Transit"
+
+    case "delivered":
+      return "Delivered"
+
+    default:
+      return null
+  }
+}
+
+const LOAD_JOURNEY_THEME: Record<
+  LoadJourneyStatus,
+  {
+    icon: string
+    text: string
+    badge: string
+    ring: string
+  }
+> = {
+  Assigned: {
+    icon: "border-blue-500 bg-blue-500/15 text-blue-400",
+    text: "text-blue-400",
+    badge: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+    ring: "ring-blue-500/25",
+  },
+
+  Accepted: {
+    icon: "border-violet-500 bg-violet-500/15 text-violet-400",
+    text: "text-violet-400",
+    badge: "border-violet-500/30 bg-violet-500/10 text-violet-400",
+    ring: "ring-violet-500/25",
+  },
+
+  "Picked Up": {
+    icon: "border-amber-500 bg-amber-500/15 text-amber-400",
+    text: "text-amber-400",
+    badge: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+    ring: "ring-amber-500/25",
+  },
+
+  "In-Transit": {
+    icon: "border-cyan-500 bg-cyan-500/15 text-cyan-400",
+    text: "text-cyan-400",
+    badge: "border-cyan-500/30 bg-cyan-500/10 text-cyan-400",
+    ring: "ring-cyan-500/25",
+  },
+
+  Delivered: {
+    icon: "border-emerald-500 bg-emerald-500/15 text-emerald-400",
+    text: "text-emerald-400",
+    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    ring: "ring-emerald-500/25",
+  },
+}
+
 function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
+  const currentStatus = normalizeLoadJourneyStatus(load.status)
+
   const steps = [
-    { label: "Assigned", date: load.assignedAt, icon: <User2 className="size-3.5" />, color: "slate" },
-    { label: "Accepted", date: load.acceptedAt || load.driverAcceptedAt, icon: <CheckCircle2 className="size-3.5" />, color: "blue" },
-    { label: "Picked Up", date: load.pickedUpAt, icon: <Package className="size-3.5" />, color: "amber" },
-    { label: "In Transit", date: load.inTransitAt, icon: <Truck className="size-3.5" />, color: "indigo" },
-    { label: "Delivered", date: load.deliveredAt, icon: <Shield className="size-3.5" />, color: "emerald" },
+    {
+      status: "Assigned" as const,
+      label: "Assigned",
+      date: load.assignedAt,
+      icon: <User2 className="size-4" />,
+    },
+    {
+      status: "Accepted" as const,
+      label: "Accepted",
+      date: load.acceptedAt || load.driverAcceptedAt,
+      icon: <CheckCircle2 className="size-4" />,
+    },
+    {
+      status: "Picked Up" as const,
+      label: "Picked Up",
+      date: load.pickedUpAt,
+      icon: <Package className="size-4" />,
+    },
+    {
+      status: "In-Transit" as const,
+      label: "In Transit",
+      date: load.inTransitAt,
+      icon: <Truck className="size-4" />,
+    },
+    {
+      status: "Delivered" as const,
+      label: "Delivered",
+      date: load.deliveredAt,
+      icon: <Shield className="size-4" />,
+    },
   ]
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return null
+  const formatTimelineDate = (value?: string) => {
+    if (!value) return null
+
     try {
-      const dt = new Date(dateStr)
-      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Denver' }) + ', ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Denver' })
+      const date = new Date(value)
+
+      return `${date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        timeZone: "America/Denver",
+      })}, ${date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "America/Denver",
+      })}`
     } catch {
       return null
     }
   }
 
-  const activeStepIdx = [...steps].reverse().findIndex(s => !!s.date)
-  const currentStepIdx = activeStepIdx === -1 ? -1 : steps.length - 1 - activeStepIdx
-
   return (
-    <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
+    <Card className="border-border shadow-sm bg-card overflow-hidden p-0 h-full w-full">
       <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
         <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
           <Clock className="size-3.5" />
           Load Journey
         </CardTitle>
       </CardHeader>
-      <CardContent className="pb-4">
-        <div className="space-y-0 relative">
-          {/* Vertical Progress Line */}
-          <div className="absolute left-4.75 top-2 bottom-2 w-px bg-border" />
-          <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: `${(currentStepIdx / (steps.length - 1)) * 100}%` }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
-            className="absolute left-4.75 top-2 w-px bg-primary origin-top"
-          />
 
-          {steps.map((step, i) => {
-            const date = formatDate(step.date)
-            const isCompleted = !!step.date
-            const isCurrent = i === currentStepIdx
-            const isFuture = i > currentStepIdx
+      <CardContent className="p-4 sm:p-5 lg:p-6">
+        <div className="grid grid-cols-5 w-full">
+          {steps.map((step, index) => {
+            const date = formatTimelineDate(step.date)
+            const isCurrent = currentStatus === step.status
+            const theme = LOAD_JOURNEY_THEME[step.status]
 
             return (
               <div
-                key={i}
-                className="relative flex items-start gap-6 pb-8 last:pb-0"
+                key={step.status}
+                className="relative flex min-w-0 flex-col items-center px-1 sm:px-2 text-center"
               >
-                {/* Dot / Icon */}
-                <div className="relative z-10">
-                  <div className={cn(
-                    "size-10 rounded-full border flex items-center justify-center transition-all duration-300 bg-background",
-                    isCompleted ? "border-primary text-primary" : "border-border text-muted-foreground/30",
-                    isCurrent && "ring-4 ring-primary/10"
-                  )}>
-                    {step.icon}
-                  </div>
+                {index < steps.length - 1 && (
+                  <div className="absolute top-5 left-1/2 h-px w-full bg-border" />
+                )}
+
+                <div
+                  className={cn(
+                    "relative z-10 size-9 sm:size-10 shrink-0 rounded-full border bg-background flex items-center justify-center transition-all duration-300",
+                    isCurrent
+                      ? theme.icon
+                      : "border-border text-muted-foreground/30",
+                    isCurrent && "ring-4 ring-offset-2 ring-offset-card",
+                    isCurrent && theme.ring,
+                  )}
+                >
+                  {step.icon}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 pt-1.5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h4 className={cn(
-                        "text-sm font-bold transition-colors",
-                        isCompleted ? "text-foreground" : "text-muted-foreground/40"
-                      )}>
-                        {step.label}
-                      </h4>
-                      {date && (
-                        <p className="text-[10px] font-medium text-muted-foreground mt-0.5">
-                          {date}
-                        </p>
+                <div className="mt-3 min-w-0 w-full">
+                  <div className="flex min-w-0 flex-col items-center gap-1">
+                    <h4
+                      className={cn(
+                        "w-full truncate text-[10px] sm:text-xs lg:text-sm font-bold transition-colors",
+                        isCurrent
+                          ? theme.text
+                          : "text-muted-foreground/40",
                       )}
-                    </div>
+                      title={step.label}
+                    >
+                      {step.label}
+                    </h4>
+
                     {isCurrent && (
-                      <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[9px] font-bold uppercase tracking-tighter px-1.5 py-0">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[7px] sm:text-[8px] font-bold uppercase px-1.5 py-0",
+                          theme.badge,
+                        )}
+                      >
                         Current
                       </Badge>
                     )}
                   </div>
-                  {!isCompleted && !isFuture && (
-                    <p className="text-[10px] text-muted-foreground/40 mt-1 italic">Pending action...</p>
-                  )}
+
+                  <p
+                    className={cn(
+                      "mt-1 w-full truncate text-[8px] sm:text-[9px] lg:text-[10px]",
+                      isCurrent && date
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground/35 italic",
+                    )}
+                    title={isCurrent ? date || "Current status" : "Inactive"}
+                  >
+                    {isCurrent ? date || "Current status" : "Inactive"}
+                  </p>
                 </div>
               </div>
             )
@@ -226,7 +359,9 @@ export default function LoadDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const id = params?.id as string
+  const queryClient = useQueryClient()
   const [isPrinting, setIsPrinting] = React.useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
 
   const { data: load, isLoading, isError } = useQuery({
     queryKey: ["load", id],
@@ -234,6 +369,36 @@ export default function LoadDetailsPage() {
     enabled: !!id,
     refetchOnWindowFocus: false,
   })
+
+  const handleUpdateLoad = async (
+    loadId: string,
+    updatedLoad: Partial<Load>,
+  ): Promise<void> => {
+    try {
+      const savedLoad = await updateLoad(loadId, updatedLoad)
+
+      queryClient.setQueryData<Load>(["load", id], (current) => ({
+        ...(current ?? load!),
+        ...savedLoad,
+      }))
+
+      // Keep list and board screens synchronized when the user returns.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["loads"] }),
+        queryClient.invalidateQueries({ queryKey: ["load", id] }),
+      ])
+
+      toast.success("Load updated successfully.")
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to update load."
+
+      toast.error(message)
+      throw error
+    }
+  }
 
   const handlePrintBol = () => {
     if (!load) return
@@ -326,7 +491,14 @@ export default function LoadDetailsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol} disabled={isPrinting}><FileText className="size-4 mr-2 text-muted-foreground" /> Print Bol</Button>
-          <Button variant="default" size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial">Edit Load</Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial"
+            onClick={() => setIsEditModalOpen(true)}
+          >
+            Edit Load
+          </Button>
         </div>
       </div>
 
@@ -439,171 +611,229 @@ export default function LoadDetailsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* ── Left Column (Vehicles) ── */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
-            <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-border/50 bg-muted/20">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Car className="size-3.5" /> Vehicles <span className="text-[10px] font-bold bg-muted px-2 py-0.5 rounded-full">{load.vehicles?.length || 0}</span>
-              </CardTitle>
-              {load.trailerType && (
-                <Badge variant="secondary" className="font-bold text-xs uppercase tracking-wider bg-background border-border shadow-sm">
-                  {load.trailerType.replace(/_/g, " ")}
-                </Badge>
-              )}
-            </CardHeader>
-            <CardContent className="pb-4">
-              <div className="space-y-3">
-                {load.vehicles?.map((v, i) => (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-background border border-border/50 p-3 rounded-xl shrink-0 shadow-sm">
-                        <Car className="size-5 text-foreground/70" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-base text-foreground">{v.year} {v.make} {v.model}</h4>
-                        <p className="text-sm text-muted-foreground mt-0.5 font-mono bg-background px-1.5 py-0.5 rounded inline-block border border-border/30">{v.vin || "No VIN provided"}</p>
-                      </div>
+      {/* ── Balanced Details Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 items-stretch">
+
+        {/* Vehicles */}
+        <Card className="md:col-span-2 lg:col-span-8 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+          <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-border/50 bg-muted/20">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Car className="size-3.5" />
+              Vehicles
+              <span className="text-[10px] font-bold bg-muted px-2 py-0.5 rounded-full">
+                {load.vehicles?.length || 0}
+              </span>
+            </CardTitle>
+
+            {load.trailerType && (
+              <Badge variant="secondary" className="font-bold text-xs uppercase tracking-wider bg-background border-border shadow-sm">
+                {load.trailerType.replace(/_/g, " ")}
+              </Badge>
+            )}
+          </CardHeader>
+
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              {load.vehicles?.map((v, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors gap-4 min-w-0"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="bg-background border border-border/50 p-3 rounded-xl shrink-0 shadow-sm">
+                      <Car className="size-5 text-foreground/70" />
                     </div>
-                    <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end">
-                      <Badge variant="outline" className={`${v.condition === "Operable" ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30" : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30"} shadow-sm font-bold`}>
-                        {v.condition}
-                      </Badge>
-                      {v.color && (
-                        <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 bg-background border border-border/50 px-2 py-1 rounded-full shadow-sm">
-                          <div className="size-2.5 rounded-full border border-border shadow-inner" style={{ backgroundColor: v.color.toLowerCase() }} /> {v.color}
-                        </span>
-                      )}
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-base text-foreground truncate">
+                        {v.year} {v.make} {v.model}
+                      </h4>
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-mono bg-background px-1.5 py-0.5 rounded inline-block border border-border/30 max-w-full truncate">
+                        {v.vin || "No VIN provided"}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* ── Right Column (Pricing & Info) ── */}
-        <div className="space-y-6">
-          {/* Pricing */}
-          <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
-            <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <DollarSign className="size-3.5" /> Financials
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pb-4 relative z-10">
-              <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end shrink-0">
+                    <Badge
+                      variant="outline"
+                      className={`${v.condition === "Operable"
+                        ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30"
+                        : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30"
+                        } shadow-sm font-bold`}
+                    >
+                      {v.condition}
+                    </Badge>
+
+                    {v.color && (
+                      <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 bg-background border border-border/50 px-2 py-1 rounded-full shadow-sm">
+                        <span
+                          className="size-2.5 rounded-full border border-border shadow-inner"
+                          style={{ backgroundColor: v.color.toLowerCase() }}
+                        />
+                        {v.color}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {!load.vehicles?.length && (
+                <div className="xl:col-span-2 flex items-center justify-center min-h-32 rounded-xl border border-dashed border-border bg-muted/10 text-sm text-muted-foreground">
+                  No vehicles are attached to this load.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Financials */}
+        <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+          <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <DollarSign className="size-3.5" /> Financials
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="p-4 flex flex-col justify-between gap-4 h-full">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground text-sm font-medium">Carrier Pay</span>
                 <span className="font-bold text-xl text-foreground">${load.pricing?.carrierPayAmount?.toLocaleString() || "0"}</span>
               </div>
               <Separator className="bg-border/50" />
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground text-sm font-medium">COD / COP</span>
                 <span className="font-semibold text-lg">${load.pricing?.copCodAmount?.toLocaleString() || "0"}</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground text-sm font-medium">Total Distance</span>
                 <span className="font-semibold">{load.pricing?.miles?.toLocaleString() || "0"} mi</span>
               </div>
-              {load.pricing?.estimatedRate && (
-                <div className="flex items-center justify-between mt-3 p-3 bg-background border border-border/50 rounded-xl shadow-sm">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1"><AlertCircle className="size-3" /> Est. Market Rate</span>
-                  <span className="font-bold text-sm text-foreground">${load.pricing.estimatedRate.toLocaleString()}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            </div>
 
-          { }
-          {load.proofOfDelivery && (
-            <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
-              <CardHeader className="p-4 border-b border-border/50 bg-blue-500/5">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                  <FileCheck className="size-3.5" /> Proof of Delivery
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-4">
-                <div className="relative group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-                  <img
-                    src={load.proofOfDelivery.imageUrl}
-                    alt="POD Preview"
-                    className="w-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Eye className="size-6 text-white" />
-                  </div>
-                </div>
+            {load.pricing?.estimatedRate && (
+              <div className="flex items-center justify-between gap-3 p-3 bg-background border border-border/50 rounded-xl shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                  <AlertCircle className="size-3" /> Est. Market Rate
+                </span>
+                <span className="font-bold text-sm text-foreground">${load.pricing.estimatedRate.toLocaleString()}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
-                  <p className="text-sm font-medium">{new Date(load.proofOfDelivery.submittedAt).toLocaleString('en-US', { timeZone: 'America/Denver' })}</p>
-                </div>
-
-                <Link href={`/billing/driver-payouts/${load._id}`}>
-                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
-                    <DollarSign className="size-4" /> Review & Approve Payout
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Status Timeline */}
-          <LoadTrackingTimeline load={load} />
-
-          {/* Contract / Terms */}
-          <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
-            <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <ScrollText className="size-3.5" /> Contract
+        {/* Proof of Delivery */}
+        {load.proofOfDelivery && (
+          <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+            <CardHeader className="p-4 border-b border-border/50 bg-blue-500/5">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                <FileCheck className="size-3.5" /> Proof of Delivery
               </CardTitle>
             </CardHeader>
-            <CardContent className="pb-4">
-              {load.contract?.agreedToTerms ? (
-                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
-                  <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2.5">
-                    <div className="size-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                    <span className="text-sm font-bold tracking-tight">Terms Agreed & Signed</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-medium mb-1">Signed by: <span className="text-foreground font-semibold">{load.contract.signatureName}</span></p>
-                  <p className="text-[10px] text-muted-foreground/80 font-mono">{formatDate(load.contract.signedAt || load.createdAt)}</p>
+            <CardContent className="p-4 space-y-4">
+              <div className="relative group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+                <img
+                  src={load.proofOfDelivery.imageUrl}
+                  alt="POD Preview"
+                  className="w-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Eye className="size-6 text-white" />
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground italic">
-                  <AlertCircle className="size-4" /> No contract details available.
-                </div>
-              )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
+                <p className="text-sm font-medium">
+                  {new Date(load.proofOfDelivery.submittedAt).toLocaleString("en-US", { timeZone: "America/Denver" })}
+                </p>
+              </div>
+
+              <Link href={`/billing/driver-payouts/${load._id}`}>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
+                  <DollarSign className="size-4" /> Review & Approve Payout
+                </Button>
+              </Link>
             </CardContent>
           </Card>
+        )}
 
-          {/* Instructions */}
-          {(load.additionalInfo?.instructions || load.additionalInfo?.notes) && (
-            <Card className="border-border shadow-sm bg-card overflow-hidden">
-              <CardHeader className="pb-4 border-b border-border/50 bg-muted/20">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <FileText className="size-3.5" /> Notes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+        {/* Notes & Instructions */}
+        {(load.additionalInfo?.instructions || load.additionalInfo?.notes) && (
+          <Card className="md:col-span-1 lg:col-span-6 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+            <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <FileText className="size-3.5" /> Notes & Instructions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {load.additionalInfo.instructions && (
-                  <div>
+                  <div className="h-full">
                     <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Carrier Instructions</h5>
-                    <p className="text-sm bg-muted/30 p-3.5 rounded-xl border border-border/50 leading-relaxed text-foreground/90">{load.additionalInfo.instructions}</p>
+                    <p className="text-sm bg-muted/30 p-3.5 rounded-xl border border-border/50 leading-relaxed text-foreground/90 h-[calc(100%-20px)]">
+                      {load.additionalInfo.instructions}
+                    </p>
                   </div>
                 )}
                 {load.additionalInfo.notes && (
-                  <div>
+                  <div className="h-full">
                     <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Internal Notes</h5>
-                    <p className="text-sm bg-blue-500/5 p-3.5 rounded-xl border border-blue-500/10 leading-relaxed text-blue-900 dark:text-blue-200">{load.additionalInfo.notes}</p>
+                    <p className="text-sm bg-blue-500/5 p-3.5 rounded-xl border border-blue-500/10 leading-relaxed text-blue-900 dark:text-blue-200 h-[calc(100%-20px)]">
+                      {load.additionalInfo.notes}
+                    </p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {/* Contract */}
+        <Card className={cn(
+          "md:col-span-1 border-border shadow-sm bg-card overflow-hidden p-0 h-full",
+          load.proofOfDelivery ? "lg:col-span-4" : "lg:col-span-6"
+        )}>
+          <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <ScrollText className="size-3.5" /> Contract
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            {load.contract?.agreedToTerms ? (
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden h-full">
+                <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2.5">
+                  <div className="size-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                  <span className="text-sm font-bold tracking-tight">Terms Agreed & Signed</span>
+                </div>
+                <p className="text-xs text-muted-foreground font-medium mb-1">
+                  Signed by: <span className="text-foreground font-semibold">{load.contract.signatureName}</span>
+                </p>
+                <p className="text-[10px] text-muted-foreground/80 font-mono">
+                  {formatDate(load.contract.signedAt || load.createdAt)}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-4 min-h-24 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground italic">
+                <AlertCircle className="size-4 shrink-0" /> No contract details available.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Load Journey */}
+        <div className={cn("md:col-span-1", load.proofOfDelivery ? "lg:col-span-4" : "lg:col-span-6")}> 
+          <LoadTrackingTimeline load={load} />
         </div>
+
       </div>
+
+      <EditLoadModal
+        load={load}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleUpdateLoad}
+      />
     </div>
   )
 }

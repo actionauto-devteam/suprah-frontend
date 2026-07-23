@@ -57,12 +57,12 @@ function Action({
         fontFamily: FONT,
         border: brand
           ? `1px solid ${T.brandBorder}`
-          : `1px solid rgba(255,255,255,0.12)`,
+          : `1px solid ${T.border}`,
         background: brand
           ? `linear-gradient(180deg, ${T.mint} -30%, ${T.brand} 55%, ${T.brandHover} 130%)`
           : hover
-            ? "rgba(255,255,255,0.10)"
-            : "rgba(255,255,255,0.05)",
+            ? T.surfaceAlt
+            : T.surface,
         boxShadow: brand
           ? hover
             ? `0 0 0 1px ${T.mint}55, 0 10px 26px -12px ${T.brand}cc`
@@ -77,25 +77,25 @@ function Action({
           width: 34,
           height: 34,
           borderRadius: 9,
-          background: brand ? "rgba(3,18,10,0.22)" : "rgba(255,255,255,0.10)",
+          background: brand ? "rgba(3,18,10,0.22)" : T.surfaceAlt,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
         }}
       >
-        <Icon style={{ width: 16, height: 16, color: brand ? "#06130C" : "#fff" }} />
+        <Icon style={{ width: 16, height: 16, color: brand ? "#06130C" : T.text }} />
       </span>
       <span style={{ minWidth: 0 }}>
         <span style={{
           display: "block", fontSize: 14, fontWeight: 700,
-          color: brand ? "#06130C" : "#fff", lineHeight: 1.1,
+          color: brand ? "#06130C" : T.text, lineHeight: 1.1,
         }}>
           {label}
         </span>
         <span style={{
           display: "block", fontSize: 11, marginTop: 3,
-          color: brand ? "rgba(3,18,10,0.7)" : "rgba(255,255,255,0.55)",
+          color: brand ? "rgba(3,18,10,0.7)" : T.textSub,
         }}>
           {sub}
         </span>
@@ -142,16 +142,14 @@ export function BalanceCard({
         borderRadius: 18,
         padding: "22px 24px",
         fontFamily: FONT,
-        color: "#fff",
-        background: "#0A0E15",
+        color: T.text,
+        background: T.surface,
         backgroundImage:
-          "radial-gradient(120% 90% at 88% -12%, rgba(52,245,163,0.20), transparent 55%)," +
-          "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 42%, transparent 100%)",
+          "radial-gradient(120% 90% at 88% -12%, rgba(22,163,74,0.14), transparent 55%)",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
         border: `1px solid ${T.border}`,
-        boxShadow:
-          "0 1px 0 0 rgba(255,255,255,0.06) inset, 0 26px 60px -30px rgba(0,0,0,0.85)",
+        boxShadow: "0 12px 30px rgba(0,0,0,0.08)",
       }}
     >
       {/* ambient glow */}
@@ -187,7 +185,7 @@ export function BalanceCard({
       <div style={{ position: "relative", zIndex: 1 }}>
         {/* Top row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
-          <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-0.02em", color: "#fff" }}>
+          <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-0.02em", color: T.text }}>
             Suprah<span style={{ color: T.mint }}>Pay</span> Wallet
           </span>
           <span
@@ -211,19 +209,19 @@ export function BalanceCard({
         </div>
 
         {/* Balance */}
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", margin: "0 0 8px", fontWeight: 700,
+        <p style={{ fontSize: 11, color: T.textMute, margin: "0 0 8px", fontWeight: 700,
           letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: MONO }}>
           Available balance
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
           {isLoading ? (
-            <div style={{ height: 44, width: 210, borderRadius: 10, background: "rgba(255,255,255,0.10)" }} />
+            <div style={{ height: 44, width: 210, borderRadius: 10, background: T.surfaceAlt }} />
           ) : (
             <p style={{
-              fontSize: 42, fontWeight: 700, margin: 0, lineHeight: 1, color: "#fff",
+              fontSize: 42, fontWeight: 700, margin: 0, lineHeight: 1, color: T.text,
               textShadow: `0 0 28px ${T.mint}55`, ...numeric,
             }}>
-              <span style={{ fontSize: 22, color: "rgba(255,255,255,0.5)", marginRight: 6, fontFamily: MONO }}>$</span>
+              <span style={{ fontSize: 22, color: T.textMute, marginRight: 6, fontFamily: MONO }}>$</span>
               {visible ? fmt(balance) : "••••••"}
             </p>
           )}
@@ -235,7 +233,7 @@ export function BalanceCard({
               width: 34,
               height: 34,
               borderRadius: 9,
-              background: "rgba(255,255,255,0.08)",
+              background: T.surfaceAlt,
               border: `1px solid ${T.border}`,
               display: "flex",
               alignItems: "center",
@@ -244,9 +242,9 @@ export function BalanceCard({
             }}
           >
             {visible ? (
-              <EyeOff style={{ width: 16, height: 16, color: "rgba(255,255,255,0.7)" }} />
+              <EyeOff style={{ width: 16, height: 16, color: T.textSub }} />
             ) : (
-              <Eye style={{ width: 16, height: 16, color: "rgba(255,255,255,0.7)" }} />
+              <Eye style={{ width: 16, height: 16, color: T.textSub }} />
             )}
           </button>
         </div>
@@ -257,7 +255,7 @@ export function BalanceCard({
             <div
               key={label}
               style={{
-                background: "rgba(255,255,255,0.04)",
+                background: T.surfaceAlt,
                 border: `1px solid ${T.border}`,
                 borderRadius: 12,
                 padding: "11px 13px",
@@ -265,16 +263,16 @@ export function BalanceCard({
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <Icon style={{ width: 12, height: 12, color: T.mint }} />
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{label}</span>
+                <span style={{ fontSize: 11, color: T.textMute }}>{label}</span>
               </div>
               {isLoading ? (
-                <div style={{ height: 15, width: 48, borderRadius: 4, background: "rgba(255,255,255,0.10)" }} />
+                <div style={{ height: 15, width: 48, borderRadius: 4, background: T.surfaceAlt }} />
               ) : (
                 <span
                   style={{
                     fontSize: 15,
                     fontWeight: 700,
-                    color: "rgba(255,255,255,0.92)",
+                    color: T.text,
                     display: "block",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -309,7 +307,7 @@ export function BalanceCard({
           <span
             style={{
               fontSize: 12,
-              color: "rgba(255,255,255,0.5)",
+              color: T.textMute,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -318,7 +316,7 @@ export function BalanceCard({
           >
             {userName}
           </span>
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 600, ...numeric }}>
+          <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, ...numeric }}>
             {userId}
           </span>
         </div>

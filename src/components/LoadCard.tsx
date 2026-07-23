@@ -79,6 +79,80 @@ function getStatusTheme(status: LoadStatus) {
   }
 }
 
+const LOAD_CARD_JOURNEY_STATUSES = [
+  "Assigned",
+  "Accepted",
+  "Picked Up",
+  "In-Transit",
+  "Delivered",
+] as const
+
+type LoadCardJourneyStatus =
+  (typeof LOAD_CARD_JOURNEY_STATUSES)[number]
+
+function normalizeLoadCardJourneyStatus(
+  status?: string,
+): LoadCardJourneyStatus | null {
+  const normalized = status?.trim().toLowerCase()
+
+  switch (normalized) {
+    case "assigned":
+      return "Assigned"
+
+    case "accepted":
+      return "Accepted"
+
+    case "picked up":
+    case "picked-up":
+    case "picked_up":
+      return "Picked Up"
+
+    case "in transit":
+    case "in-transit":
+    case "in_transit":
+      return "In-Transit"
+
+    case "delivered":
+      return "Delivered"
+
+    default:
+      return null
+  }
+}
+
+const LOAD_CARD_PROGRESS_THEME: Record<
+  LoadCardJourneyStatus,
+  {
+    bar: string
+    badge: string
+  }
+> = {
+  Assigned: {
+    bar: "bg-blue-500",
+    badge: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+  },
+
+  Accepted: {
+    bar: "bg-violet-500",
+    badge: "border-violet-500/30 bg-violet-500/10 text-violet-400",
+  },
+
+  "Picked Up": {
+    bar: "bg-amber-500",
+    badge: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+  },
+
+  "In-Transit": {
+    bar: "bg-cyan-500",
+    badge: "border-cyan-500/30 bg-cyan-500/10 text-cyan-400",
+  },
+
+  Delivered: {
+    bar: "bg-emerald-500",
+    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  },
+}
+
 export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps) {
   const router = useRouter()
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
@@ -115,6 +189,12 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
   }
 
   const handleCardClick = () => {
+    router.push("/transportation/load/" + load._id)
+  }
+
+  const handleViewDetails = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
     router.push("/transportation/load/" + load._id)
   }
 
@@ -161,40 +241,71 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                     <span className="text-[10px] text-muted-foreground/80 font-bold hidden xs:inline">{formatDate(load.createdAt)}</span>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5"
-                      onClick={handleEdit}
-                      title="Edit Load"
-                    >
-                      <Edit3 className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5"
-                      onClick={handleExportPDF}
-                      disabled={isExporting}
-                      title="Export PDF"
-                    >
-                      {isExporting ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
-                    </Button>
-                    {onDelete && (
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {/* Icon actions */}
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setIsDeleteDialogOpen(true)
-                        }}
-                        disabled={isDeleting || load.status === "In-Transit" || load.status === "Delivered"}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5"
+                        onClick={handleEdit}
+                        title="Edit Load"
                       >
-                        {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                        <Edit3 className="size-4" />
                       </Button>
-                    )}
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5"
+                        onClick={handleExportPDF}
+                        disabled={isExporting}
+                        title="Export PDF"
+                      >
+                        {isExporting ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <FileText className="size-4" />
+                        )}
+                      </Button>
+
+                      {onDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            setIsDeleteDialogOpen(true)
+                          }}
+                          disabled={
+                            isDeleting ||
+                            load.status === "In-Transit" ||
+                            load.status === "Delivered"
+                          }
+                          title="Delete Load"
+                        >
+                          {isDeleting ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-4" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* View Details */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleViewDetails}
+                      className="h-8 px-3 gap-1.5 text-[10px] font-black uppercase tracking-widest bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40"
+                    >
+                      View Details
+                      <ExternalLink className="size-3" />
+                    </Button>
                   </div>
                 </div>
 
@@ -275,43 +386,59 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                 </div>
 
                 {/* Progress Bar (Mini Timeline) */}
-                {load.status !== 'Posted' && load.status !== 'Cancelled' && (
-                  <div className="pt-4 mt-2 border-t border-border/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Journey Progress</span>
-                      <span className="text-[9px] font-bold text-primary px-1.5 py-0.5 rounded-full bg-primary/5 uppercase">{load.status}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {[
-                        { key: 'assignedAt', label: 'Assigned' },
-                        { key: 'driverAcceptedAt', label: 'Accepted' },
-                        { key: 'pickedUpAt', label: 'Picked Up' },
-                        { key: 'inTransitAt', label: 'In Transit' },
-                        { key: 'deliveredAt', label: 'Delivered' }
-                      ].map((step, idx, arr) => {
-                        const isDone = !!(load as any)[step.key]
-                        const isLastDone = idx === 0 ? true : !!(load as any)[arr[idx - 1].key]
-                        return (
-                          <React.Fragment key={step.key}>
-                            <div className={cn(
-                              "h-1.5 flex-1 rounded-full transition-colors duration-500",
-                              isDone ? "bg-primary" : "bg-muted"
-                            )} />
-                          </React.Fragment>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
+                {load.status !== "Posted" &&
+                  load.status !== "Cancelled" &&
+                  (() => {
+                    const currentStatus =
+                      normalizeLoadCardJourneyStatus(load.status)
+
+                    return (
+                      <div className="pt-4 mt-2 border-t border-border/30">
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
+                            Journey Progress
+                          </span>
+
+                          {currentStatus && (
+                            <span
+                              className={cn(
+                                "text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase",
+                                LOAD_CARD_PROGRESS_THEME[currentStatus].badge,
+                              )}
+                            >
+                              {load.status}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-5 gap-1 w-full">
+                          {LOAD_CARD_JOURNEY_STATUSES.map((status) => {
+                            const isCurrent = currentStatus === status
+
+                            return (
+                              <div
+                                key={status}
+                                className={cn(
+                                  "h-1.5 w-full rounded-full transition-all duration-300",
+                                  isCurrent
+                                    ? LOAD_CARD_PROGRESS_THEME[status].bar
+                                    : "bg-muted",
+                                )}
+                                title={
+                                  isCurrent
+                                    ? `${status} — Current`
+                                    : status
+                                }
+                              />
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
               </div>
             </div>
 
-            {/* Action Bar / Hover State Indicator */}
-            <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <div className="flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-widest">
-                View Details <ExternalLink className="size-3" />
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

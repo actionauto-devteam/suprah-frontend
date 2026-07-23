@@ -176,17 +176,14 @@ export async function assignDriverToLoad(loadId: string, driverId: string): Prom
 
 export async function updateLoad(
   loadId: string,
-  payload: Partial<{
-    status: string
-    pickupLocation: LocationBlock
-    deliveryLocation: LocationBlock
-    dates: LoadDates
-    additionalInfo: LoadAdditionalInfo
-    pricing: unknown
-  }>
+  payload: Partial<Load>
 ): Promise<Load> {
-  const res = await apiClient.patch<{ data: Load }>(`/api/loads/${loadId}`, payload);
-  return res.data.data;
+  const res = await apiClient.put<{ data: Load }>(
+    `/api/loads/${loadId}`,
+    payload
+  )
+
+  return res.data.data
 }
 
 export interface LoadNote {

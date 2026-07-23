@@ -339,16 +339,39 @@ export const SS4_CSS = `
   }
 
   /* ── Tab Switcher ───────────────────────────────────── */
-  .ss4-tab-bar { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 3px; }
-  .ss4-tab {
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    transition: all 0.15s ease;
-    color: rgba(255,255,255,0.4);
-  }
-  .ss4-tab-active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,0.35); }
+.ss4-tab-bar {
+  background: rgba(127, 127, 127, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.ss4-tab {
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: all 0.15s ease;
+  color: var(--text-secondary);
+}
+
+.ss4-tab:hover {
+  color: var(--text-primary);
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.ss4-tab-active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="light"] .ss4-tab:not(.ss4-tab-active) {
+  color: #3f3f46;
+}
+
+[data-theme="dark"] .ss4-tab:not(.ss4-tab-active) {
+  color: rgba(255, 255, 255, 0.55);
+}
 
   /* ── Logo Mark ──────────────────────────────────────── */
   .ss4-logo-mark {
