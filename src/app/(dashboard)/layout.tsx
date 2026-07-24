@@ -17,6 +17,11 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
+// Suprah Pulse360 — global alert popup. Mounted once here so productivity and
+// deadline alerts surface on every route without any page opting in. The store
+// behind it is a module-level singleton, so there is no provider to add.
+import { Pulse360Popup } from "@/components/pulse360/Pulse360Popup";
+import { Pulse360Bell } from "@/components/pulse360/Pulse360Bell";
 
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
@@ -228,6 +233,9 @@ function DashboardLayoutContent({
                 <ThemeModeToggle compact />
 
                 { }
+                <Pulse360Bell />
+
+                { }
                 <NotificationBell />
 
                 { }
@@ -309,6 +317,9 @@ function DashboardLayoutContent({
       <React.Suspense fallback={null}>
         <DebugConsole />
       </React.Suspense>
+
+      { /* Suprah Pulse360 — renders above everything, on every route. */ }
+      <Pulse360Popup />
 
       {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
 

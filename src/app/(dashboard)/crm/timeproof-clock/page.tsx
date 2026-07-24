@@ -53,6 +53,7 @@ import {
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
   generateIdleLogHtml, type IdlePeriod,
 } from "@/components/crm/timeproof/shared"
+import { PulseHealthCard } from "@/components/crm/timeproof/PulseHealthCard"
 
 interface CrmUserData {
   _id: string
@@ -1408,6 +1409,11 @@ export default function TimeprofClockPage() {
                 </div>
               )
             })()}
+
+            {/* Suprah Pulse360 — work health for the current shift. Takes no
+                props: it reads the same module-level store as the global popup,
+                so this number can never disagree with the header bell. */}
+            <PulseHealthCard />
 
             {!isMobile && (
               <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
