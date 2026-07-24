@@ -744,11 +744,21 @@ export default function ScreenshotGalleryPage() {
     const qs = new URLSearchParams({ date: dateStr })
     if (userId) qs.set("userId", userId)
 
+    // When viewing another user's day (admin drill-down from their calendar),
+    // this MUST hit their user-specific endpoint — otherwise it silently
+    // fetches the currently logged-in admin's OWN calendar instead, which
+    // just happens to also have a "breaks" entry for the same date (the
+    // admin's own break that day), showing completely wrong break data for
+    // the employee actually being viewed.
+    const calendarEndpoint = userId
+      ? `/api/crm/timeproof/user/${userId}?range=365`
+      : `/api/crm/timeproof/my?range=365`
+
     Promise.all([
       apiClient.get(`/api/crm/timeproof/screenshots?${qs.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       }),
-      apiClient.get(`/api/crm/timeproof/my?range=365`, {
+      apiClient.get(calendarEndpoint, {
         headers: { Authorization: `Bearer ${token}` },
       }),
     ])

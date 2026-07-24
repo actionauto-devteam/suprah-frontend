@@ -35,6 +35,7 @@ interface EditUserForm {
   gender: string
   department: string
   screenshotExempt: boolean
+  locationRequiredOverride: "default" | "required" | "exempt"
 }
 
 interface FormErrors {
@@ -59,6 +60,7 @@ interface EditUserModalProps {
     gender?: string | null
     department?: string | null
     screenshotExempt?: boolean
+    locationRequiredOverride?: "default" | "required" | "exempt"
   } | null
   onUpdated?: () => void
 }
@@ -93,6 +95,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     gender: "",
     department: "",
     screenshotExempt: false,
+    locationRequiredOverride: "default",
   })
 
   React.useEffect(() => {
@@ -107,6 +110,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         gender: user.gender ?? "",
         department: user.department ?? "",
         screenshotExempt: !!user.screenshotExempt,
+        locationRequiredOverride: user.locationRequiredOverride ?? "default",
       })
       setErrors({})
     }
@@ -152,6 +156,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           gender: form.gender || undefined,
           department: form.department,
           screenshotExempt: form.screenshotExempt,
+          locationRequiredOverride: form.locationRequiredOverride,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -339,6 +344,29 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
               checked={form.screenshotExempt}
               onCheckedChange={(checked) => setForm((p) => ({ ...p, screenshotExempt: checked }))}
             />
+          </div>
+
+          {/* Location Requirement Override */}
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Location Requirement</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Overrides this account&apos;s department setting for TimeProof location sharing — use only for exceptions.
+              </p>
+            </div>
+            <Select
+              value={form.locationRequiredOverride}
+              onValueChange={(v) => setForm((p) => ({ ...p, locationRequiredOverride: v as EditUserForm["locationRequiredOverride"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="default" className="rounded-lg text-sm">Follow Department Default</SelectItem>
+                <SelectItem value="required" className="rounded-lg text-sm">Always Required</SelectItem>
+                <SelectItem value="exempt" className="rounded-lg text-sm">Always Exempt</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Role hint */}

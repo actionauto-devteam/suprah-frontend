@@ -72,6 +72,7 @@ interface CrmUserRow {
   department?: string
   isOffboarded?: boolean
   screenshotExempt?: boolean
+  locationRequiredOverride?: "default" | "required" | "exempt"
 }
 
 interface PaginationMeta {
