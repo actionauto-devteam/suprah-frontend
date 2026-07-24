@@ -42,6 +42,7 @@ import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import { CrmHeader } from "@/components/layout/CrmHeader";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
+import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import {
   AlertDialog,
@@ -305,6 +306,9 @@ function DashboardLayoutContent({
 
       { }
       <ChatPopupManager />
+      <React.Suspense fallback={null}>
+        <DebugConsole />
+      </React.Suspense>
 
       {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
 
