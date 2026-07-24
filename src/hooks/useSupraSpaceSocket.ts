@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
@@ -144,18 +144,18 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('[SupraSpace] ✅ Connected via', socket.io.engine.transport.name, '| id:', socket.id);
+      console.log('[SupraSpace] ? Connected via', socket.io.engine.transport.name, '| id:', socket.id);
       setIsConnected(true);
       setSocketState(socket);
       socket.emit('presence:status_request'); // ask for the whole org's real online/away/busy/DND status
     });
 
     socket.io.engine.on('upgrade', (transport: any) => {
-      console.log('[SupraSpace] 🔼 Upgraded transport to:', transport.name);
+      console.log('[SupraSpace] ?? Upgraded transport to:', transport.name);
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('[SupraSpace] ❌ Disconnected:', reason);
+      console.log('[SupraSpace] ? Disconnected:', reason);
       setIsConnected(false);
     });
 
@@ -163,7 +163,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       console.error('[SupraSpace] Connection error:', err.message);
     });
 
-    // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend —
+    // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend �
     // resolved from each CrmUser's linked main-site User account).
     socket.on('presence:status_sync', (entries: Array<{ userId: string; onlineStatus: SSOnlineStatus; customStatus?: string | null; lastDeviceType?: 'mobile' | 'desktop' | null }>) => {
       const next: PresenceMap = {};

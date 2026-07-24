@@ -36,7 +36,7 @@ import {
   type PulseAlert,
   type PulseNextAction,
 } from "@/lib/pulse360";
-import { PulseRing, PulseComponentBreakdown, PulseTrendline } from "@/components/pulse360/PulseRing";
+import { PulseRing, PulseComponentBreakdown, PulseTrendline } from "@/components/crm/pulse360/PulseRing";
 import { usePulse360 } from "@/lib/pulse360-store";
 
 /**

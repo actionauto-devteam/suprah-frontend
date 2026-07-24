@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { fmtDateMDT } from "@/lib/timezone";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// --- Types --------------------------------------------------------------------
 
 interface LineItem {
   label: string;
@@ -52,7 +52,7 @@ interface MyPaymentsResponse {
   stats: { totalOwed: number; totalPaid: number; pendingCount: number };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 function money(n?: number | null) {
   return `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -73,7 +73,7 @@ const STATUS_META: Record<
   cancelled: { label: "Cancelled", icon: XCircle, cls: "bg-muted text-muted-foreground" },
 };
 
-// ─── Invoice card ─────────────────────────────────────────────────────────────
+// --- Invoice card -------------------------------------------------------------
 
 function InvoiceCard({
   inv,
@@ -108,8 +108,8 @@ function InvoiceCard({
             )}
           </div>
           <p className="text-[10px] font-mono font-semibold tracking-wide text-muted-foreground/60 mt-0.5">
-            {inv.invoiceNumber || inv._id.slice(-8).toUpperCase()} · {fmtDate(inv.createdAt)}
-            {inv.dueDate && inv.status === "pending" ? ` · due ${fmtDate(inv.dueDate)}` : ""}
+            {inv.invoiceNumber || inv._id.slice(-8).toUpperCase()} � {fmtDate(inv.createdAt)}
+            {inv.dueDate && inv.status === "pending" ? ` � due ${fmtDate(inv.dueDate)}` : ""}
           </p>
         </div>
         <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full shrink-0", meta.cls)}>
@@ -125,7 +125,7 @@ function InvoiceCard({
             <div key={i} className="flex justify-between text-xs">
               <span className={cn("text-muted-foreground", li.kind === "discount" && "text-primary")}>
                 {li.label}
-                {li.quantity > 1 ? <span className="text-muted-foreground/60 font-mono"> × {li.quantity}</span> : null}
+                {li.quantity > 1 ? <span className="text-muted-foreground/60 font-mono"> � {li.quantity}</span> : null}
               </span>
               <span className="tabular-nums font-mono text-foreground/80">{money(li.lineTotal)}</span>
             </div>
@@ -190,7 +190,7 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: any; label: string
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// --- Page ---------------------------------------------------------------------
 
 function PaymentsView() {
   const router = useRouter();
@@ -266,7 +266,7 @@ function PaymentsView() {
         try {
           await apiClient.get(`/api/payments/checkout-session/${sessionId}`);
         } catch { /* webhook will reconcile */ }
-        setBanner({ kind: "success", text: "Payment successful — thank you!" });
+        setBanner({ kind: "success", text: "Payment successful � thank you!" });
         refetch();
         router.replace("/customer/payments");
       })();
@@ -274,7 +274,7 @@ function PaymentsView() {
       setBanner({ kind: "info", text: "Payment cancelled. Your invoice is still here when you're ready." });
       router.replace("/customer/payments");
     } else if (pay) {
-      // Buy Now created an invoice and sent us here — launch Checkout for it.
+      // Buy Now created an invoice and sent us here � launch Checkout for it.
       payInvoice(pay);
       router.replace("/customer/payments");
     }
@@ -338,7 +338,7 @@ function PaymentsView() {
           {outstanding.length > 0 && (
             <section className="space-y-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
-                To pay · {outstanding.length}
+                To pay � {outstanding.length}
               </p>
               {outstanding.map((inv) => (
                 <InvoiceCard

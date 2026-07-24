@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -108,7 +108,7 @@ interface MentionCandidate {
   role?: string
 }
 
-/** Row in the Activity panel — mirrors the FeedNotification backend model. */
+/** Row in the Activity panel � mirrors the FeedNotification backend model. */
 interface FeedNotificationItem {
   _id: string
   type: "mention_post" | "mention_comment" | "comment_on_post" | "all_announcement"
@@ -134,12 +134,12 @@ interface ReactionState {
 }
 
 const REACTIONS: { type: ReactionType; emoji: string; label: string; color: string; bg: string }[] = [
-  { type: "like", emoji: "👍", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love", emoji: "❤️", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
-  { type: "haha", emoji: "😂", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
-  { type: "wow", emoji: "😮", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
-  { type: "sad", emoji: "😢", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
-  { type: "angry", emoji: "😡", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
+  { type: "like", emoji: "??", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
+  { type: "love", emoji: "??", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
+  { type: "haha", emoji: "??", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
+  { type: "wow", emoji: "??", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
+  { type: "sad", emoji: "??", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
+  { type: "angry", emoji: "??", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
 
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
@@ -235,22 +235,22 @@ function topReactionEmojis(summary: ReactionSummary): string[] {
     .map(([type]) => REACTION_MAP[type as ReactionType]?.emoji ?? "")
 }
 
-// ─── Mentions: tokens, rendering, autocomplete ────────────────────────────────
+// --- Mentions: tokens, rendering, autocomplete --------------------------------
 //
-// Mentions are stored inside content as tokens:  @[Roque Jerico](664f…)  or
+// Mentions are stored inside content as tokens:  @[Roque Jerico](664f�)  or
 // @[all](all). The composer inserts tokens via the @ autocomplete; the token
 // regex here must stay in sync with utils/feedMentions.ts on the backend.
 
 const MENTION_TOKEN = /@\[([^\]\n]{1,80})\]\(([a-fA-F0-9]{24}|all)\)/g
 
-/** Replace tokens with plain "@Name" — for character counters and previews. */
+/** Replace tokens with plain "@Name" � for character counters and previews. */
 function stripMentions(content: string): string {
   return (content || "").replace(new RegExp(MENTION_TOKEN.source, "g"), (_f, name, id) =>
     id === "all" ? "@Everyone" : `@${name}`
   )
 }
 
-/** Visible length (what the author perceives) — limits apply to this. */
+/** Visible length (what the author perceives) � limits apply to this. */
 function visibleLength(content: string): number {
   return stripMentions(content).length
 }
@@ -262,7 +262,7 @@ function escapeRegExp(s: string): string {
 /**
  * Convert the CLEAN text the user sees ("@Aaron Gonzalez Navarro", "@all")
  * into storage tokens ("@[Aaron Gonzalez Navarro](id)", "@[all](all)") right
- * before submitting. The textarea never shows raw tokens — this is the only
+ * before submitting. The textarea never shows raw tokens � this is the only
  * place display text and storage format meet.
  *
  * Longest names are matched first so "Aaron Gonzalez" can't shadow
@@ -277,7 +277,7 @@ function serializeMentions(text: string, candidates: MentionCandidate[]): string
     const re = new RegExp(`@${escapeRegExp(c.fullName)}(?=$|[^A-Za-z0-9_])`, "gi")
     out = out.replace(re, `@[${c.fullName}](${c._id})`)
   }
-  // "@all" / "@everyone" → the org-wide token (also catches manually typed ones)
+  // "@all" / "@everyone" ? the org-wide token (also catches manually typed ones)
   out = out.replace(/@(all|everyone)(?=$|[^A-Za-z0-9_])/gi, "@[all](all)")
   return out
 }
@@ -312,7 +312,7 @@ function renderWithMentions(content: string): React.ReactNode {
 
 const ALL_CANDIDATE: MentionCandidate = { _id: "all", fullName: "Everyone", username: "all" }
 
-/** Style props mirrored onto the hidden measuring div — anything that affects
+/** Style props mirrored onto the hidden measuring div � anything that affects
  *  text layout inside the textarea. */
 const CARET_MIRROR_PROPS = [
   "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
@@ -326,7 +326,7 @@ interface CaretCoords { top: number; left: number; height: number }
 
 /**
  * Pixel position of a character inside a textarea (relative to the textarea's
- * top-left corner) — the classic mirror-div technique: clone the textarea's
+ * top-left corner) � the classic mirror-div technique: clone the textarea's
  * text styles onto a hidden div, insert the text up to `position`, and measure
  * where a marker span lands. Accounts for wrapping, padding, and scroll.
  */
@@ -389,7 +389,7 @@ function useMentions(opts: {
       .slice(0, 6)
   }, [open, query, candidates])
 
-  /** Call after every value change — looks for "@query" ending at the caret. */
+  /** Call after every value change � looks for "@query" ending at the caret. */
   const detect = React.useCallback((val: string) => {
     const el = textareaRef.current
     const caret = el ? el.selectionStart : val.length
@@ -425,7 +425,7 @@ function useMentions(opts: {
     const el = textareaRef.current
     const caret = el ? el.selectionStart : value.length
     const start = anchorStart.current >= 0 ? anchorStart.current : caret
-    // Insert CLEAN display text — storage tokens are produced by
+    // Insert CLEAN display text � storage tokens are produced by
     // serializeMentions() only at submit time.
     const token = c._id === "all" ? "@all " : `@${c.fullName} `
     const next = value.slice(0, start) + token + value.slice(caret)
@@ -466,7 +466,7 @@ function highlightMatch(name: string, query: string): React.ReactNode {
   )
 }
 
-/** Floating suggestion list — render inside a `relative` wrapper around the
+/** Floating suggestion list � render inside a `relative` wrapper around the
  *  textarea. `placement="bottom"` drops the panel BELOW the input (use for
  *  inputs near the top of the viewport, e.g. the composer, where an upward
  *  panel would collide with the sticky header); `"top"` opens upward (use for
@@ -518,7 +518,7 @@ function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnTyp
             {isAll ? "Notify the whole team" : `@${c.username || c.email || ""}`}
           </p>
         </div>
-        {active && <span className="shrink-0 text-[9px] font-semibold text-emerald-500/70">↵</span>}
+        {active && <span className="shrink-0 text-[9px] font-semibold text-emerald-500/70">?</span>}
       </button>
     )
   }
@@ -538,7 +538,7 @@ function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnTyp
         </span>
       </div>
 
-      {/* Results — Everyone pinned as its own section, teammates below */}
+      {/* Results � Everyone pinned as its own section, teammates below */}
       <div className="max-h-60 overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50">
         {hasEveryone && (
           <>
@@ -555,15 +555,15 @@ function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnTyp
 
       {/* Keyboard hints */}
       <div className="flex items-center gap-2.5 border-t border-border/40 bg-muted/20 px-3 py-1.5 text-[9px] text-muted-foreground/45">
-        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">↑↓</kbd> navigate</span>
-        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">↵</kbd> select</span>
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">??</kbd> navigate</span>
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">?</kbd> select</span>
         <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">esc</kbd> close</span>
       </div>
     </div>
   )
 }
 
-// ─── Clean gradient divider ───────────────────────────────────────────────────
+// --- Clean gradient divider ---------------------------------------------------
 
 function Divider({ label, className = "" }: { label?: string; className?: string }) {
   if (!label) {
@@ -578,7 +578,7 @@ function Divider({ label, className = "" }: { label?: string; className?: string
   )
 }
 
-// ─── Attachment Preview Modal ──────────────────────────────────────────────────
+// --- Attachment Preview Modal --------------------------------------------------
 
 function AttachmentPreviewModal({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
   const imageLike = isImageAttachment(attachment)
@@ -612,7 +612,7 @@ function AttachmentPreviewModal({ attachment, onClose }: { attachment: Attachmen
   )
 }
 
-// ─── Attachment Grid (rendered on a posted post/comment) ──────────────────────
+// --- Attachment Grid (rendered on a posted post/comment) ----------------------
 
 function AttachmentGrid({ attachments, compact = false }: { attachments: Attachment[]; compact?: boolean }) {
   const [preview, setPreview] = React.useState<Attachment | null>(null)
@@ -659,7 +659,7 @@ function AttachmentGrid({ attachments, compact = false }: { attachments: Attachm
   )
 }
 
-// ─── Pending Attachments (composer preview, before posting) ───────────────────
+// --- Pending Attachments (composer preview, before posting) -------------------
 
 function PendingAttachments({ files, onRemove, className = "px-5 pb-2" }: { files: File[]; onRemove: (index: number) => void; className?: string }) {
   if (!files.length) return null
@@ -698,7 +698,7 @@ function PendingAttachments({ files, onRemove, className = "px-5 pb-2" }: { file
   )
 }
 
-// ─── Reaction Details Modal (who reacted) ──────────────────────────────────────
+// --- Reaction Details Modal (who reacted) --------------------------------------
 
 function ReactionDetailsModal({ summary, onClose }: {
   summary: ReactionSummary; onClose: () => void
@@ -724,7 +724,7 @@ function ReactionDetailsModal({ summary, onClose }: {
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
           <h3 className="text-sm font-semibold tracking-tight">
-            Reactions <span className="text-muted-foreground/40 font-normal">· {total}</span>
+            Reactions <span className="text-muted-foreground/40 font-normal">� {total}</span>
           </h3>
           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/60" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -778,7 +778,7 @@ function ReactionDetailsModal({ summary, onClose }: {
   )
 }
 
-// ─── Reaction Bar ─────────────────────────────────────────────────────────────
+// --- Reaction Bar -------------------------------------------------------------
 
 function ReactionBar({
   targetType, targetId, token, reactionState, onReactionChange, compact = false,
@@ -841,7 +841,7 @@ function ReactionBar({
               ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/40 text-muted-foreground/50 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
               ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "👍"}</span>}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "??"}</span>}
             {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
           </button>
           {showPicker && (
@@ -890,7 +890,7 @@ function ReactionBar({
   )
 }
 
-// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
+// --- Delete Confirm Modal -----------------------------------------------------
 
 function DeleteModal({ label = "post", onConfirm, onCancel, loading }: {
   label?: string; onConfirm: () => void; onCancel: () => void; loading: boolean
@@ -919,7 +919,7 @@ function DeleteModal({ label = "post", onConfirm, onCancel, loading }: {
   )
 }
 
-// ─── Comment Item ─────────────────────────────────────────────────────────────
+// --- Comment Item -------------------------------------------------------------
 
 function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionState, onReactionChange }: {
   comment: Comment; currentUser: CrmUser; token: string; postId: string
@@ -981,7 +981,7 @@ function CommentItem({ comment, currentUser, token, postId, onDeleted, reactionS
   )
 }
 
-// ─── Comment Section ──────────────────────────────────────────────────────────
+// --- Comment Section ----------------------------------------------------------
 
 function CommentSection({ post, currentUser, token, comments, setComments, commentReactions, setCommentReactions, inputId, mentionCandidates }: {
   post: Post; currentUser: CrmUser; token: string; inputId: string
@@ -1066,13 +1066,13 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
       const payload = serializeMentions(newComment.trim(), mentionCandidates)
       let res
       if (pendingFiles.length > 0) {
-        // Has attachments → multipart
+        // Has attachments ? multipart
         const formData = new FormData()
         formData.append("content", payload)
         pendingFiles.forEach((f) => formData.append("files", f))
         res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, formData)
       } else {
-        // Text-only → plain JSON
+        // Text-only ? plain JSON
         res = await apiClient.post(`/api/crm/feeds/${post._id}/comments`, { content: payload })
       }
       const comment: Comment = res.data?.data?.comment
@@ -1112,7 +1112,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
         </button>
       )}
       {!loading && comments.length === 0 && (
-        <p className="text-xs text-muted-foreground/50 text-center py-1">No comments yet — be the first.</p>
+        <p className="text-xs text-muted-foreground/50 text-center py-1">No comments yet � be the first.</p>
       )}
       {!loading && visibleComments.map((comment) => (
         <CommentItem
@@ -1139,7 +1139,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
               onKeyDown={handleKey}
               onPaste={handlePaste}
               onBlur={() => setTimeout(mention.close, 150)}
-              placeholder="Leave a comment… (@ to mention)" rows={1} maxLength={1000}
+              placeholder="Leave a comment� (@ to mention)" rows={1} maxLength={1000}
               className="w-full bg-transparent text-xs leading-relaxed p-3 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/40"
               style={{ minHeight: "38px" }}
             />
@@ -1198,14 +1198,14 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
             </div>
           </div>
           {submitError && <p className="text-[10px] text-rose-500 mt-1 pl-1">{submitError}</p>}
-          {newComment && !submitError && <p className="text-[10px] text-muted-foreground/40 mt-1 pl-1">⌘/Ctrl + Enter to post</p>}
+          {newComment && !submitError && <p className="text-[10px] text-muted-foreground/40 mt-1 pl-1">?/Ctrl + Enter to post</p>}
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Post Card ────────────────────────────────────────────────────────────────
+// --- Post Card ----------------------------------------------------------------
 
 function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionState, onReactionChange, mentionCandidates, isUnread, isFlashing, onMarkRead }: {
   post: Post; currentUser: CrmUser; token: string
@@ -1219,7 +1219,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   onMarkRead: (postId: string) => void
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
-  // The edit textarea works with CLEAN text — stored tokens are stripped on
+  // The edit textarea works with CLEAN text � stored tokens are stripped on
   // open and re-serialized on save.
   const [editContent, setEditContent] = React.useState(() => stripMentions(post.content))
   const [editLoading, setEditLoading] = React.useState(false)
@@ -1329,7 +1329,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <p className="text-[10px] text-muted-foreground/55 cursor-default" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
-                  {post.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">· edited</span>}
+                  {post.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">� edited</span>}
                   {isUnread && (
                     <button
                       type="button"
@@ -1447,7 +1447,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   )
 }
 
-// ─── Post Composer ────────────────────────────────────────────────────────────
+// --- Post Composer ------------------------------------------------------------
 
 function Composer({ currentUser, token, onPosted, mentionCandidates }: {
   currentUser: CrmUser; token: string; onPosted: (post: Post) => void
@@ -1507,13 +1507,13 @@ function Composer({ currentUser, token, onPosted, mentionCandidates }: {
       const payload = serializeMentions(content.trim(), mentionCandidates)
       let res
       if (pendingFiles.length > 0) {
-        // Has attachments → multipart
+        // Has attachments ? multipart
         const formData = new FormData()
         formData.append("content", payload)
         pendingFiles.forEach((f) => formData.append("files", f))
         res = await apiClient.post("/api/crm/feeds", formData)
       } else {
-        // Text-only → plain JSON (matches the proven-working comment/reaction path)
+        // Text-only ? plain JSON (matches the proven-working comment/reaction path)
         res = await apiClient.post("/api/crm/feeds", { content: payload })
       }
       onPosted(res.data?.data?.post || res.data?.post)
@@ -1625,12 +1625,12 @@ function Composer({ currentUser, token, onPosted, mentionCandidates }: {
         </div>
       </div>
       {error && <p className="text-xs text-rose-500 px-5 pb-3">{error}</p>}
-      {content && !error && <p className="text-[10px] text-muted-foreground/40 px-5 pb-3">⌘/Ctrl + Enter to post</p>}
+      {content && !error && <p className="text-[10px] text-muted-foreground/40 px-5 pb-3">?/Ctrl + Enter to post</p>}
     </div>
   )
 }
 
-// ─── Activity Panel (mentions & comments on your posts) ───────────────────────
+// --- Activity Panel (mentions & comments on your posts) -----------------------
 
 const NOTIF_META: Record<FeedNotificationItem["type"], { icon: React.ReactNode; text: string; iconBg: string }> = {
   mention_post: {
@@ -1720,7 +1720,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
                   <span className="text-muted-foreground/70">{meta.text}</span>
                 </p>
                 {n.snippet && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">“{n.snippet}”</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">�{n.snippet}�</p>
                 )}
                 <p className="mt-1 text-[10px] text-muted-foreground/45" title={fullDate(n.createdAt)}>{timeAgo(n.createdAt)}</p>
               </div>
@@ -1733,7 +1733,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
   )
 }
 
-// ─── Tab Bar ──────────────────────────────────────────────────────────────────
+// --- Tab Bar ------------------------------------------------------------------
 
 function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) => void }) {
   return (
@@ -1764,7 +1764,7 @@ function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) 
   )
 }
 
-// ─── Feed Page ────────────────────────────────────────────────────────────────
+// --- Feed Page ----------------------------------------------------------------
 
 const PAGE_LIMIT = 20
 const INIT_TIMEOUT_MS = 15000
@@ -1788,9 +1788,9 @@ export default function FeedsPage() {
   const socketRef = React.useRef<any>(null)
   const ssSocketRef = React.useRef<any>(null)
 
-  // ── Notification system state ──
+  // -- Notification system state --
   const badge = useFeedBadge()
-  /** Watermark from the PREVIOUS visit — posts newer than this render as unread. */
+  /** Watermark from the PREVIOUS visit � posts newer than this render as unread. */
   const [unreadSince, setUnreadSince] = React.useState<string | null>(null)
   /** Posts the user marked read during this visit (client-side overlay). */
   const [locallyRead, setLocallyRead] = React.useState<Set<string>>(new Set())
@@ -1899,7 +1899,7 @@ export default function FeedsPage() {
         clearUnseenPosts()
         refreshFeedBadge()
 
-        // Mention autocomplete candidates (exclude self) — non-blocking.
+        // Mention autocomplete candidates (exclude self) � non-blocking.
         apiClient.get("/api/crm/feeds/mention-candidates", { signal: controller.signal })
           .then((res) => {
             if (!active) return
@@ -1968,7 +1968,7 @@ export default function FeedsPage() {
       })
       // Targeted notification for THIS user (mention / comment / announcement).
       // The badge count itself is bumped by the feed-notification store's own
-      // socket — here we only keep the Activity panel list fresh.
+      // socket � here we only keep the Activity panel list fresh.
       socket.on("feed:notify", ({ notification }: { notification: FeedNotificationItem }) => {
         if (!notification?._id) return
         setActivityItems((prev) => prev.some((n) => n._id === notification._id) ? prev : [notification, ...prev])
@@ -1978,7 +1978,7 @@ export default function FeedsPage() {
     return () => { socketRef.current?.disconnect() }
   }, [token])
 
-  // SupraSpace socket — receives milestone feed:new announcements
+  // SupraSpace socket � receives milestone feed:new announcements
   React.useEffect(() => {
     if (!token || typeof window === "undefined") return
     import("socket.io-client").then(({ io }) => {
@@ -2094,7 +2094,7 @@ export default function FeedsPage() {
     setActiveTab("feeds")
     // Deep-link to the post: scroll if loaded, otherwise refresh page 1 first
     // (comment/announcement targets are usually recent). Older DayPulse or
-    // paged-out targets simply won't scroll — the row itself carries context.
+    // paged-out targets simply won't scroll � the row itself carries context.
     if (posts.some((p) => p._id === n.postId)) {
       setTimeout(() => scrollToPost(n.postId), 100)
       return
@@ -2115,7 +2115,7 @@ export default function FeedsPage() {
     } catch { }
   }
 
-  // ── Loading screen ──────────────────────────────────────────────────────────
+  // -- Loading screen ----------------------------------------------------------
   if (loadingInit) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -2164,7 +2164,7 @@ export default function FeedsPage() {
   return (
     <div className="min-h-screen w-full bg-background">
 
-      {/* ── Sticky header ── */}
+      {/* -- Sticky header -- */}
       <header className="sticky top-0 z-40 w-full border-b border-border/30 bg-background/80 backdrop-blur-xl">
         <div className="flex items-center gap-4 h-14 px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
           <Button
@@ -2182,7 +2182,7 @@ export default function FeedsPage() {
             </p>
           </div>
 
-          {/* Activity bell — mentions, comments on your posts, announcements */}
+          {/* Activity bell � mentions, comments on your posts, announcements */}
           <div ref={activityWrapRef} className="relative shrink-0">
             <Button
               variant="ghost"
@@ -2228,12 +2228,12 @@ export default function FeedsPage() {
         </div>
       </header>
 
-      {/* ── Main content ── */}
+      {/* -- Main content -- */}
       <main className="relative max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pb-20">
         {/* Ambient background glow */}
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(800px_circle_at_20%_0%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(700px_circle_at_80%_10%,rgba(16,185,129,0.035),transparent_55%)]" />
 
-        {/* ── Team Feeds tab ── */}
+        {/* -- Team Feeds tab -- */}
         {activeTab === "feeds" && (
           <>
             {initError && (
@@ -2261,7 +2261,7 @@ export default function FeedsPage() {
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/10 py-3 text-sm font-medium text-emerald-600 transition-all hover:border-emerald-500/40"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {newPostCount} new {newPostCount === 1 ? "post" : "posts"} — tap to refresh
+                {newPostCount} new {newPostCount === 1 ? "post" : "posts"} � tap to refresh
               </button>
             )}
 
@@ -2331,7 +2331,7 @@ export default function FeedsPage() {
           </>
         )}
 
-        {/* ── DayPulse tab ── */}
+        {/* -- DayPulse tab -- */}
         {activeTab === "daypulse" && (
           <DayPulsePage currentUser={currentUser} token={token} />
         )}

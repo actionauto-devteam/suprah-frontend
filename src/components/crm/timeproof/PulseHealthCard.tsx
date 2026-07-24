@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRight, CheckCircle2, Gauge, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BAND_META, WORK_STATE_META, PRIORITY_META, formatDueLabel } from "@/lib/pulse360";
-import { PulseRing } from "@/components/pulse360/PulseRing";
+import { PulseRing } from "@/components/crm/pulse360/PulseRing";
 import { usePulse360 } from "@/lib/pulse360-store";
 
 /**

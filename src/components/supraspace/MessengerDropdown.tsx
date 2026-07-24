@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import * as React from 'react';
 import { MessageCircle, ArrowUpRight, Plus, ChevronLeft, Search, Check, Users, Loader2 } from 'lucide-react';
@@ -75,8 +75,8 @@ function previewText(conv: SSConv): string {
   if ((conv.unreadCount || 0) >= 2) return `${conv.unreadCount} new messages`;
   if (!msg || msg.isDeleted) return 'No messages yet';
   const icons: Record<string, string> = {
-    image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
-    file: '📎 File', poll: '📊 Poll', event: '📅 Event',
+    image: '?? Photo', voice: '?? Voice message', gif: '?? GIF',
+    file: '?? File', poll: '?? Poll', event: '?? Event',
   };
   return icons[msg.type] ?? cleanPreviewContent(msg.content) ?? '';
 }
@@ -111,7 +111,7 @@ function isConvUnread(conv: SSConv, userId: string | null): boolean {
   return (conv.unreadCount || 0) > 0 || (!!msg && !msg.isDeleted && msg.sender?._id !== userId && !msg.readBy?.includes(userId || ''));
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// --- Component ----------------------------------------------------------------
 
 export function MessengerDropdown() {
   const {
@@ -128,10 +128,10 @@ export function MessengerDropdown() {
     useSupraSpaceMessenger();
   const router = useRouter();
 
-  // ── Dropdown open state (controlled so we can reset on close) ──────────────
+  // -- Dropdown open state (controlled so we can reset on close) --------------
   const [open, setOpen] = React.useState(false);
 
-  // ── Create-flow state ──────────────────────────────────────────────────────
+  // -- Create-flow state ------------------------------------------------------
   const [view, setView] = React.useState<'list' | 'create'>('list');
   const [createTab, setCreateTab] = React.useState<'dm' | 'group'>('dm');
   const [users, setUsers] = React.useState<CrmUser[]>([]);
@@ -280,7 +280,7 @@ export function MessengerDropdown() {
         sideOffset={8}
         className="p-0 w-[min(320px,calc(100vw-16px))] max-h-[min(480px,80dvh)] flex flex-col overflow-hidden rounded-xl shadow-xl border-border/60"
       >
-        {/* ── Header ── */}
+        {/* -- Header -- */}
         <div className="shrink-0 px-4 py-3 border-b border-border/50 bg-card/90 backdrop-blur-sm">
           {view === 'list' ? (
             <div className="flex items-center gap-2.5">
@@ -319,7 +319,7 @@ export function MessengerDropdown() {
         </div>
 
         {view === 'list' ? (
-          /* ── Conversation list ── */
+          /* -- Conversation list -- */
           <>
           <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 border-b border-border/40 bg-card/80">
             {CONVERSATION_FILTERS.map((filter) => {
@@ -423,7 +423,7 @@ export function MessengerDropdown() {
           </div>
           </>
         ) : (
-          /* ── Create view ── */
+          /* -- Create view -- */
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* Tabs */}
             <div className="shrink-0 flex gap-1 px-3 pt-2.5 pb-2">
@@ -477,7 +477,7 @@ export function MessengerDropdown() {
                       className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer"
                       style={{ background: 'rgba(52,201,125,0.15)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.3)' }}>
                       {u.fullName.split(' ')[0]}
-                      <span className="text-[9px] opacity-60">×</span>
+                      <span className="text-[9px] opacity-60">�</span>
                     </span>
                   );
                 })}
@@ -543,7 +543,7 @@ export function MessengerDropdown() {
           </div>
         )}
 
-        {/* Footer link — only on list view */}
+        {/* Footer link � only on list view */}
         {view === 'list' && (
           <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90">
             <Link href="/crm/supra-space"
