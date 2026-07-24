@@ -108,7 +108,7 @@ interface MentionCandidate {
   role?: string
 }
 
-/** Row in the Activity panel ó mirrors the FeedNotification backend model. */
+/** Row in the Activity panel ‚Äî mirrors the FeedNotification backend model. */
 interface FeedNotificationItem {
   _id: string
   type: "mention_post" | "mention_comment" | "comment_on_post" | "all_announcement"
@@ -237,20 +237,20 @@ function topReactionEmojis(summary: ReactionSummary): string[] {
 
 // --- Mentions: tokens, rendering, autocomplete --------------------------------
 //
-// Mentions are stored inside content as tokens:  @[Roque Jerico](664fÖ)  or
+// Mentions are stored inside content as tokens:  @[Roque Jerico](664f‚Ä¶)  or
 // @[all](all). The composer inserts tokens via the @ autocomplete; the token
 // regex here must stay in sync with utils/feedMentions.ts on the backend.
 
 const MENTION_TOKEN = /@\[([^\]\n]{1,80})\]\(([a-fA-F0-9]{24}|all)\)/g
 
-/** Replace tokens with plain "@Name" ó for character counters and previews. */
+/** Replace tokens with plain "@Name" ‚Äî for character counters and previews. */
 function stripMentions(content: string): string {
   return (content || "").replace(new RegExp(MENTION_TOKEN.source, "g"), (_f, name, id) =>
     id === "all" ? "@Everyone" : `@${name}`
   )
 }
 
-/** Visible length (what the author perceives) ó limits apply to this. */
+/** Visible length (what the author perceives) ‚Äî limits apply to this. */
 function visibleLength(content: string): number {
   return stripMentions(content).length
 }
@@ -262,7 +262,7 @@ function escapeRegExp(s: string): string {
 /**
  * Convert the CLEAN text the user sees ("@Aaron Gonzalez Navarro", "@all")
  * into storage tokens ("@[Aaron Gonzalez Navarro](id)", "@[all](all)") right
- * before submitting. The textarea never shows raw tokens ó this is the only
+ * before submitting. The textarea never shows raw tokens ‚Äî this is the only
  * place display text and storage format meet.
  *
  * Longest names are matched first so "Aaron Gonzalez" can't shadow
@@ -312,7 +312,7 @@ function renderWithMentions(content: string): React.ReactNode {
 
 const ALL_CANDIDATE: MentionCandidate = { _id: "all", fullName: "Everyone", username: "all" }
 
-/** Style props mirrored onto the hidden measuring div ó anything that affects
+/** Style props mirrored onto the hidden measuring div ‚Äî anything that affects
  *  text layout inside the textarea. */
 const CARET_MIRROR_PROPS = [
   "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
@@ -326,7 +326,7 @@ interface CaretCoords { top: number; left: number; height: number }
 
 /**
  * Pixel position of a character inside a textarea (relative to the textarea's
- * top-left corner) ó the classic mirror-div technique: clone the textarea's
+ * top-left corner) ‚Äî the classic mirror-div technique: clone the textarea's
  * text styles onto a hidden div, insert the text up to `position`, and measure
  * where a marker span lands. Accounts for wrapping, padding, and scroll.
  */
@@ -389,7 +389,7 @@ function useMentions(opts: {
       .slice(0, 6)
   }, [open, query, candidates])
 
-  /** Call after every value change ó looks for "@query" ending at the caret. */
+  /** Call after every value change ‚Äî looks for "@query" ending at the caret. */
   const detect = React.useCallback((val: string) => {
     const el = textareaRef.current
     const caret = el ? el.selectionStart : val.length
@@ -425,7 +425,7 @@ function useMentions(opts: {
     const el = textareaRef.current
     const caret = el ? el.selectionStart : value.length
     const start = anchorStart.current >= 0 ? anchorStart.current : caret
-    // Insert CLEAN display text ó storage tokens are produced by
+    // Insert CLEAN display text ‚Äî storage tokens are produced by
     // serializeMentions() only at submit time.
     const token = c._id === "all" ? "@all " : `@${c.fullName} `
     const next = value.slice(0, start) + token + value.slice(caret)
@@ -466,7 +466,7 @@ function highlightMatch(name: string, query: string): React.ReactNode {
   )
 }
 
-/** Floating suggestion list ó render inside a `relative` wrapper around the
+/** Floating suggestion list ‚Äî render inside a `relative` wrapper around the
  *  textarea. `placement="bottom"` drops the panel BELOW the input (use for
  *  inputs near the top of the viewport, e.g. the composer, where an upward
  *  panel would collide with the sticky header); `"top"` opens upward (use for
@@ -538,7 +538,7 @@ function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnTyp
         </span>
       </div>
 
-      {/* Results ó Everyone pinned as its own section, teammates below */}
+      {/* Results ‚Äî Everyone pinned as its own section, teammates below */}
       <div className="max-h-60 overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50">
         {hasEveryone && (
           <>
@@ -724,7 +724,7 @@ function ReactionDetailsModal({ summary, onClose }: {
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
           <h3 className="text-sm font-semibold tracking-tight">
-            Reactions <span className="text-muted-foreground/40 font-normal">∑ {total}</span>
+            Reactions <span className="text-muted-foreground/40 font-normal">¬∑ {total}</span>
           </h3>
           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/60" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -1112,7 +1112,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
         </button>
       )}
       {!loading && comments.length === 0 && (
-        <p className="text-xs text-muted-foreground/50 text-center py-1">No comments yet ó be the first.</p>
+        <p className="text-xs text-muted-foreground/50 text-center py-1">No comments yet ‚Äî be the first.</p>
       )}
       {!loading && visibleComments.map((comment) => (
         <CommentItem
@@ -1139,7 +1139,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
               onKeyDown={handleKey}
               onPaste={handlePaste}
               onBlur={() => setTimeout(mention.close, 150)}
-              placeholder="Leave a commentÖ (@ to mention)" rows={1} maxLength={1000}
+              placeholder="Leave a comment‚Ä¶ (@ to mention)" rows={1} maxLength={1000}
               className="w-full bg-transparent text-xs leading-relaxed p-3 pr-16 resize-none focus:outline-none placeholder:text-muted-foreground/40"
               style={{ minHeight: "38px" }}
             />
@@ -1219,7 +1219,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
   onMarkRead: (postId: string) => void
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
-  // The edit textarea works with CLEAN text ó stored tokens are stripped on
+  // The edit textarea works with CLEAN text ‚Äî stored tokens are stripped on
   // open and re-serialized on save.
   const [editContent, setEditContent] = React.useState(() => stripMentions(post.content))
   const [editLoading, setEditLoading] = React.useState(false)
@@ -1329,7 +1329,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <p className="text-[10px] text-muted-foreground/55 cursor-default" title={fullDate(post.createdAt)}>{timeAgo(post.createdAt)}</p>
-                  {post.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">∑ edited</span>}
+                  {post.isEdited && <span className="text-[10px] text-muted-foreground/40 italic">¬∑ edited</span>}
                   {isUnread && (
                     <button
                       type="button"
@@ -1720,7 +1720,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
                   <span className="text-muted-foreground/70">{meta.text}</span>
                 </p>
                 {n.snippet && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">ì{n.snippet}î</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">‚Äú{n.snippet}‚Äù</p>
                 )}
                 <p className="mt-1 text-[10px] text-muted-foreground/45" title={fullDate(n.createdAt)}>{timeAgo(n.createdAt)}</p>
               </div>
@@ -1790,7 +1790,7 @@ export default function FeedsPage() {
 
   // -- Notification system state --
   const badge = useFeedBadge()
-  /** Watermark from the PREVIOUS visit ó posts newer than this render as unread. */
+  /** Watermark from the PREVIOUS visit ‚Äî posts newer than this render as unread. */
   const [unreadSince, setUnreadSince] = React.useState<string | null>(null)
   /** Posts the user marked read during this visit (client-side overlay). */
   const [locallyRead, setLocallyRead] = React.useState<Set<string>>(new Set())
@@ -1899,7 +1899,7 @@ export default function FeedsPage() {
         clearUnseenPosts()
         refreshFeedBadge()
 
-        // Mention autocomplete candidates (exclude self) ó non-blocking.
+        // Mention autocomplete candidates (exclude self) ‚Äî non-blocking.
         apiClient.get("/api/crm/feeds/mention-candidates", { signal: controller.signal })
           .then((res) => {
             if (!active) return
@@ -1968,7 +1968,7 @@ export default function FeedsPage() {
       })
       // Targeted notification for THIS user (mention / comment / announcement).
       // The badge count itself is bumped by the feed-notification store's own
-      // socket ó here we only keep the Activity panel list fresh.
+      // socket ‚Äî here we only keep the Activity panel list fresh.
       socket.on("feed:notify", ({ notification }: { notification: FeedNotificationItem }) => {
         if (!notification?._id) return
         setActivityItems((prev) => prev.some((n) => n._id === notification._id) ? prev : [notification, ...prev])
@@ -1978,7 +1978,7 @@ export default function FeedsPage() {
     return () => { socketRef.current?.disconnect() }
   }, [token])
 
-  // SupraSpace socket ó receives milestone feed:new announcements
+  // SupraSpace socket ‚Äî receives milestone feed:new announcements
   React.useEffect(() => {
     if (!token || typeof window === "undefined") return
     import("socket.io-client").then(({ io }) => {
@@ -2094,7 +2094,7 @@ export default function FeedsPage() {
     setActiveTab("feeds")
     // Deep-link to the post: scroll if loaded, otherwise refresh page 1 first
     // (comment/announcement targets are usually recent). Older DayPulse or
-    // paged-out targets simply won't scroll ó the row itself carries context.
+    // paged-out targets simply won't scroll ‚Äî the row itself carries context.
     if (posts.some((p) => p._id === n.postId)) {
       setTimeout(() => scrollToPost(n.postId), 100)
       return
@@ -2182,7 +2182,7 @@ export default function FeedsPage() {
             </p>
           </div>
 
-          {/* Activity bell ó mentions, comments on your posts, announcements */}
+          {/* Activity bell ‚Äî mentions, comments on your posts, announcements */}
           <div ref={activityWrapRef} className="relative shrink-0">
             <Button
               variant="ghost"
@@ -2261,7 +2261,7 @@ export default function FeedsPage() {
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/10 py-3 text-sm font-medium text-emerald-600 transition-all hover:border-emerald-500/40"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {newPostCount} new {newPostCount === 1 ? "post" : "posts"} ó tap to refresh
+                {newPostCount} new {newPostCount === 1 ? "post" : "posts"} ‚Äî tap to refresh
               </button>
             )}
 

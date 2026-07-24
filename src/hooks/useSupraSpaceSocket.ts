@@ -163,7 +163,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       console.error('[SupraSpace] Connection error:', err.message);
     });
 
-    // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend —
+    // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend â€”
     // resolved from each CrmUser's linked main-site User account).
     socket.on('presence:status_sync', (entries: Array<{ userId: string; onlineStatus: SSOnlineStatus; customStatus?: string | null; lastDeviceType?: 'mobile' | 'desktop' | null }>) => {
       const next: PresenceMap = {};

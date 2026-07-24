@@ -51,7 +51,7 @@ type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'quo
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
 ]);
-const SS4_REACTIONS = ['??', '??', '??', '??', '??', '??', '??', '??'];
+const SS4_REACTIONS = ['\u{1f44d}', '\u{2764}\u{fe0f}', '\u{1f602}', '\u{1f62e}', '\u{1f622}', '\u{1f64f}', '\u{1f525}', '\u{1f389}'];
 const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
 const SS4_TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
 const SS4_MORE_TEXT_COLORS = [
@@ -626,11 +626,11 @@ function stripListMarkerNoise(value: string): string {
 }
 
 function plainTextHasListMarkers(text: string): boolean {
-  return /(^|\n)\s*(?:[-*+•·??????–—]|\d+\.)\s+\S/.test(stripListMarkerNoise(text).replace(/\r\n?/g, '\n'));
+  return /(^|\n)\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/.test(stripListMarkerNoise(text).replace(/\r\n?/g, '\n'));
 }
 
 function editorHtmlHasListMarkers(html: string): boolean {
-  return /(^|<br\s*\/?>)\s*(?:[-*+•·??????–—]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
+  return /(^|<br\s*\/?>)\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
 }
 
 function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): boolean {
@@ -640,7 +640,7 @@ function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): bo
 }
 
 function normalizeEditorHtmlListArtifacts(html: string): string {
-  const marker = String.raw`[•·??????\-*+–—]`;
+  const marker = String.raw`[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014]`;
   const markerOnlyLineRe = new RegExp(
     String.raw`(^|<br\s*\/?>)\s*(${marker})(?:&nbsp;|\s|[\u200b-\u200d\ufeff])*<br\s*\/?>\s*`,
     'gi',
@@ -678,7 +678,7 @@ function htmlAppearsToContainLists(html: string): boolean {
     || /display\s*:\s*list-item/i.test(html)
     || /mso-list\s*:/i.test(html)
     || /list-style(?:-type)?\s*:/i.test(html)
-    || /(?:^|[>\n\r])\s*(?:&bull;|&#8226;|&#x2022;|•|·|?|?|?|?|?|?)\s*/i.test(html);
+    || /(?:^|[>\n\r])\s*(?:&bull;|&#8226;|&#x2022;|[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb])\s*/i.test(html);
 }
 
 function clipboardHtmlToListAwareText(html: string): string {
@@ -698,10 +698,10 @@ function clipboardHtmlToListAwareText(html: string): string {
   const pushLine = (line: string, forceBullet = false) => {
     const clean = stripListMarkerNoise(line)
       .replace(/[ \t]+/g, ' ')
-      .replace(/^(?:&bull;|&#8226;|&#x2022;|[•·??????\-*+–—])\s*/i, '')
+      .replace(/^(?:&bull;|&#8226;|&#x2022;|[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014])\s*/i, '')
       .trim();
     if (!clean) return;
-    lines.push(forceBullet || !/^(?:[-*+•·??????–—]|\d+\.)\s+\S/.test(clean) ? `• ${clean}` : clean);
+    lines.push(forceBullet || !/^(?:[-*+\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/.test(clean) ? `• ${clean}` : clean);
   };
 
   const isListElement = (element: HTMLElement) => {
@@ -1028,9 +1028,9 @@ function normalizePastedListArtifacts(text: string): string {
   const trimLineStart = (line: string) => stripListMarkerNoise(line).replace(/^[\s\u200b-\u200d\ufeff]+/, '');
   const isMarkerOnly = (line: string) => {
     const clean = cleanLine(line).trim();
-    return markerOnlyRe.test(clean) || ['•', '·', '?', '?', '?', '?', '?', '?', '-', '*', '+', '–', '—'].includes(clean);
+    return markerOnlyRe.test(clean) || ['\u2022', '\u00b7', '\u2023', '\u2043', '\u25aa', '\u25ab', '\u25cf', '\u25cb', '-', '*', '+', '\u2013', '\u2014'].includes(clean);
   };
-  const isRealListItem = (line: string) => realListItemRe.test(cleanLine(line)) || /^[\s]*[•·??????\-*+–—]\s+\S/.test(cleanLine(line));
+  const isRealListItem = (line: string) => realListItemRe.test(cleanLine(line)) || /^[\s]*[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014]\s+\S/.test(cleanLine(line));
   const lines = normalizedText.replace(/\r\n?/g, '\n').split('\n');
   const hasRealListItem = lines.some(line => isRealListItem(line));
   const hasMarkerOnly = lines.some(line => isMarkerOnly(line));
@@ -1072,7 +1072,7 @@ function normalizeMessageMarkdownText(text: string): string {
 }
 
 function hasSplitListMarkerLines(text: string): boolean {
-  const markerOnlyRe = /^[\s\u200b-\u200d\ufeff]*[•·??????\-*+–—][\s\u200b-\u200d\ufeff]*$/;
+  const markerOnlyRe = /^[\s\u200b-\u200d\ufeff]*[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014][\s\u200b-\u200d\ufeff]*$/;
   const lines = stripListMarkerNoise(text).replace(/\r\n?/g, '\n').split('\n');
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -2293,7 +2293,7 @@ function Bubble({
             title="Jump to original message"
           >
             <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>{message.replyTo.sender?.fullName}</p>
-            <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(message.replyTo.content) || '?? Attachment'}</p>
+            <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(message.replyTo.content) || '\u{1f4ce} Attachment'}</p>
           </button>
         )}
 
@@ -3981,7 +3981,7 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
           <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto ss4-scroll">
-          {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>? Online</span></div>}
+          {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online</span></div>}
           {online.map(u => Row(u, true))}
           {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
           {offline.map(u => Row(u, false))}
@@ -6378,11 +6378,11 @@ export default function SupraSpacePage() {
     const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
       : !effectiveLastMsg ? 'No messages yet'
         : effectiveLastMsg.isDeleted ? 'Message deleted'
-          : effectiveLastMsg.type === 'voice' ? '??? Voice message'
+          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
             : effectiveLastMsg.type === 'gif' ? 'GIF'
-              : effectiveLastMsg.type === 'poll' ? `?? ${effectiveLastMsg.poll?.question || 'Poll'}`
-                : effectiveLastMsg.type === 'event' ? `?? ${effectiveLastMsg.event?.title || 'Event'}`
-                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '?? Attachment' : 'No messages yet');
+              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
     const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
     const hasDraftPreview = Boolean(draftPreview);
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
@@ -6931,7 +6931,7 @@ export default function SupraSpacePage() {
                             const o = safeMembers(activeConv).find(m => m._id !== uid);
                             const status = o ? presence[o._id]?.onlineStatus : undefined;
                             if (!status || status === 'offline') return 'Offline';
-                            return <span style={{ color: status === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>? {S.label[status]}</span>;
+                            return <span style={{ color: status === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{'\u{1f7e2}'} {S.label[status]}</span>;
                           })()}
                         </p>
                       </div>
@@ -6997,7 +6997,7 @@ export default function SupraSpacePage() {
                       {(loadingMsgs || activeMsgStatus === 'loading') && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
                       {!loadingMsgs && activeMsgs.length === 0 && activeConv && activeMsgStatus !== 'error' && activeMsgStatus !== 'stale' && !activeConvHasHistorySignal && (
                         <div className="flex flex-col items-center justify-center py-16 gap-2 select-none">
-                          <span style={{ fontSize: 44, lineHeight: 1 }}>??</span>
+                          <span style={{ fontSize: 44, lineHeight: 1 }}>{'\u{1f44b}'}</span>
                           <p className="font-semibold mt-2" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
                             {activeConv.type === 'direct'
                               ? `Say Hi to ${safeMembers(activeConv).find(m => m._id !== uid)?.fullName || 'your friend'}!`
@@ -7029,7 +7029,7 @@ export default function SupraSpacePage() {
                               return (
                                 <div className="flex items-center justify-center px-3 py-1 my-0.5 sm:px-4 sm:py-1.5">
                                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:px-4" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
-                                    <span style={{ fontSize: 14 }}>?</span>
+                                    <span style={{ fontSize: 14 }}>{'\u{1f4cc}'}</span>
                                     <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
                                       <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
                                     </p>
@@ -7070,7 +7070,7 @@ export default function SupraSpacePage() {
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender?.fullName || 'Deleted User'}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(replyTo.content) || '?? Attachment'}</p></div>
+                        <div className="min-w-0 flex-1"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{replyTo.sender?.fullName || 'Deleted User'}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{messagePreviewText(replyTo.content) || '\u{1f4ce} Attachment'}</p></div>
                         <button onClick={() => setReplyTo(null)} className="ss4-icon-btn p-1 h-6 w-6"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     )}
@@ -7662,7 +7662,7 @@ export default function SupraSpacePage() {
                             {pinnedMsgs.map(m => (
                               <button key={m._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${m._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
                                 <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
-                                <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content) || '?? Attachment'}</p>
+                                <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content) || '\u{1f4ce} Attachment'}</p>
                               </button>
                             ))}
                           </div>
@@ -7850,7 +7850,7 @@ export default function SupraSpacePage() {
                   </div>
                   <div className="text-center">
                     <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>{m.fullName}</p>
-                    <p style={{ fontSize: 11, color: isOnline && memberCardPresence?.onlineStatus === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? `? ${S.label[memberCardPresence!.onlineStatus]}` : 'Offline'}</p>
+                    <p style={{ fontSize: 11, color: isOnline && memberCardPresence?.onlineStatus === 'online' ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOnline ? `\u{1f7e2} ${S.label[memberCardPresence!.onlineStatus]}` : 'Offline'}</p>
                   </div>
                   {m._id !== uid && (
                     <button onClick={() => { setMemberCard(null); handleDM(m._id); }} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><MessageSquare className="h-3.5 w-3.5" /> Message</button>

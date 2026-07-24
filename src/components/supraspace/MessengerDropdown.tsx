@@ -477,7 +477,7 @@ export function MessengerDropdown() {
                       className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer"
                       style={{ background: 'rgba(52,201,125,0.15)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.3)' }}>
                       {u.fullName.split(' ')[0]}
-                      <span className="text-[9px] opacity-60">×</span>
+                      <span className="text-[9px] opacity-60">Ã—</span>
                     </span>
                   );
                 })}
@@ -543,7 +543,7 @@ export function MessengerDropdown() {
           </div>
         )}
 
-        {/* Footer link — only on list view */}
+        {/* Footer link â€” only on list view */}
         {view === 'list' && (
           <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90">
             <Link href="/crm/supra-space"
