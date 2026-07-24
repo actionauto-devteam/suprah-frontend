@@ -444,7 +444,7 @@ function clipboardHtmlToPlainText(html: string): string {
     if (visibleValue) return visibleValue;
 
     const inner = Array.from(el.childNodes).map(walk).join('');
-    if (tag === 'li') return `• ${inner.trimStart()}\n`;
+    if (tag === 'li') return `â€¢ ${inner.trimStart()}\n`;
     if (['div', 'p', 'section', 'article'].includes(tag)) return `${inner}\n`;
     return inner;
   };
@@ -626,11 +626,11 @@ function stripListMarkerNoise(value: string): string {
 }
 
 function plainTextHasListMarkers(text: string): boolean {
-  return /(^|\n)\s*(?:[-*+•·??????–—]|\d+\.)\s+\S/.test(stripListMarkerNoise(text).replace(/\r\n?/g, '\n'));
+  return /(^|\n)\s*(?:[-*+â€¢Â·??????â€“â€”]|\d+\.)\s+\S/.test(stripListMarkerNoise(text).replace(/\r\n?/g, '\n'));
 }
 
 function editorHtmlHasListMarkers(html: string): boolean {
-  return /(^|<br\s*\/?>)\s*(?:[-*+•·??????–—]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
+  return /(^|<br\s*\/?>)\s*(?:[-*+â€¢Â·??????â€“â€”]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
 }
 
 function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): boolean {
@@ -640,7 +640,7 @@ function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): bo
 }
 
 function normalizeEditorHtmlListArtifacts(html: string): string {
-  const marker = String.raw`[•·??????\-*+–—]`;
+  const marker = String.raw`[â€¢Â·??????\-*+â€“â€”]`;
   const markerOnlyLineRe = new RegExp(
     String.raw`(^|<br\s*\/?>)\s*(${marker})(?:&nbsp;|\s|[\u200b-\u200d\ufeff])*<br\s*\/?>\s*`,
     'gi',
@@ -678,7 +678,7 @@ function htmlAppearsToContainLists(html: string): boolean {
     || /display\s*:\s*list-item/i.test(html)
     || /mso-list\s*:/i.test(html)
     || /list-style(?:-type)?\s*:/i.test(html)
-    || /(?:^|[>\n\r])\s*(?:&bull;|&#8226;|&#x2022;|•|·|?|?|?|?|?|?)\s*/i.test(html);
+    || /(?:^|[>\n\r])\s*(?:&bull;|&#8226;|&#x2022;|â€¢|Â·|?|?|?|?|?|?)\s*/i.test(html);
 }
 
 function clipboardHtmlToListAwareText(html: string): string {
@@ -698,10 +698,10 @@ function clipboardHtmlToListAwareText(html: string): string {
   const pushLine = (line: string, forceBullet = false) => {
     const clean = stripListMarkerNoise(line)
       .replace(/[ \t]+/g, ' ')
-      .replace(/^(?:&bull;|&#8226;|&#x2022;|[•·??????\-*+–—])\s*/i, '')
+      .replace(/^(?:&bull;|&#8226;|&#x2022;|[â€¢Â·??????\-*+â€“â€”])\s*/i, '')
       .trim();
     if (!clean) return;
-    lines.push(forceBullet || !/^(?:[-*+•·??????–—]|\d+\.)\s+\S/.test(clean) ? `• ${clean}` : clean);
+    lines.push(forceBullet || !/^(?:[-*+â€¢Â·??????â€“â€”]|\d+\.)\s+\S/.test(clean) ? `â€¢ ${clean}` : clean);
   };
 
   const isListElement = (element: HTMLElement) => {
@@ -1028,9 +1028,9 @@ function normalizePastedListArtifacts(text: string): string {
   const trimLineStart = (line: string) => stripListMarkerNoise(line).replace(/^[\s\u200b-\u200d\ufeff]+/, '');
   const isMarkerOnly = (line: string) => {
     const clean = cleanLine(line).trim();
-    return markerOnlyRe.test(clean) || ['•', '·', '?', '?', '?', '?', '?', '?', '-', '*', '+', '–', '—'].includes(clean);
+    return markerOnlyRe.test(clean) || ['â€¢', 'Â·', '?', '?', '?', '?', '?', '?', '-', '*', '+', 'â€“', 'â€”'].includes(clean);
   };
-  const isRealListItem = (line: string) => realListItemRe.test(cleanLine(line)) || /^[\s]*[•·??????\-*+–—]\s+\S/.test(cleanLine(line));
+  const isRealListItem = (line: string) => realListItemRe.test(cleanLine(line)) || /^[\s]*[â€¢Â·??????\-*+â€“â€”]\s+\S/.test(cleanLine(line));
   const lines = normalizedText.replace(/\r\n?/g, '\n').split('\n');
   const hasRealListItem = lines.some(line => isRealListItem(line));
   const hasMarkerOnly = lines.some(line => isMarkerOnly(line));
@@ -1072,7 +1072,7 @@ function normalizeMessageMarkdownText(text: string): string {
 }
 
 function hasSplitListMarkerLines(text: string): boolean {
-  const markerOnlyRe = /^[\s\u200b-\u200d\ufeff]*[•·??????\-*+–—][\s\u200b-\u200d\ufeff]*$/;
+  const markerOnlyRe = /^[\s\u200b-\u200d\ufeff]*[â€¢Â·??????\-*+â€“â€”][\s\u200b-\u200d\ufeff]*$/;
   const lines = stripListMarkerNoise(text).replace(/\r\n?/g, '\n').split('\n');
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -1259,9 +1259,9 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       return line;
     })();
     if (li > 0) result.push(<br key={`br${li}`} />);
-    const bulletMatch = renderLine.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
+    const bulletMatch = renderLine.match(/^(\s*)(?:[-â€¢]\s+)+(.+)$/);
     if (bulletMatch) {
-      const bulletNodes = renderInline(`• ${bulletMatch[2]}`, `bullet-${li}`);
+      const bulletNodes = renderInline(`â€¢ ${bulletMatch[2]}`, `bullet-${li}`);
       result.push(
         <span key={`bul-${li}`} style={{ display: 'inline-block', marginLeft: '1.1em', paddingLeft: '0.7em', textIndent: '-0.75em' }}>
           {bulletNodes}
@@ -1540,7 +1540,7 @@ function PollCard({ poll, uid, onVote }: { poll: NonNullable<SSMessage['poll']>;
         })}
       </div>
       <p className="mt-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-        {totalVotes} vote{totalVotes === 1 ? '' : 's'}{poll.allowMultiple ? ' · multiple choice' : ''}{poll.closed ? ' · closed' : ''}
+        {totalVotes} vote{totalVotes === 1 ? '' : 's'}{poll.allowMultiple ? ' Â· multiple choice' : ''}{poll.closed ? ' Â· closed' : ''}
       </p>
     </div>
   );
@@ -1579,7 +1579,7 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
                 color: mine === r ? '#fff' : 'var(--text-secondary)',
                 border: '1px solid var(--border-2)'
               }}>
-              {r} {(event as any)[r]?.length ? `· ${(event as any)[r].length}` : ''}
+              {r} {(event as any)[r]?.length ? `Â· ${(event as any)[r].length}` : ''}
             </button>
           ))}
         </div>
@@ -2465,7 +2465,7 @@ function Bubble({
                 </div>
               )}
               <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}>
-                <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>Enter to save · Esc to cancel</span>
+                <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>Enter to save Â· Esc to cancel</span>
                 <div className="flex-1" />
                 <input
                   ref={editFileInputRef}
@@ -3146,7 +3146,7 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-                        <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
+                        <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} Â· {u.role}</p>
                       </div>
                       {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
                     </button>
@@ -3159,13 +3159,13 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
             <button onClick={startSmartMessage}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
               {sel.length === 1 ? <MessageSquare className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
-              {sel.length === 1 ? 'Send Message' : `Send Message · Create Channel (${sel.length})`}
+              {sel.length === 1 ? 'Send Message' : `Send Message Â· Create Channel (${sel.length})`}
             </button>
           )}
           {tab === 'group' && sel.length > 0 && (
             <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel, groupEmoji || undefined)} disabled={!groupName.trim()}
               className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
-              <Users className="h-3.5 w-3.5" /> Create Channel · {sel.length} {sel.length === 1 ? 'member' : 'members'}
+              <Users className="h-3.5 w-3.5" /> Create Channel Â· {sel.length} {sel.length === 1 ? 'member' : 'members'}
             </button>
           )}
           {tab === 'space' && (
@@ -3374,7 +3374,7 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
       {type === 'image' && zoom > 1 && (
         <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: '3px 12px' }}>
-            Drag to pan · Scroll to zoom · Esc to close
+            Drag to pan Â· Scroll to zoom Â· Esc to close
           </span>
         </div>
       )}
@@ -3776,7 +3776,7 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
                   <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
                     {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                   </div>
-                  <div className="min-w-0 flex-1"><p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p></div>
+                  <div className="min-w-0 flex-1"><p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} Â· {u.role}</p></div>
                   {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
                 </button>
               );
@@ -3853,7 +3853,7 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           )}
           <div className="relative">
             <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search people…" className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search peopleâ€¦" className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
           </div>
           <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
             {filtered.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{q ? 'No people found' : 'All users selected'}</p>}
@@ -3872,7 +3872,7 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           {selected.length > 0 && (
             <button onClick={handleForward} disabled={sending} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: sending ? 0.6 : 1 }}>
               <Share2 className="h-3.5 w-3.5" />
-              {sending ? 'Forwarding…' : `Forward to ${selected.length} ${selected.length === 1 ? 'person' : 'people'}`}
+              {sending ? 'Forwardingâ€¦' : `Forward to ${selected.length} ${selected.length === 1 ? 'person' : 'people'}`}
             </button>
           )}
         </div>
@@ -3977,7 +3977,7 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ maxHeight: '80vh' }}>
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><Wifi className="h-4 w-4" style={{ color: 'var(--positive)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Active Now · {online.length}</h2></div>
+          <div className="flex items-center gap-2"><Wifi className="h-4 w-4" style={{ color: 'var(--positive)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Active Now Â· {online.length}</h2></div>
           <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto ss4-scroll">
@@ -4025,7 +4025,7 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Leave dates empty to summarize the entire conversation.</p>
           <button disabled={loading} onClick={run} className="w-full h-9 rounded-lg ss4-ai-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            <span className="ss4-ai-text">{loading ? 'Summarizing…' : 'Generate Summary'}</span>
+            <span className="ss4-ai-text">{loading ? 'Summarizingâ€¦' : 'Generate Summary'}</span>
           </button>
           {summary && (
             <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
@@ -5484,7 +5484,7 @@ export default function SupraSpacePage() {
       italic: document.queryCommandState('italic'),
       underline: document.queryCommandState('underline'),
       strike: document.queryCommandState('strikethrough'),
-      list: line.trimStart().startsWith('• '),
+      list: line.trimStart().startsWith('â€¢ '),
       quote: line.trimStart().startsWith('> '),
       code: beforeCursor.split('`').length % 2 === 0,
     });
@@ -6071,16 +6071,16 @@ export default function SupraSpacePage() {
     const leading = line.match(/^\s*/)?.[0] || '';
     const trimmed = line.trim();
 
-    if (trimmed === '•') {
+    if (trimmed === 'â€¢') {
       const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
       syncComposerText(next, true);
       setEditableTextAndCaret(next, lineStart);
       requestAnimationFrame(refreshActiveFormats);
       return true;
     }
-    if (line.trimStart().startsWith('• ')) {
+    if (line.trimStart().startsWith('â€¢ ')) {
       const listIndent = leading || '  ';
-      const insert = `\n${listIndent}• `;
+      const insert = `\n${listIndent}â€¢ `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
       const caret = cursor + insert.length;
       syncComposerText(next, true);
@@ -6119,7 +6119,7 @@ export default function SupraSpacePage() {
       case 'underline': document.execCommand('underline', false); break;
       case 'strike': document.execCommand('strikethrough', false); break;
       case 'list':
-        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '  • ' + (selectedText || ''));
+        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '  â€¢ ' + (selectedText || ''));
         break;
       case 'quote':
         document.execCommand('insertText', false, (selectedText ? '\n' : '') + '> ' + (selectedText || 'quote'));
@@ -6681,7 +6681,7 @@ export default function SupraSpacePage() {
               </div>
               <div className="relative">
                 <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messagesâ€¦" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
               </div>
               <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
                 {CONVERSATION_FILTERS.map((filter) => {
@@ -6722,13 +6722,13 @@ export default function SupraSpacePage() {
               {q.trim().length >= 2 && (
                 <div className="pt-2">
                   <div className="px-3 pb-1.5 flex items-center justify-between">
-                    <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
+                    <span className="ss4-section-label">Messages{searching ? 'â€¦' : ` Â· ${msgResults.length}`}</span>
                   </div>
                   {msgResults.map((m: any) => {
                     const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
                     return (
                       <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
-                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
+                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} Â· {m.sender?.fullName}</span>
                         <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
                       </button>
                     );
@@ -6865,7 +6865,7 @@ export default function SupraSpacePage() {
               {archivedList.length > 0 && (
                 <div className="pt-3">
                   <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
-                    <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
+                    <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived Â· {archivedList.length}</span>
                     <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
                   </button>
                   {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact />)}</div>}
@@ -7108,12 +7108,12 @@ export default function SupraSpacePage() {
 
                     {isReportGroup ? (
                       <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>Read-only · DayPulse reports are posted here automatically</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>Read-only Â· DayPulse reports are posted here automatically</span>
                       </div>
                     ) : recording ? (
                       <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)', animation: 'ss4-call-ring 1.5s infinite' }} />
-                        <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
+                        <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recordingâ€¦ {fmtDuration(recSeconds)}</span>
                         <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
                         <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
                       </div>
@@ -7768,7 +7768,7 @@ export default function SupraSpacePage() {
                 <div className="min-w-0 flex-1">
                   <h3 className="font-bold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Pinned messages</h3>
                   <p className="truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    {getConvName(activeConv, uid)} · {activePinnedMsgs.length} pinned
+                    {getConvName(activeConv, uid)} Â· {activePinnedMsgs.length} pinned
                   </p>
                 </div>
                 <button onClick={() => setPinnedModalOpen(false)} className="ss4-icon-btn h-9 w-9 shrink-0" aria-label="Close pinned messages">
@@ -7791,7 +7791,7 @@ export default function SupraSpacePage() {
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
-                              <p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtDate(m.createdAt)} · {fmtTime(m.createdAt)}</p>
+                              <p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtDate(m.createdAt)} Â· {fmtTime(m.createdAt)}</p>
                             </div>
                             <ChevronLeft className="h-3.5 w-3.5 rotate-180 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
                           </div>
