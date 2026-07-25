@@ -918,7 +918,7 @@ export default function AdminUserTimeprofPage() {
             )}
 
             { }
-            {isAdmin && (
+            {isAdmin && (data.user.department !== "WebDevTeam" || currentUser?.department === "WebDevTeam") && (
               isTimeEditExempt(data.user.department) ? (
                 <div className="rounded-2xl border border-border/30 bg-muted/10 p-4 text-[11px] text-muted-foreground/40">
                   Time log correction is disabled for this user&apos;s department.

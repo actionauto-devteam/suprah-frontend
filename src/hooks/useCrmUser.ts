@@ -8,6 +8,7 @@ export interface CrmHeaderUser {
   fullName: string;
   email: string;
   role: string;
+  department?: string;
   avatarSrc?: string;
   onlineStatus?: 'online' | 'idle' | 'away' | 'busy' | 'offline' | 'do_not_disturb';
   lastDeviceType?: 'mobile' | 'desktop';
@@ -55,6 +56,7 @@ export function useCrmUser() {
           fullName: data.fullName,
           email: data.email,
           role: data.role,
+          department: data.department,
           avatarSrc: resolveImageUrl(
             withAvatarCacheBust(profileAvatar || data.avatarUrl || data.avatar),
           ),
