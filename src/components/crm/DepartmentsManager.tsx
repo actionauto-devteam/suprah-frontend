@@ -20,6 +20,7 @@ type DepartmentRow = DepartmentEntry & { _id: string }
 
 interface DepartmentsManagerProps {
   token: string
+  currentAdminDepartment?: string
 }
 
 function SortableDeptRow({
@@ -88,7 +89,7 @@ function SortableDeptRow({
   )
 }
 
-export function DepartmentsManager({ token }: DepartmentsManagerProps) {
+export function DepartmentsManager({ token, currentAdminDepartment }: DepartmentsManagerProps) {
   const [departments, setRows] = React.useState<DepartmentRow[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [modalOpen, setModalOpen] = React.useState(false)
@@ -266,6 +267,7 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
             onSaved={load}
             onDeleted={() => { setSelectedId(null); load() }}
             onBack={() => setSelectedId(null)}
+            currentAdminDepartment={currentAdminDepartment}
           />
         ) : (
           <div className="hidden lg:flex flex-col items-center justify-center flex-1 text-center px-6">
@@ -282,6 +284,7 @@ export function DepartmentsManager({ token }: DepartmentsManagerProps) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSaved={load}
+        currentAdminDepartment={currentAdminDepartment}
       />
     </div>
   )

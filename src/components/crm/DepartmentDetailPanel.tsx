@@ -45,6 +45,7 @@ interface DepartmentDetailPanelProps {
   onSaved: () => void
   onDeleted: () => void
   onBack: () => void
+  currentAdminDepartment?: string
 }
 
 function formatRelative(iso?: string): string {
@@ -64,7 +65,7 @@ function formatDate(iso?: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
 }
 
-export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, onDeleted, onBack }: DepartmentDetailPanelProps) {
+export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, onDeleted, onBack, currentAdminDepartment }: DepartmentDetailPanelProps) {
   const [label, setLabel] = React.useState(dept.label)
   const [color, setColor] = React.useState(dept.color)
   const [isDefault, setIsDefault] = React.useState(!!dept.isDefault)
@@ -269,11 +270,16 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
   // Time-Edit Exempt still works exactly as before (Web Dev keeps the flag
   // enforced on the backend) — this only controls whether the toggle is
   // shown in this panel. Admins see and can edit it normally for every
-  // OTHER department; it's specifically hidden for Web Dev by explicit
-  // request, so nobody can see/toggle it there via the UI.
+  // OTHER department. For Web Dev specifically, it's hidden from every OTHER
+  // admin — but a Web Dev admin themselves CAN see/toggle their own
+  // department's switch (e.g. to self-correct an overrun shift via
+  // Correct Overrun Shift, which is blocked while the flag is on) — nobody
+  // outside Web Dev gets that same visibility.
   const isWebDev = dept.key === 'WebDevTeam'
-  const visibleToggleCount = isWebDev ? 2 : 3
-  const permissionCount = [isMobileMonitoringDept, !isWebDev && isTimeEditExempt, isMandatoryLocationDept].filter(Boolean).length
+  const viewerIsWebDev = currentAdminDepartment === 'WebDevTeam'
+  const hideTimeEditToggle = isWebDev && !viewerIsWebDev
+  const visibleToggleCount = hideTimeEditToggle ? 2 : 3
+  const permissionCount = [isMobileMonitoringDept, !hideTimeEditToggle && isTimeEditExempt, isMandatoryLocationDept].filter(Boolean).length
 
   return (
     <div className="flex flex-col h-full">
@@ -446,7 +452,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
               <Switch checked={isMobileMonitoringDept} onCheckedChange={setIsMobileMonitoringDept} />
             </div>
 
-            {!isWebDev && (
+            {!hideTimeEditToggle && (
               <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
                 <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
                   <Clock className="h-4 w-4 text-amber-500" />

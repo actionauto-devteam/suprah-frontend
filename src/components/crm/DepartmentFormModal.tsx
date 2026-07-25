@@ -23,10 +23,13 @@ interface DepartmentFormModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved: () => void
+  currentAdminDepartment?: string
 }
 
-export function DepartmentFormModal({ token, department, open, onOpenChange, onSaved }: DepartmentFormModalProps) {
+export function DepartmentFormModal({ token, department, open, onOpenChange, onSaved, currentAdminDepartment }: DepartmentFormModalProps) {
   const isEdit = !!department
+  // See DepartmentDetailPanel's matching comment — same rule, same reason.
+  const hideTimeEditToggle = department?.key === "WebDevTeam" && currentAdminDepartment !== "WebDevTeam"
 
   const [label, setLabel] = React.useState("")
   const [color, setColor] = React.useState<string>(DEPT_COLOR_PALETTE[0])
@@ -144,7 +147,7 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
               </div>
               <Switch checked={isMobileMonitoringDept} onCheckedChange={setIsMobileMonitoringDept} />
             </div>
-            {department?.key !== "WebDevTeam" && (
+            {!hideTimeEditToggle && (
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold">Time-Edit Exempt</p>

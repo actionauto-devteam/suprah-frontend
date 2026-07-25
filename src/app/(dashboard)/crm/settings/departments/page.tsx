@@ -18,6 +18,7 @@ interface CrmUserData {
   email: string;
   avatar?: string;
   role: string;
+  department?: string;
 }
 
 export default function DepartmentsSettingsPage() {
@@ -141,7 +142,7 @@ export default function DepartmentsSettingsPage() {
           <div className="lg:col-span-9 space-y-4">
             <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
               {isAdmin ? (
-                <DepartmentsManager token={token} />
+                <DepartmentsManager token={token} currentAdminDepartment={user.department} />
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
                   <div className="h-16 w-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
