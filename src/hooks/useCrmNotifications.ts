@@ -1,52 +1,36 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
-import { isCrmNotification } from '@/components/notifications/notification-utils';
+import { useCrmNotificationContext } from '@/context/CrmNotificationContext';
 
 /**
- * CRM-scoped view over the global notification feed. Filters to notifications
- * relevant to the CRM section (leads, appointments, tasks, biometrics/timeproof,
- * aftermarket) without opening a second poll/socket connection — it reuses the
- * single NotificationProvider already mounted in the dashboard layout.
- *
- * markAllAsRead/clearRead only touch CRM-scoped notifications, leaving unrelated
- * (e.g. Shipments, Driver, Account) notifications untouched.
+ * CRM-identity notifications — backed by CrmNotificationContext, which talks
+ * to the crmAuth()-gated /api/crm/notifications endpoints under the CrmUser
+ * identity. Previously this was a client-side filter over the main
+ * NotificationContext, which could never actually show anything (that feed
+ * is authenticated with the main-site User JWT and only ever returns
+ * User-targeted docs, never CrmUser-targeted ones).
  */
 export function useCrmNotifications() {
   const {
     notifications,
+    unreadCount,
+    totalCount,
     isLoading,
     error,
+    fetchNotifications,
     markAsRead,
+    markAllAsRead,
     deleteNotification,
-  } = useNotifications();
-
-  const crmNotifications = useMemo(
-    () => notifications.filter((n) => isCrmNotification(n.type)),
-    [notifications],
-  );
-
-  const unreadCount = useMemo(
-    () => crmNotifications.reduce((count, n) => count + (n.isRead ? 0 : 1), 0),
-    [crmNotifications],
-  );
-
-  const markAllAsRead = useCallback(async () => {
-    const unreadIds = crmNotifications.filter((n) => !n.isRead).map((n) => n._id);
-    await Promise.all(unreadIds.map((id) => markAsRead(id)));
-  }, [crmNotifications, markAsRead]);
-
-  const deleteAllRead = useCallback(async () => {
-    const readIds = crmNotifications.filter((n) => n.isRead).map((n) => n._id);
-    await Promise.all(readIds.map((id) => deleteNotification(id)));
-  }, [crmNotifications, deleteNotification]);
+    deleteAllRead,
+  } = useCrmNotificationContext();
 
   return {
-    notifications: crmNotifications,
+    notifications,
     unreadCount,
+    totalCount,
     isLoading,
     error,
+    fetchNotifications,
     markAsRead,
     markAllAsRead,
     deleteNotification,

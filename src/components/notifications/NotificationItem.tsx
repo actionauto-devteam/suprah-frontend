@@ -4,9 +4,10 @@ import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Check, Trash2, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Notification } from '@/types/notification';
-import { getNotificationMeta, formatNotificationDate, formatFullDate, getNotificationRoute, getNotificationCategory } from './notification-utils';
+import { getNotificationMeta, getNotificationFlatColor, formatNotificationDate, formatFullDate, getNotificationRoute, getNotificationCategoryLabel } from './notification-utils';
 
 interface NotificationItemProps {
   notification: Notification;
@@ -20,10 +21,12 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
   const router = useRouter();
   const pathname = usePathname();
   const meta = getNotificationMeta(notification.type);
+  const flatColor = getNotificationFlatColor(notification.type);
   const Icon = meta.icon;
   const route = getNotificationRoute(notification, pathname);
   const isClickable = !!route || !!onClick;
-  const category = getNotificationCategory(notification.type);
+  const category = getNotificationCategoryLabel(notification);
+  const occurrenceCount = notification.occurrenceCount ?? 1;
 
   const handleClick = () => {
     if (!isClickable) return;
@@ -53,9 +56,10 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
       <div className="flex items-start gap-3.5">
         <div className="relative shrink-0">
           <div className={cn(
-            'rounded-xl bg-linear-to-br flex items-center justify-center text-white shadow-sm',
+            'rounded-xl flex items-center justify-center',
             compact ? 'w-9 h-9' : 'w-11 h-11',
-            meta.gradient
+            flatColor.iconBg,
+            flatColor.iconText,
           )}>
             <Icon className={compact ? 'size-4' : 'size-5'} />
           </div>
@@ -72,6 +76,11 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
             )}>
               {notification.title}
             </p>
+            {occurrenceCount > 1 && (
+              <Badge variant="outline" className="h-4.5 shrink-0 rounded-full px-1.5 text-[10px] font-semibold text-muted-foreground">
+                {occurrenceCount}×
+              </Badge>
+            )}
             {isClickable && (
               <ArrowUpRight className="size-3.5 text-muted-foreground/40 shrink-0 group-hover:text-emerald-500 transition-colors" />
             )}

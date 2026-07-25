@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCheck, Trash2, AlertCircle, ArrowUpRight, Users } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, AlertCircle, ArrowUpRight, Users, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -93,13 +93,20 @@ function CrmNotificationDropdownContent() {
       </div>
 
       {notifications.length > 0 && (
-        <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90">
+        <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90 flex items-center justify-between gap-2">
           <Link
-            href={{ pathname: '/notifications', query: { tab: 'all', source: 'crm-header' } }}
-            className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-semibold transition-colors"
+            href={{ pathname: '/crm/notifications', query: { tab: 'all', source: 'crm-header' } }}
+            className="flex items-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-semibold transition-colors"
           >
             View all notifications
             <ArrowUpRight className="size-3" />
+          </Link>
+          <Link
+            href="/crm/notifications/preferences"
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            <Settings className="size-3" />
+            Preferences
           </Link>
         </div>
       )}

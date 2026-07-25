@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Notification } from '@/types/notification';
-import { useAuth } from "@/providers/AuthProvider";
-import { getSocket } from '@/lib/socket.client';
+import { useCrmToken } from '@/hooks/useCrmToken';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -11,7 +10,7 @@ interface FetchNotificationsOptions {
     isRead?: boolean;
 }
 
-interface NotificationContextType {
+interface CrmNotificationContextType {
     notifications: Notification[];
     unreadCount: number;
     totalCount: number;
@@ -24,14 +23,28 @@ interface NotificationContextType {
     deleteAllRead: () => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+const CrmNotificationContext = createContext<CrmNotificationContextType | undefined>(undefined);
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const POLL_INTERVAL = 20000;
 const MAX_BACKOFF = 300000;
 const DEFAULT_FETCH_OPTIONS: FetchNotificationsOptions = { limit: 50, skip: 0 };
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
+/**
+ * A genuinely separate provider for CRM-identity (CrmUser) notifications —
+ * NOT a filter over the main NotificationContext. `/api/notifications` is
+ * authenticated with the main-site User JWT only, so it structurally cannot
+ * return anything targeted at a CrmUser._id; this context talks to the
+ * crmAuth()-gated /api/crm/notifications endpoints instead, using the
+ * separate crm_token.
+ *
+ * Poll-only by design (no socket wiring) — the shared socket singleton is
+ * reused across identities and only holds one room membership at a time, so
+ * layering a second reconnect attempt here would make that pre-existing
+ * fragility worse. A reliable 20s poll is the deliberate fallback for this
+ * phase; see the notification unification plan's Phase D notes.
+ */
+export function CrmNotificationProvider({ children }: { children: React.ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
@@ -41,7 +54,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const backoffRef = useRef(POLL_INTERVAL);
     const fetchRef = useRef<((options?: FetchNotificationsOptions) => Promise<void>) | undefined>(undefined);
     const activeFetchOptionsRef = useRef<FetchNotificationsOptions>(DEFAULT_FETCH_OPTIONS);
-    const { getToken, isLoaded, isSignedIn } = useAuth();
+    const crmToken = useCrmToken();
 
     const fetchNotifications = useCallback(async (options?: FetchNotificationsOptions) => {
         const nextOptions: FetchNotificationsOptions = { ...activeFetchOptionsRef.current };
@@ -52,37 +65,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         activeFetchOptionsRef.current = nextOptions;
 
-        if (!isSignedIn) {
-            setNotifications([]);
-            setUnreadCount(0);
-            setTotalCount(0);
+        if (!crmToken) {
             setIsLoading(false);
             return;
         }
 
         try {
-            const token = await getToken();
-            if (!token) {
-                setNotifications([]);
-                setUnreadCount(0);
-                setTotalCount(0);
-                setIsLoading(false);
-                return;
-            }
-
             const params = new URLSearchParams();
             if (nextOptions.limit !== undefined) params.set('limit', String(nextOptions.limit));
             if (nextOptions.skip !== undefined && nextOptions.skip > 0) params.set('skip', String(nextOptions.skip));
             if (nextOptions.isRead !== undefined) params.set('isRead', String(nextOptions.isRead));
 
             const endpoint = params.toString()
-                ? `${API_URL}/api/notifications?${params.toString()}`
-                : `${API_URL}/api/notifications`;
+                ? `${API_URL}/api/crm/notifications?${params.toString()}`
+                : `${API_URL}/api/crm/notifications`;
 
             const res = await fetch(endpoint, {
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${crmToken}`,
                 },
             });
 
@@ -113,54 +114,54 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 throw new Error(`HTTP ${res.status}`);
             }
         } catch {
-            setError('Failed to load notifications');
+            setError('Failed to load CRM notifications');
             backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF);
         } finally {
             setIsLoading(false);
         }
-    }, [getToken, isSignedIn]);
+    }, [crmToken]);
 
     fetchRef.current = fetchNotifications;
 
     const markAsRead = useCallback(async (id: string) => {
         const target = notifications.find(n => n._id === id);
-        if (!target || target.isRead) return;
+        if (!target || target.isRead || !crmToken) return;
 
         setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
 
         try {
-            const token = await getToken();
-            const res = await fetch(`${API_URL}/api/notifications/${id}/read`, {
+            const res = await fetch(`${API_URL}/api/crm/notifications/${id}/read`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${crmToken}` },
             });
             if (!res.ok) throw new Error();
         } catch {
             fetchRef.current?.();
         }
-    }, [notifications, getToken]);
+    }, [notifications, crmToken]);
 
     const markAllAsRead = useCallback(async () => {
+        if (!crmToken) return;
         const snapshot = [...notifications];
         const prevCount = unreadCount;
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
         setUnreadCount(0);
 
         try {
-            const token = await getToken();
-            const res = await fetch(`${API_URL}/api/notifications/read-all`, {
+            const res = await fetch(`${API_URL}/api/crm/notifications/read-all`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${crmToken}` },
             });
             if (!res.ok) throw new Error();
         } catch {
             setNotifications(snapshot);
             setUnreadCount(prevCount);
         }
-    }, [notifications, unreadCount, getToken]);
+    }, [notifications, unreadCount, crmToken]);
 
     const deleteNotification = useCallback(async (id: string) => {
+        if (!crmToken) return;
         const target = notifications.find(n => n._id === id);
         if (!target) return;
 
@@ -174,10 +175,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         setTotalCount(prev => Math.max(0, prev - 1));
 
         try {
-            const token = await getToken();
-            const res = await fetch(`${API_URL}/api/notifications/${id}`, {
+            const res = await fetch(`${API_URL}/api/crm/notifications/${id}`, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${crmToken}` },
             });
             if (!res.ok) throw new Error();
         } catch {
@@ -185,19 +185,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             setUnreadCount(prevCount);
             setTotalCount(prevTotal);
         }
-    }, [notifications, unreadCount, totalCount, getToken]);
+    }, [notifications, unreadCount, totalCount, crmToken]);
 
     const deleteAllRead = useCallback(async () => {
+        if (!crmToken) return;
         const snapshot = [...notifications];
         const prevCount = unreadCount;
         const prevTotal = totalCount;
         setNotifications(prev => prev.filter(n => !n.isRead));
 
         try {
-            const token = await getToken();
-            const res = await fetch(`${API_URL}/api/notifications/read/all`, {
+            const res = await fetch(`${API_URL}/api/crm/notifications/read/all`, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${crmToken}` },
             });
             if (!res.ok) throw new Error();
 
@@ -215,10 +215,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             setUnreadCount(prevCount);
             setTotalCount(prevTotal);
         }
-    }, [notifications, unreadCount, totalCount, getToken]);
+    }, [notifications, unreadCount, totalCount, crmToken]);
 
     useEffect(() => {
-        if (!isLoaded || !isSignedIn) {
+        if (!crmToken) {
             setNotifications([]);
             setUnreadCount(0);
             setTotalCount(0);
@@ -253,86 +253,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         startPolling();
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        const socket = getSocket();
-        const cleanups: Array<() => void> = [];
-
-        if (socket) {
-            const onNew = (notification: Notification) => {
-                setNotifications(prev => {
-                    if (prev.some(n => n._id === notification._id)) return prev;
-                    return [notification, ...prev];
-                });
-                fetchRef.current?.();
-            };
-
-            const onRead = ({ notificationId }: { notificationId: string }) => {
-                setNotifications(prev =>
-                    prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
-                );
-                fetchRef.current?.();
-            };
-
-            const onReadAll = () => {
-                setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-                setUnreadCount(0);
-                fetchRef.current?.();
-            };
-
-            // A repeat occurrence of a "compiled" notification (see backend
-            // createNotification's grouping) — replace the existing row in
-            // place rather than treating it as a new one, or the same
-            // underlying event would visually duplicate in the feed.
-            const onUpdated = (notification: Notification) => {
-                setNotifications(prev => {
-                    const exists = prev.some(n => n._id === notification._id);
-                    return exists
-                        ? prev.map(n => n._id === notification._id ? notification : n)
-                        : [notification, ...prev];
-                });
-                fetchRef.current?.();
-            };
-
-            socket.on('notification:new', onNew);
-            socket.on('notification:read', onRead);
-            socket.on('notification:readAll', onReadAll);
-            socket.on('notification:updated', onUpdated);
-
-            cleanups.push(
-                () => socket.off('notification:new', onNew),
-                () => socket.off('notification:read', onRead),
-                () => socket.off('notification:readAll', onReadAll),
-                () => socket.off('notification:updated', onUpdated)
-            );
-        }
-
         return () => {
             stopPolling();
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            cleanups.forEach(fn => fn());
         };
-    }, [fetchNotifications, isLoaded, isSignedIn]);
-
-    // Support for App Badge API (PWA)
-    useEffect(() => {
-        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
-            try {
-                if (unreadCount > 0) {
-                    (navigator as any).setAppBadge(unreadCount).catch((err: any) =>
-                        console.error('[BadgeAPI] Error setting badge:', err)
-                    );
-                } else {
-                    (navigator as any).clearAppBadge().catch((err: any) =>
-                        console.error('[BadgeAPI] Error clearing badge:', err)
-                    );
-                }
-            } catch (error) {
-                console.error('[BadgeAPI] Fatal error:', error);
-            }
-        }
-    }, [unreadCount]);
+    }, [fetchNotifications, crmToken]);
 
     return (
-        <NotificationContext.Provider
+        <CrmNotificationContext.Provider
             value={{
                 notifications,
                 unreadCount,
@@ -347,12 +275,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             }}
         >
             {children}
-        </NotificationContext.Provider>
+        </CrmNotificationContext.Provider>
     );
 }
 
-export function useNotifications() {
-    const context = useContext(NotificationContext);
-    if (!context) throw new Error('useNotifications must be used within NotificationProvider');
+export function useCrmNotificationContext() {
+    const context = useContext(CrmNotificationContext);
+    if (!context) throw new Error('useCrmNotificationContext must be used within CrmNotificationProvider');
     return context;
 }

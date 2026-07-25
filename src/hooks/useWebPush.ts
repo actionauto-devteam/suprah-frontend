@@ -21,6 +21,7 @@ export function useWebPush(options: UseWebPushOptions = {}) {
     const [isSupported, setIsSupported] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const swDisabledInDev = !SW_ENABLED;
 
     const getServiceWorkerRegistration = useCallback(async () => {
         const hasSupport =
@@ -125,6 +126,11 @@ export function useWebPush(options: UseWebPushOptions = {}) {
             return;
         }
 
+        if (swDisabledInDev) {
+            toast.info("Push is disabled on localhost. It works automatically once deployed — set NEXT_PUBLIC_ENABLE_SW_DEV=true locally to test it here.");
+            return;
+        }
+
         if (!VAPID_PUBLIC_KEY) {
             console.error("VAPID Public Key missing from environment variables.");
             toast.error("Push key is missing. Please contact support.");
@@ -198,6 +204,7 @@ export function useWebPush(options: UseWebPushOptions = {}) {
         isSupported,
         isSubscribed,
         isLoading,
+        swDisabledInDev,
         subscribe,
         unsubscribe,
         refreshSubscription: getSubscription,

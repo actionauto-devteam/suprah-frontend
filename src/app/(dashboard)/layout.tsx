@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { CrmNotificationProvider } from "@/context/CrmNotificationContext";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
@@ -348,13 +349,24 @@ export default function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
+
+  const content = (
+    <SupraSpaceMessengerProvider>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </SupraSpaceMessengerProvider>
+  );
+
   return (
   <ProfileProvider>
     <ProfileToastProvider>
       <NotificationProvider>
-        <SupraSpaceMessengerProvider>
-          <DashboardLayoutContent>{children}</DashboardLayoutContent>
-        </SupraSpaceMessengerProvider>
+        {isCrmRoute ? (
+          <CrmNotificationProvider>{content}</CrmNotificationProvider>
+        ) : (
+          content
+        )}
       </NotificationProvider>
     </ProfileToastProvider>
   </ProfileProvider>

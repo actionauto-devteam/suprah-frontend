@@ -12,11 +12,9 @@ import {
   RecentActivity,
   SocialLink,
 } from "@/types/user";
-import { NotificationPreferences } from "@/types/notification";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   User,
-  Bell,
   Activity,
   HelpCircle,
   Sparkles,
@@ -28,7 +26,6 @@ import { toast } from "sonner";
 import { ProfileHeader } from "./ProfileHeader";
 import { ProfileOverviewTab } from "./ProfileOverviewTab";
 import { PersonalInfoTab } from "./PersonalInfoTab";
-import { NotificationsTab } from "./NotificationsTab";
 import { ActivityTab } from "./ActivityTab";
 import { SupportTab } from "./SupportTab";
 import { ProfileDialogs } from "./ProfileDialogs";
@@ -52,9 +49,10 @@ export const ProfileView: React.FC = () => {
 
   const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
   const [isLoading, setIsLoading] = useState(!cachedProfile);
-  const [activeTab, setActiveTab] = useState(
-    searchParams.get("tab") || "overview",
-  );
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams.get("tab");
+    return tabParam && tabParam !== "notifications" ? tabParam : "overview";
+  });
 
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>(
     () => cachedProfile?.personalInfo || {},
@@ -68,11 +66,6 @@ export const ProfileView: React.FC = () => {
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(
     () => cachedProfile?.personalInfo?.socialLinks || [],
   );
-
-  const [preferences, setPreferences] = useState<NotificationPreferences | null>(
-    () => cachedProfile?.notificationPreferences || null,
-  );
-  const [savingPreference, setSavingPreference] = useState<string | null>(null);
 
   const [activities, setActivities] = useState<RecentActivity[]>(
     () => cachedProfile?.recentActivities || [],
@@ -113,7 +106,6 @@ export const ProfileView: React.FC = () => {
       setPersonalInfo(pInfo);
       setPhoneCountryCode(data.personalInfo?.phoneCountryCode || "+1");
       setSocialLinks(data.personalInfo?.socialLinks || []);
-      setPreferences(data.notificationPreferences);
       setActivities(data.recentActivities || data.recentActivity || []);
       setHasFetchedActivities(false);
       setOnlineStatus(data.onlineStatus || "online");
@@ -169,6 +161,14 @@ export const ProfileView: React.FC = () => {
       fetchActivities();
     }
   }, [activeTab, fetchActivities, profile]);
+
+  useEffect(() => {
+    // Notification preferences moved to the Notification Page — send old
+    // /profile?tab=notifications links/bookmarks there instead of a dead tab.
+    if (searchParams.get("tab") === "notifications") {
+      router.replace("/notifications/preferences");
+    }
+  }, [searchParams, router]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -263,80 +263,6 @@ export const ProfileView: React.FC = () => {
     }
   };
 
-  const handlePreferenceChange = async (
-    key: keyof NotificationPreferences,
-    value: boolean,
-  ) => {
-    if (!preferences) return;
-    setSavingPreference(key);
-    const oldPreferences = { ...preferences };
-    setPreferences({ ...preferences, [key]: value });
-
-    try {
-      const token = await getToken();
-      await apiClient.patch(
-        "/api/profile/notification-preferences",
-        { [key]: value },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-    } catch {
-      setPreferences(oldPreferences);
-      toast.error("Failed to update preferences");
-    } finally {
-      setSavingPreference(null);
-    }
-  };
-
-  const handleEnableAllNotifications = async () => {
-    if (!preferences) return;
-    setSavingPreference("all");
-    try {
-      const token = await getToken();
-      const updates: Record<string, boolean> = {};
-      Object.keys(preferences).forEach((key) => {
-        if (
-          typeof preferences[key as keyof NotificationPreferences] === "boolean"
-        )
-          updates[key] = true;
-      });
-      await apiClient.patch("/api/profile/notification-preferences", updates, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchProfile();
-      toast.success("All notifications enabled");
-    } catch {
-      toast.error("Failed to enable notifications");
-    } finally {
-      setSavingPreference(null);
-    }
-  };
-
-  const handleDisableAllNotifications = async () => {
-    if (!preferences) return;
-    setSavingPreference("all");
-    try {
-      const token = await getToken();
-      const updates: Record<string, boolean> = {};
-      Object.keys(preferences).forEach((key) => {
-        if (
-          typeof preferences[key as keyof NotificationPreferences] === "boolean"
-        )
-          updates[key] = false;
-      });
-      await apiClient.patch("/api/profile/notification-preferences", updates, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchProfile();
-      toast.success("All notifications disabled");
-    } catch {
-      toast.error("Failed to disable notifications");
-    } finally {
-      setSavingPreference(null);
-    }
-  };
-
   const handleCustomStatusChange = (text: string) => {
     setCustomStatus(text);
     setCustomStatusError(
@@ -397,20 +323,6 @@ export const ProfileView: React.FC = () => {
     router.push("/");
   };
 
-  const getNotificationStats = () => {
-    if (!preferences) return { enabled: 0, total: 0 };
-    const keys = Object.keys(preferences).filter(
-      (key) =>
-        typeof preferences[key as keyof NotificationPreferences] === "boolean",
-    );
-    return {
-      enabled: keys.filter(
-        (key) => preferences[key as keyof NotificationPreferences],
-      ).length,
-      total: keys.length,
-    };
-  };
-
   if (isLoading && !profile) {
     return <ProfileSkeleton />;
   }
@@ -418,7 +330,6 @@ export const ProfileView: React.FC = () => {
   const tabs = [
     { value: "overview", label: "Overview", icon: Sparkles },
     { value: "personal", label: "Personal", icon: UserCog },
-    { value: "notifications", label: "Alerts", icon: Bell },
     { value: "activity", label: "Feed", icon: Activity },
     { value: "support", label: "Support", icon: HelpCircle },
   ];
@@ -493,18 +404,6 @@ export const ProfileView: React.FC = () => {
             addSocialLink={addSocialLink}
             updateSocialLink={updateSocialLink}
             removeSocialLink={removeSocialLink}
-          />
-        </TabsContent>
-
-        <TabsContent value="notifications" className="pt-1 sm:pt-2">
-          <NotificationsTab
-            preferences={preferences}
-            savingPreference={savingPreference}
-            profile={profile}
-            handleEnableAllNotifications={handleEnableAllNotifications}
-            handleDisableAllNotifications={handleDisableAllNotifications}
-            handlePreferenceChange={handlePreferenceChange}
-            getNotificationStats={getNotificationStats}
           />
         </TabsContent>
 

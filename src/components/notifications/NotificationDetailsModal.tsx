@@ -13,7 +13,7 @@ import { Notification } from '@/types/notification';
 import { cn } from '@/lib/utils';
 import {
     formatFullDate,
-    getNotificationCategory,
+    getNotificationCategoryLabel,
     getNotificationMeta,
 } from './notification-utils';
 
@@ -48,7 +48,7 @@ export function NotificationDetailsModal({
     if (!notification) return null;
 
     const meta = getNotificationMeta(notification.type);
-    const category = getNotificationCategory(notification.type);
+    const category = getNotificationCategoryLabel(notification);
     const metadataEntries = Object.entries(notification.metadata ?? {})
         .map(([key, value]) => ({ key, value: formatMetadataValue(value) }))
         .filter((entry) => entry.value.length > 0);

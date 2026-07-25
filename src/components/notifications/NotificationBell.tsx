@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCheck, Trash2, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, AlertCircle, ArrowUpRight, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -106,20 +106,26 @@ function NotificationDropdownContent({ onDriverRequestClick }: { onDriverRequest
       </div>
 
       {notifications.length > 0 && (
-        <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90">
+        <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90 flex items-center justify-between gap-2">
           <Link
             href={{
               pathname: notificationsPath,
               query: {
                 tab: 'all',
-                category: 'All',
                 source: 'header',
               },
             }}
-            className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-semibold transition-colors"
+            className="flex items-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-semibold transition-colors"
           >
             View all notifications
             <ArrowUpRight className="size-3" />
+          </Link>
+          <Link
+            href={`${notificationsPath}/preferences`}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            <Settings className="size-3" />
+            Preferences
           </Link>
         </div>
       )}

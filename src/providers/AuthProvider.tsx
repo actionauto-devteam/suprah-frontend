@@ -359,6 +359,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setUser(null);
         setAccessToken(null);
+        // Also clears crm_token (localStorage) + its IndexedDB mirror via
+        // useCrmToken.ts's listener — otherwise a stale CRM SSO token would
+        // sit in IndexedDB (readable by the service worker) after logout.
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("supraspace:refresh-crm-token"));
+        }
         router.push(options?.redirectUrl || "/sign-in");
         router.refresh();
       }

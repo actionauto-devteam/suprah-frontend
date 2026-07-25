@@ -15,6 +15,38 @@ function getJwtType(token: string | null): string | null {
   }
 }
 
+// Mirrors the CRM token into the same IndexedDB store AuthProvider.tsx uses
+// for the main accessToken — the service worker's `pushsubscriptionchange`
+// handler (sw.ts) needs to re-register a renewed push subscription with the
+// CRM-specific /api/crm/timeproof/push/subscribe endpoint with no page open,
+// and localStorage (where crm_token normally lives) isn't reachable from a
+// service worker at all.
+function syncCrmTokenToIndexedDB(token: string | null) {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return;
+  try {
+    const request = indexedDB.open('action-auto-auth', 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('tokens')) {
+        db.createObjectStore('tokens');
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('tokens')) return;
+      const tx = db.transaction('tokens', 'readwrite');
+      const store = tx.objectStore('tokens');
+      if (token) {
+        store.put(token, 'crmAccessToken');
+      } else {
+        store.delete('crmAccessToken');
+      }
+    };
+  } catch (e) {
+    console.warn('[Auth] CRM token IndexedDB sync failed', e);
+  }
+}
+
 /**
  * Resolves the CRM JWT (`crm_token`) needed to authenticate against the
  * SupraSpace socket and `/api/supraspace/*` REST endpoints. Mirrors the
@@ -28,6 +60,7 @@ export function useCrmToken() {
   React.useEffect(() => {
     const refresh = () => {
       if (typeof window !== 'undefined') localStorage.removeItem('crm_token');
+      syncCrmTokenToIndexedDB(null);
       setCrmToken(null);
       setRefreshNonce((n) => n + 1);
     };
@@ -74,7 +107,10 @@ export function useCrmToken() {
         }
       }
 
-      if (active) setCrmToken(t);
+      if (active) {
+        setCrmToken(t);
+        syncCrmTokenToIndexedDB(t);
+      }
     })();
 
     return () => {

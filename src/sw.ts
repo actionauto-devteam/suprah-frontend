@@ -74,20 +74,70 @@ const API_BASE_URL = (
 ).replace(/\/$/, "");
 const DEFAULT_NOTIFICATION_ICON = "/icon-192x192.png";
 
-self.addEventListener("push", (event: any) => {
-  if (event.data) {
+/**
+ * Reads a token this SW itself has no other way to obtain — AuthProvider
+ * mirrors the main-site accessToken into IndexedDB on every change (see
+ * providers/AuthProvider.tsx), and useCrmToken.ts does the same for the CRM
+ * SSO token under a separate key, specifically so background SW code (this
+ * function, plus handleBackgroundAction below) can authenticate a fetch
+ * without any page/tab open.
+ */
+function getStoredToken(key: string): Promise<string | null> {
+  return new Promise((resolve) => {
     try {
-      const data = event.data.json();
+      const request = indexedDB.open("action-auto-auth", 1);
+      request.onsuccess = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("tokens")) return resolve(null);
+        const tx = db.transaction("tokens", "readonly");
+        const store = tx.objectStore("tokens");
+        const getReq = store.get(key);
+        getReq.onsuccess = () => resolve(getReq.result || null);
+        getReq.onerror = () => resolve(null);
+      };
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+self.addEventListener("push", (event: any) => {
+  // Every push received MUST result in a shown notification — browsers
+  // track "silent" pushes per-origin and will eventually revoke push
+  // permission for sites that receive pushes without displaying one. Both
+  // branches below (malformed/missing payload) now fall through to a
+  // generic notification instead of silently doing nothing, and the whole
+  // handler is wrapped in event.waitUntil so the SW can't be killed
+  // mid-flight — both matter most precisely when no tab is open to notice.
+  event.waitUntil(
+    (async () => {
+      if (!event.data) {
+        await (self as any).registration.showNotification("New notification", {
+          body: "You have a new notification. Open the app to view it.",
+          icon: DEFAULT_NOTIFICATION_ICON,
+          badge: DEFAULT_NOTIFICATION_ICON,
+        });
+        return;
+      }
+
+      let data: any;
+      try {
+        data = event.data.json();
+      } catch (err) {
+        console.error("[SW] Push payload parse error:", err);
+        await (self as any).registration.showNotification("New notification", {
+          body: "You have a new notification. Open the app to view it.",
+          icon: DEFAULT_NOTIFICATION_ICON,
+          badge: DEFAULT_NOTIFICATION_ICON,
+        });
+        return;
+      }
 
       // 1. HANDLE SILENT SYNC (DISMISSAL)
       if (data.isSyncAction && data.action === "dismiss") {
-        event.waitUntil(
-          (self as any).registration
-            .getNotifications({ tag: data.tag })
-            .then((notifications: any[]) => {
-              notifications.forEach((notification) => notification.close());
-            }),
-        );
+        const notifications = await (self as any).registration.getNotifications({ tag: data.tag });
+        notifications.forEach((notification: any) => notification.close());
         return;
       }
 
@@ -134,16 +184,74 @@ self.addEventListener("push", (event: any) => {
             })
         : Promise.resolve();
 
-      event.waitUntil(
-        Promise.all([
+      try {
+        await Promise.all([
           (self as any).registration.showNotification(data.title, options),
           notifyClients,
-        ]),
-      );
-    } catch (err) {
-      console.error("[SW] Push event error:", err);
-    }
-  }
+        ]);
+      } catch (err) {
+        console.error("[SW] showNotification failed, falling back:", err);
+        await (self as any).registration.showNotification(data.title || "New notification", {
+          body: data.body || "You have a new notification.",
+          icon: DEFAULT_NOTIFICATION_ICON,
+          badge: DEFAULT_NOTIFICATION_ICON,
+        });
+      }
+    })(),
+  );
+});
+
+// Fires when the browser rotates or invalidates the existing push
+// subscription server-side (key rotation, expiry, capacity limits) — without
+// this handler, push silently and permanently dies for that device: the
+// backend keeps sending to a dead endpoint, local UI still shows
+// "subscribed", and nothing visibly changes until the user manually
+// disables/re-enables notifications. Re-subscribes with the same key and
+// re-registers with whichever backend(s) this device was actually enrolled
+// with (main-site User and/or CrmUser use separate subscribe endpoints/JWTs
+// — see useWebPush.ts vs useCrmWebPush.ts).
+self.addEventListener("pushsubscriptionchange", (event: any) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const applicationServerKey =
+          event.oldSubscription?.options?.applicationServerKey
+          ?? event.newSubscription?.options?.applicationServerKey;
+
+        const subscription =
+          event.newSubscription
+          ?? (await (self as any).registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          }));
+
+        const body = JSON.stringify({ subscription, deviceHint: "unknown" });
+        const [accessToken, crmAccessToken] = await Promise.all([
+          getStoredToken("accessToken"),
+          getStoredToken("crmAccessToken"),
+        ]);
+
+        await Promise.allSettled([
+          accessToken
+            ? fetch(`${API_BASE_URL}/api/push/subscribe`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+              body,
+            })
+            : Promise.resolve(),
+          crmAccessToken
+            ? fetch(`${API_BASE_URL}/api/crm/timeproof/push/subscribe`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${crmAccessToken}` },
+              body,
+            })
+            : Promise.resolve(),
+        ]);
+      } catch (err) {
+        console.error("[SW] Failed to renew push subscription:", err);
+      }
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event: any) => {
@@ -202,19 +310,7 @@ async function handleBackgroundAction(action: string, data: any) {
   });
 
   try {
-    const token = await new Promise<string | null>((resolve) => {
-      const request = indexedDB.open("action-auto-auth", 1);
-      request.onsuccess = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains("tokens")) return resolve(null);
-        const tx = db.transaction("tokens", "readonly");
-        const store = tx.objectStore("tokens");
-        const getReq = store.get("accessToken");
-        getReq.onsuccess = () => resolve(getReq.result || null);
-        getReq.onerror = () => resolve(null);
-      };
-      request.onerror = () => resolve(null);
-    });
+    const token = await getStoredToken("accessToken");
 
     if (!token) throw new Error("No auth token found in SW");
 
