@@ -153,7 +153,11 @@ export default function AdminUserTimeprofPage() {
   const [correctDate, setCorrectDate] = React.useState("")
   const [correctTime, setCorrectTime] = React.useState("")
   const [correctReason, setCorrectReason] = React.useState("")
-  const [alsoExcludeScreenshots, setAlsoExcludeScreenshots] = React.useState(true)
+  // Defaults to NOT excluding screenshots — this is a destructive-looking
+  // action (archives evidence out of the gallery) that should require the
+  // admin to deliberately opt in, not something that happens silently
+  // because a pre-checked box went unnoticed.
+  const [alsoExcludeScreenshots, setAlsoExcludeScreenshots] = React.useState(false)
   const [correctSubmitting, setCorrectSubmitting] = React.useState(false)
   const [correctError, setCorrectError] = React.useState("")
   const [correctSuccess, setCorrectSuccess] = React.useState("")
@@ -169,7 +173,14 @@ export default function AdminUserTimeprofPage() {
     setCorrectError("")
     setCorrectSuccess("")
     try {
-      const correctedTimeOut = new Date(`${correctDate}T${correctTime}:00`).toISOString()
+      // Explicit -06:00 (company/MDT offset — see COMPANY_TZ_OFFSET_MINUTES
+      // on the backend) is required here. Without it, `new Date(...)` parses
+      // the date/time string in the ADMIN'S OWN BROWSER TIMEZONE — for an
+      // admin not physically in MDT, "5:00 PM" typed here silently became a
+      // completely different MDT instant (e.g. the middle of the night),
+      // which could land before that day's time-in and corrupt both the
+      // rendered hours and which screenshots counted as "after" it.
+      const correctedTimeOut = new Date(`${correctDate}T${correctTime}:00-06:00`).toISOString()
       await apiClient.correctTimeLog(
         { userId, date: correctDate, correctedTimeOut, reason: correctReason.trim() },
         { headers: { Authorization: `Bearer ${token}` } },
