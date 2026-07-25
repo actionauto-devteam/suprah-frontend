@@ -14,6 +14,7 @@
  */
 
 import * as React from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Sparkles,
   Megaphone,
@@ -33,6 +34,9 @@ import {
   ShieldOff,
   CalendarDays,
   Layers,
+  Search as SearchIcon,
+  ArrowDownUp,
+  XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +46,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -123,6 +134,14 @@ const KIND_META: Record<ItemKind, { label: string; icon: LucideIcon; className: 
     icon: Megaphone,
     className: "bg-violet-500/10 text-violet-500 border-violet-500/25",
   },
+};
+
+type SortOption = "newest" | "oldest" | "unread";
+
+const SORT_META: Record<SortOption, string> = {
+  newest: "Newest first",
+  oldest: "Oldest first",
+  unread: "Unread first",
 };
 
 const formatDate = (iso: string) =>
@@ -916,7 +935,24 @@ function ReleaseCard({
 /* ── Page ───────────────────────────────────────────────────────────────── */
 
 export default function WhatsNewPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center py-24 text-muted-foreground">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
+      }
+    >
+      <WhatsNewPageInner />
+    </React.Suspense>
+  );
+}
+
+function WhatsNewPageInner() {
   const { refresh: refreshBadge, decrement } = useWhatsNew();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [releases, setReleases] = React.useState<Release[]>([]);
   const [canManage, setCanManage] = React.useState(false);
@@ -933,12 +969,68 @@ export default function WhatsNewPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<Release | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
+  // ── Filters — initialized from the URL so a refresh or a back/forward nav
+  // restores exactly what was showing before.
+  const [searchInput, setSearchInput] = React.useState(searchParams.get("q") ?? "");
+  const [search, setSearch] = React.useState(searchParams.get("q") ?? "");
+  const [kind, setKind] = React.useState<ItemKind | "all">(
+    (searchParams.get("type") as ItemKind | null) ?? "all",
+  );
+  const [author, setAuthor] = React.useState(searchParams.get("author") ?? "");
+  const [sort, setSort] = React.useState<SortOption>(
+    (searchParams.get("sort") as SortOption | null) ?? "newest",
+  );
+  const [dateFrom, setDateFrom] = React.useState(searchParams.get("from") ?? "");
+  const [dateTo, setDateTo] = React.useState(searchParams.get("to") ?? "");
+
+  // Debounce the free-text search input before it drives a request.
+  React.useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const hasActiveFilters = !!(search || kind !== "all" || author || dateFrom || dateTo || sort !== "newest");
+
+  const clearFilters = () => {
+    setSearchInput("");
+    setSearch("");
+    setKind("all");
+    setAuthor("");
+    setSort("newest");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  // Keep the URL in sync (shallow — no extra history entries) so filters
+  // survive a refresh or navigating away and back.
+  React.useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    if (kind !== "all") params.set("type", kind);
+    if (author) params.set("author", author);
+    if (sort !== "newest") params.set("sort", sort);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, kind, author, sort, dateFrom, dateTo]);
+
   const load = React.useCallback(
     async (pageNum: number, append = false) => {
       setLoading(true);
       try {
         const res = await apiClient.get("/api/crm/whats-new", {
-          params: { page: pageNum, limit: 20 },
+          params: {
+            page: pageNum,
+            limit: 20,
+            search: search || undefined,
+            kind: kind !== "all" ? kind : undefined,
+            author: author || undefined,
+            sort,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+          },
         });
         const data = res?.data?.data;
         setReleases((prev) => (append ? [...prev, ...(data?.releases ?? [])] : data?.releases ?? []));
@@ -950,17 +1042,23 @@ export default function WhatsNewPage() {
         setLoading(false);
       }
     },
-    [],
+    [search, kind, author, sort, dateFrom, dateTo],
   );
 
+  // Re-run from page 1 whenever a filter changes.
   React.useEffect(() => {
+    setPage(1);
     load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, kind, author, sort, dateFrom, dateTo]);
+
+  React.useEffect(() => {
     // Grab the caller's email once for the self-guard in the permissions dialog.
     apiClient
       .get("/api/crm/me")
       .then((res) => setSelfEmail(res?.data?.data?.email?.toLowerCase()))
       .catch(() => {});
-  }, [load]);
+  }, []);
 
   const openRelease = async (release: Release) => {
     setActiveRelease(release);
@@ -1051,6 +1149,96 @@ export default function WhatsNewPage() {
         )}
       </div>
 
+      {/* ── Filters ── */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40 pointer-events-none" />
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search release notes…"
+            className="pl-9 h-10 rounded-xl"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput("")}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors"
+            >
+              <XCircle className="size-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center">
+          <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
+            <SelectTrigger className="h-9 w-full xs:w-auto text-xs gap-1.5 rounded-lg">
+              <ArrowDownUp className="size-3.5 text-muted-foreground/60" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SORT_META) as SortOption[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {SORT_META[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={kind} onValueChange={(v) => setKind(v as ItemKind | "all")}>
+            <SelectTrigger className="h-9 w-full xs:w-auto text-xs rounded-lg">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {(Object.keys(KIND_META) as ItemKind[]).map((k) => (
+                <SelectItem key={k} value={k}>
+                  {KIND_META[k].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Input
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            placeholder="Author…"
+            className="h-9 w-full xs:w-36 text-xs rounded-lg"
+          />
+
+          <div className="flex items-center gap-1.5 w-full xs:w-auto">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              aria-label="From date"
+              className="h-9 flex-1 xs:w-36 text-xs rounded-lg"
+            />
+            <span className="text-xs text-muted-foreground/50 shrink-0">to</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              aria-label="To date"
+              className="h-9 flex-1 xs:w-36 text-xs rounded-lg"
+            />
+          </div>
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-9 gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+              Clear filters
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* ── Feed ── */}
       {loading && releases.length === 0 ? (
         <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -1059,12 +1247,22 @@ export default function WhatsNewPage() {
       ) : releases.length === 0 ? (
         <div className="text-center py-24 border border-border/30 rounded-3xl bg-card/30 backdrop-blur-sm">
           <Sparkles className="size-8 text-primary/40 mx-auto mb-3" />
-          <p className="font-black tracking-tight text-lg">No updates yet</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {canManage
-              ? "Publish the first release to announce what's new on the platform."
-              : "Platform updates will appear here as they're released."}
+          <p className="font-black tracking-tight text-lg">
+            {hasActiveFilters ? "No matching releases" : "No updates yet"}
           </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {hasActiveFilters
+              ? "Try a different search term or clear your filters."
+              : canManage
+                ? "Publish the first release to announce what's new on the platform."
+                : "Platform updates will appear here as they're released."}
+          </p>
+          {hasActiveFilters && (
+            <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={clearFilters}>
+              <X className="size-3.5" />
+              Clear filters
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

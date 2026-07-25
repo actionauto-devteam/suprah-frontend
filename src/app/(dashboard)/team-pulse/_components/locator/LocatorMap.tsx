@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Minus, LocateFixed, Crosshair, Navigation, ArrowRight, Maximize2, Minimize2, Globe2, Home } from "lucide-react";
+import { Plus, Minus, LocateFixed, Crosshair, Navigation, ArrowRight, Maximize2, Minimize2, Globe2, Home, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +21,8 @@ interface LocatorMapProps {
   onZoomOut: () => void;
   onCenter: () => void;
   mapNotice?: string | null;
+  mapNoticeLoading?: boolean;
+  onRetryMap?: () => void;
   activeCount?: number;
   stateCounts?: Partial<Record<SharingState, number>>;
   zoomInDisabled?: boolean;
@@ -43,6 +45,8 @@ export function LocatorMap({
   onZoomOut,
   onCenter,
   mapNotice,
+  mapNoticeLoading,
+  onRetryMap,
   activeCount = 0,
   stateCounts,
   zoomInDisabled,
@@ -84,8 +88,15 @@ export function LocatorMap({
 
           {mapNotice && (
             <div className="absolute inset-0 z-1000 flex items-center justify-center px-4">
-              <div className="rounded-xl bg-background/80 backdrop-blur-sm border border-border/50 px-4 sm:px-6 py-3 shadow-lg max-w-full">
+              <div className="flex flex-col items-center gap-2.5 rounded-xl bg-background/80 backdrop-blur-sm border border-border/50 px-4 sm:px-6 py-4 shadow-lg max-w-full">
+                {mapNoticeLoading && <Loader2 className="size-4 animate-spin text-muted-foreground/70" />}
                 <p className="text-xs text-muted-foreground font-medium text-center">{mapNotice}</p>
+                {onRetryMap && !mapNoticeLoading && (
+                  <Button size="sm" variant="outline" onClick={onRetryMap} className="h-7 gap-1.5 text-xs">
+                    <RefreshCw className="size-3" />
+                    Retry
+                  </Button>
+                )}
               </div>
             </div>
           )}

@@ -159,6 +159,12 @@ export function useTeamMembers() {
         enabled: !!isLoaded && !!isSignedIn,
         refetchInterval: 30_000,   // live: every 30s
         staleTime: 10_000,
+        // Presence is exactly the kind of data that goes stale while a tab sits in the
+        // background (refetchInterval itself pauses off-screen) — refetch the moment this
+        // tab regains focus so switching back doesn't show minutes-old online/away/offline
+        // state. Overrides the app-wide default (refetchOnWindowFocus: false in
+        // QueryProvider) only for this query.
+        refetchOnWindowFocus: true,
     });
 }
 

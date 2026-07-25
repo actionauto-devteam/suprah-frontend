@@ -22,6 +22,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 
 } from '@/components/ui/dropdown-menu';
+import { DateTimePicker } from '@/components/ui/datetime-picker';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -3509,11 +3510,11 @@ function EventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: 
           <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className="w-full rounded-lg px-3 py-2 text-sm ss4-search-input resize-none" />
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Starts</label>
-            <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1" />
+            <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Pick start date & time" className="h-9 text-sm mt-1" />
           </div>
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ends (optional)</label>
-            <input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1" />
+            <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Pick end date & time" className="h-9 text-sm mt-1" />
           </div>
           <button disabled={!valid} onClick={() => valid && onCreate({ title: title.trim(), description, location, startTime, endTime })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-1" style={{ fontSize: 13, opacity: valid ? 1 : 0.4 }}>Create Event</button>
         </div>
@@ -4417,19 +4418,31 @@ export default function SupraSpacePage() {
   const me = React.useMemo(() => allUsers.find(u => u._id === uid), [allUsers, uid]);
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
-    setMsgs(p => {
-      const ex = p[conversationId] || [];
-      if (ex.find(m => m._id === message._id)) return p;
-      const withoutMatchingOptimistic = ex.filter(m => !(
-        m._id.startsWith('optimistic-') &&
-        m.sender?._id === message.sender?._id &&
-        m.content === message.content &&
-        m.type === message.type &&
-        Math.abs(new Date(message.createdAt).getTime() - new Date(m.createdAt).getTime()) < 30000
-      ));
-      return { ...p, [conversationId]: [...withoutMatchingOptimistic, message] };
-    });
-    setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
+    // Only splice into a conversation's message cache if that history has actually been
+    // fetched before (conversationId already a key in msgsRef.current) — NOT just "has at
+    // least one message", since a live event can be the very first thing this client ever
+    // sees for a conversation it hasn't opened yet this session (e.g. a background channel
+    // like Shift Alerts). Seeding the cache with just that one message would make
+    // fetchConversationMessages's "already cached, skip the fetch" check (and the matching
+    // msgFetchState — see below) think the FULL history is already loaded, so opening that
+    // conversation for the first time would silently skip the real fetch and show only
+    // whatever trickled in live instead of the actual history.
+    const alreadyLoaded = conversationId in msgsRef.current;
+    if (alreadyLoaded) {
+      setMsgs(p => {
+        const ex = p[conversationId] || [];
+        if (ex.find(m => m._id === message._id)) return p;
+        const withoutMatchingOptimistic = ex.filter(m => !(
+          m._id.startsWith('optimistic-') &&
+          m.sender?._id === message.sender?._id &&
+          m.content === message.content &&
+          m.type === message.type &&
+          Math.abs(new Date(message.createdAt).getTime() - new Date(m.createdAt).getTime()) < 30000
+        ));
+        return { ...p, [conversationId]: [...withoutMatchingOptimistic, message] };
+      });
+      setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
+    }
     setConvos(p => p.map(c => {
       if (c._id !== conversationId) return c;
       const isIncomingUnread = message.sender?._id !== uid && !message.readBy?.includes(uid) && conversationId !== activeIdRef.current;
@@ -5010,9 +5023,17 @@ export default function SupraSpacePage() {
     }
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const shouldStickToBottom = activeMsgs.length <= 40 || distanceFromBottom < 220;
+    // Used to also auto-stick whenever a short conversation had <=40 messages loaded,
+    // regardless of scroll position — meant as a "nothing to scroll away from yet" shortcut,
+    // but it actively fights manual scrolling in any channel that keeps receiving new
+    // messages while under that count (e.g. a busy background channel like Shift Alerts):
+    // every incoming message forced the view back to the bottom even if the user had
+    // deliberately scrolled up to read older messages. Distance-from-bottom alone already
+    // covers the "nothing to scroll away from" case correctly (there's nowhere to scroll up
+    // to yet), so it's the only signal that should matter here.
+    const shouldStickToBottom = distanceFromBottom < 220;
     if (shouldStickToBottom) {
-      endRef.current?.scrollIntoView({ behavior: activeMsgs.length <= 40 ? 'auto' : 'smooth' });
+      endRef.current?.scrollIntoView({ behavior: 'smooth' });
       setShowJumpToLatest(false);
     }
   }, [activeId, activeMsgs.length]);

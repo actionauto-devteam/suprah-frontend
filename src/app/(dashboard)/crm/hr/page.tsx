@@ -384,9 +384,11 @@ function OnboardingTab({ token }: { token: string }) {
 function OffboardingTab({
   token,
   isAdmin,
+  authChecked,
 }: {
   token: string;
   isAdmin: boolean;
+  authChecked: boolean;
 }) {
   const [active, setActive] = React.useState<ActiveEmployee[]>([]);
   const [offboarded, setOffboarded] = React.useState<OffboardedEmployee[]>([]);
@@ -423,6 +425,17 @@ function OffboardingTab({
       .catch(() => setOffboarded([]))
       .finally(done);
   }, [token, refreshKey]);
+
+  // Wait for the (now-parallel) /api/crm/me role check before deciding whether to show the
+  // Restricted view — otherwise an admin whose role hasn't resolved yet would briefly flash
+  // "Restricted" before flipping to the real content a moment later.
+  if (!authChecked) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
@@ -539,38 +552,39 @@ function OffboardingTab({
 export default function TeamEngagementPage() {
   const router = useRouter();
   const [user, setUser] = React.useState<CrmUserData | null>(null);
-  const [token, setToken] = React.useState("");
-  const [isLoading, setIsLoading] = React.useState(true);
+  // Read synchronously on first render instead of waiting for the /api/crm/me round trip to
+  // resolve before handing it to the tabs below — the token is already sitting in
+  // localStorage, so there's no real reason the milestones/onboarding/offboarding fetches
+  // need to wait in line behind the auth check. They now fire in parallel instead of back
+  // to back, which is what was actually causing the sluggish-feeling open on this module.
+  const [token] = React.useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("crm_token") ?? "" : "",
+  );
+  const [authChecked, setAuthChecked] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<Tab>("milestones");
 
   React.useEffect(() => {
-    const check = async () => {
-      const t = localStorage.getItem("crm_token");
-      if (!t) {
-        router.replace("/crm");
-        return;
-      }
-      try {
-        const res = await apiClient.get("/api/crm/me", {
-          headers: { Authorization: `Bearer ${t}` },
-        });
+    if (!token) {
+      router.replace("/crm");
+      return;
+    }
+    apiClient
+      .get("/api/crm/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
         const data = res.data?.data || res.data;
         setUser(data);
-        setToken(t);
-      } catch {
+      })
+      .catch(() => {
         localStorage.removeItem("crm_token");
         localStorage.removeItem("crm_user");
         router.replace("/crm");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    check();
-  }, [router]);
+      })
+      .finally(() => setAuthChecked(true));
+  }, [router, token]);
 
   const isAdmin = user?.role === "admin";
 
-  if (isLoading) {
+  if (!token) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
@@ -585,8 +599,6 @@ export default function TeamEngagementPage() {
       </div>
     );
   }
-
-  if (!user) return null;
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "milestones", label: "Milestones", icon: Gift },
@@ -614,12 +626,14 @@ export default function TeamEngagementPage() {
               Milestones, onboarding &amp; offboarding for your team
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex shrink-0"
-          >
-            {user.role}
-          </Badge>
+          {user && (
+            <Badge
+              variant="outline"
+              className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex shrink-0"
+            >
+              {user.role}
+            </Badge>
+          )}
         </div>
 
         {/* Layout: sidebar + content */}
@@ -721,7 +735,7 @@ export default function TeamEngagementPage() {
               {activeTab === "milestones" && <MilestonesTab token={token} isAdmin={isAdmin} />}
               {activeTab === "onboarding" && <OnboardingTab token={token} />}
               {activeTab === "offboarding" && (
-                <OffboardingTab token={token} isAdmin={isAdmin} />
+                <OffboardingTab token={token} isAdmin={isAdmin} authChecked={authChecked} />
               )}
             </div>
 

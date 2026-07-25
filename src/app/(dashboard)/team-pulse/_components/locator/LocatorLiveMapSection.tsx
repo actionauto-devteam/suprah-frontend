@@ -329,7 +329,22 @@ export function LocatorLiveMapSection({
   const trailLayerRef = React.useRef<LeafletLayerGroup | null>(null);
   const locationsRef = React.useRef(locations);
   locationsRef.current = locations;
-  const [mapNotice, setMapNotice] = React.useState<string | null>(null);
+
+  // Init goes through an explicit state machine instead of a single "notice" string so a
+  // hung `import("leaflet")`/tile fetch (flaky connection, blocked CDN, etc.) can't leave the
+  // user staring at a loading placeholder forever — it always resolves to either "ready" or a
+  // dismissible, retryable failure within MAP_INIT_TIMEOUT_MS.
+  const [mapStatus, setMapStatus] = React.useState<"loading" | "ready" | "error" | "timeout" | "tilesFailed">("loading");
+  const [retryKey, setRetryKey] = React.useState(0);
+  const retryMap = React.useCallback(() => setRetryKey((k) => k + 1), []);
+
+  const MAP_NOTICE_TEXT: Record<"loading" | "error" | "timeout" | "tilesFailed", string> = {
+    loading: "Loading map…",
+    error: "Couldn't initialize the map.",
+    timeout: "The map is taking longer than expected to load.",
+    tilesFailed: "Map tiles failed to load — check your connection.",
+  };
+  const mapNotice = mapStatus === "ready" ? null : MAP_NOTICE_TEXT[mapStatus];
 
   const selectRef = React.useRef(onSelectUser);
   selectRef.current = onSelectUser;
@@ -389,9 +404,21 @@ export function LocatorLiveMapSection({
     mapInstanceRef.current?.flyTo([DEFAULT_MAP_VIEW.lat, DEFAULT_MAP_VIEW.lng], DEFAULT_MAP_VIEW.zoom);
   }
 
+  // Hard ceiling on the "loading" state — a hung dynamic import or a tile CDN that never
+  // responds must not leave the map stuck on a loading placeholder indefinitely.
+  const MAP_INIT_TIMEOUT_MS = 12000;
+  // How long to wait, once the map itself is up, for at least one tile to actually paint
+  // before treating the tile layer as failed (vs. just the normal brief blank-tile flash).
+  const TILE_LOAD_GRACE_MS = 8000;
+
   React.useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
     let cancelled = false;
+    setMapStatus("loading");
+
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled && !mapInstanceRef.current) setMapStatus("timeout");
+    }, MAP_INIT_TIMEOUT_MS);
 
     const initMap = async () => {
       try {
@@ -424,8 +451,22 @@ export function LocatorLiveMapSection({
         }).addTo(map);
         tileLayerRef.current = tileLayer;
 
+        clearTimeout(timeoutId);
         setMapReady(true);
+        setMapStatus("ready");
         map.on("zoom", () => setZoom(map.getZoom()));
+
+        // If literally every tile in the first load errors out (blocked CDN, offline, DNS
+        // issue) the map itself is "ready" but shows nothing useful — surface that distinctly
+        // from a genuine init failure, rather than leaving a silently blank gray box.
+        let sawSuccessfulTile = false;
+        tileLayer.on("tileload", () => {
+          sawSuccessfulTile = true;
+        });
+        const tileGraceId = window.setTimeout(() => {
+          if (!cancelled && !sawSuccessfulTile) setMapStatus("tilesFailed");
+        }, TILE_LOAD_GRACE_MS);
+        tileLayer.once("tileload", () => clearTimeout(tileGraceId));
 
         // Container size can change without the window resizing (maximize toggle, device
         // rotation, sidebar collapse) — Leaflet doesn't auto-detect that, so without this the
@@ -451,13 +492,15 @@ export function LocatorLiveMapSection({
           };
         }
       } catch {
-        if (!cancelled) setMapNotice("Failed to initialize map");
+        clearTimeout(timeoutId);
+        if (!cancelled) setMapStatus("error");
       }
     };
 
     initMap();
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
       setMapReady(false);
       if (focusRef) focusRef.current = null;
       resizeObserverRef.current?.disconnect();
@@ -468,7 +511,7 @@ export function LocatorLiveMapSection({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryKey]);
 
   React.useEffect(() => {
     document.body.style.overflow = isMaximized ? "hidden" : "";
@@ -915,6 +958,8 @@ export function LocatorLiveMapSection({
         onZoomOut={() => zoomMap(-1)}
         onCenter={centerOnMe}
         mapNotice={mapNotice}
+        mapNoticeLoading={mapStatus === "loading"}
+        onRetryMap={mapStatus !== "loading" && mapStatus !== "ready" ? retryMap : undefined}
         activeCount={sharingCount}
         stateCounts={stateCounts}
         zoomInDisabled={zoom >= MAX_ZOOM}
