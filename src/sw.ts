@@ -107,6 +107,14 @@ self.addEventListener("push", (event: any) => {
         },
         actions: data.actions || [],
         vibrate: [100, 50, 100],
+        // Without this, a second push sharing the same tag (e.g. another
+        // message in the same conversation — see pushToConversationMembers'
+        // tag: conv._id) silently replaces the prior notification on
+        // Chrome/Android with no new alert, sound, or vibration — it just
+        // looks like nothing arrived. Safari/iOS doesn't collapse same-tag
+        // notifications the same way, which is why this only ever showed up
+        // as "Android stops after the first one, iOS keeps working."
+        renotify: !!data.tag,
       };
 
       // Shift Alerts carry a dedicated warning sound — the OS/browser only

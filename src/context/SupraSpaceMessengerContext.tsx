@@ -351,7 +351,14 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         const isMentioned = isUserMentioned(message.content || '', myFullNameRef.current);
         if (shouldNotify(pref, isMentioned)) {
           playMessageSound();
-          if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          // visibilityState alone misses the common desktop case of the
+          // browser window sitting unfocused behind other apps (or on
+          // another macOS Space) while its active tab still happens to be
+          // this one — the document reports 'visible' even though the user
+          // isn't looking at it, so the popup silently never showed (only
+          // the sound did). hasFocus() catches that: it reflects real OS
+          // window focus, not just tab-within-browser visibility.
+          if (typeof document !== 'undefined' && (document.visibilityState !== 'visible' || !document.hasFocus())) {
             const conv = conversationsRef.current.find(c => c._id === conversationId);
             const isGroup = conv?.type === 'group';
             const nextUnreadCount = (conv?.unreadCount || 0) + 1;
