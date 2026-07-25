@@ -8,6 +8,32 @@ import { useCrmToken } from "@/hooks/useCrmToken";
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const CRM_SUBSCRIBE_URL = "/api/crm/timeproof/push/subscribe";
 
+// The auto-sync below runs silently in the background (no toast, no user
+// action) every time a component using this hook mounts — a single failed
+// attempt (mobile network drop, app backgrounded mid-request, etc.) used to
+// just get swallowed and wait for the next mount to try again, which could
+// be minutes or hours away. Retrying a few times with backoff right here
+// means a transient failure resolves itself within seconds instead of
+// depending on the user happening to reopen/navigate the app again.
+async function postWithRetry(
+  url: string,
+  body: unknown,
+  headers: Record<string, string>,
+  attempts = 3,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await apiClient.post(url, body, { headers });
+      return true;
+    } catch {
+      if (i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * (i + 1)));
+      }
+    }
+  }
+  return false;
+}
+
 function getDeviceHint() {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent || "";
@@ -75,16 +101,16 @@ export function useCrmWebPush() {
       const subscription = await registration.pushManager.getSubscription();
       setIsSubscribed(!!subscription);
 
-      // Auto-sync existing subscription to CRM backend (once per session)
+      // Auto-sync existing subscription to CRM backend on every mount — see
+      // postWithRetry above for why this retries instead of firing once.
       if (subscription) {
         const token = crmToken || localStorage.getItem("crm_token");
         if (token) {
-          apiClient
-            .post(CRM_SUBSCRIBE_URL, {
-              subscription,
-              deviceHint: getDeviceHint(),
-            }, { headers: { Authorization: `Bearer ${token}` } })
-            .catch(() => {});
+          postWithRetry(
+            CRM_SUBSCRIBE_URL,
+            { subscription, deviceHint: getDeviceHint() },
+            { Authorization: `Bearer ${token}` },
+          );
         }
       }
 
@@ -134,10 +160,15 @@ export function useCrmWebPush() {
         toast.error("CRM session is still loading. Please try again.");
         return;
       }
-      await apiClient.post(CRM_SUBSCRIBE_URL, {
-        subscription,
-        deviceHint: getDeviceHint(),
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      const saved = await postWithRetry(
+        CRM_SUBSCRIBE_URL,
+        { subscription, deviceHint: getDeviceHint() },
+        { Authorization: `Bearer ${token}` },
+      );
+      if (!saved) {
+        toast.error("Failed to enable notifications. Please try again.");
+        return;
+      }
 
       setIsSubscribed(true);
       toast.success("Admin alerts enabled!");

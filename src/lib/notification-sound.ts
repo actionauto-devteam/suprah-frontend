@@ -131,14 +131,14 @@ export function stopCallSound(): void {
 
 // ─── Shift Alerts dedicated warning sound ─────────────────────────────────────
 // Plain HTML Audio (not the shared AudioContext buffer above) since this file
-// is user-supplied and may change — see public/sound/warning_sound.wav. Capped
+// is user-supplied and may change — see public/sounds/warning_sound.wav. Capped
 // at 5s and never looped: even if the source file runs longer, playback is cut
 // off so it can't turn into a continuous alarm.
 const SHIFT_ALERT_SOUND_MAX_MS = 5000;
 let _shiftAlertAudio: HTMLAudioElement | null = null;
 let _shiftAlertStopTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function playShiftAlertSound(soundFile = '/sound/warning_sound.wav'): void {
+export function playShiftAlertSound(soundFile = '/sounds/warning_sound.wav'): void {
   if (!isSoundEnabled() || typeof window === 'undefined') return;
 
   if (_shiftAlertStopTimer) { clearTimeout(_shiftAlertStopTimer); _shiftAlertStopTimer = null; }
@@ -166,7 +166,7 @@ export function playShiftAlertSound(soundFile = '/sound/warning_sound.wav'): voi
 // the user resumes their shift.
 let _overBreakAudio: HTMLAudioElement | null = null;
 
-export function playOverBreakAlarm(soundFile = '/sound/warning_sound.wav'): void {
+export function playOverBreakAlarm(soundFile = '/sounds/warning_sound.wav'): void {
   if (!isSoundEnabled() || typeof window === 'undefined') return;
   if (_overBreakAudio) return; // already playing — don't restart/stack a second loop
 
