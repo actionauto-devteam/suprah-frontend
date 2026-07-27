@@ -20,7 +20,6 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
-  Download,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
@@ -39,6 +38,7 @@ import { formatCurrency } from "@/utils/format";
 import { Payment } from "@/types/billing";
 import { DriverPayout } from "@/types/driver-payout";
 import { ReportCard } from "@/components/reports/ReportCard";
+import { ReportExportMenu } from "@/components/reports/ReportExportMenu";
 import { ReportPreviewModal } from "@/components/reports/ReportPreviewModal";
 import { ReportsAnalytics } from "@/components/reports/ReportsAnalytics";
 import { Quote as TransportQuote } from "@/types/transportation";
@@ -59,6 +59,10 @@ import {
   loadRoute,
   loadVehicle,
 } from "@/lib/transportation-reports";
+import {
+  generateQuoteReportExcel,
+  generateShipmentReportExcel,
+} from "@/components/reports/transportation/pdf-generators";
 import {
   saveGeneratedReportFile,
   type ReportFileCategory,
@@ -634,6 +638,581 @@ async function generateBillingRevenuePdf(
 }
 
 
+
+
+type ExportFormat = "pdf" | "xlsx";
+
+function createBrowserDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+function safeWorkbookText(value: unknown, fallback = "—"): string {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function workbookDate(value: unknown): string {
+  if (!value) return "—";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function setExcelColumns(worksheet: any, widths: number[]) {
+  worksheet["!cols"] = widths.map((wch) => ({ wch }));
+}
+
+
+const EXCEL_REPORT_COLORS = {
+  navy: "0F172A",
+  green: "10B981",
+  greenDark: "047857",
+  greenSoft: "D1FAE5",
+  blueSoft: "DBEAFE",
+  blue: "2563EB",
+  amberSoft: "FEF3C7",
+  amber: "D97706",
+  redSoft: "FEE2E2",
+  red: "DC2626",
+  graySoft: "F1F5F9",
+  columnSoft: "F8FAFC",
+  columnAltSoft: "F1F8F5",
+  gray: "64748B",
+  white: "FFFFFF",
+  border: "CBD5E1",
+  text: "1E293B",
+};
+
+function styleExcelCell(
+  worksheet: any,
+  address: string,
+  style: Record<string, unknown>,
+) {
+  if (!worksheet[address]) worksheet[address] = { t: "s", v: "" };
+  worksheet[address].s = style;
+}
+
+function styleExcelRange(
+  XLSX: any,
+  worksheet: any,
+  range: string,
+  style: Record<string, unknown>,
+) {
+  const decoded = XLSX.utils.decode_range(range);
+  for (let row = decoded.s.r; row <= decoded.e.r; row += 1) {
+    for (let col = decoded.s.c; col <= decoded.e.c; col += 1) {
+      styleExcelCell(
+        worksheet,
+        XLSX.utils.encode_cell({ r: row, c: col }),
+        style,
+      );
+    }
+  }
+}
+
+function workbookStatusStyle(status: string) {
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes("deliver") || normalized.includes("paid")) {
+    return {
+      fill: EXCEL_REPORT_COLORS.greenSoft,
+      font: EXCEL_REPORT_COLORS.greenDark,
+    };
+  }
+
+  if (
+    normalized.includes("pending") ||
+    normalized.includes("processing") ||
+    normalized.includes("submitted")
+  ) {
+    return {
+      fill: EXCEL_REPORT_COLORS.amberSoft,
+      font: EXCEL_REPORT_COLORS.amber,
+    };
+  }
+
+  if (
+    normalized.includes("failed") ||
+    normalized.includes("cancel") ||
+    normalized.includes("reject")
+  ) {
+    return {
+      fill: EXCEL_REPORT_COLORS.redSoft,
+      font: EXCEL_REPORT_COLORS.red,
+    };
+  }
+
+  return {
+    fill: EXCEL_REPORT_COLORS.blueSoft,
+    font: EXCEL_REPORT_COLORS.blue,
+  };
+}
+
+function styleWorkbookSummary(
+  XLSX: any,
+  worksheet: any,
+  metricEndRow: number,
+) {
+  worksheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+  ];
+
+  styleExcelRange(XLSX, worksheet, "A1:B1", {
+    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.navy } },
+    font: {
+      color: { rgb: EXCEL_REPORT_COLORS.white },
+      bold: true,
+      sz: 18,
+    },
+    alignment: { horizontal: "center", vertical: "center" },
+  });
+
+  styleExcelRange(XLSX, worksheet, "A2:B2", {
+    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.green } },
+    font: {
+      color: { rgb: EXCEL_REPORT_COLORS.white },
+      bold: true,
+      sz: 13,
+    },
+    alignment: { horizontal: "center", vertical: "center" },
+  });
+
+  styleExcelRange(XLSX, worksheet, "A5:B5", {
+    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.navy } },
+    font: {
+      color: { rgb: EXCEL_REPORT_COLORS.white },
+      bold: true,
+      sz: 11,
+    },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: {
+      top: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+      bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+      left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+      right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+    },
+  });
+
+  for (let row = 6; row <= metricEndRow; row += 1) {
+    const fill =
+      row % 2 === 0
+        ? EXCEL_REPORT_COLORS.graySoft
+        : EXCEL_REPORT_COLORS.white;
+
+    styleExcelRange(XLSX, worksheet, `A${row}:B${row}`, {
+      fill: { fgColor: { rgb: fill } },
+      font: { color: { rgb: EXCEL_REPORT_COLORS.text }, sz: 11 },
+      border: {
+        bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+        left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+        right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+      },
+      alignment: { vertical: "center" },
+    });
+
+    styleExcelCell(worksheet, `B${row}`, {
+      fill: { fgColor: { rgb: fill } },
+      font: {
+        color: { rgb: EXCEL_REPORT_COLORS.text },
+        bold: true,
+        sz: 12,
+      },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+        left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+        right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+      },
+    });
+  }
+
+  worksheet["!cols"] = [{ wch: 28 }, { wch: 22 }];
+  worksheet["!rows"] = [
+    { hpt: 28 },
+    { hpt: 22 },
+    { hpt: 18 },
+    { hpt: 8 },
+    { hpt: 22 },
+  ];
+  worksheet["!freeze"] = { xSplit: 0, ySplit: 5 };
+  worksheet["!sheetView"] = [{ showGridLines: false }];
+}
+
+function styleWorkbookData(
+  XLSX: any,
+  worksheet: any,
+  rowCount: number,
+  columnCount: number,
+  statusColumnIndex?: number,
+  centerColumns: number[] = [],
+  rightColumns: number[] = [],
+  emphasisColumns: number[] = [],
+  currencyColumns: number[] = [],
+  dateColumns: number[] = [],
+) {
+  if (rowCount <= 0) return;
+
+  const lastColumn = XLSX.utils.encode_col(columnCount - 1);
+  const lastRow = rowCount + 1;
+
+  styleExcelRange(XLSX, worksheet, `A1:${lastColumn}1`, {
+    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.navy } },
+    font: {
+      color: { rgb: EXCEL_REPORT_COLORS.white },
+      bold: true,
+      sz: 11.5,
+    },
+    alignment: {
+      horizontal: "center",
+      vertical: "center",
+      wrapText: true,
+    },
+    border: {
+      top: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.green } },
+      bottom: { style: "medium", color: { rgb: EXCEL_REPORT_COLORS.green } },
+      left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+      right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+    },
+  });
+
+  for (let row = 2; row <= lastRow; row += 1) {
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+      const address = `${XLSX.utils.encode_col(columnIndex)}${row}`;
+      if (!worksheet[address]) continue;
+
+      const isOddExcelColumn = (columnIndex + 1) % 2 === 1;
+
+      // Very subtle column contrast:
+      // odd columns remain neutral; even columns receive a light Suprah tint.
+      const fill =
+        row % 2 === 0
+          ? isOddExcelColumn
+            ? EXCEL_REPORT_COLORS.columnSoft
+            : EXCEL_REPORT_COLORS.columnAltSoft
+          : isOddExcelColumn
+            ? EXCEL_REPORT_COLORS.white
+            : "F5FBF8";
+
+      const isCentered = centerColumns.includes(columnIndex);
+      const isRightAligned = rightColumns.includes(columnIndex);
+      const isEmphasized = emphasisColumns.includes(columnIndex);
+      const isCurrency = currencyColumns.includes(columnIndex);
+      const isDate = dateColumns.includes(columnIndex);
+
+      styleExcelCell(worksheet, address, {
+        fill: { fgColor: { rgb: fill } },
+        font: {
+          color: {
+            rgb: isCurrency
+              ? EXCEL_REPORT_COLORS.greenDark
+              : isDate
+                ? EXCEL_REPORT_COLORS.gray
+                : EXCEL_REPORT_COLORS.text,
+          },
+          bold: isCurrency || isEmphasized || isRightAligned,
+          sz: isEmphasized ? 11 : 10.5,
+        },
+        alignment: {
+          horizontal: isCurrency || isRightAligned
+            ? "right"
+            : isDate || isCentered
+              ? "center"
+              : "left",
+          vertical: "center",
+          wrapText: true,
+          indent: isCurrency || isRightAligned || isDate || isCentered ? 0 : 1,
+        },
+        border: {
+          bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+          left: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
+          right: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
+        },
+      });
+    }
+
+    // Status colors take priority over the alternating-column treatment.
+    if (statusColumnIndex !== undefined) {
+      const address = `${XLSX.utils.encode_col(statusColumnIndex)}${row}`;
+      const status = safeWorkbookText(worksheet[address]?.v, "");
+      const colors = workbookStatusStyle(status);
+
+      styleExcelCell(worksheet, address, {
+        fill: { fgColor: { rgb: colors.fill } },
+        font: { color: { rgb: colors.font }, bold: true, sz: 10.5 },
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
+          left: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
+          right: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
+        },
+      });
+    }
+  }
+
+  worksheet["!autofilter"] = { ref: `A1:${lastColumn}${lastRow}` };
+  worksheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  worksheet["!sheetView"] = [{ showGridLines: false }];
+  worksheet["!rows"] = [
+    { hpt: 34 },
+    ...Array.from({ length: rowCount }, () => ({ hpt: 25 })),
+  ];
+}
+
+async function generateDriverPerformanceExcel(
+  loads: Load[],
+  payouts: DriverPayout[],
+  monthLabel: string,
+): Promise<Blob> {
+  const XLSX = await import("xlsx-js-style");
+  const workbook = XLSX.utils.book_new();
+
+  const assigned = loads.filter((load) => Boolean(load.assignedDriverId));
+  const delivered = assigned.filter((load) => load.status === "Delivered");
+  const approved = assigned.filter((load) =>
+    Boolean(load.proofOfDelivery?.confirmedAt),
+  );
+  const payoutTotal = payouts.reduce(
+    (sum, payout) => sum + Number(payout.amount || 0),
+    0,
+  );
+
+  const summarySheet = XLSX.utils.aoa_to_sheet([
+    ["SUPRAH AI — DRIVER PERFORMANCE REPORT"],
+    [monthLabel],
+    ["Generated", new Date().toLocaleString("en-US")],
+    [],
+    ["Summary Metric", "Value"],
+    ["Assigned Loads", assigned.length],
+    ["Delivered", delivered.length],
+    [
+      "Delivery Rate",
+      assigned.length > 0 ? delivered.length / assigned.length : 0,
+    ],
+    ["POD Approved", approved.length],
+    ["Total Payouts", payoutTotal],
+  ]);
+  styleWorkbookSummary(XLSX, summarySheet, 10);
+  summarySheet["B8"] = {
+    t: "n",
+    v: assigned.length > 0 ? delivered.length / assigned.length : 0,
+    z: "0%",
+  };
+  summarySheet["B10"] = {
+    t: "n",
+    v: payoutTotal,
+    z: "$#,##0.00",
+  };
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+
+  const loadRows = assigned.map((load) => ({
+    Driver: driverName(load),
+    Load: safeWorkbookText(load.loadNumber),
+    Vehicle: loadVehicle(load),
+    Customer: loadCustomer(load),
+    Route: loadRoute(load),
+    Status: safeWorkbookText(load.status),
+    Delivered: workbookDate(load.deliveredAt),
+    POD: load.proofOfDelivery?.confirmedAt
+      ? "Approved"
+      : load.proofOfDelivery?.submittedAt
+        ? "Pending"
+        : "Not submitted",
+  }));
+  const loadSheet = XLSX.utils.json_to_sheet(loadRows);
+  setExcelColumns(loadSheet, [27, 20, 28, 27, 38, 17, 18, 19]);
+  styleWorkbookData(
+    XLSX,
+    loadSheet,
+    loadRows.length,
+    8,
+    5,
+    [1, 5, 6, 7],
+    [],
+    [0, 2, 3],
+    [],
+    [6],
+  );
+
+  XLSX.utils.book_append_sheet(workbook, loadSheet, "Driver Activity");
+
+  const payoutRows = payouts.map((payout) => ({
+    "Payout #": safeWorkbookText(payout.payoutNumber),
+    Driver: safeWorkbookText(payout.driverName),
+    Load:
+      typeof payout.loadId === "object"
+        ? safeWorkbookText(
+            payout.loadId.loadNumber || payout.loadId.trackingNumber,
+          )
+        : safeWorkbookText(payout.loadId),
+    Description: safeWorkbookText(payout.description),
+    Amount: Number(payout.amount || 0),
+    Status: safeWorkbookText(payout.status),
+    "Paid At": workbookDate(payout.paidAt),
+    "Failure Reason": safeWorkbookText(payout.failureReason),
+  }));
+  const payoutSheet = XLSX.utils.json_to_sheet(payoutRows);
+  setExcelColumns(payoutSheet, [20, 27, 20, 36, 18, 16, 18, 30]);
+  styleWorkbookData(
+    XLSX,
+    payoutSheet,
+    payoutRows.length,
+    8,
+    5,
+    [0, 2, 5, 6],
+    [4],
+    [1],
+    [4],
+    [6],
+  );
+  for (let row = 2; row <= payoutRows.length + 1; row += 1) {
+    if (payoutSheet[`E${row}`]) payoutSheet[`E${row}`].z = "$#,##0.00";
+  }
+  XLSX.utils.book_append_sheet(workbook, payoutSheet, "Settlements");
+
+  const output = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+    cellStyles: true,
+  });
+
+  return new Blob([output], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+async function generateBillingRevenueExcel(
+  payments: Payment[],
+  payouts: DriverPayout[],
+  monthLabel: string,
+): Promise<Blob> {
+  const XLSX = await import("xlsx-js-style");
+  const workbook = XLSX.utils.book_new();
+
+  const succeeded = payments.filter(
+    (payment) => payment.status === "succeeded",
+  );
+  const pending = payments.filter((payment) =>
+    ["pending", "processing"].includes(payment.status),
+  );
+  const grossRevenue = succeeded.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
+  const pendingRevenue = pending.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
+  const driverCosts = payouts.reduce(
+    (sum, payout) => sum + Number(payout.amount || 0),
+    0,
+  );
+  const netPosition = grossRevenue - driverCosts;
+
+  const summarySheet = XLSX.utils.aoa_to_sheet([
+    ["SUPRAH AI — BILLINGS & REVENUE REPORT"],
+    [monthLabel],
+    ["Generated", new Date().toLocaleString("en-US")],
+    [],
+    ["Summary Metric", "Value"],
+    ["Transactions", payments.length],
+    ["Succeeded", succeeded.length],
+    ["Gross Revenue", grossRevenue],
+    ["Pending Revenue", pendingRevenue],
+    ["Driver Costs", driverCosts],
+    ["Net Position", netPosition],
+  ]);
+  styleWorkbookSummary(XLSX, summarySheet, 11);
+  for (const cell of ["B8", "B9", "B10", "B11"]) {
+    if (summarySheet[cell]) summarySheet[cell].z = "$#,##0.00";
+  }
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+
+  const paymentRows = payments.map((payment) => ({
+    Invoice: safeWorkbookText(payment.invoiceNumber),
+    Customer: safeWorkbookText(payment.customerName),
+    Description: safeWorkbookText(payment.description),
+    Amount: Number(payment.amount || 0),
+    Status: safeWorkbookText(payment.status),
+    Method: safeWorkbookText(payment.paymentMethod),
+    "Paid At": workbookDate(payment.paidAt),
+    "Due Date": workbookDate(payment.dueDate),
+  }));
+  const paymentSheet = XLSX.utils.json_to_sheet(paymentRows);
+  setExcelColumns(paymentSheet, [20, 28, 38, 18, 16, 20, 18, 18]);
+  styleWorkbookData(
+    XLSX,
+    paymentSheet,
+    paymentRows.length,
+    8,
+    4,
+    [0, 4, 5, 6, 7],
+    [3],
+    [1],
+    [3],
+    [6, 7],
+  );
+  for (let row = 2; row <= paymentRows.length + 1; row += 1) {
+    if (paymentSheet[`D${row}`]) paymentSheet[`D${row}`].z = "$#,##0.00";
+  }
+  XLSX.utils.book_append_sheet(workbook, paymentSheet, "Customer Payments");
+
+  const payoutRows = payouts.map((payout) => ({
+    Driver: safeWorkbookText(payout.driverName),
+    "Payout #": safeWorkbookText(payout.payoutNumber),
+    Load:
+      typeof payout.loadId === "object"
+        ? safeWorkbookText(
+            payout.loadId.loadNumber || payout.loadId.trackingNumber,
+          )
+        : safeWorkbookText(payout.loadId),
+    Description: safeWorkbookText(payout.description),
+    Amount: Number(payout.amount || 0),
+    Status: safeWorkbookText(payout.status),
+    "Paid At": workbookDate(payout.paidAt),
+  }));
+  const payoutSheet = XLSX.utils.json_to_sheet(payoutRows);
+  setExcelColumns(payoutSheet, [28, 20, 20, 38, 18, 16, 18]);
+  styleWorkbookData(
+    XLSX,
+    payoutSheet,
+    payoutRows.length,
+    7,
+    5,
+    [1, 2, 5, 6],
+    [4],
+    [0],
+    [4],
+    [6],
+  );
+  for (let row = 2; row <= payoutRows.length + 1; row += 1) {
+    if (payoutSheet[`E${row}`]) payoutSheet[`E${row}`].z = "$#,##0.00";
+  }
+  XLSX.utils.book_append_sheet(workbook, payoutSheet, "Driver Payouts");
+
+  const output = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+    cellStyles: true,
+  });
+
+  return new Blob([output], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+
 type TabValue = "ALL" | "Transportation" | "Driver Reports" | "Billings";
 
 interface ReportData {
@@ -998,78 +1577,103 @@ export default function ReportsPage() {
     setIsMultiSelectMode(false);
   }, [visibleReportIds]);
 
-  const downloadReport = async (id: string) => {
+  const downloadReport = async (
+    id: string,
+    format: ExportFormat = "pdf",
+  ) => {
     setDownloading(id);
     try {
       let blob: Blob | null = null;
-      let filename = `Report_${id}_${monthLabel.replace(" ", "_")}.pdf`;
+      const extension = format === "xlsx" ? "xlsx" : "pdf";
+      let filename = `Report_${id}_${monthLabel.replace(" ", "_")}.${extension}`;
       let category: ReportFileCategory = "transportation";
 
       if (id === "load-report") {
-        blob = await generateLoadReportPdf(filteredLoads, monthLabel);
+        blob =
+          format === "xlsx"
+            ? await generateShipmentReportExcel(filteredLoads, monthLabel)
+            : await generateLoadReportPdf(filteredLoads, monthLabel);
+        filename = `Suprah_AI_Unified_Load_Report_${monthLabel.replace(" ", "_")}.${extension}`;
         category = "transportation";
       } else if (id === "quote-report") {
-        blob = await generateQuoteReportPdf(filteredQuotes, monthLabel);
+        blob =
+          format === "xlsx"
+            ? await generateQuoteReportExcel(filteredQuotes, monthLabel)
+            : await generateQuoteReportPdf(filteredQuotes, monthLabel);
+        filename = `Suprah_AI_Quotes_Drafts_${monthLabel.replace(" ", "_")}.${extension}`;
         category = "transportation";
       } else if (id === "driver-report") {
-        blob = await generateDriverPerformancePdf(
-          filteredLoads,
-          reportData?.payouts || [],
-          monthLabel,
-        );
-        filename = `Suprah_AI_Driver_Performance_${monthLabel.replace(" ", "_")}.pdf`;
+        blob =
+          format === "xlsx"
+            ? await generateDriverPerformanceExcel(
+                filteredLoads,
+                reportData?.payouts || [],
+                monthLabel,
+              )
+            : await generateDriverPerformancePdf(
+                filteredLoads,
+                reportData?.payouts || [],
+                monthLabel,
+              );
+        filename = `Suprah_AI_Driver_Performance_${monthLabel.replace(" ", "_")}.${extension}`;
         category = "driver";
       } else if (id === "billing-report") {
-        blob = await generateBillingRevenuePdf(
-          reportData?.payments || [],
-          reportData?.payouts || [],
-          monthLabel,
-        );
-        filename = `Suprah_AI_Billings_Revenue_${monthLabel.replace(" ", "_")}.pdf`;
+        blob =
+          format === "xlsx"
+            ? await generateBillingRevenueExcel(
+                reportData?.payments || [],
+                reportData?.payouts || [],
+                monthLabel,
+              )
+            : await generateBillingRevenuePdf(
+                reportData?.payments || [],
+                reportData?.payouts || [],
+                monthLabel,
+              );
+        filename = `Suprah_AI_Billings_Revenue_${monthLabel.replace(" ", "_")}.${extension}`;
         category = "billings";
       } else {
         throw new Error(`Unknown report type: ${id}`);
       }
 
       if (blob) {
-        // Save to internal db
         await saveGeneratedReportFile({
           name: filename,
           category,
           blob,
         });
-        // Trigger browser download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        toast.success("Report downloaded and saved to Generated Files");
+
+        createBrowserDownload(blob, filename);
+        toast.success(
+          `${format === "xlsx" ? "Excel workbook" : "PDF report"} downloaded and saved to Generated Files`,
+        );
       }
     } catch (err) {
       console.error(err);
-      toast.error(`Failed to generate ${id}`);
+      toast.error(
+        `Failed to generate ${format === "xlsx" ? "Excel" : "PDF"} report`,
+      );
     } finally {
       setDownloading(null);
     }
   };
 
-  const bulkDownload = async (reportIds?: string[]) => {
+  const bulkDownload = async (
+    format: ExportFormat,
+    reportIds?: string[],
+  ) => {
     const picks = reportIds ?? Array.from(selected);
     if (picks.length === 0) return;
 
     await toast.promise(
       (async () => {
         for (const id of picks) {
-          await downloadReport(id);
+          await downloadReport(id, format);
         }
       })(),
       {
-        loading: `Generating ${picks.length} reports...`,
-        success: "All reports generated successfully",
+        loading: `Generating ${picks.length} ${format === "xlsx" ? "Excel" : "PDF"} report${picks.length === 1 ? "" : "s"}...`,
+        success: `All ${format === "xlsx" ? "Excel" : "PDF"} reports generated successfully`,
         error: "Some reports failed to generate",
       },
     );
@@ -1308,27 +1912,22 @@ export default function ReportsPage() {
                 </Button>
 
                 {!isMultiSelectMode && (
-                  <Button
-                    size="sm"
-                    className="h-9 gap-2 rounded-lg px-3.5 text-xs font-semibold shadow-sm sm:text-sm"
-                    onClick={() => bulkDownload(visibleReportIds)}
-                    disabled={!!downloading}
-                  >
-                    <Download className="size-3.5" />
-                    Export All
-                  </Button>
+                  <ReportExportMenu
+                    label="Export"
+                    onDownload={(format) =>
+                      bulkDownload(format, visibleReportIds)
+                    }
+                    isDownloading={!!downloading}
+                  />
                 )}
 
                 {isMultiSelectMode && selected.size > 0 && (
-                  <Button
-                    size="sm"
-                    className="h-9 gap-2 rounded-lg px-3.5 text-xs font-semibold shadow-sm sm:text-sm"
-                    onClick={() => bulkDownload()}
-                    disabled={!!downloading}
-                  >
-                    <Download className="size-3.5" />
-                    Export ({selected.size})
-                  </Button>
+                  <ReportExportMenu
+                    label="Export"
+                    selectedCount={selected.size}
+                    onDownload={(format) => bulkDownload(format)}
+                    isDownloading={!!downloading}
+                  />
                 )}
               </div>
             </div>
@@ -1370,7 +1969,7 @@ export default function ReportsPage() {
                     selectionMode={isMultiSelectMode}
                     isDownloading={downloading === "load-report"}
                     onToggle={() => toggleSelect("load-report")}
-                    onDownload={() => downloadReport("load-report")}
+                    onDownload={(format) => downloadReport("load-report", format)}
                     onPreview={() => setTransportPreview("load")}
                   />
                   <ReportCard
@@ -1407,7 +2006,7 @@ export default function ReportsPage() {
                     selectionMode={isMultiSelectMode}
                     isDownloading={downloading === "quote-report"}
                     onToggle={() => toggleSelect("quote-report")}
-                    onDownload={() => downloadReport("quote-report")}
+                    onDownload={(format) => downloadReport("quote-report", format)}
                     onPreview={() => setTransportPreview("quote")}
                   />
                 </>
@@ -1445,7 +2044,7 @@ export default function ReportsPage() {
                   selectionMode={isMultiSelectMode}
                   isDownloading={downloading === "driver-report"}
                   onToggle={() => toggleSelect("driver-report")}
-                  onDownload={() => downloadReport("driver-report")}
+                  onDownload={(format) => downloadReport("driver-report", format)}
                   onPreview={() => setPreviewType("DRIVER")}
                 />
               )}
@@ -1485,7 +2084,7 @@ export default function ReportsPage() {
                   selectionMode={isMultiSelectMode}
                   isDownloading={downloading === "billing-report"}
                   onToggle={() => toggleSelect("billing-report")}
-                  onDownload={() => downloadReport("billing-report")}
+                  onDownload={(format) => downloadReport("billing-report", format)}
                   onPreview={() => setPreviewType("BILLING")}
                 />
               )}
@@ -1531,7 +2130,14 @@ export default function ReportsPage() {
                       ? "Export only the selected reports"
                       : "Tap report cards to select them"
                     : "Ready to generate and save"}
-                </p></div><Button className="h-11 gap-2 rounded-xl px-5" onClick={() => bulkDownload()} disabled={!!downloading}><Download className="size-4" />Export</Button></div>
+                </p></div><ReportExportMenu
+  label="Export"
+  selectedCount={selected.size}
+  size="default"
+  menuAlign="right"
+  onDownload={(format) => bulkDownload(format)}
+  isDownloading={!!downloading}
+/></div>
         </div>
       )}
 
@@ -1546,9 +2152,10 @@ export default function ReportsPage() {
         isDownloading={
           downloading === "load-report" || downloading === "quote-report"
         }
-        onDownload={() =>
+        onDownload={(format) =>
           downloadReport(
             transportPreview === "load" ? "load-report" : "quote-report",
+            format,
           )
         }
       />
@@ -1565,9 +2172,12 @@ export default function ReportsPage() {
           downloading ===
           (previewType === "DRIVER" ? "driver-report" : "billing-report")
         }
-        onDownload={() => {
-          if (previewType === "DRIVER") downloadReport("driver-report");
-          else if (previewType === "BILLING") downloadReport("billing-report");
+        onDownload={(format) => {
+          if (previewType === "DRIVER") {
+            downloadReport("driver-report", format);
+          } else if (previewType === "BILLING") {
+            downloadReport("billing-report", format);
+          }
         }}
       />
     </div>

@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Download,
+  ChevronDown,
+  FileSpreadsheet,
   Loader2,
   FileText,
   TrendingUp,
@@ -55,7 +57,7 @@ interface TransportationPreviewModalProps {
   quotes: Quote[];
   monthLabel: string;
   isDownloading: boolean;
-  onDownload: () => void;
+  onDownload: (format: "pdf" | "xlsx") => void;
 }
 
 
@@ -454,6 +456,92 @@ export async function generateQuoteReportPdf(
 }
 
 // ─── Modal Component ──────────────────────────────────────────────────────────
+
+type ExportFormat = "pdf" | "xlsx";
+
+function PreviewDownloadMenu({
+  isDownloading,
+  onDownload,
+}: {
+  isDownloading: boolean;
+  onDownload: (format: ExportFormat) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  const selectFormat = (format: ExportFormat) => {
+    setOpen(false);
+    onDownload(format);
+  };
+
+  return (
+    <div ref={menuRef} className="relative">
+      <Button
+        type="button"
+        size="sm"
+        className="h-9 gap-1.5 text-xs font-medium"
+        onClick={() => setOpen((current) => !current)}
+        disabled={isDownloading}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {isDownloading ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <Download className="size-3.5" />
+        )}
+        <span className="hidden xs:inline">
+          {isDownloading ? "Generating" : "Download"}
+        </span>
+        <span className="xs:hidden">
+          {isDownloading ? "Generating" : "Download"}
+        </span>
+        {!isDownloading && <ChevronDown className="size-3.5" />}
+      </Button>
+
+      {open && !isDownloading && (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-48 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => selectFormat("pdf")}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors hover:bg-muted"
+          >
+            <FileText className="size-4 text-red-500" />
+            Download PDF
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => selectFormat("xlsx")}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors hover:bg-muted"
+          >
+            <FileSpreadsheet className="size-4 text-emerald-600" />
+            Download Excel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function statusBadgeClass(status: string) {
   const s = status.toLowerCase();
@@ -931,20 +1019,10 @@ export function TransportationPreviewModal({
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto sm:mt-0.5">
-            <Button
-              size="sm"
-              className="gap-1.5 text-xs font-medium h-9"
-              onClick={onDownload}
-              disabled={isDownloading}
-            >
-              {isDownloading ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Download className="size-3.5" />
-              )}
-              <span className="hidden xs:inline">Download PDF</span>
-              <span className="xs:hidden">Download</span>
-            </Button>
+            <PreviewDownloadMenu
+              isDownloading={isDownloading}
+              onDownload={onDownload}
+            />
             <Button
               type="button"
               variant="ghost"

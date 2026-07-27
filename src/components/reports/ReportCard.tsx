@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowDownRight, ArrowUpRight, Download, Eye, FileText, Loader2, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, Download, Eye, FileSpreadsheet, FileText, Loader2, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -33,7 +33,7 @@ interface ReportCardProps {
   selectionMode?: boolean;
   isDownloading: boolean;
   onToggle: () => void;
-  onDownload: () => void;
+  onDownload: (format: "pdf" | "xlsx") => void;
   onPreview: () => void;
 }
 
@@ -54,6 +54,28 @@ export function ReportCard({
   onDownload,
   onPreview,
 }: ReportCardProps) {
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = React.useState(false);
+  const downloadMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsDownloadMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  const handleDownload = (format: "pdf" | "xlsx") => {
+    setIsDownloadMenuOpen(false);
+    onDownload(format);
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -193,7 +215,7 @@ export function ReportCard({
             {stat.label}
           </span>
         ))}
-        <span className="font-semibold">PDF</span>
+        <span className="font-semibold">PDF · XLSX</span>
       </div>
 
       <div className="mt-auto grid min-w-0 grid-cols-2 gap-2.5 border-t border-border/70 pt-3">
@@ -208,22 +230,65 @@ export function ReportCard({
           <Eye className="size-4" />
           Preview
         </button>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onDownload();
-          }}
-          disabled={isDownloading}
-          className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold sm:text-sm text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+        <div
+          ref={downloadMenuRef}
+          className="relative min-w-0"
+          onClick={(event) => event.stopPropagation()}
         >
-          {isDownloading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Download className="size-4" />
+          <button
+            type="button"
+            onClick={() => setIsDownloadMenuOpen((current) => !current)}
+            disabled={isDownloading}
+            aria-haspopup="menu"
+            aria-expanded={isDownloadMenuOpen}
+            className="inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+          >
+            {isDownloading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            {isDownloading ? "Generating" : "Download"}
+            {!isDownloading && <ChevronDown className="size-3.5" />}
+          </button>
+
+          {isDownloadMenuOpen && !isDownloading && (
+            <div
+              role="menu"
+              className="absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-52 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleDownload("pdf")}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
+              >
+                <FileText className="size-4 text-red-500" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">PDF document</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Best for printing and sharing
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleDownload("xlsx")}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
+              >
+                <FileSpreadsheet className="size-4 text-emerald-500" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Excel workbook</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Best for analysis and editing
+                  </span>
+                </span>
+              </button>
+            </div>
           )}
-          {isDownloading ? "Generating" : "Download"}
-        </button>
+        </div>
       </div>
     </div>
   );

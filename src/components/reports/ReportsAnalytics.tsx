@@ -32,21 +32,32 @@ interface Props {
 }
 
 
+// Suprah AI semantic status palette used consistently by chart slices,
+// legends, and tooltips across the Reports module.
 const STATUS_FILL: Record<string, string> = {
   Draft: "#94A3B8",
   draft: "#94A3B8",
 
-  Delivered: "var(--chart-1)",
-  delivered: "var(--chart-1)",
+  Posted: "#F59E0B",
+  posted: "#F59E0B",
 
-  "In-Transit": "var(--chart-2)",
-  "Picked Up": "var(--chart-3)",
+  Assigned: "#8B5CF6",
+  assigned: "#8B5CF6",
 
-  Assigned: "var(--chart-3)",
-  Accepted: "var(--chart-3)",
+  Accepted: "#A855F7",
+  accepted: "#A855F7",
 
-  Posted: "var(--chart-4)",
-  Cancelled: "var(--chart-5)",
+  "Picked Up": "#06B6D4",
+  "picked up": "#06B6D4",
+
+  "In-Transit": "#2563EB",
+  "in-transit": "#2563EB",
+
+  Delivered: "#10B981",
+  delivered: "#10B981",
+
+  Cancelled: "#EF4444",
+  cancelled: "#EF4444",
 };
 
 
@@ -142,7 +153,7 @@ function DeliveryTooltip({ active, payload }: any) {
     entry.fill ||
     entry.payload?.fill ||
     STATUS_FILL[entry.name] ||
-    "var(--chart-1)";
+    "#334155";
 
   return (
     <div
@@ -305,7 +316,7 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                       {deliveryData.map((entry, i) => (
                         <Cell
                           key={i}
-                          fill={STATUS_FILL[entry.name] ?? "var(--chart-3)"}
+                          fill={STATUS_FILL[entry.name] ?? "#64748B"}
                         />
                       ))}
                     </Pie>
@@ -331,7 +342,7 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                           className="size-3 shrink-0 rounded-full"
                           style={{
                             backgroundColor:
-                              STATUS_FILL[entry.name] ?? "var(--chart-3)",
+                              STATUS_FILL[entry.name] ?? "#64748B",
                           }}
                         />
                         <span className="min-w-0 flex-1 break-words text-sm font-medium text-muted-foreground">
