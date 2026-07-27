@@ -13,7 +13,12 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -32,7 +37,7 @@ const SURFACE  = "color-mix(in srgb, var(--foreground) 5%, transparent)";
 const BORDER   = "var(--border)";
 const TEXT_HI  = "var(--card-foreground)";
 const TEXT_MID = "var(--muted-foreground)";
-const TEXT_LO  = "color-mix(in srgb, var(--muted-foreground) 55%, transparent)";
+const TEXT_LO  = "color-mix(in srgb, var(--muted-foreground) 82%, transparent)";
 
 declare class BarcodeDetector {
   constructor(options?: { formats: string[] });
@@ -741,11 +746,24 @@ export function SendModal({
         overlayClassName="bg-black/70 backdrop-blur-[4px]"
         className="!p-0 !border-0 !bg-transparent !shadow-none sm:max-w-[420px] overflow-hidden rounded-2xl [&>button]:hidden w-[calc(100%-2rem)]"
       >
+        <DialogTitle className="sr-only">
+          Send Money
+        </DialogTitle>
+
+        <DialogDescription className="sr-only">
+          Choose a transfer method, enter the recipient and payment details, then review and confirm the transaction.
+        </DialogDescription>
+
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
           @keyframes supraSheen { 0%, 62% { left: -110%; } 100% { left: 230%; } }
           @keyframes supraSpin  { to { transform: rotate(360deg); } }
           @keyframes supraPulse { 0%,100%{opacity:0.7}50%{opacity:0.3} }
+          input::placeholder,
+          textarea::placeholder {
+            color: var(--muted-foreground);
+            opacity: 0.82;
+          }
         `}</style>
 
         {/* ── Supra shell ── */}
@@ -895,7 +913,7 @@ export function SendModal({
                         <p
                           style={{
                             fontSize: 11,
-                            color: TEXT_LO,
+                            color: TEXT_MID,
                             marginTop: 2,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -1056,17 +1074,17 @@ export function SendModal({
                       }
                     >
                       <SelectTrigger
-                        className="h-9 text-sm border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] text-[rgba(255,255,255,0.85)] focus:ring-[rgba(229,90,0,0.15)] focus:border-[#E55A00] [&>svg]:text-[rgba(255,255,255,0.35)]"
+                        className="h-9 text-sm border-border bg-card text-foreground focus:ring-[rgba(229,90,0,0.15)] focus:border-[#E55A00] [&>svg]:text-muted-foreground"
                         style={{ fontFamily: DISPLAY }}
                       >
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1a1a20] border-[rgba(255,255,255,0.12)] text-white">
+                      <SelectContent className="border-border bg-popover text-popover-foreground">
                         {EPAY_PLATFORMS.map((p) => (
                           <SelectItem
                             key={p}
                             value={p}
-                            className="text-sm text-[rgba(255,255,255,0.78)] focus:bg-[rgba(255,255,255,0.10)] focus:text-white"
+                            className="text-sm text-popover-foreground focus:bg-accent focus:text-accent-foreground"
                           >
                             {p}
                           </SelectItem>
@@ -1262,7 +1280,7 @@ export function SendModal({
                             style={{
                               fontSize: 13,
                               fontWeight: 600,
-                              color: "rgba(255,255,255,0.68)",
+                              color: TEXT_HI,
                             }}
                           >
                             Click to upload QR image
@@ -1270,7 +1288,7 @@ export function SendModal({
                           <p
                             style={{
                               fontSize: 11,
-                              color: "rgba(255,255,255,0.28)",
+                              color: TEXT_MID,
                               marginTop: 2,
                             }}
                           >
@@ -1534,7 +1552,7 @@ export function SendModal({
                               style={{
                                 fontSize: 14,
                                 fontWeight: 600,
-                                color: "rgba(255,255,255,0.78)",
+                                color: TEXT_HI,
                               }}
                             >
                               Camera not active
@@ -1542,7 +1560,7 @@ export function SendModal({
                             <p
                               style={{
                                 fontSize: 11,
-                                color: "rgba(255,255,255,0.32)",
+                                color: TEXT_MID,
                                 marginTop: 4,
                               }}
                             >
@@ -1615,7 +1633,7 @@ export function SendModal({
                         style={{
                           fontSize: 13,
                           fontWeight: 600,
-                          color: "rgba(255,255,255,0.80)",
+                          color: TEXT_HI,
                         }}
                       >
                         QR code detected!
@@ -1721,7 +1739,7 @@ export function SendModal({
                         fontWeight: 700,
                         letterSpacing: "0.18em",
                         textTransform: "uppercase" as const,
-                        color: "rgba(229,90,0,0.68)",
+                        color: ORANGE,
                         marginBottom: 6,
                         fontFamily: DISPLAY,
                       }}
@@ -1773,7 +1791,7 @@ export function SendModal({
                             fontWeight: 700,
                             letterSpacing: "0.07em",
                             textTransform: "uppercase" as const,
-                            color: "rgba(255,255,255,0.32)",
+                            color: TEXT_MID,
                             fontFamily: DISPLAY,
                           }}
                         >
@@ -1783,7 +1801,7 @@ export function SendModal({
                           style={{
                             fontSize: 13,
                             fontWeight: 600,
-                            color: "rgba(255,255,255,0.80)",
+                            color: TEXT_HI,
                             maxWidth: "58%",
                             textAlign: "right",
                             overflow: "hidden",
@@ -1899,7 +1917,7 @@ export function SendModal({
                 <p
                   style={{
                     fontSize: 13,
-                    color: "rgba(255,255,255,0.38)",
+                    color: TEXT_MID,
                     marginBottom: 22,
                     fontFamily: DISPLAY,
                   }}
