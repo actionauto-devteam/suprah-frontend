@@ -37,9 +37,18 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/utils/format";
 import { Payment } from "@/types/billing";
 import { DriverPayout } from "@/types/driver-payout";
+import type { Lead } from "@/types/lead";
 import { ReportCard } from "@/components/reports/ReportCard";
 import { ReportExportMenu } from "@/components/reports/ReportExportMenu";
 import { ReportPreviewModal } from "@/components/reports/ReportPreviewModal";
+import {
+  CRMPreviewModal,
+  type CRMReportType,
+} from "@/components/reports/crm/CRMPreviewModal";
+import { generateLeadStatusPdf } from "@/components/reports/crm/pdf/LeadStatusPdf";
+import { generateLeadSourcePdf } from "@/components/reports/crm/pdf/LeadSourcePdf";
+import { generateLeadStatusExcel } from "@/components/reports/crm/excel/LeadStatusExcel";
+import { generateLeadSourceExcel } from "@/components/reports/crm/excel/LeadSourceExcel";
 import { ReportsAnalytics } from "@/components/reports/ReportsAnalytics";
 import { Quote as TransportQuote } from "@/types/transportation";
 import { Load } from "@/types/load";
@@ -1213,12 +1222,18 @@ async function generateBillingRevenueExcel(
 }
 
 
-type TabValue = "ALL" | "Transportation" | "Driver Reports" | "Billings";
+type TabValue =
+  | "ALL"
+  | "Transportation"
+  | "CRM"
+  | "Driver Reports"
+  | "Billings";
 
 interface ReportData {
   loads: Load[];
   payments: Payment[];
   payouts: DriverPayout[];
+  leads: Lead[];
 }
 
 const MONTHS = [
@@ -1236,9 +1251,10 @@ const MONTHS = [
   "December",
 ];
 
-const CATEGORIES: { id: TabValue; label: string; icon: any }[] = [
+const CATEGORIES = [
   { id: "ALL", label: "All Reports", icon: Archive },
   { id: "Transportation", label: "Transportation", icon: Truck },
+  { id: "CRM", label: "CRM & Leads", icon: Users },
   { id: "Driver Reports", label: "Driver Reports", icon: MapPin },
   { id: "Billings", label: "Billings & Finance", icon: CreditCard },
 ];
@@ -1275,6 +1291,8 @@ export default function ReportsPage() {
   const [transportPreview, setTransportPreview] = React.useState<
     "load" | "quote" | null
   >(null);
+  const [crmPreview, setCrmPreview] =
+  React.useState<CRMReportType | null>(null);
 
   const fetchData = React.useCallback(async () => {
     setIsRefreshing(true);
@@ -1298,6 +1316,7 @@ export default function ReportsPage() {
         previousLoadsRes,
         previousPaymentsRes,
         previousPayoutsRes,
+        allLeadsRes,
       ] = await Promise.all([
         apiClient.get(`/api/loads?${reportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -1326,6 +1345,9 @@ export default function ReportsPage() {
         apiClient.get(`/api/driver-payouts?${previousReportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        apiClient.get("/api/leads?page=1&limit=5000&sortBy=newest", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
       const loadPayload = lRes.data?.data;
@@ -1336,6 +1358,7 @@ export default function ReportsPage() {
       const previousLoadPayload = previousLoadsRes.data?.data;
       const previousPaymentPayload = previousPaymentsRes.data?.data;
       const previousPayoutPayload = previousPayoutsRes.data?.data;
+      const leadPayload = allLeadsRes.data?.data;
 
       const loads = Array.isArray(loadPayload)
         ? loadPayload
@@ -1387,12 +1410,48 @@ export default function ReportsPage() {
         : Array.isArray(previousPayoutPayload?.payouts)
           ? previousPayoutPayload.payouts
           : [];
+      const allLeads: Lead[] = Array.isArray(leadPayload)
+        ? leadPayload
+        : Array.isArray(leadPayload?.leads)
+          ? leadPayload.leads
+          : [];
 
-      setReportData({ loads, payments, payouts });
+      const isLeadInPeriod = (
+        lead: Lead,
+        targetMonth: number,
+        targetYear: number,
+      ): boolean => {
+        const createdAt = new Date(lead.createdAt);
+
+        if (Number.isNaN(createdAt.getTime())) {
+          return false;
+        }
+
+        return (
+          createdAt.getFullYear() === targetYear &&
+          createdAt.getMonth() + 1 === targetMonth
+        );
+      };
+
+      const leads = allLeads.filter((lead) =>
+        isLeadInPeriod(lead, month, selectedYear),
+      );
+
+      const previousLeads = allLeads.filter((lead) =>
+        isLeadInPeriod(lead, previousMonth, previousYear),
+      );
+      
+      setReportData({
+        loads,
+        payments,
+        payouts,
+        leads,
+      });
       setPreviousReportData({
         loads: previousLoads,
         payments: previousPayments,
         payouts: previousPayouts,
+        leads: previousLeads,
       });
       setRawLoads(allLoads);
       setRawQuotes(quotes);
@@ -1408,7 +1467,6 @@ export default function ReportsPage() {
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
-
 
   // ─── Filter Logic ───────────────────────────────────────────────────────────
 
@@ -1511,6 +1569,100 @@ export default function ReportsPage() {
   const netRevenue = revenueTotal - payoutTotal;
   const previousNetRevenue = previousRevenueTotal - previousPayoutTotal;
 
+  const leadStats = React.useMemo(() => {
+    const leads = reportData?.leads ?? [];
+
+    return {
+      total: leads.length,
+      new: leads.filter((lead) => lead.status === "New").length,
+      contacted: leads.filter((lead) => lead.status === "Contacted").length,
+      pending: leads.filter((lead) => lead.status === "Pending").length,
+      appointment: leads.filter(
+        (lead) => lead.status === "Appointment Set",
+      ).length,
+      closed: leads.filter((lead) => lead.status === "Closed").length,
+    };
+  }, [reportData?.leads]);
+
+
+
+  const previousLeadStats = React.useMemo(() => {
+    const leads = previousReportData?.leads ?? [];
+
+    return {
+      total: leads.length,
+      new: leads.filter((lead) => lead.status === "New").length,
+      contacted: leads.filter((lead) => lead.status === "Contacted").length,
+      pending: leads.filter((lead) => lead.status === "Pending").length,
+      appointment: leads.filter(
+        (lead) => lead.status === "Appointment Set",
+      ).length,
+      closed: leads.filter((lead) => lead.status === "Closed").length,
+    };
+  }, [previousReportData?.leads]);
+
+  const leadSourceStats = React.useMemo(() => {
+    const leads = reportData?.leads ?? [];
+
+    const sourceCounts = leads.reduce<Record<string, number>>((counts, lead) => {
+      const source = String(lead.source ?? "").trim() || "Unknown";
+
+      counts[source] = (counts[source] ?? 0) + 1;
+
+      return counts;
+    }, {});
+
+    const sources = Object.entries(sourceCounts)
+      .map(([source, count]) => ({
+        source,
+        count,
+        percentage:
+          leads.length > 0
+            ? Math.round((count / leads.length) * 100)
+            : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      total: leads.length,
+      sources,
+      topSource: sources[0]?.source ?? "No source",
+      topSourceCount: sources[0]?.count ?? 0,
+      uniqueSources: sources.length,
+      unknownCount: sourceCounts.Unknown ?? 0,
+    };
+  }, [reportData?.leads]);
+
+  const previousLeadSourceStats = React.useMemo(() => {
+  const leads = previousReportData?.leads ?? [];
+
+  const sourceCounts = leads.reduce<Record<string, number>>(
+    (counts, lead) => {
+      const source = String(lead.source ?? "").trim() || "Unknown";
+
+      counts[source] = (counts[source] ?? 0) + 1;
+
+      return counts;
+    },
+    {},
+  );
+
+  const sources = Object.entries(sourceCounts)
+    .map(([source, count]) => ({
+      source,
+      count,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    total: leads.length,
+    topSource: sources[0]?.source ?? "No source",
+    topSourceCount: sources[0]?.count ?? 0,
+    uniqueSources: sources.length,
+    unknownCount: sourceCounts.Unknown ?? 0,
+  };
+}, [previousReportData?.leads]);
+
   const previousLoadSummary = React.useMemo(
     () => buildLoadSummary(previousReportData?.loads || []),
     [previousReportData?.loads],
@@ -1542,6 +1694,13 @@ export default function ReportsPage() {
       return ["load-report", "quote-report"];
     }
 
+    if (activeTab === "CRM") {
+      return [
+        "lead-status-report",
+        "lead-source-report",
+      ];
+    }
+
     if (activeTab === "Driver Reports") {
       return ["driver-report"];
     }
@@ -1550,7 +1709,14 @@ export default function ReportsPage() {
       return ["billing-report"];
     }
 
-    return ["load-report", "quote-report", "driver-report", "billing-report"];
+    return [
+      "load-report",
+      "quote-report",
+      "lead-status-report",
+      "lead-source-report",
+      "driver-report",
+      "billing-report",
+    ];
   }, [activeTab]);
 
   const startMultiSelect = () => {
@@ -1618,36 +1784,85 @@ export default function ReportsPage() {
         filename = `Suprah_AI_Driver_Performance_${monthLabel.replace(" ", "_")}.${extension}`;
         category = "driver";
       } else if (id === "billing-report") {
-        blob =
-          format === "xlsx"
-            ? await generateBillingRevenueExcel(
-                reportData?.payments || [],
-                reportData?.payouts || [],
-                monthLabel,
-              )
-            : await generateBillingRevenuePdf(
-                reportData?.payments || [],
-                reportData?.payouts || [],
-                monthLabel,
-              );
-        filename = `Suprah_AI_Billings_Revenue_${monthLabel.replace(" ", "_")}.${extension}`;
-        category = "billings";
-      } else {
-        throw new Error(`Unknown report type: ${id}`);
-      }
+          blob =
+            format === "xlsx"
+              ? await generateBillingRevenueExcel(
+                  reportData?.payments || [],
+                  reportData?.payouts || [],
+                  monthLabel,
+                )
+              : await generateBillingRevenuePdf(
+                  reportData?.payments || [],
+                  reportData?.payouts || [],
+                  monthLabel,
+                );
 
-      if (blob) {
-        await saveGeneratedReportFile({
-          name: filename,
-          category,
-          blob,
-        });
+          filename = `Suprah_AI_Billings_Revenue_${monthLabel.replace(
+            " ",
+            "_",
+          )}.${extension}`;
 
-        createBrowserDownload(blob, filename);
-        toast.success(
-          `${format === "xlsx" ? "Excel workbook" : "PDF report"} downloaded and saved to Generated Files`,
-        );
-      }
+          category = "billings";
+        } else if (id === "lead-status-report") {
+            blob =
+              format === "xlsx"
+                ? await generateLeadStatusExcel(
+                    reportData?.leads ?? [],
+                    monthLabel,
+                  )
+                : await generateLeadStatusPdf(
+                    reportData?.leads ?? [],
+                    monthLabel,
+                  );
+
+            const safeMonthLabel = monthLabel
+              .replace(/\s+/g, "_")
+              .replace(/[^\w-]/g, "");
+
+            filename =
+              format === "xlsx"
+                ? `Suprah_AI_Lead_Status_${safeMonthLabel}.xlsx`
+                : `Suprah_AI_Lead_Status_${safeMonthLabel}.pdf`;
+
+            category = "crm";
+          } else if (id === "lead-source-report") {
+            blob =
+              format === "xlsx"
+                ? await generateLeadSourceExcel(
+                    reportData?.leads ?? [],
+                    monthLabel,
+                  )
+                : await generateLeadSourcePdf(
+                    reportData?.leads ?? [],
+                    monthLabel,
+                  );
+
+            const safeMonthLabel = monthLabel
+              .replace(/\s+/g, "_")
+              .replace(/[^\w-]/g, "");
+
+            filename =
+              format === "xlsx"
+                ? `Suprah_AI_Lead_Source_${safeMonthLabel}.xlsx`
+                : `Suprah_AI_Lead_Source_${safeMonthLabel}.pdf`;
+
+            category = "crm";
+          }
+
+          if (blob) {
+            await saveGeneratedReportFile({
+              name: filename,
+              category,
+              type: format === "xlsx" ? "XLSX" : "PDF",
+              blob,
+            });
+
+            createBrowserDownload(blob, filename);
+
+            toast.success(
+              `${format === "xlsx" ? "Excel workbook" : "PDF report"} downloaded and saved to Generated Files`,
+            );
+          }
     } catch (err) {
       console.error(err);
       toast.error(
@@ -2011,6 +2226,100 @@ export default function ReportsPage() {
                   />
                 </>
               )}
+              {(activeTab === "ALL" || activeTab === "CRM") && (
+                <ReportCard
+                  title="Lead Status Report"
+                  subtitle="CRM Pipeline Overview"
+                  description="A clear overview of lead volume, pipeline activity, appointments, and closed opportunities."
+                  category="CRM & Leads"
+                  categoryClass="text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-950/40"
+                  period={monthLabel}
+                  trend={getTrend(leadStats.total, previousLeadStats.total)}
+                  stats={[
+                    {
+                      icon: <Users className="size-3" />,
+                      label: `${leadStats.total} lead${
+                        leadStats.total === 1 ? "" : "s"
+                      }`,
+                    },
+                    {
+                      icon: <Calendar className="size-3" />,
+                      label: `${leadStats.appointment} appointment${
+                        leadStats.appointment === 1 ? "" : "s"
+                      }`,
+                    },
+                  ]}
+                  highlights={[
+                    {
+                      label: "Closed",
+                      value: leadStats.closed,
+                      color: "text-emerald-600 dark:text-emerald-400",
+                    },
+                    {
+                      label: "Pending",
+                      value: leadStats.pending,
+                      color: "text-amber-600 dark:text-amber-400",
+                    },
+                  ]}
+                  isSelected={selected.has("lead-status-report")}
+                  selectionMode={isMultiSelectMode}
+                  isDownloading={downloading === "lead-status-report"}
+                  onToggle={() => toggleSelect("lead-status-report")}
+                  onDownload={(format) =>
+                    downloadReport("lead-status-report", format)
+                  }
+                  onPreview={() => setCrmPreview("lead-status")}
+                />
+              )}
+
+              {(activeTab === "ALL" || activeTab === "CRM") && (
+                <ReportCard
+                  title="Lead Source Report"
+                  subtitle="Lead Acquisition Overview"
+                  description="Shows where customer inquiries are coming from and identifies the channels producing the most leads."
+                  category="CRM & Leads"
+                  categoryClass="text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-950/40"
+                  period={monthLabel}
+                  trend={getTrend(
+                    leadSourceStats.total,
+                    previousLeadSourceStats.total,
+                  )}
+                  stats={[
+                    {
+                      icon: <Users className="size-3" />,
+                      label: `${leadSourceStats.total} lead${
+                        leadSourceStats.total === 1 ? "" : "s"
+                      }`,
+                    },
+                    {
+                      icon: <Database className="size-3" />,
+                      label: `${leadSourceStats.uniqueSources} source${
+                        leadSourceStats.uniqueSources === 1 ? "" : "s"
+                      }`,
+                    },
+                  ]}
+                  highlights={[
+                    {
+                      label: "Top Source",
+                      value: leadSourceStats.topSource,
+                      color: "text-cyan-600 dark:text-cyan-400",
+                    },
+                    {
+                      label: "Top Leads",
+                      value: leadSourceStats.topSourceCount,
+                      color: "text-foreground",
+                    },
+                  ]}
+                  isSelected={selected.has("lead-source-report")}
+                  selectionMode={isMultiSelectMode}
+                  isDownloading={downloading === "lead-source-report"}
+                  onToggle={() => toggleSelect("lead-source-report")}
+                  onDownload={(format) =>
+                    downloadReport("lead-source-report", format)
+                  }
+                  onPreview={() => setCrmPreview("lead-source")}
+                />
+              )}
 
               {(activeTab === "ALL" || activeTab === "Driver Reports") && (
                 <ReportCard
@@ -2145,32 +2454,58 @@ export default function ReportsPage() {
       <TransportationPreviewModal
         open={!!transportPreview}
         onClose={() => setTransportPreview(null)}
-        reportType={transportPreview || "load"}
+        reportType={transportPreview ?? "load"}
         loads={filteredLoads}
         quotes={filteredQuotes}
         monthLabel={monthLabel}
         isDownloading={
-          downloading === "load-report" || downloading === "quote-report"
+          downloading === "load-report" ||
+          downloading === "quote-report"
         }
         onDownload={(format) =>
           downloadReport(
-            transportPreview === "load" ? "load-report" : "quote-report",
+            transportPreview === "load"
+              ? "load-report"
+              : "quote-report",
             format,
           )
         }
       />
 
+      <CRMPreviewModal
+        open={crmPreview !== null}
+        onClose={() => setCrmPreview(null)}
+        reportType={crmPreview ?? "lead-status"}
+        leads={reportData?.leads ?? []}
+        monthLabel={monthLabel}
+        isDownloading={
+          downloading === "lead-status-report" ||
+          downloading === "lead-source-report"
+        }
+        onDownload={(format) => {
+          if (crmPreview === "lead-status") {
+            downloadReport("lead-status-report", format);
+          } else if (crmPreview === "lead-source") {
+            downloadReport("lead-source-report", format);
+          }
+        }}
+      />
+
       <ReportPreviewModal
         open={!!previewType}
         onClose={() => setPreviewType(null)}
-        reportType={previewType?.toLowerCase() as "driver" | "billing"}
-        loads={reportData?.loads || []}
-        payments={reportData?.payments || []}
-        payouts={reportData?.payouts || []}
+        reportType={
+          previewType?.toLowerCase() as "driver" | "billing"
+        }
+        loads={reportData?.loads ?? []}
+        payments={reportData?.payments ?? []}
+        payouts={reportData?.payouts ?? []}
         monthLabel={monthLabel}
         isDownloading={
           downloading ===
-          (previewType === "DRIVER" ? "driver-report" : "billing-report")
+          (previewType === "DRIVER"
+            ? "driver-report"
+            : "billing-report")
         }
         onDownload={(format) => {
           if (previewType === "DRIVER") {

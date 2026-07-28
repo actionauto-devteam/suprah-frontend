@@ -78,6 +78,7 @@ export const CATEGORY_LABELS: Record<ReportCategory, string> = {
   transportation: "Transportation",
   driver: "Driver Reports",
   billings: "Billings",
+  crm: "CRM & Leads",
 };
 
 export function formatRelativeFileTime(createdAt: number): string {

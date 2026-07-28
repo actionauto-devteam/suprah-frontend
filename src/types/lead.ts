@@ -11,6 +11,13 @@ export interface Appointment {
   location?: string;
 }
 
+export type LeadStatus =
+  | "New"
+  | "Contacted"
+  | "Pending"
+  | "Appointment Set"
+  | "Closed";
+
 export interface Lead {
   _id: string;
   firstName: string;
@@ -20,7 +27,7 @@ export interface Lead {
   senderEmail?: string;
   senderName?: string;
   source: string;
-  status: string;
+  status: LeadStatus;
   vehicle: VehicleInterest;
   comments: string;
   subject?: string;

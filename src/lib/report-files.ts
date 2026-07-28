@@ -1,9 +1,9 @@
-export type ReportFileCategory = "transportation" | "driver" | "billings";
+export type ReportFileCategory = "transportation" | "driver" | "billings"  | "crm";
 
 export interface StoredReportFile {
   id: string;
   name: string;
-  type: "PDF";
+  type: "PDF" | "XLSX";
   category: ReportFileCategory;
   createdAt: number;
   sizeBytes: number;
@@ -71,12 +71,13 @@ function withStore<T>(
 export async function saveGeneratedReportFile(input: {
   name: string;
   category: ReportFileCategory;
+  type: "PDF" | "XLSX";
   blob: Blob;
 }): Promise<StoredReportFileMeta> {
   const record: StoredReportFile = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     name: input.name,
-    type: "PDF",
+    type: input.type,
     category: input.category,
     createdAt: Date.now(),
     sizeBytes: input.blob.size,
