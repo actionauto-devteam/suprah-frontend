@@ -558,7 +558,7 @@ function StoryRing({ user, children }: { user: RailUser; children: React.ReactNo
 
 /* ── Rail (Instagram-style social strip) ───────────────────────────────────── */
 
-export function StoriesRail({ me }: { me: { fullName?: string; avatar?: string } }) {
+export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string } | null }) {
   const [users, setUsers] = React.useState<RailUser[]>([]);
   const [ready, setReady] = React.useState(false);
   const [composerOpen, setComposerOpen] = React.useState(false);
@@ -587,7 +587,7 @@ export function StoriesRail({ me }: { me: { fullName?: string; avatar?: string }
   React.useEffect(() => {
     let socket: Socket | undefined;
     try {
-      const rawBase = (apiClient.defaults.baseURL || "").replace(/\/api\/?$/, "");
+      const rawBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "");
       const base = rawBase || (typeof window !== "undefined" ? window.location.origin : "");
       const token =
         (typeof window !== "undefined" &&
