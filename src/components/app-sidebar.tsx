@@ -295,17 +295,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [router]);
 
   return (
-    <Sidebar variant="inset" collapsible="icon" className="border-r" {...props}>
+    <Sidebar variant="inset" collapsible="icon" className="relative isolate overflow-hidden border-r bg-sidebar" {...props}>
       {/* Greenish digital ambient — animated, reduced-motion aware */}
       <style>{`
         @keyframes green-float   { 0%,100% { transform: translate(0,0); } 50% { transform: translate(8px,-12px); } }
         @keyframes green-float-2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-10px,10px); } }
-        @keyframes green-pulse   { 0%,100% { opacity: .07; } 50% { opacity: .16; } }
+        @keyframes green-pulse   { 0%,100% { opacity: .025; } 50% { opacity: .055; } }
         @keyframes digital-scan  { 0% { transform: translateY(-25%); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateY(125%); opacity: 0; } }
         @keyframes grid-drift    { 0% { background-position: 0 0, 0 0; } 100% { background-position: 24px 24px, 24px 24px; } }
-        @keyframes data-fall     { 0% { transform: translateY(-6rem); opacity: 0; } 8% { opacity: .85; } 92% { opacity: .85; } 100% { transform: translateY(120vh); opacity: 0; } }
+        @keyframes data-fall     { 0% { transform: translateY(-6rem); opacity: 0; } 8% { opacity: .22; } 92% { opacity: .22; } 100% { transform: translateY(120vh); opacity: 0; } }
         @keyframes ring-spin     { to { transform: rotate(360deg); } }
-        @keyframes hud-flicker   { 0%,100% { opacity: .28; } 45% { opacity: .55; } 55% { opacity: .22; } }
+        @keyframes hud-flicker   { 0%,100% { opacity: .12; } 45% { opacity: .22; } 55% { opacity: .10; } }
         .green-glow-a      { animation: green-float 14s ease-in-out infinite, green-pulse 8s ease-in-out infinite; }
         .green-glow-b      { animation: green-float-2 16s ease-in-out infinite, green-pulse 10s ease-in-out infinite; }
         .digital-scan-line { animation: digital-scan 7s linear infinite; }
@@ -319,12 +319,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         }
       `}</style>
 
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-60 dark:opacity-80">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/9 via-emerald-500/4 to-emerald-500/12 dark:from-emerald-500/5 dark:via-emerald-500/2 dark:to-emerald-500/[0.07]" />
+        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/[0.025] via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/[0.015] dark:to-emerald-500/[0.05]" />
 
         {/* digital grid — slowly drifts so the surface feels "live" */}
-        <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.08)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)]" />
+        <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.025)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.025)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.035)_1px,transparent_1px)]" />
 
         {/* drifting green glows */}
         <div className="green-glow-a absolute -left-10 top-16 size-40 rounded-full bg-emerald-400 blur-3xl" />
@@ -333,15 +333,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* falling data streams — thin light trails, matrix-ish but restrained.
             left / duration / delay are staggered per line for an organic feel. */}
         <div
-          className="data-stream absolute top-0 h-20 w-px bg-linear-to-b from-transparent via-emerald-400/70 to-transparent"
+          className="data-stream absolute top-0 h-20 w-px bg-linear-to-b from-transparent via-emerald-400/20 to-transparent"
           style={{ left: "22%", animationDuration: "7s", animationDelay: "0s" }}
         />
         <div
-          className="data-stream absolute top-0 h-16 w-px bg-linear-to-b from-transparent via-emerald-300/60 to-transparent"
+          className="data-stream absolute top-0 h-16 w-px bg-linear-to-b from-transparent via-emerald-300/18 to-transparent"
           style={{ left: "52%", animationDuration: "9.5s", animationDelay: "2.4s" }}
         />
         <div
-          className="data-stream absolute top-0 h-24 w-px bg-linear-to-b from-transparent via-emerald-400/60 to-transparent"
+          className="data-stream absolute top-0 h-24 w-px bg-linear-to-b from-transparent via-emerald-400/18 to-transparent"
           style={{ left: "78%", animationDuration: "6s", animationDelay: "1.2s" }}
         />
 
@@ -349,13 +349,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="digital-scan-line absolute inset-x-0 top-0 h-20 bg-linear-to-b from-transparent via-emerald-500/[0.14] to-transparent dark:via-emerald-400/10" />
 
         {/* HUD corner ticks — subtle framing with a gentle flicker */}
-        <div className="hud-corner absolute left-1.5 top-1.5 size-3 rounded-tl-sm border-l-2 border-t-2 border-emerald-500/40" />
-        <div className="hud-corner absolute right-1.5 top-1.5 size-3 rounded-tr-sm border-r-2 border-t-2 border-emerald-500/40" style={{ animationDelay: "1s" }} />
-        <div className="hud-corner absolute bottom-1.5 left-1.5 size-3 rounded-bl-sm border-b-2 border-l-2 border-emerald-500/40" style={{ animationDelay: "2s" }} />
-        <div className="hud-corner absolute bottom-1.5 right-1.5 size-3 rounded-br-sm border-b-2 border-r-2 border-emerald-500/40" style={{ animationDelay: "0.5s" }} />
+        <div className="hud-corner absolute left-1.5 top-1.5 size-3 rounded-tl-sm border-l-2 border-t-2 border-emerald-500/20" />
+        <div className="hud-corner absolute right-1.5 top-1.5 size-3 rounded-tr-sm border-r-2 border-t-2 border-emerald-500/20" style={{ animationDelay: "1s" }} />
+        <div className="hud-corner absolute bottom-1.5 left-1.5 size-3 rounded-bl-sm border-b-2 border-l-2 border-emerald-500/20" style={{ animationDelay: "2s" }} />
+        <div className="hud-corner absolute bottom-1.5 right-1.5 size-3 rounded-br-sm border-b-2 border-r-2 border-emerald-500/20" style={{ animationDelay: "0.5s" }} />
       </div>
 
-      <SidebarHeader className="relative flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
+      <SidebarHeader className="relative z-10 flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
         {/* soft halo behind the mark */}
         <div
           aria-hidden
@@ -394,7 +394,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           hiding the bar.
             Firefox      -> scrollbar-width: thin + faint scrollbar-color
             WebKit/Blink -> 6px bar, transparent track, low-opacity rounded thumb */}
-      <SidebarContent className="p-2 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 [&::-webkit-scrollbar-thumb:hover]:bg-border">
+      <SidebarContent className="relative z-10 p-2 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 [&::-webkit-scrollbar-thumb:hover]:bg-border">
         {/* ── Main ── */}
         <SidebarMenu>
           {activeNavMain.map((item) => {
@@ -660,7 +660,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="border-t p-4 group-data-[collapsible=icon]:p-2">
+      <SidebarFooter className="relative z-10 border-t bg-sidebar p-4 group-data-[collapsible=icon]:p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>

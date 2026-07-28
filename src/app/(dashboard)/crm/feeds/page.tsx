@@ -1002,6 +1002,8 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   const preferNativeEmoji = usePreferNativeEmojiPicker()
   const inputRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const sectionRef = React.useRef<HTMLDivElement>(null)
+  const [shouldLoadComments, setShouldLoadComments] = React.useState(false)
 
   const mention = useMentions({
     value: newComment,
@@ -1039,23 +1041,49 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   }
 
   React.useEffect(() => {
-    if (!token || !post._id) return
+    const node = sectionRef.current
+    if (!node || shouldLoadComments) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        setShouldLoadComments(true)
+        observer.disconnect()
+      },
+      { rootMargin: "400px 0px", threshold: 0.01 }
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [shouldLoadComments])
+
+  React.useEffect(() => {
+    if (!shouldLoadComments || !token || !post._id) return
+    const controller = new AbortController()
     setLoading(true)
-    apiClient.get(`/api/crm/feeds/${post._id}/comments`)
-      .then(async (res) => {
+
+    apiClient.get(`/api/crm/feeds/${post._id}/comments`, { signal: controller.signal })
+      .then((res) => {
         const fetched: Comment[] = res.data?.data?.comments || []
         setComments(fetched)
+
+        // Comment reactions are loaded independently so comments can render first.
         if (fetched.length > 0) {
-          try {
-            const rRes = await apiClient.post("/api/crm/feeds/reactions/bulk", { targetIds: fetched.map((c) => c._id) })
-            setCommentReactions(rRes.data?.data?.reactions || {})
-          } catch { }
+          apiClient.post(
+            "/api/crm/feeds/reactions/bulk",
+            { targetIds: fetched.map((comment) => comment._id) },
+            { signal: controller.signal }
+          )
+            .then((reactionRes) => setCommentReactions(reactionRes.data?.data?.reactions || {}))
+            .catch(() => { })
         }
       })
       .catch(() => { })
-      .finally(() => setLoading(false))
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+
+    return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [post._id, token])
+  }, [shouldLoadComments, post._id, token])
 
   const handleSubmit = async () => {
     if (!newComment.trim() && pendingFiles.length === 0) return
@@ -1099,7 +1127,7 @@ function CommentSection({ post, currentUser, token, comments, setComments, comme
   const hiddenCount = comments.length - VISIBLE_WHEN_COLLAPSED
 
   return (
-    <div className="rounded-2xl border border-border/30 bg-muted/15 mt-3 p-4 space-y-3">
+    <div ref={sectionRef} className="rounded-2xl border border-border/30 bg-muted/15 mt-3 p-4 space-y-3">
       {loading && <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" /></div>}
       {!loading && shouldCollapse && (
         <button onClick={() => setShowAll(true)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-emerald-600 transition-colors">
@@ -1766,7 +1794,7 @@ function TabBar({ active, onChange }: { active: FeedTab; onChange: (t: FeedTab) 
 
 // --- Feed Page ----------------------------------------------------------------
 
-const PAGE_LIMIT = 20
+const PAGE_LIMIT = 10
 const INIT_TIMEOUT_MS = 15000
 
 export default function FeedsPage() {
@@ -1821,22 +1849,27 @@ export default function FeedsPage() {
     flashTimerRef.current = setTimeout(() => setFlashPostId(null), 2500)
   }, [])
 
-  const fetchPostsAndReactions = React.useCallback(async (tk: string, pg: number, signal?: AbortSignal) => {
+  const fetchPosts = React.useCallback(async (pg: number, signal?: AbortSignal) => {
     const res = await apiClient.get(`/api/crm/feeds?page=${pg}&limit=${PAGE_LIMIT}`, { signal })
     const d = res.data?.data || res.data || {}
-    const fetchedPosts: Post[] = Array.isArray(d.posts) ? d.posts : []
-    let rxMap: Record<string, ReactionState> = {}
-    if (fetchedPosts.length > 0) {
-      try {
-        const rRes = await apiClient.post(
-          "/api/crm/feeds/reactions/bulk",
-          { targetIds: fetchedPosts.map((p) => p._id) },
-          { signal }
-        )
-        rxMap = rRes.data?.data?.reactions || {}
-      } catch { }
+    return {
+      posts: Array.isArray(d.posts) ? d.posts as Post[] : [],
+      hasMore: Boolean(d.hasMore),
     }
-    return { posts: fetchedPosts, hasMore: d.hasMore ?? false, reactions: rxMap }
+  }, [])
+
+  const fetchReactions = React.useCallback(async (targetIds: string[], signal?: AbortSignal) => {
+    if (targetIds.length === 0) return {} as Record<string, ReactionState>
+    try {
+      const res = await apiClient.post(
+        "/api/crm/feeds/reactions/bulk",
+        { targetIds },
+        { signal }
+      )
+      return res.data?.data?.reactions || {}
+    } catch {
+      return {} as Record<string, ReactionState>
+    }
   }, [])
 
   React.useEffect(() => {
@@ -1876,30 +1909,40 @@ export default function FeedsPage() {
       }
 
       try {
-        const meRes = await apiClient.get("/api/crm/me", { signal: controller.signal })
+        // Fetch the user profile and first feed page in parallel. The previous
+        // implementation waited for the profile, posts, and reactions one after
+        // another, which kept the entire page behind the full-screen loader.
+        const [meRes, feedPage] = await Promise.all([
+          apiClient.get("/api/crm/me", { signal: controller.signal }),
+          fetchPosts(1, controller.signal),
+        ])
         if (!active) return
+
         const me = meRes.data?.data || meRes.data
         if (!me?._id) throw new Error("User profile missing from response")
+
         setCurrentUser(me)
         setToken(t)
+        setPosts(feedPage.posts)
+        setHasMore(feedPage.hasMore)
+        setLoadingInit(false)
 
-        const { posts, hasMore, reactions } = await fetchPostsAndReactions(t, 1, controller.signal)
-        if (!active) return
-        setPosts(posts)
-        setPostReactions(reactions)
-        setHasMore(hasMore)
+        // Reactions are useful but must not block the first usable render.
+        fetchReactions(feedPage.posts.map((post) => post._id), controller.signal)
+          .then((reactions) => { if (active) setPostReactions(reactions) })
 
-        // Advance the server-side watermark ("I've now seen the feed") and keep
-        // the PREVIOUS watermark so this visit can still highlight what was new.
-        try {
-          const rs = await apiClient.post("/api/crm/feeds/read-state", {}, { signal: controller.signal })
-          const prev = rs.data?.data?.previousLastSeenAt
-          if (active && prev) setUnreadSince(prev)
-        } catch { }
-        clearUnseenPosts()
-        refreshFeedBadge()
+        // Read-state, badge refresh, and mention candidates are all background work.
+        apiClient.post("/api/crm/feeds/read-state", {}, { signal: controller.signal })
+          .then((rs) => {
+            const prev = rs.data?.data?.previousLastSeenAt
+            if (active && prev) setUnreadSince(prev)
+          })
+          .catch(() => { })
+          .finally(() => {
+            clearUnseenPosts()
+            refreshFeedBadge()
+          })
 
-        // Mention autocomplete candidates (exclude self) — non-blocking.
         apiClient.get("/api/crm/feeds/mention-candidates", { signal: controller.signal })
           .then((res) => {
             if (!active) return
@@ -1932,7 +1975,7 @@ export default function FeedsPage() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [router, fetchPostsAndReactions, initAttempt])
+  }, [router, fetchPosts, fetchReactions, initAttempt])
 
   // Auto-scroll to the OLDEST unread post once the first page has rendered.
   React.useEffect(() => {
@@ -2039,10 +2082,11 @@ export default function FeedsPage() {
     setLoadingMore(true)
     const next = page + 1
     try {
-      const { posts: morePosts, hasMore: moreHasMore, reactions } = await fetchPostsAndReactions(token, next)
+      const { posts: morePosts, hasMore: moreHasMore } = await fetchPosts(next)
       setPosts((prev) => { const ids = new Set(prev.map((p) => p._id)); return [...prev, ...morePosts.filter((p) => !ids.has(p._id))] })
-      setPostReactions((prev) => ({ ...prev, ...reactions }))
       setHasMore(moreHasMore); setPage(next)
+      fetchReactions(morePosts.map((post) => post._id))
+        .then((reactions) => setPostReactions((prev) => ({ ...prev, ...reactions })))
     } catch { }
     finally { setLoadingMore(false) }
   }
@@ -2050,8 +2094,9 @@ export default function FeedsPage() {
   const handleRefresh = async () => {
     setRefreshing(true); setNewPostCount(0)
     try {
-      const { posts, hasMore, reactions } = await fetchPostsAndReactions(token, 1)
-      setPosts(posts); setPostReactions(reactions); setHasMore(hasMore); setPage(1)
+      const { posts, hasMore } = await fetchPosts(1)
+      setPosts(posts); setHasMore(hasMore); setPage(1)
+      fetchReactions(posts.map((post) => post._id)).then(setPostReactions)
       // The refreshed page is now "seen": advance the watermark and clear the
       // sidebar badge, but keep `unreadSince` from this visit so freshly
       // arrived posts still carry their "New" pill until read/navigated away.
@@ -2100,8 +2145,9 @@ export default function FeedsPage() {
       return
     }
     try {
-      const { posts: fresh, hasMore, reactions } = await fetchPostsAndReactions(token, 1)
-      setPosts(fresh); setPostReactions(reactions); setHasMore(hasMore); setPage(1)
+      const { posts: fresh, hasMore } = await fetchPosts(1)
+      setPosts(fresh); setHasMore(hasMore); setPage(1)
+      fetchReactions(fresh.map((post) => post._id)).then(setPostReactions)
       setTimeout(() => scrollToPost(n.postId), 300)
     } catch { }
   }
