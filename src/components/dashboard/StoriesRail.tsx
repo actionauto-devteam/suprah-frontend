@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ImagePlus,
   Pencil,
+  Eye,
+  MessageCircle,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api-client";
@@ -37,6 +39,7 @@ interface StoryItem {
   reactionCount: number;
   myReaction: string | null;
   viewedByMe: boolean;
+  commentCount: number;
 }
 
 interface RailNote {
@@ -361,6 +364,32 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
 
 /* ── Viewer ────────────────────────────────────────────────────────────────── */
 
+interface StoryComment {
+  _id: string;
+  userId: string;
+  authorName: string;
+  authorAvatar?: string;
+  text: string;
+  createdAt: string;
+}
+interface StoryViewerRow {
+  userId: string;
+  name: string;
+  avatar?: string;
+  viewedAt: string;
+  emoji: string | null;
+}
+interface StoryDetail {
+  isOwner: boolean;
+  myReaction: string | null;
+  reactionCount: number;
+  viewCount: number;
+  commentCount: number;
+  comments: StoryComment[];
+  viewers?: StoryViewerRow[];
+  reactions?: { userId: string; authorName: string; authorAvatar?: string; emoji: string }[];
+}
+
 function StoryViewer({
   authors,
   start,
@@ -372,69 +401,121 @@ function StoryViewer({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  // Freeze the author list for the session so background re-sorts don't shuffle
+  // indices mid-view.
+  const authorsRef = React.useRef(authors);
+  const list = authorsRef.current;
+
   const [ai, setAi] = React.useState(start.author);
   const [si, setSi] = React.useState(start.story);
   const [progress, setProgress] = React.useState(0);
   const [muted, setMuted] = React.useState(false);
-  const [replyText, setReplyText] = React.useState("");
-  const [replySent, setReplySent] = React.useState(false);
-  const videoRef = React.useRef<HTMLVideoElement>(null);
-  const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const [paused, setPaused] = React.useState(false);
+  const [panel, setPanel] = React.useState<null | "comments" | "viewers">(null);
+  const [detail, setDetail] = React.useState<StoryDetail | null>(null);
+  const [commentText, setCommentText] = React.useState("");
+  const [sending, setSending] = React.useState(false);
 
-  const author = authors[ai];
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const rafRef = React.useRef<number | null>(null);
+  const elapsedRef = React.useRef(0);
+  const lastTsRef = React.useRef(0);
+
+  const author = list[ai];
   const story = author?.stories[si];
   const isMine = Boolean(author?.isMe);
 
-  const clearTimer = () => { if (timerRef.current) clearInterval(timerRef.current); timerRef.current = null; };
+  const stopLoop = () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; };
 
   const goNext = React.useCallback(() => {
-    clearTimer();
+    stopLoop();
     setProgress(0);
-    setReplyText("");
-    setReplySent(false);
+    setPanel(null);
+    setCommentText("");
     if (!author) return onClose();
     if (si < author.stories.length - 1) return setSi(si + 1);
-    if (ai < authors.length - 1) { setAi(ai + 1); setSi(0); return; }
+    if (ai < list.length - 1) { setAi(ai + 1); setSi(0); return; }
     onClose();
-  }, [ai, si, author, authors.length, onClose]);
+  }, [ai, si, author, list.length, onClose]);
 
   const goPrev = () => {
-    clearTimer();
+    stopLoop();
     setProgress(0);
+    setPanel(null);
     if (si > 0) return setSi(si - 1);
-    if (ai > 0) { const prev = authors[ai - 1]; setAi(ai - 1); setSi(prev.stories.length - 1); return; }
+    if (ai > 0) { setAi(ai - 1); setSi(list[ai - 1].stories.length - 1); return; }
     setProgress(0);
   };
 
+  const loadDetail = React.useCallback(() => {
+    if (!story) return;
+    apiClient
+      .get(`/api/crm/stories/${story._id}`)
+      .then((res) => setDetail(res.data?.data?.story || null))
+      .catch(() => {});
+  }, [story?._id]);
+
+  // On each story: mark viewed, load detail, and keep detail fresh (live
+  // comments / reactions / seen-by) with a light poll.
   React.useEffect(() => {
     if (!story) return;
-    apiClient.post(`/api/crm/stories/${story._id}/view`).then(onChanged).catch(() => {});
-    if (story.media.mediaType === "image") {
-      const started = Date.now();
-      timerRef.current = setInterval(() => {
-        const p = Math.min(1, (Date.now() - started) / PHOTO_DURATION_MS);
-        setProgress(p);
-        if (p >= 1) goNext();
-      }, 50);
-      return clearTimer;
-    }
-    return clearTimer;
+    setDetail(null);
+    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => {});
+    loadDetail();
+    const id = setInterval(loadDetail, 5000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?._id]);
 
+  // Auto-advance timer for images (respects pause).
+  React.useEffect(() => {
+    if (!story || story.media.mediaType !== "image") return;
+    elapsedRef.current = 0;
+    lastTsRef.current = performance.now();
+    const tick = (ts: number) => {
+      const dt = ts - lastTsRef.current;
+      lastTsRef.current = ts;
+      if (!paused) {
+        elapsedRef.current += dt;
+        const p = Math.min(1, elapsedRef.current / PHOTO_DURATION_MS);
+        setProgress(p);
+        if (p >= 1) { goNext(); return; }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return stopLoop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story?._id, paused]);
+
+  // Pause/resume video when a panel opens.
+  React.useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (paused) v.pause();
+    else v.play().catch(() => {});
+  }, [paused]);
+
+  // Opening a panel pauses the story.
+  React.useEffect(() => { setPaused(panel !== null); }, [panel]);
+
   const react = async (emoji: string) => {
     if (!story) return;
-    try { await apiClient.post(`/api/crm/stories/${story._id}/react`, { emoji }); onChanged(); } catch { /* ignore */ }
+    try {
+      await apiClient.post(`/api/crm/stories/${story._id}/react`, { emoji });
+      loadDetail();
+    } catch { /* ignore */ }
   };
 
-  const sendReply = async () => {
-    if (!story || !replyText.trim()) return;
+  const sendComment = async () => {
+    if (!story || !commentText.trim()) return;
+    setSending(true);
     try {
-      await apiClient.post(`/api/crm/stories/${story._id}/reply`, { text: replyText.trim() });
-      setReplyText("");
-      setReplySent(true);
-      setTimeout(() => setReplySent(false), 1800);
-    } catch { /* ignore */ }
+      await apiClient.post(`/api/crm/stories/${story._id}/comment`, { text: commentText.trim() });
+      setCommentText("");
+      loadDetail();
+      setPanel("comments");
+    } catch { /* ignore */ } finally { setSending(false); }
   };
 
   const remove = async () => {
@@ -444,9 +525,14 @@ function StoryViewer({
 
   if (!author || !story) return null;
 
+  const commentCount = detail?.commentCount ?? story.commentCount ?? 0;
+  const viewCount = detail?.viewCount ?? 0;
+  const reactionCount = detail?.reactionCount ?? story.reactionCount ?? 0;
+  const myReaction = detail?.myReaction ?? story.myReaction ?? null;
+
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <button onClick={onClose} className="absolute right-4 top-4 z-20 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
+      <button onClick={onClose} className="absolute right-4 top-4 z-30 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
         <X className="size-5" />
       </button>
       <button onClick={goPrev} className="absolute left-2 sm:left-6 z-20 rounded-full bg-white/5 p-2 text-white/70 hover:bg-white/15">
@@ -507,39 +593,108 @@ function StoryViewer({
               <p className="text-sm text-white/90">{story.caption}</p>
             </div>
           )}
+
+          {/* Slide-up panel: comments (everyone) or seen-by (owner) */}
+          {panel && (
+            <div className="absolute inset-x-0 bottom-0 top-1/3 z-20 flex flex-col rounded-t-3xl border-t border-white/10 bg-neutral-950/95 backdrop-blur-xl animate-in slide-in-from-bottom duration-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <p className="text-sm font-bold text-white">
+                  {panel === "comments" ? `Comments · ${commentCount}` : `Seen by · ${viewCount}`}
+                </p>
+                <button onClick={() => setPanel(null)} className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white">
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+                {panel === "comments" ? (
+                  (detail?.comments?.length ?? 0) === 0 ? (
+                    <p className="py-8 text-center text-xs text-white/40">No comments yet. Be the first.</p>
+                  ) : (
+                    detail!.comments.map((c) => (
+                      <div key={c._id} className="flex items-start gap-2.5">
+                        <Avatar className="size-7 shrink-0">
+                          <AvatarImage src={c.authorAvatar} />
+                          <AvatarFallback className="bg-neutral-700 text-white text-[9px] font-bold">{ini(c.authorName)}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-white/90">
+                            <span className="font-semibold">{c.authorName}</span>{" "}
+                            <span className="text-white/80">{c.text}</span>
+                          </p>
+                          <p className="mt-0.5 text-[9px] text-white/35">{new Date(c.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                        </div>
+                      </div>
+                    ))
+                  )
+                ) : (detail?.viewers?.length ?? 0) === 0 ? (
+                  <p className="py-8 text-center text-xs text-white/40">No views yet.</p>
+                ) : (
+                  detail!.viewers!.map((v) => (
+                    <div key={v.userId} className="flex items-center gap-2.5">
+                      <Avatar className="size-7 shrink-0">
+                        <AvatarImage src={v.avatar} />
+                        <AvatarFallback className="bg-neutral-700 text-white text-[9px] font-bold">{ini(v.name)}</AvatarFallback>
+                      </Avatar>
+                      <p className="min-w-0 flex-1 truncate text-xs font-medium text-white/90">{v.name}</p>
+                      {v.emoji && <span className="text-base">{v.emoji}</span>}
+                      <span className="text-[9px] text-white/35">{new Date(v.viewedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {!isMine ? (
-          <div className="space-y-2 px-4 py-3">
+        {/* Footer: reactions (non-owner) + chips + public comment box */}
+        <div className="space-y-2 px-4 py-3">
+          {!isMine && (
             <div className="flex items-center justify-center gap-2">
               {QUICK_REACTIONS.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={() => react(emoji)}
-                  className={`text-2xl transition-transform hover:scale-125 ${story.myReaction === emoji ? "scale-125" : "opacity-80"}`}
+                  className={`text-2xl transition-transform hover:scale-125 ${myReaction === emoji ? "scale-125" : "opacity-80"}`}
                 >
                   {emoji}
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") sendReply(); }}
-                placeholder={replySent ? "Sent!" : `Reply to ${author.fullName.split(" ")[0]}…`}
-                className="flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
-              />
-              <button onClick={sendReply} disabled={!replyText.trim()} className="rounded-full bg-emerald-600 p-2 text-white hover:bg-emerald-500 disabled:opacity-40">
-                <Send className="size-4" />
+          )}
+
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => setPanel(panel === "comments" ? null : "comments")}
+              className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/20"
+            >
+              <MessageCircle className="size-3.5" /> {commentCount} Comments
+            </button>
+            {isMine && (
+              <button
+                onClick={() => setPanel(panel === "viewers" ? null : "viewers")}
+                className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/20"
+              >
+                <Eye className="size-3.5" /> {viewCount} Seen{reactionCount ? ` · ${reactionCount} ❤` : ""}
               </button>
-            </div>
+            )}
           </div>
-        ) : (
-          <div className="px-4 py-3 text-center text-[11px] text-white/50">
-            {story.reactionCount} reaction{story.reactionCount === 1 ? "" : "s"} · {story.viewedByMe ? "seen" : "new"}
+
+          <div className="flex items-center gap-2">
+            <input
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onFocus={() => setPaused(true)}
+              onBlur={() => { if (!panel) setPaused(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") sendComment(); }}
+              placeholder="Add a comment…"
+              className="flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
+            />
+            <button onClick={sendComment} disabled={!commentText.trim() || sending} className="rounded-full bg-emerald-600 p-2 text-white hover:bg-emerald-500 disabled:opacity-40">
+              {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -600,7 +755,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
         reconnectionAttempts: 5,
       });
       const reload = () => load();
-      ["story:new", "story:deleted", "story:reaction", "story:reply", "note:updated", "note:deleted"].forEach((ev) =>
+      ["story:new", "story:deleted", "story:reaction", "story:comment", "story:view", "note:updated", "note:deleted"].forEach((ev) =>
         socket!.on(ev, reload)
       );
     } catch {
@@ -692,7 +847,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
         />
       )}
       {viewer && (
-        <StoryViewer authors={storyUsers} start={viewer} onClose={() => setViewer(null)} onChanged={() => load()} />
+        <StoryViewer authors={storyUsers} start={viewer} onClose={() => { setViewer(null); load(); }} onChanged={() => load()} />
       )}
     </>
   );
