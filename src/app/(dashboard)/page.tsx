@@ -618,17 +618,21 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 container mx-auto min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
+    <div className="mx-auto w-full max-w-[1700px] min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
       {/* ── Ambient glow ── */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Header banner with embedded compact Spotify ── */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 px-5 py-5 backdrop-blur-xl sm:px-7 sm:py-6">
-        <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center">
+      <div className="relative rounded-3xl border border-white/10 bg-card/40 px-4 py-5 backdrop-blur-xl sm:px-7 sm:py-6">
+        {/* Decorations are clipped in their own layer so the Spotify dropdown
+            (which overflows the banner) isn't cut off. */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+          <div className="absolute -right-20 -top-24 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
+        </div>
+        <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
           {/* Greeting */}
-          <div className="min-w-0 lg:flex-1">
+          <div className="min-w-0 flex-[2] basis-[19rem]">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
@@ -658,7 +662,7 @@ export default function Dashboard() {
           </div>
 
           {/* Embedded compact Spotify */}
-          <div className="w-full shrink-0 border-t border-white/10 pt-4 lg:w-[22rem] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0 xl:w-[24rem]">
+          <div className="min-w-0 flex-1 basis-[16rem]">
             <SpotifyPanel compact bare />
           </div>
         </div>
@@ -744,7 +748,7 @@ export default function Dashboard() {
       <LatestPosts />
 
       {/* ── 2. My Calendar · 3. Leads · 4. Reviews · 5. Aftermarket ── */}
-      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr))]">
         <CalendarSummary />
         <LeadsSummary />
         <ReviewsSummary />
@@ -752,7 +756,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── 6. Driver Status · 7. Load Status ── */}
-      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-6 lg:grid-cols-2">
+      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
         <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
           <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
         </Panel>
@@ -764,13 +768,15 @@ export default function Dashboard() {
       </div>
 
       {/* ── 8. Revenue Trajectory (Live Payments removed) ── */}
-      <RevenueIntelligence
-        trajectory={metrics?.revenueTrajectory || []}
-        livePayments={[]}
-        period={revenuePeriod}
-        onPeriodChange={setRevenuePeriod}
-        isLoading={isLoading}
-      />
+      <div className="min-w-0 max-w-full overflow-x-auto">
+        <RevenueIntelligence
+          trajectory={metrics?.revenueTrajectory || []}
+          livePayments={[]}
+          period={revenuePeriod}
+          onPeriodChange={setRevenuePeriod}
+          isLoading={isLoading}
+        />
+      </div>
 
       {/* ── 9. Pipeline Status ── */}
       <OperationalHealth metrics={metrics} isLoading={isLoading} />

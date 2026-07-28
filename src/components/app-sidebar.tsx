@@ -295,7 +295,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [router]);
 
   return (
-    <Sidebar variant="inset" collapsible="icon" className="relative isolate overflow-hidden border-r bg-sidebar" {...props}>
+    <Sidebar variant="inset" collapsible="icon" className="isolate overflow-hidden border-r bg-sidebar" {...props}>
       {/* Greenish digital ambient — animated, reduced-motion aware */}
       <style>{`
         @keyframes green-float   { 0%,100% { transform: translate(0,0); } 50% { transform: translate(8px,-12px); } }
@@ -660,37 +660,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="relative z-10 border-t bg-sidebar p-4 group-data-[collapsible=icon]:p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="w-full rounded-lg border border-transparent transition-colors data-[state=open]:border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
-                >
-                  <Avatar className="h-8 w-8 rounded-lg ring-1 ring-inset ring-border group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
-                    <AvatarImage
-                      src={resolveImageUrl(
-                        avatarUrl !== null ? avatarUrl : user?.imageUrl,
-                      )}
-                      alt={user?.fullName || ""}
-                    />
-                    <AvatarFallback className="rounded-lg">
-                      {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate text-[13px] font-semibold text-sidebar-foreground">
-                      {user?.fullName}
-                    </span>
-                    <span className="truncate text-[12px] font-medium text-sidebar-foreground/80">
-                      {user?.primaryEmailAddress?.emailAddress}
-                    </span>
-                  </div>
-                  <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
+ <SidebarFooter className="relative z-10 border-t bg-sidebar px-2 py-3 group-data-[collapsible=icon]:p-2">
+  <SidebarMenu>
+    <SidebarMenuItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuButton
+            size="lg"
+            className="w-full gap-3 rounded-lg border border-transparent transition-colors data-[state=open]:border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+          >
+            <Avatar className="h-8 w-8 shrink-0 rounded-lg ring-1 ring-inset ring-border group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
+              <AvatarImage
+                src={resolveImageUrl(
+                  avatarUrl !== null ? avatarUrl : user?.imageUrl,
+                )}
+                alt={user?.fullName || ""}
+              />
+              <AvatarFallback className="rounded-lg">
+                {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-[13px] font-semibold text-sidebar-foreground">
+                {user?.fullName}
+              </span>
+              <span className="truncate text-[12px] font-medium text-sidebar-foreground/80">
+                {user?.primaryEmailAddress?.emailAddress}
+              </span>
+            </div>
+            <ChevronRight className="ml-auto size-4 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden" />
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
               <DropdownMenuContent
                 className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
                 side="bottom"

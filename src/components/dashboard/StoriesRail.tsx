@@ -15,6 +15,8 @@ import {
   Pencil,
   Eye,
   MessageCircle,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api-client";
@@ -64,13 +66,23 @@ interface RailUser {
 /* ── Constants / helpers ───────────────────────────────────────────────────── */
 
 const MAX_VIDEO_SECONDS = 120;
-const PHOTO_DURATION_MS = 30_000;
+const PHOTO_DURATION_MS = 15_000;
 const NOTE_MAX = 100;
 const QUICK_REACTIONS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
 
 function ini(n?: string) {
   return (n || "U").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
+// All story timestamps render in Mountain Time (MDT/MST), matching the rest of
+// the dashboard.
+const MOUNTAIN_TZ = "America/Denver";
+function mdtTime(d: string | Date) {
+  return new Date(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: MOUNTAIN_TZ });
+}
+function mdtDateTime(d: string | Date) {
+  return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: MOUNTAIN_TZ });
 }
 
 /** Downscale + re-encode an image to keep uploads light. */
@@ -180,6 +192,17 @@ function NoteEditor({
     }
   };
 
+  const del = async () => {
+    setSaving(true);
+    try {
+      await apiClient.delete("/api/crm/notes");
+      onSaved();
+      onClose();
+    } catch {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -212,11 +235,11 @@ function NoteEditor({
             </button>
             {initial && (
               <button
-                onClick={() => { setDraft(""); setTimeout(save, 0); }}
+                onClick={del}
                 disabled={saving}
-                className="rounded-full border border-border/50 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-rose-500 hover:border-rose-500/40 transition-colors"
+                className="rounded-full border border-rose-500/40 px-4 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-500/10 transition-colors"
               >
-                Clear
+                Delete
               </button>
             )}
           </div>
@@ -410,11 +433,14 @@ function StoryViewer({
   const [si, setSi] = React.useState(start.story);
   const [progress, setProgress] = React.useState(0);
   const [muted, setMuted] = React.useState(false);
-  const [paused, setPaused] = React.useState(false);
+  const [manualPause, setManualPause] = React.useState(false);
+  const [inputFocused, setInputFocused] = React.useState(false);
   const [panel, setPanel] = React.useState<null | "comments" | "viewers">(null);
   const [detail, setDetail] = React.useState<StoryDetail | null>(null);
   const [commentText, setCommentText] = React.useState("");
   const [sending, setSending] = React.useState(false);
+  const [mediaDuration, setMediaDuration] = React.useState(PHOTO_DURATION_MS / 1000); // seconds
+  const [burst, setBurst] = React.useState<{ emoji: string; id: number } | null>(null);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const rafRef = React.useRef<number | null>(null);
@@ -425,12 +451,16 @@ function StoryViewer({
   const story = author?.stories[si];
   const isMine = Boolean(author?.isMe);
 
+  // A story is paused when the user pauses it, opens a panel, or types a comment.
+  const paused = manualPause || panel !== null || inputFocused;
+
   const stopLoop = () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; };
 
   const goNext = React.useCallback(() => {
     stopLoop();
     setProgress(0);
     setPanel(null);
+    setManualPause(false);
     setCommentText("");
     if (!author) return onClose();
     if (si < author.stories.length - 1) return setSi(si + 1);
@@ -442,6 +472,7 @@ function StoryViewer({
     stopLoop();
     setProgress(0);
     setPanel(null);
+    setManualPause(false);
     if (si > 0) return setSi(si - 1);
     if (ai > 0) { setAi(ai - 1); setSi(list[ai - 1].stories.length - 1); return; }
     setProgress(0);
@@ -455,11 +486,12 @@ function StoryViewer({
       .catch(() => {});
   }, [story?._id]);
 
-  // On each story: mark viewed, load detail, and keep detail fresh (live
-  // comments / reactions / seen-by) with a light poll.
+  // On each story: reset duration/pause, mark viewed, load detail + light poll.
   React.useEffect(() => {
     if (!story) return;
     setDetail(null);
+    setManualPause(false);
+    setMediaDuration(story.media.mediaType === "image" ? PHOTO_DURATION_MS / 1000 : (story.media.durationSec || 0));
     apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => {});
     loadDetail();
     const id = setInterval(loadDetail, 5000);
@@ -470,7 +502,6 @@ function StoryViewer({
   // Auto-advance timer for images (respects pause).
   React.useEffect(() => {
     if (!story || story.media.mediaType !== "image") return;
-    elapsedRef.current = 0;
     lastTsRef.current = performance.now();
     const tick = (ts: number) => {
       const dt = ts - lastTsRef.current;
@@ -488,7 +519,10 @@ function StoryViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?._id, paused]);
 
-  // Pause/resume video when a panel opens.
+  // Reset the image elapsed accumulator whenever the story changes.
+  React.useEffect(() => { elapsedRef.current = 0; }, [story?._id]);
+
+  // Pause/resume the video with the derived pause state.
   React.useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -496,11 +530,10 @@ function StoryViewer({
     else v.play().catch(() => {});
   }, [paused]);
 
-  // Opening a panel pauses the story.
-  React.useEffect(() => { setPaused(panel !== null); }, [panel]);
-
   const react = async (emoji: string) => {
     if (!story) return;
+    setBurst({ emoji, id: Date.now() });      // fire the float-up animation
+    window.setTimeout(() => setBurst(null), 900);
     try {
       await apiClient.post(`/api/crm/stories/${story._id}/react`, { emoji });
       loadDetail();
@@ -530,8 +563,12 @@ function StoryViewer({
   const reactionCount = detail?.reactionCount ?? story.reactionCount ?? 0;
   const myReaction = detail?.myReaction ?? story.myReaction ?? null;
 
+  const remaining = Math.max(0, Math.ceil((1 - progress) * (mediaDuration || 0)));
+  const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-sm">
+      <style>{`@keyframes storyReactFloat{0%{opacity:0;transform:translateY(28px) scale(.4)}25%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-150px) scale(1.75)}}`}</style>
       <button onClick={onClose} className="absolute right-4 top-4 z-30 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
         <X className="size-5" />
       </button>
@@ -558,8 +595,20 @@ function StoryViewer({
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white truncate">{author.fullName}</p>
-            <p className="text-[10px] text-white/50">{new Date(story.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+            <p className="text-[10px] text-white/50">{mdtTime(story.createdAt)} MDT</p>
           </div>
+          {mediaDuration > 0 && (
+            <span className="rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white/90">
+              {fmtTime(remaining)}
+            </span>
+          )}
+          <button
+            onClick={() => setManualPause((p) => !p)}
+            className="rounded-full bg-white/10 p-1.5 text-white hover:bg-white/20"
+            aria-label={paused ? "Play" : "Pause"}
+          >
+            {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
+          </button>
           {story.media.mediaType === "video" && (
             <button onClick={() => setMuted((m) => !m)} className="rounded-full bg-white/10 p-1.5 text-white hover:bg-white/20">
               {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
@@ -582,6 +631,7 @@ function StoryViewer({
               autoPlay
               muted={muted}
               playsInline
+              onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) setMediaDuration(v.duration); }}
               onTimeUpdate={(e) => { const v = e.currentTarget; if (v.duration) setProgress(v.currentTime / v.duration); }}
               onEnded={goNext}
             />
@@ -591,6 +641,22 @@ function StoryViewer({
           {story.caption && (
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
               <p className="text-sm text-white/90">{story.caption}</p>
+            </div>
+          )}
+
+          {/* Reaction float-up animation */}
+          {burst && (
+            <div key={burst.id} className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center pb-24">
+              <span className="text-6xl drop-shadow-lg" style={{ animation: "storyReactFloat 900ms ease-out forwards" }}>
+                {burst.emoji}
+              </span>
+            </div>
+          )}
+
+          {/* Paused hint */}
+          {paused && !panel && (
+            <div className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/90">
+              <Pause className="size-3" /> Paused
             </div>
           )}
 
@@ -622,7 +688,7 @@ function StoryViewer({
                             <span className="font-semibold">{c.authorName}</span>{" "}
                             <span className="text-white/80">{c.text}</span>
                           </p>
-                          <p className="mt-0.5 text-[9px] text-white/35">{new Date(c.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                          <p className="mt-0.5 text-[9px] text-white/35">{mdtDateTime(c.createdAt)}</p>
                         </div>
                       </div>
                     ))
@@ -638,7 +704,7 @@ function StoryViewer({
                       </Avatar>
                       <p className="min-w-0 flex-1 truncate text-xs font-medium text-white/90">{v.name}</p>
                       {v.emoji && <span className="text-base">{v.emoji}</span>}
-                      <span className="text-[9px] text-white/35">{new Date(v.viewedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                      <span className="text-[9px] text-white/35">{mdtTime(v.viewedAt)}</span>
                     </div>
                   ))
                 )}
@@ -655,7 +721,7 @@ function StoryViewer({
                 <button
                   key={emoji}
                   onClick={() => react(emoji)}
-                  className={`text-2xl transition-transform hover:scale-125 ${myReaction === emoji ? "scale-125" : "opacity-80"}`}
+                  className={`text-2xl transition-transform duration-150 hover:scale-125 active:scale-[1.6] ${myReaction === emoji ? "scale-125 drop-shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "opacity-80"}`}
                 >
                   {emoji}
                 </button>
@@ -684,8 +750,8 @@ function StoryViewer({
             <input
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              onFocus={() => setPaused(true)}
-              onBlur={() => { if (!panel) setPaused(false); }}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               onKeyDown={(e) => { if (e.key === "Enter") sendComment(); }}
               placeholder="Add a comment…"
               className="flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
