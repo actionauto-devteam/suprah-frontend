@@ -776,6 +776,26 @@ export default function TimeprofClockPage() {
     }
   }
 
+  // Re-fires the custom-protocol handshake (the one path that reaches the
+  // tray even when the browser blocks the loopback auto-connect fetch — see
+  // isTrayOnline's comment) and polls for it coming online, instead of a
+  // single check after a fixed delay. A single 3s check was sometimes too
+  // early: verifying the token, starting the tray's services, and its first
+  // heartbeat reaching the backend is more than one network round trip, and
+  // a plain re-check (no protocol re-trigger) never gives a tray whose
+  // silent background auto-connect got blocked any other way to connect —
+  // clicking it repeatedly just re-read the same stale "offline" status.
+  const POLL_INTERVAL_MS = 1500
+  const POLL_MAX_ATTEMPTS = 8 // ~12s total
+  const attemptTrayReconnect = async (): Promise<boolean> => {
+    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
+    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+      if (await isTrayOnline()) return true
+    }
+    return false
+  }
+
   const checkTrayAndStartShift = React.useCallback(async () => {
     const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
@@ -1988,15 +2008,11 @@ export default function TimeprofClockPage() {
                   <Download className="h-4 w-4" /> Download Tray App ({isMacDesktop() ? ".dmg" : ".exe"})
                 </a>
                 <button onClick={async () => {
-                  // Custom protocol navigation, NOT a fetch — this is the one path
-                  // that actually reaches the tray even when the browser blocks
-                  // direct loopback fetches (Private Network Access).
-                  try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
-                  await new Promise((r) => setTimeout(r, 3000))
                   setTrayChecking(true)
                   try {
-                    const online = await isTrayOnline()
+                    const online = await attemptTrayReconnect()
                     if (online) { setShowTrayModal(false); handleClock("time-in") }
+                    else toast.error("Still couldn't reach the tray app. Make sure it's running, then try again.")
                   } catch { } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}
                   className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50">
@@ -2005,7 +2021,7 @@ export default function TimeprofClockPage() {
                 <button onClick={async () => {
                   setTrayChecking(true)
                   try {
-                    const online = await isTrayOnline()
+                    const online = await attemptTrayReconnect()
                     if (online) { setShowTrayModal(false); handleClock("time-in") }
                     else toast.error("Tray app not detected. Make sure it is running.")
                   } catch { toast.error("Tray app not detected. Make sure it is running.") } finally { setTrayChecking(false) }
