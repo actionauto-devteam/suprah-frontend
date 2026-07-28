@@ -116,6 +116,7 @@ interface UseSupraSpaceReturn {
   sendTypingStart: (conversationId: string) => void;
   sendTypingStop: (conversationId: string) => void;
   markRead: (conversationId: string) => void;
+  markAllRead: () => void;
 }
 
 export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
@@ -234,6 +235,9 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   const markRead = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('mark:read', { conversationId });
   }, []);
+  const markAllRead = React.useCallback(() => {
+    socketRef.current?.emit('mark:all:read');
+  }, []);
 
-  return { socket: socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead };
+  return { socket: socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead };
 }

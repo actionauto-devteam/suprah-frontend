@@ -65,6 +65,8 @@ import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import { useWhatsNew } from "@/context/WhatsNewContext";
 import { useFeedBadge } from "@/lib/feed-notification-store";
+import { useNotifications } from "@/context/NotificationContext";
+import { isLocatorNotification } from "@/components/notifications/notification-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -273,6 +275,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Feeds badge — singleton useSyncExternalStore store (no provider needed).
   // total = unseen posts since last visit + unread mentions/comments/@all.
   const feedBadge = useFeedBadge();
+  // Locator badge — geofence/shift alerts admins asked to keep visible from the
+  // sidebar, not just buried in the general bell. Red (not the usual emerald/blue)
+  // since these are the "something needs attention" alerts, distinct from the
+  // informational badges above.
+  const { notifications: allNotifications } = useNotifications();
+  const locatorUnread = React.useMemo(
+    () => allNotifications.filter((n) => !n.isRead && isLocatorNotification(n)).length,
+    [allNotifications],
+  );
 
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
@@ -401,6 +412,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     {isActive && <ActiveStrip />}
                     <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                     <span className="font-medium tracking-widest">{item.title}</span>
+
+                    {/* Team Pulse: unread Locator/TimeProof alerts (geofence,
+                        shift alerts, location requests) — surfaced here so admins
+                        don't have to open the tab to know something needs a look. */}
+                    {item.title === "Team Pulse" && locatorUnread > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-red-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                      >
+                        {locatorUnread > 99 ? "99+" : locatorUnread}
+                      </Badge>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

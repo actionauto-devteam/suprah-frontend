@@ -45,7 +45,7 @@ import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isMobileMonitoringDept } from "@/lib/departments"
+import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departments"
 import { useLocationSharing } from "@/hooks/useLocationSharing"
 import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
 import {
@@ -157,7 +157,7 @@ function locatorStateMeta(state: LocatorSharingState, error: string | null, awai
   }
   if (error) return { label: "Needs attention", detail: error, ...LOCATOR_STATE_COLORS.declined_permission }
   const meta = sharingMeta(state)
-  const detail = state === "sharing" ? "Sharing to Team Pulse Beacon"
+  const detail = state === "sharing" ? "Sharing to Team Pulse Locator"
     : state === "off_duty" ? "Starts automatically on shift"
       : meta.description
   return { label: meta.label, detail, ...LOCATOR_STATE_COLORS[state] }
@@ -1378,18 +1378,30 @@ export default function TimeprofClockPage() {
                   {isActive && !isOnBreak && (
                     <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
                       {locatorStatus?.consentGranted ? (
-                        <>
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-bold text-foreground">Sharing during your active shift</p>
-                            <p className="mt-0.5 text-[9px] text-muted-foreground/50">Required to clock in. You can pause it now — admins will be notified — and turn it back on any time.</p>
-                          </div>
-                          <Button
-                            size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
-                            className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
-                          >
-                            <Power className="h-3 w-3" /> Stop Sharing
-                          </Button>
-                        </>
+                        isMandatoryLocationDept(user?.department) ? (
+                          <>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-foreground">Sharing during your active shift</p>
+                              <p className="mt-0.5 text-[9px] text-muted-foreground/50">Lot Tech accounts can&apos;t turn off location while clocked in. End your shift to stop sharing.</p>
+                            </div>
+                            <span className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border/40 bg-muted/20 px-2.5 text-[10px] font-bold text-muted-foreground/60">
+                              <Lock className="h-3 w-3" /> Locked
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-foreground">Sharing during your active shift</p>
+                              <p className="mt-0.5 text-[9px] text-muted-foreground/50">Required to clock in. You can pause it now — admins will be notified — and turn it back on any time.</p>
+                            </div>
+                            <Button
+                              size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
+                              className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
+                            >
+                              <Power className="h-3 w-3" /> Stop Sharing
+                            </Button>
+                          </>
+                        )
                       ) : (
                         <>
                           <div className="min-w-0">

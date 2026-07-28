@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { MessageCircle, ArrowUpRight, Plus, ChevronLeft, Search, Check, Users, Loader2 } from 'lucide-react';
+import { MessageCircle, ArrowUpRight, Plus, ChevronLeft, Search, Check, CheckCheck, Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -124,6 +124,7 @@ export function MessengerDropdown() {
     conversationError,
     openChatPopup,
     refreshConversations,
+    markAllAsRead,
   } =
     useSupraSpaceMessenger();
   const router = useRouter();
@@ -188,7 +189,7 @@ export function MessengerDropdown() {
           headers: { Authorization: `Bearer ${crmToken}` },
         });
         setUsers(r.data?.data || r.data || []);
-      } catch {} finally {
+      } catch { } finally {
         setUsersLoading(false);
       }
     }
@@ -197,7 +198,7 @@ export function MessengerDropdown() {
   const filteredUsers = users.filter(u =>
     u._id !== crmUserId &&
     (u.fullName.toLowerCase().includes(userSearch.toLowerCase()) ||
-     (u.username || '').toLowerCase().includes(userSearch.toLowerCase()))
+      (u.username || '').toLowerCase().includes(userSearch.toLowerCase()))
   );
 
   const handleDM = async (targetId: string) => {
@@ -220,7 +221,7 @@ export function MessengerDropdown() {
           openChatPopup(conv._id);
         }
       }
-    } catch {} finally {
+    } catch { } finally {
       setCreating(false);
     }
   };
@@ -245,7 +246,7 @@ export function MessengerDropdown() {
           openChatPopup(conv._id);
         }
       }
-    } catch {} finally {
+    } catch { } finally {
       setCreating(false);
     }
   };
@@ -268,7 +269,7 @@ export function MessengerDropdown() {
         >
           <MessageCircle className={cn('size-4', totalUnread > 0 ? 'text-green-500 dark:text-green-400' : 'text-foreground/70')} />
           {totalUnread > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow-sm pointer-events-none">
+            <span className="absolute -top-1.5 -right-1.5 min-w-4.5 h-4.5 px-1 bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow-sm pointer-events-none">
               {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
@@ -300,6 +301,15 @@ export function MessengerDropdown() {
                   ) : 'All caught up'}
                 </p>
               </div>
+              {totalUnread > 0 && (
+                <button
+                  onClick={() => markAllAsRead()}
+                  title="Mark all as read"
+                  className="shrink-0 flex items-center justify-center h-7 w-7 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                >
+                  <CheckCheck className="size-3.5" strokeWidth={2.5} />
+                </button>
+              )}
               <button
                 onClick={enterCreate}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors"
@@ -321,106 +331,106 @@ export function MessengerDropdown() {
         {view === 'list' ? (
           /* -- Conversation list -- */
           <>
-          <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 border-b border-border/40 bg-card/80">
-            {CONVERSATION_FILTERS.map((filter) => {
-              const isActive = conversationFilter === filter.key;
-              return (
-                <button
-                  key={filter.key}
-                  type="button"
-                  onClick={() => setConversationFilter(filter.key)}
-                  className={cn(
-                    'h-7 shrink-0 rounded-full border px-3 text-[11px] font-semibold transition-colors',
-                    isActive
-                      ? 'border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-300'
-                      : 'border-border/55 bg-muted/25 text-muted-foreground hover:border-green-500/35 hover:text-foreground'
-                  )}
-                >
-                  {filter.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex-1 overflow-y-auto min-h-0 bg-card/80" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}>
-            {conversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                {isLoadingConversations ? (
-                  <>
-                    <Loader2 className="size-7 animate-spin text-green-500/70 mb-2" />
-                    <p className="text-[12px] text-muted-foreground">Loading conversations...</p>
-                  </>
-                ) : conversationError ? (
-                  <>
-                    <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-[12px] font-semibold text-foreground/80">Could not load conversations</p>
-                    <button
-                      onClick={() => refreshConversations()}
-                      className="mt-3 rounded-lg px-3 py-1.5 text-[11px] font-semibold"
-                      style={{ background: 'rgba(52,201,125,0.12)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.25)' }}
-                    >
-                      Try again
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-[12px] text-muted-foreground">No conversations yet</p>
-                    <button
-                      onClick={() => refreshConversations()}
-                      className="mt-3 rounded-lg px-3 py-1.5 text-[11px] font-semibold"
-                      style={{ background: 'rgba(52,201,125,0.12)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.25)' }}
-                    >
-                      Refresh
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
-                <p className="text-[12px] font-semibold text-foreground/80">
-                  No {CONVERSATION_FILTERS.find((filter) => filter.key === conversationFilter)?.label.toLowerCase()} conversations
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Try another filter or open Suprah Space.
-                </p>
-              </div>
-            ) : (
-              filteredConversations.map((conv) => {
-                const msg = conv.lastMessage;
-                const isUnread = isConvUnread(conv, crmUserId);
-                const name = getDisplayName(conv, crmUserId);
-                const avatarSrc = getAvatarSrc(conv, crmUserId);
+            <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 border-b border-border/40 bg-card/80">
+              {CONVERSATION_FILTERS.map((filter) => {
+                const isActive = conversationFilter === filter.key;
                 return (
-                  <button key={conv._id}
-                    className={cn('w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50', isUnread && 'bg-green-500/5 hover:bg-green-500/10')}
-                    onClick={() => {
-                      if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                        router.push('/crm/supra-space?convId=' + conv._id);
-                      } else {
-                        openChatPopup(conv._id);
-                      }
-                    }}
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => setConversationFilter(filter.key)}
+                    className={cn(
+                      'h-7 shrink-0 rounded-full border px-3 text-[11px] font-semibold transition-colors',
+                      isActive
+                        ? 'border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-300'
+                        : 'border-border/55 bg-muted/25 text-muted-foreground hover:border-green-500/35 hover:text-foreground'
+                    )}
                   >
-                    <div className="relative shrink-0">
-                      <Avatar className="h-10 w-10">
-                        {avatarSrc && <AvatarImage src={resolveImageUrl(avatarSrc)} />}
-                        <AvatarFallback className="text-[11px] font-semibold bg-gradient-to-br from-green-500 to-green-700 text-white">{initials(name)}</AvatarFallback>
-                      </Avatar>
-                      {isUnread && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={cn('text-[13px] truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>{name}</span>
-                        {conv.lastMessageAt && <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(conv.lastMessageAt)}</span>}
-                      </div>
-                      <p className={cn('text-[11px] truncate mt-0.5', isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>{previewText(conv)}</p>
-                    </div>
+                    {filter.label}
                   </button>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0 bg-card/80" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}>
+              {conversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                  {isLoadingConversations ? (
+                    <>
+                      <Loader2 className="size-7 animate-spin text-green-500/70 mb-2" />
+                      <p className="text-[12px] text-muted-foreground">Loading conversations...</p>
+                    </>
+                  ) : conversationError ? (
+                    <>
+                      <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
+                      <p className="text-[12px] font-semibold text-foreground/80">Could not load conversations</p>
+                      <button
+                        onClick={() => refreshConversations()}
+                        className="mt-3 rounded-lg px-3 py-1.5 text-[11px] font-semibold"
+                        style={{ background: 'rgba(52,201,125,0.12)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.25)' }}
+                      >
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
+                      <p className="text-[12px] text-muted-foreground">No conversations yet</p>
+                      <button
+                        onClick={() => refreshConversations()}
+                        className="mt-3 rounded-lg px-3 py-1.5 text-[11px] font-semibold"
+                        style={{ background: 'rgba(52,201,125,0.12)', color: '#34c97d', border: '1px solid rgba(52,201,125,0.25)' }}
+                      >
+                        Refresh
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : filteredConversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                  <MessageCircle className="size-8 text-muted-foreground/30 mb-2" />
+                  <p className="text-[12px] font-semibold text-foreground/80">
+                    No {CONVERSATION_FILTERS.find((filter) => filter.key === conversationFilter)?.label.toLowerCase()} conversations
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Try another filter or open Suprah Space.
+                  </p>
+                </div>
+              ) : (
+                filteredConversations.map((conv) => {
+                  const msg = conv.lastMessage;
+                  const isUnread = isConvUnread(conv, crmUserId);
+                  const name = getDisplayName(conv, crmUserId);
+                  const avatarSrc = getAvatarSrc(conv, crmUserId);
+                  return (
+                    <button key={conv._id}
+                      className={cn('w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50', isUnread && 'bg-green-500/5 hover:bg-green-500/10')}
+                      onClick={() => {
+                        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                          router.push('/crm/supra-space?convId=' + conv._id);
+                        } else {
+                          openChatPopup(conv._id);
+                        }
+                      }}
+                    >
+                      <div className="relative shrink-0">
+                        <Avatar className="h-10 w-10">
+                          {avatarSrc && <AvatarImage src={resolveImageUrl(avatarSrc)} />}
+                          <AvatarFallback className="text-[11px] font-semibold bg-linear-to-br from-green-500 to-green-700 text-white">{initials(name)}</AvatarFallback>
+                        </Avatar>
+                        {isUnread && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn('text-[13px] truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>{name}</span>
+                          {conv.lastMessageAt && <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(conv.lastMessageAt)}</span>}
+                        </div>
+                        <p className={cn('text-[11px] truncate mt-0.5', isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>{previewText(conv)}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </>
         ) : (
           /* -- Create view -- */
@@ -506,7 +516,7 @@ export function MessengerDropdown() {
                       <div className="relative shrink-0">
                         <Avatar className="h-8 w-8">
                           {u.avatar && <AvatarImage src={resolveImageUrl(u.avatar)} />}
-                          <AvatarFallback className="text-[10px] font-semibold bg-gradient-to-br from-green-500 to-green-700 text-white">{initials(u.fullName)}</AvatarFallback>
+                          <AvatarFallback className="text-[10px] font-semibold bg-linear-to-br from-green-500 to-green-700 text-white">{initials(u.fullName)}</AvatarFallback>
                         </Avatar>
                       </div>
                       <div className="min-w-0 flex-1">

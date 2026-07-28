@@ -134,12 +134,12 @@ interface ReactionState {
 }
 
 const REACTIONS: { type: ReactionType; emoji: string; label: string; color: string; bg: string }[] = [
-  { type: "like", emoji: "??", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love", emoji: "??", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
-  { type: "haha", emoji: "??", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
-  { type: "wow", emoji: "??", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
-  { type: "sad", emoji: "??", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
-  { type: "angry", emoji: "??", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
+  { type: "like", emoji: "\u{1f44d}", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
+  { type: "love", emoji: "\u{2764}\u{fe0f}", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
+  { type: "haha", emoji: "\u{1f602}", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
+  { type: "wow", emoji: "\u{1f62e}", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
+  { type: "sad", emoji: "\u{1f622}", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
+  { type: "angry", emoji: "\u{1f620}", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
 
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
@@ -518,7 +518,7 @@ function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnTyp
             {isAll ? "Notify the whole team" : `@${c.username || c.email || ""}`}
           </p>
         </div>
-        {active && <span className="shrink-0 text-[9px] font-semibold text-emerald-500/70">?</span>}
+        {active && <span className="shrink-0 text-[9px] font-semibold text-emerald-500/70">{"↵"}</span>}
       </button>
     )
   }
@@ -555,8 +555,8 @@ function MentionSuggestions({ mention, placement = "top" }: { mention: ReturnTyp
 
       {/* Keyboard hints */}
       <div className="flex items-center gap-2.5 border-t border-border/40 bg-muted/20 px-3 py-1.5 text-[9px] text-muted-foreground/45">
-        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">??</kbd> navigate</span>
-        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">?</kbd> select</span>
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">{"↑↓"}</kbd> navigate</span>
+        <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">{"↵"}</kbd> select</span>
         <span className="flex items-center gap-1"><kbd className="rounded border border-border/40 bg-muted/50 px-1 font-sans leading-relaxed">esc</kbd> close</span>
       </div>
     </div>
@@ -841,7 +841,7 @@ function ReactionBar({
               ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/40 text-muted-foreground/50 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
               ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "??"}</span>}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "\u{1f44d}"}</span>}
             {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
           </button>
           {showPicker && (

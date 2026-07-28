@@ -162,7 +162,7 @@ export default function DepartmentsSettingsPage() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground/80">Admin only</p>
                   <p className="text-[11px] text-muted-foreground/60 mt-0.5 leading-relaxed">
-                    Departments assigned here are what employees see everywhere else in the app — Beacon, Team Pulse,
+                    Departments assigned here are what employees see everywhere else in the app — Locator, Team Pulse,
                     TimeProof, and their own profile. Deactivating a department hides it from new assignments but
                     keeps it visible for anyone already on it.
                   </p>
