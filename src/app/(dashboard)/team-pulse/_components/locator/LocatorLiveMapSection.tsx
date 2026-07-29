@@ -317,14 +317,28 @@ export function LocatorLiveMapSection({
   // map actually becomes ready. This flips exactly once, right when the map is constructed, and
   // is included as a dependency everywhere so each effect is guaranteed at least one real run.
   const [mapReady, setMapReady] = React.useState(false);
+  // Defer live marker and popup DOM work while Leaflet is actively moving.
+  // The latest location data is applied as soon as the interaction finishes.
+  const [isMapMoving, setIsMapMoving] = React.useState(false);
   const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
+  const resizeFrameRef = React.useRef<number | null>(null);
 
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<LeafletMap | null>(null);
   const tileLayerRef = React.useRef<LeafletTileLayer | null>(null);
   const markersRef = React.useRef<Map<string, {
-    marker: LeafletMarker; popup: LeafletPopup; circleEl: HTMLDivElement; haloEl: HTMLDivElement; approxEl: HTMLSpanElement;
-    lastState: string; lastSelected: boolean; lastHaloScale: number | null; lastApprox: boolean; isSelf: boolean;
+    marker: LeafletMarker;
+    popup: LeafletPopup;
+    wrapperEl: HTMLDivElement;
+    circleEl: HTMLDivElement;
+    haloEl: HTMLDivElement;
+    approxEl: HTMLSpanElement;
+    lastState: string;
+    lastSelected: boolean;
+    lastHaloScale: number | null;
+    lastApprox: boolean;
+    lastPopupKey: string | null;
+    isSelf: boolean;
   }>>(new Map());
   const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; haloCircle: LeafletCircle; mainCircle: LeafletCircle; warningCircle: LeafletCircle | null; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
   const trailLayerRef = React.useRef<LeafletLayerGroup | null>(null);
@@ -433,6 +447,9 @@ export function LocatorLiveMapSection({
           maxZoom: MAX_ZOOM,
           zoomControl: false,
           attributionControl: true,
+          fadeAnimation: false,
+          markerZoomAnimation: false,
+          zoomAnimation: true,
         });
         mapInstanceRef.current = map;
 
@@ -446,8 +463,10 @@ export function LocatorLiveMapSection({
           // wider ring of already-loaded tiles around the viewport so panning/zooming out reuses
           // them instead of blanking, and don't throw away/refetch tiles on every intermediate
           // frame of a zoom gesture, only once it settles.
-          keepBuffer: 4,
+          keepBuffer: 8,
+          updateWhenIdle: true,
           updateWhenZooming: false,
+          updateInterval: 250,
           detectRetina: true,
         }).addTo(map);
         tileLayerRef.current = tileLayer;
@@ -456,6 +475,17 @@ export function LocatorLiveMapSection({
         setMapReady(true);
         setMapStatus("ready");
         map.on("zoom", () => setZoom(map.getZoom()));
+        map.on("movestart zoomstart", () => {
+          mapRef.current?.classList.add("locator-map-moving");
+          setIsMapMoving(true);
+        });
+        map.on("moveend zoomend", () => {
+          mapRef.current?.classList.remove("locator-map-moving");
+          setIsMapMoving(false);
+          window.requestAnimationFrame(() => {
+            map.invalidateSize({ pan: false, debounceMoveend: true });
+          });
+        });
 
         // If literally every tile in the first load errors out (blocked CDN, offline, DNS
         // issue) the map itself is "ready" but shows nothing useful — surface that distinctly
@@ -473,7 +503,15 @@ export function LocatorLiveMapSection({
         // rotation, sidebar collapse) — Leaflet doesn't auto-detect that, so without this the
         // canvas keeps rendering at its old size until something else triggers a recalculation.
         if (typeof ResizeObserver !== "undefined" && mapRef.current) {
-          const observer = new ResizeObserver(() => map.invalidateSize());
+          const observer = new ResizeObserver(() => {
+            if (resizeFrameRef.current !== null) {
+              window.cancelAnimationFrame(resizeFrameRef.current);
+            }
+            resizeFrameRef.current = window.requestAnimationFrame(() => {
+              resizeFrameRef.current = null;
+              map.invalidateSize({ pan: false, debounceMoveend: true });
+            });
+          });
           observer.observe(mapRef.current);
           resizeObserverRef.current = observer;
         }
@@ -506,6 +544,11 @@ export function LocatorLiveMapSection({
       if (focusRef) focusRef.current = null;
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      mapRef.current?.classList.remove("locator-map-moving");
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -525,7 +568,7 @@ export function LocatorLiveMapSection({
 
   React.useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map) return;
+    if (!map || isMapMoving) return;
     let cancelled = false;
 
     (async () => {
@@ -577,10 +620,28 @@ export function LocatorLiveMapSection({
         const isApprox = typeof loc.accuracyM === "number" && loc.accuracyM > 100;
         const zIndex = isSelected ? 30 : isSelf ? 20 : 10;
 
+        const popupKey = [
+          loc.lastSeenAt,
+          loc.sharingState,
+          loc.currentPlaceId ?? "",
+          loc.accuracyM ?? "",
+          loc.speedMph ?? "",
+          loc.batteryLevel ?? "",
+          loc.isCharging ? "1" : "0",
+          loc.deviceType ?? "",
+          loc.sharingSince ?? "",
+          loc.drivingSessionId ?? "",
+          theme,
+          isSelf ? "1" : "0",
+        ].join("|");
+
         if (existing) {
           existing.marker.setLatLng(latLng);
           existing.popup.setLatLng(latLng);
-          existing.popup.setContent(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
+          if (isSelected && existing.lastPopupKey !== popupKey) {
+            existing.popup.setContent(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
+            existing.lastPopupKey = popupKey;
+          }
           const el = existing.marker.getElement();
           if (el) {
             el.style.opacity = isLastSeen ? "0.55" : "1";
@@ -594,6 +655,8 @@ export function LocatorLiveMapSection({
           }
           if (existing.lastSelected !== isSelected) {
             const size = isSelected ? 46 : 36;
+            existing.wrapperEl.style.width = `${size}px`;
+            existing.wrapperEl.style.height = `${size}px`;
             existing.circleEl.style.width = `${size}px`;
             existing.circleEl.style.height = `${size}px`;
             existing.circleEl.style.borderWidth = isSelected ? "4px" : "3px";
@@ -719,8 +782,11 @@ export function LocatorLiveMapSection({
         }).addTo(map);
 
         const popup = L.popup({ offset: [0, -(size / 2) - 6], closeButton: false, autoClose: false, closeOnClick: false, className: "locator-popup" })
-          .setLatLng(latLng)
-          .setContent(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
+          .setLatLng(latLng);
+
+        if (isSelected) {
+          popup.setContent(buildPopupHtml(loc, place, viewerCoords, isSelf, theme));
+        }
 
         // The close button lives inside popup content that gets replaced wholesale on every
         // `.setContent()` call (every live location update — as often as every few seconds) —
@@ -738,8 +804,18 @@ export function LocatorLiveMapSection({
         });
 
         markers.set(loc.userId, {
-          marker, popup, circleEl, haloEl, approxEl, isSelf,
-          lastState: loc.sharingState, lastSelected: isSelected, lastHaloScale: haloScaleNow, lastApprox: isApprox,
+          marker,
+          popup,
+          wrapperEl: wrapper,
+          circleEl,
+          haloEl,
+          approxEl,
+          isSelf,
+          lastState: loc.sharingState,
+          lastSelected: isSelected,
+          lastHaloScale: haloScaleNow,
+          lastApprox: isApprox,
+          lastPopupKey: isSelected ? popupKey : null,
         });
       });
 
@@ -752,7 +828,7 @@ export function LocatorLiveMapSection({
     return () => {
       cancelled = true;
     };
-  }, [locations, places, selectedUserId, myUserId, myLocation, theme, mapReady]);
+  }, [locations, places, selectedUserId, myUserId, myLocation, theme, mapReady, isMapMoving]);
 
   // Identifies WHICH trail is currently on screen (who + what span of time) — not the specific
   // array reference, which changes on every background refetch of the exact same trail (React
@@ -969,6 +1045,17 @@ export function LocatorLiveMapSection({
       { }
       <style>{`
         .locator-marker-icon { background: transparent; border: none; }
+        .locator-marker-icon > div { transform: translateZ(0); }
+        .team-pulse-leaflet-map.locator-map-moving .locator-marker-icon > div {
+          animation: none !important;
+          transition: none !important;
+        }
+        .team-pulse-leaflet-map.locator-map-moving .locator-marker-icon > div > div:first-child {
+          display: none !important;
+        }
+        .team-pulse-leaflet-map.locator-map-moving .locator-popup {
+          visibility: hidden;
+        }
         .locator-popup .leaflet-popup-content-wrapper { background: transparent; box-shadow: none; padding: 0; border-radius: 14px; }
         .locator-popup .leaflet-popup-content { margin: 0; }
         .locator-popup .leaflet-popup-tip { display: none; }
