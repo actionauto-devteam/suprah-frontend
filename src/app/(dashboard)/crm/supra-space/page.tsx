@@ -1212,7 +1212,16 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
     };
 
     const findNextToken = (from: number) => {
-      const candidates: Array<{ start: number; end: number; type: 'color' | 'bold' | 'strike' | 'underline' | 'italic' | 'code'; color?: string; contentStart?: number; contentEnd?: number }> = [];
+      const candidates: Array<{ start: number; end: number; type: 'color' | 'bold' | 'strike' | 'underline' | 'italic' | 'code' | 'link'; color?: string; contentStart?: number; contentEnd?: number; linkText?: string; linkHref?: string }> = [];
+      const linkRe = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
+      linkRe.lastIndex = from;
+      const linkMatch = linkRe.exec(text);
+      if (linkMatch) {
+        candidates.push({
+          start: linkMatch.index, end: linkMatch.index + linkMatch[0].length,
+          type: 'link', linkText: linkMatch[1], linkHref: linkMatch[2],
+        });
+      }
       const colorRe = /\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}/gi;
       colorRe.lastIndex = from;
       const colorStart = colorRe.exec(text);
@@ -1269,6 +1278,12 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         nodes.push(<u key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</u>);
       } else if (token.type === 'italic') {
         nodes.push(<em key={key}>{renderInline(text.slice(token.start + 1, token.end - 1), key)}</em>);
+      } else if (token.type === 'link') {
+        nodes.push(
+          <a key={key} href={token.linkHref} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>
+            {renderInline(token.linkText || '', key)}
+          </a>
+        );
       } else {
         nodes.push(<code key={key} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{text.slice(token.start + 1, token.end - 1)}</code>);
       }
@@ -1279,27 +1294,120 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
   };
 
   const normalized = normalizeMessageMarkdownForDisplay(content);
+  const rawLines = normalized.split('\n');
 
-  normalized.split('\n').forEach((line, li) => {
-    if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return;
-    const renderLine = (() => {
-      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
-      if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
-      return line;
-    })();
-    if (li > 0) result.push(<br key={`br${li}`} />);
-    const bulletMatch = renderLine.match(/^(\s*)(?:[-•]\s+)+(.+)$/);
-    if (bulletMatch) {
-      const bulletNodes = renderInline(`• ${bulletMatch[2]}`, `bullet-${li}`);
-      result.push(
-        <span key={`bul-${li}`} style={{ display: 'inline-block', marginLeft: '1.1em', paddingLeft: '0.7em', textIndent: '-0.75em' }}>
-          {bulletNodes}
-        </span>
-      );
-    } else {
-      result.push(...renderInline(renderLine, `line-${li}`));
+  // Block-level syntax the composer's toolbar/shortcuts actually produce (applyFormat,
+  // handleListIndent) — bullets nest via 2-space indents + a depth-cycled glyph
+  // (•→◦→▪), numbered lists via "N. ", quotes via "> ", code blocks via fenced
+  // ```. Grouped into real <ul>/<ol>/<blockquote>/<pre> blocks (previously bullets
+  // were single inline-block spans with no shared list container, and numbered/
+  // quote/fenced syntax weren't rendered as anything special at all — they just
+  // showed the raw markdown characters as plain text).
+  const BULLET_RE = /^(\s*)[•◦▪-]\s+(.+)$/;
+  const NUMBERED_RE = /^(\s*)(\d+)\.\s+(.+)$/;
+  const QUOTE_RE = /^>\s?(.*)$/;
+  const FENCE_RE = /^```/;
+
+  let blockIdx = 0;
+  let li = 0;
+  while (li < rawLines.length) {
+    const raw = rawLines[li];
+    if (/^\s*(?:\*\*|__|~~)\s*$/.test(raw)) { li++; continue; }
+
+    if (FENCE_RE.test(raw)) {
+      const codeLines: string[] = [];
+      li++;
+      while (li < rawLines.length && !FENCE_RE.test(rawLines[li])) {
+        codeLines.push(rawLines[li]);
+        li++;
+      }
+      li++; // consume the closing fence (or run to end if the block was never closed)
+      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+      result.push(<pre key={`code-${blockIdx++}`} className="ss4-codeblock"><code>{codeLines.join('\n')}</code></pre>);
+      continue;
     }
-  });
+
+    const bulletMatch = raw.match(BULLET_RE);
+    if (bulletMatch) {
+      const items: Array<{ depth: number; text: string }> = [];
+      while (li < rawLines.length) {
+        const m = rawLines[li].match(BULLET_RE);
+        if (!m) break;
+        items.push({ depth: Math.round(m[1].length / 2), text: m[2] });
+        li++;
+      }
+      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+      result.push(
+        <ul key={`ul-${blockIdx}`} className="ss4-list">
+          {items.map((item, idx) => (
+            <li key={idx} style={{ marginLeft: `${item.depth * 1.1}em` }} className="ss4-list-item">
+              <span className="ss4-list-marker">•</span>
+              <span>{renderInline(item.text, `bul-${blockIdx}-${idx}`)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      blockIdx++;
+      continue;
+    }
+
+    const numberedMatch = raw.match(NUMBERED_RE);
+    if (numberedMatch) {
+      const items: Array<{ depth: number; num: string; text: string }> = [];
+      while (li < rawLines.length) {
+        const m = rawLines[li].match(NUMBERED_RE);
+        if (!m) break;
+        items.push({ depth: Math.round(m[1].length / 2), num: m[2], text: m[3] });
+        li++;
+      }
+      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+      result.push(
+        <ol key={`ol-${blockIdx}`} className="ss4-list">
+          {items.map((item, idx) => (
+            <li key={idx} style={{ marginLeft: `${item.depth * 1.1}em` }} className="ss4-list-item">
+              <span className="ss4-list-marker ss4-list-marker-num">{item.num}.</span>
+              <span>{renderInline(item.text, `num-${blockIdx}-${idx}`)}</span>
+            </li>
+          ))}
+        </ol>
+      );
+      blockIdx++;
+      continue;
+    }
+
+    const quoteMatch = raw.match(QUOTE_RE);
+    if (quoteMatch) {
+      const qLines: string[] = [];
+      while (li < rawLines.length) {
+        const m = rawLines[li].match(QUOTE_RE);
+        if (!m) break;
+        qLines.push(m[1]);
+        li++;
+      }
+      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+      result.push(
+        <blockquote key={`q-${blockIdx}`} className="ss4-blockquote">
+          {qLines.map((l, idx) => (
+            <React.Fragment key={idx}>
+              {idx > 0 && <br />}
+              {renderInline(l, `q-${blockIdx}-${idx}`)}
+            </React.Fragment>
+          ))}
+        </blockquote>
+      );
+      blockIdx++;
+      continue;
+    }
+
+    const renderLine = (() => {
+      if (/\*\*\s*$/.test(raw) && !/^\s*\*\*/.test(raw)) return `**${raw.replace(/\*\*\s*$/, '').trimEnd()}**`;
+      if (/^\s*\*\*/.test(raw) && !/\*\*.*\*\*/.test(raw)) return `**${raw.replace(/^\s*\*\*/, '').trimStart()}**`;
+      return raw;
+    })();
+    if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+    result.push(...renderInline(renderLine, `line-${blockIdx++}`));
+    li++;
+  }
 
   return result;
 }
@@ -4237,7 +4345,22 @@ export default function SupraSpacePage() {
   const autrixRef = React.useRef<HTMLDivElement>(null);
 
   const [showInfo, setShowInfo] = React.useState(false);
-  const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned'>('members');
+  const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned' | 'search'>('members');
+  const [convSearchQuery, setConvSearchQuery] = React.useState('');
+  const [convSearchResults, setConvSearchResults] = React.useState<any[]>([]);
+  const [convSearching, setConvSearching] = React.useState(false);
+  React.useEffect(() => {
+    if (infoTab !== 'search' || !token || !activeId || convSearchQuery.trim().length < 2) {
+      setConvSearchResults([]);
+      return;
+    }
+    setConvSearching(true);
+    const t = setTimeout(() => {
+      apiClient.get('/api/supraspace/search', { headers: { Authorization: `Bearer ${token}` }, params: { q: convSearchQuery.trim(), conversationId: activeId } })
+        .then(r => setConvSearchResults(r.data?.data || [])).catch(() => setConvSearchResults([])).finally(() => setConvSearching(false));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [infoTab, convSearchQuery, activeId, token]);
   const [ssMediaItems, setSsMediaItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssFileItems, setSsFileItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssAttachmentsLoading, setSsAttachmentsLoading] = React.useState(false);
@@ -4952,9 +5075,16 @@ export default function SupraSpacePage() {
     if (!conversationMessages.some(message => message._id === target.messageId)) return;
 
     window.setTimeout(() => {
-      document
-        .getElementById(`ss4-msg-${target.messageId}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const el = document.getElementById(`ss4-msg-${target.messageId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el) {
+        el.classList.remove('ss4-msg-highlight');
+        // Force a reflow so re-adding the class restarts the flash animation even if
+        // the same message was just jumped to a moment ago.
+        void el.offsetWidth;
+        el.classList.add('ss4-msg-highlight');
+        window.setTimeout(() => el.classList.remove('ss4-msg-highlight'), 2300);
+      }
     }, 160);
     pendingNotificationTargetRef.current = null;
   }, [activeId, msgs, scrollToLatest]);
@@ -6571,10 +6701,50 @@ export default function SupraSpacePage() {
     };
   }, []);
 
-  const openSearchResult = (convId: string, messageId: string) => {
-    openConversation(convId); setQ('');
-    setTimeout(() => document.getElementById(`ss4-msg-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
-  };
+  // Jumps to a specific message from a search hit (or the in-conversation search
+  // below) — deliberately does NOT call openConversation(), which always fetches
+  // the latest 40 messages and forces a scroll-to-bottom (it has no concept of
+  // "open, but at a specific spot"). A search hit is very often OLDER than the
+  // most recent 40, so that path would load the wrong window and the previous
+  // fixed-delay getElementById lookup would silently find nothing. Instead this
+  // fetches the messages page anchored on the target's own timestamp (so the hit
+  // is guaranteed to be in the loaded window in one request) and hands off to the
+  // same pendingNotificationTargetRef effect notifications already use, which
+  // waits for the message to actually be present in state before scrolling.
+  const openSearchResult = React.useCallback(async (convId: string, messageId: string, createdAt?: string) => {
+    setQ('');
+    pendingScrollRestoreRef.current = null;
+    if (forceScrollToBottomRef.current === convId) forceScrollToBottomRef.current = null;
+    suppressAutoScrollOnceRef.current = true;
+    setShowJumpToLatest(false);
+    setShowInfo(false);
+    setActiveId(convId);
+    setManualUnread(p => { if (!p.has(convId)) return p; const n = new Set(p); n.delete(convId); return n; });
+    pendingNotificationTargetRef.current = { conversationId: convId, messageId };
+
+    if ((msgsRef.current[convId] || []).some(m => m._id === messageId)) return;
+
+    const t = tokenRef.current;
+    if (!t) return;
+    setLoadingMsgs(true);
+    try {
+      const params: Record<string, string | number> = { limit: 40 };
+      if (createdAt) params.before = new Date(new Date(createdAt).getTime() + 1000).toISOString();
+      const r = await apiClient.get(`/api/supraspace/conversations/${convId}/messages`, {
+        headers: { Authorization: `Bearer ${t}` }, params,
+      });
+      const d: SSMessage[] = r.data?.data || [];
+      setMsgs(p => ({ ...p, [convId]: d }));
+      setHasMore(p => ({ ...p, [convId]: d.length === 40 }));
+      setMsgFetchState(p => ({ ...p, [convId]: 'loaded' }));
+    } catch {
+      // Falls back to whatever openConversation-style caching already had — the
+      // pendingNotificationTargetRef effect simply won't find the target and no
+      // scroll happens, same graceful no-op as a failed notification deep link.
+    } finally {
+      setLoadingMsgs(false);
+    }
+  }, []);
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
   const themeStyle = themeVars(activeConv?.theme);
@@ -7038,7 +7208,7 @@ export default function SupraSpacePage() {
                   {msgResults.map((m: any) => {
                     const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
                     return (
-                      <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                      <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
                         <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
                         <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
                       </button>
@@ -7942,7 +8112,7 @@ export default function SupraSpacePage() {
                     { }
                     <div className="px-4">
                       <div className="ss4-tab-bar flex gap-1">
-                        {(['members', 'media', 'files', 'pinned'] as const).map(t => (
+                        {(['members', 'media', 'files', 'pinned', 'search'] as const).map(t => (
                           <button key={t} onClick={() => setInfoTab(t)} className={cn('flex-1 h-7 ss4-tab capitalize', t === infoTab && 'ss4-tab-active')}>{t}</button>
                         ))}
                       </div>
@@ -8017,12 +8187,51 @@ export default function SupraSpacePage() {
                           ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No pinned messages</p>
                           : <div className="space-y-2">
                             {pinnedMsgs.map(m => (
-                              <button key={m._id} onClick={() => { setShowInfo(false); setTimeout(() => document.getElementById(`ss4-msg-${m._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+                              <button key={m._id} onClick={() => { setShowInfo(false); if (activeId) openSearchResult(activeId, m._id, m.createdAt); }} className="w-full text-left rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
                                 <p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
                                 <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content) || '\u{1f4ce} Attachment'}</p>
                               </button>
                             ))}
                           </div>
+                      )}
+                      {infoTab === 'search' && (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+                            <input
+                              autoFocus
+                              value={convSearchQuery}
+                              onChange={e => setConvSearchQuery(e.target.value)}
+                              placeholder={`Search in ${cName}…`}
+                              className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input"
+                              style={{ fontFamily: 'Geist, sans-serif' }}
+                            />
+                          </div>
+                          {convSearchQuery.trim().length >= 2 && (
+                            convSearching ? (
+                              <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Searching…</p>
+                            ) : convSearchResults.length === 0 ? (
+                              <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matching messages</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {convSearchResults.map((m: any) => (
+                                  <button
+                                    key={m._id}
+                                    onClick={() => { setShowInfo(false); openSearchResult(activeId, m._id, m.createdAt); }}
+                                    className="w-full text-left rounded-xl px-3 py-2.5"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="font-semibold truncate" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
+                                      <p className="shrink-0" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtRelative(m.createdAt)}</p>
+                                    </div>
+                                    <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content) || '\u{1f4ce} Attachment'}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          )}
+                        </div>
                       )}
                     </div>
 

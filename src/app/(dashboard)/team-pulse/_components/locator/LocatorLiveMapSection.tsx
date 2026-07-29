@@ -275,7 +275,7 @@ function buildPlacePopupHtml(place: Place, hereNow: number, theme: "light" | "da
           <span style="color:${color};font-weight:700;font-size:11px">${hereNow > 0 ? `${hereNow} here now` : "Nobody here right now"}</span>
         </div>
 
-        <div style="margin-top:7px;padding-top:6px;border-top:1px solid ${pal.divider};color:${pal.muted};font-size:9.5px">${place.radiusM}m geofence radius</div>
+        <div style="margin-top:7px;padding-top:6px;border-top:1px solid ${pal.divider};color:${pal.muted};font-size:9.5px">${place.radiusM}m geofence radius${place.warningRadiusM ? ` &middot; ${place.warningRadiusM}m warning zone` : ""}</div>
       </div>
     </div>`;
 }
@@ -326,7 +326,7 @@ export function LocatorLiveMapSection({
     marker: LeafletMarker; popup: LeafletPopup; circleEl: HTMLDivElement; haloEl: HTMLDivElement; approxEl: HTMLSpanElement;
     lastState: string; lastSelected: boolean; lastHaloScale: number | null; lastApprox: boolean; isSelf: boolean;
   }>>(new Map());
-  const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; haloCircle: LeafletCircle; mainCircle: LeafletCircle; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
+  const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; haloCircle: LeafletCircle; mainCircle: LeafletCircle; warningCircle: LeafletCircle | null; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
   const trailLayerRef = React.useRef<LeafletLayerGroup | null>(null);
   const locationsRef = React.useRef(locations);
   locationsRef.current = locations;
@@ -860,12 +860,30 @@ export function LocatorLiveMapSection({
           // these circles, so the map kept showing the OLD size until a full reload.
           existing.haloCircle.setLatLng(latLng).setRadius(p.radiusM * 1.4).setStyle({ color, fillColor: color });
           existing.mainCircle.setLatLng(latLng).setRadius(p.radiusM).setStyle({ color, fillColor: color });
+          if (p.warningRadiusM) {
+            if (existing.warningCircle) {
+              existing.warningCircle.setLatLng(latLng).setRadius(p.warningRadiusM).setStyle({ color });
+            } else {
+              existing.warningCircle = L.circle(latLng, {
+                radius: p.warningRadiusM, color, weight: 1.5, dashArray: "6 6", fillOpacity: 0,
+              }).addTo(existing.layerGroup);
+            }
+          } else if (existing.warningCircle) {
+            existing.layerGroup.removeLayer(existing.warningCircle);
+            existing.warningCircle = null;
+          }
           return;
         }
 
         const geofence = L.layerGroup();
         const haloCircle = L.circle(latLng, { radius: p.radiusM * 1.4, color, weight: 0, fillColor: color, fillOpacity: 0.1 }).addTo(geofence);
         const mainCircle = L.circle(latLng, { radius: p.radiusM, color, weight: 2.5, fillColor: color, fillOpacity: 0.16 }).addTo(geofence);
+        // Dashed, unfilled — the wider "still nearby" ring (see resolveCurrentPlace's
+        // exit hysteresis). Deliberately styled distinct from the solid hard-boundary
+        // rings above so it reads as "buffer," not as a second real boundary.
+        const warningCircle = p.warningRadiusM
+          ? L.circle(latLng, { radius: p.warningRadiusM, color, weight: 1.5, dashArray: "6 6", fillOpacity: 0 }).addTo(geofence)
+          : null;
         geofence.addTo(map);
 
         const wrapper = document.createElement("div");
@@ -921,7 +939,7 @@ export function LocatorLiveMapSection({
           icon: L.divIcon({ html: wrapper, className: "locator-marker-icon", iconSize: [30, 49], iconAnchor: [15, 49] }),
         }).addTo(map);
 
-        placeMarkers.set(p._id, { marker, layerGroup: geofence, haloCircle, mainCircle, badgeEl, popup });
+        placeMarkers.set(p._id, { marker, layerGroup: geofence, haloCircle, mainCircle, warningCircle, badgeEl, popup });
       });
     })();
 

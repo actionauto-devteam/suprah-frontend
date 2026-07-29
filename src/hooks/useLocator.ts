@@ -27,6 +27,9 @@ export interface Place {
     name: string;
     coords: { lat: number; lng: number };
     radiusM: number;
+    // Optional wider "still nearby" ring beyond radiusM — see resolveCurrentPlace's
+    // exit hysteresis in the backend. Always > radiusM when set.
+    warningRadiusM?: number;
     icon?: string;
     color?: string;
     address?: string;
@@ -154,7 +157,7 @@ export function useCreatePlace() {
     const getHeaders = useAuthHeaders();
 
     return useMutation({
-        mutationFn: async (data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string; description?: string }) => {
+        mutationFn: async (data: { name: string; lat: number; lng: number; radiusM?: number; warningRadiusM?: number | null; icon?: string; color?: string; address?: string; description?: string }) => {
             const headers = await getHeaders();
             const response = await apiClient.createPlace(data, headers);
             return response.data?.data || response.data;
@@ -168,7 +171,7 @@ export function useUpdatePlace() {
     const getHeaders = useAuthHeaders();
 
     return useMutation({
-        mutationFn: async ({ id, ...data }: { id: string } & Partial<Place>) => {
+        mutationFn: async ({ id, ...data }: { id: string } & Partial<Omit<Place, "warningRadiusM">> & { warningRadiusM?: number | null }) => {
             const headers = await getHeaders();
             const response = await apiClient.updatePlace(id, data, headers);
             return response.data?.data || response.data;

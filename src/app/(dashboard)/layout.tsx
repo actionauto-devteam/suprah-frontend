@@ -23,7 +23,6 @@ import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 // behind it is a module-level singleton, so there is no provider to add.
 import { Pulse360Popup } from "@/components/crm/pulse360/Pulse360Popup";
 import { Pulse360Bell } from "@/components/crm/pulse360/Pulse360Bell";
-
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -183,17 +182,12 @@ function DashboardLayoutContent({
   }
 
   return (
-    <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
+    <SidebarProvider className="h-dvh overflow-hidden">
       <AppSidebar />
       {/* min-w-0 + w-full: lets this flex child shrink below its content's
           intrinsic width instead of forcing the whole page wider than the
           viewport (the classic flex-child overflow bug). */}
-      <SidebarInset
-        className={cn(
-          "min-w-0 w-full",
-          isCrmRoute && "min-h-0 overflow-hidden",
-        )}
-      >
+      <SidebarInset className="min-w-0 w-full min-h-0 overflow-hidden">
         {showCrmHeader && <CrmHeader showMessenger={showCrmMessenger} />}
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
@@ -304,14 +298,17 @@ function DashboardLayoutContent({
             // horizontally.
             "relative bg-background md:pb-0 min-w-0 overflow-x-hidden",
             leadConvoActive ? "pb-0" : "pb-24",
-            isCrmRoute
-              ? "flex-1 min-h-0 overflow-y-auto " +
-                "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
-                "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 " +
-                "[&::-webkit-scrollbar-track]:bg-transparent " +
-                "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 " +
-                "[&::-webkit-scrollbar-thumb:hover]:bg-border"
-              : "flex-1"
+            // Same fixed-viewport-shell + internally-scrolling-main treatment for every
+            // route, not just /crm/* — this was previously CRM-only, which left every
+            // other page (Team Pulse/Locator, Reports, etc.) with an unbounded page that
+            // either overflowed or, worse, had overflow-hidden with no scroll at all,
+            // making tall content unreachable.
+            "flex-1 min-h-0 overflow-y-auto " +
+            "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
+            "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 " +
+            "[&::-webkit-scrollbar-track]:bg-transparent " +
+            "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 " +
+            "[&::-webkit-scrollbar-thumb:hover]:bg-border"
           )}
         >
           {isStandaloneCrmShell && (
@@ -330,7 +327,7 @@ function DashboardLayoutContent({
         <DebugConsole />
       </React.Suspense>
 
-      { /* Suprah Pulse360 — renders above everything, on every route. */ }
+      { /* Suprah Pulse360 — renders above everything, on every route. */}
       <Pulse360Popup />
 
       {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
@@ -370,16 +367,16 @@ export default function DashboardLayout({
   );
 
   return (
-  <ProfileProvider>
-    <ProfileToastProvider>
-      <NotificationProvider>
-        {isCrmRoute ? (
-          <CrmNotificationProvider>{content}</CrmNotificationProvider>
-        ) : (
-          content
-        )}
-      </NotificationProvider>
-    </ProfileToastProvider>
-  </ProfileProvider>
-);
+    <ProfileProvider>
+      <ProfileToastProvider>
+        <NotificationProvider>
+          {isCrmRoute ? (
+            <CrmNotificationProvider>{content}</CrmNotificationProvider>
+          ) : (
+            content
+          )}
+        </NotificationProvider>
+      </ProfileToastProvider>
+    </ProfileProvider>
+  );
 }
