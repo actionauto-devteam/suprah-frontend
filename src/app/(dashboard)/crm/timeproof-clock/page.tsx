@@ -710,6 +710,16 @@ export default function TimeprofClockPage() {
       const locationOk = await requestLocationForShiftStart()
       if (!locationOk) return
     }
+    // Freeze the running clock the instant the user confirms — waiting for the
+    // network round-trip before flipping isActive/wallClockBaseAt let the timer
+    // visibly keep ticking for a couple more seconds after the shift had
+    // already ended from the user's perspective. The subsequent response (and
+    // the 2.5s resync below) still overwrite this with the server's own log.
+    if (type === "time-out") {
+      setTodayLogs((prev) => [...(prev || []), { _id: `optimistic-${Date.now()}`, type: "time-out", timestamp: new Date().toISOString() }])
+      setWallClockBaseAt(null)
+      setActivityStartAt(null)
+    }
     setIsClocking(true)
     setClockMsg("")
     const isMain = authModeRef.current === 'main'
@@ -1201,7 +1211,7 @@ export default function TimeprofClockPage() {
     <div className="min-h-screen bg-background">
 
       <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
+        <div className="w-full px-4 sm:px-6 h-14 flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-lg bg-emerald-600/10 flex items-center justify-center">
               <Clock className="h-3.5 w-3.5 text-emerald-600" />
@@ -1244,9 +1254,9 @@ export default function TimeprofClockPage() {
       </div>
 
       <div className="w-full px-4 sm:px-6 py-5">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4">
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
 
             <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
               <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">
@@ -1448,7 +1458,7 @@ export default function TimeprofClockPage() {
             <PulseHealthCard />
 
             {!isMobile && (
-              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4 flex-1 flex flex-col">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
@@ -1956,14 +1966,17 @@ export default function TimeprofClockPage() {
               </div>
             </div>
             <div className="px-6 flex-1 min-h-0 overflow-hidden">
-              <div className="h-[45vh] rounded-xl overflow-hidden border border-zinc-700/60 bg-white relative">
+              <div className="h-[45vh] rounded-xl overflow-hidden border border-zinc-700/60 bg-zinc-950 relative">
                 {idleLogLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-xs text-zinc-500">Loading…</div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-950">
+                    <div className="h-6 w-6 rounded-full border-2 border-zinc-700 border-t-emerald-500 animate-spin" />
+                    <span className="text-xs text-zinc-500">Loading…</span>
+                  </div>
                 )}
                 {idleLogStart <= idleLogEnd ? (
-                  <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full" />
+                  <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full bg-white" />
                 ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-zinc-500">Date Start must be before Date End</div>
+                  <div className="h-full flex items-center justify-center text-xs text-zinc-500 bg-zinc-950">Date Start must be before Date End</div>
                 )}
               </div>
             </div>

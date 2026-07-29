@@ -500,10 +500,6 @@ class ApiClient {
     });
   }
 
-  async pingMember(userId: string, message: string | undefined, config?: AxiosRequestConfig) {
-    return this.post(`/api/team-pulse/ping/${userId}`, { message }, config);
-  }
-
   async getPendingAbsences(config?: AxiosRequestConfig) {
     return this.get('/api/team-pulse/absences?status=pending', config);
   }

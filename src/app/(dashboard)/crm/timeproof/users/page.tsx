@@ -583,8 +583,23 @@ export default function AdminShiftBoardPage() {
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 rounded-full border-2 border-emerald-500/30 border-t-emerald-500 animate-spin" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border border-zinc-800/40 bg-zinc-900/60 p-4 flex flex-col gap-3 animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-zinc-800" />
+                  <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
+                    <div className="h-3 w-3/4 rounded bg-zinc-800" />
+                    <div className="h-2.5 w-1/2 rounded bg-zinc-800/70" />
+                  </div>
+                </div>
+                <div className="h-4 w-20 rounded-full bg-zinc-800/70" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-10 rounded-xl bg-zinc-800/50" />
+                  <div className="h-10 rounded-xl bg-zinc-800/50" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

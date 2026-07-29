@@ -1096,14 +1096,17 @@ export default function AdminUserTimeprofPage() {
                       />
                     </div>
                   </div>
-                  <div className="h-72 rounded-lg overflow-hidden border border-border/40 bg-white relative">
+                  <div className="h-72 rounded-lg overflow-hidden border border-border/40 bg-muted relative">
                     {idleLogLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-xs text-muted-foreground/50">Loading…</div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted">
+                        <div className="h-5 w-5 rounded-full border-2 border-border border-t-emerald-500 animate-spin" />
+                        <span className="text-xs text-muted-foreground/50">Loading…</span>
+                      </div>
                     )}
                     {idleLogStart <= idleLogEnd ? (
-                      <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full" />
+                      <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full bg-white" />
                     ) : (
-                      <div className="h-full flex items-center justify-center text-xs text-muted-foreground/50">Date Start must be before Date End</div>
+                      <div className="h-full flex items-center justify-center text-xs text-muted-foreground/50 bg-muted">Date Start must be before Date End</div>
                     )}
                   </div>
                   <p className="text-[10px] text-muted-foreground/40">Preview updates live as you change the dates — confirm it looks right before printing.</p>

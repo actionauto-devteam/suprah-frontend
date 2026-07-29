@@ -406,7 +406,7 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
       {Array.from({ length: cells.length / 7 }, (_, wi) => (
         <div key={wi} className="grid grid-cols-7 border-b border-border/20 last:border-b-0">
           {cells.slice(wi * 7, wi * 7 + 7).map((dayNum, di) => {
-            if (dayNum === null) return <div key={di} className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-22.5 sm:min-h-25" />
+            if (dayNum === null) return <div key={di} className="border-r border-border/20 last:border-r-0 bg-muted/5 min-h-16 sm:min-h-20" />
             const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`
             const data = calendar[ds]
             const isToday = ds === todayStr
@@ -418,7 +418,7 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
               <div key={di}
                 onClick={() => !isFuture && onSelectDay(ds)}
                 className={[
-                  "border-r border-border/20 last:border-r-0 min-h-22.5 sm:min-h-25 p-2 flex flex-col gap-1 transition-all duration-100",
+                  "border-r border-border/20 last:border-r-0 min-h-16 sm:min-h-20 p-2 flex flex-col gap-1 transition-all duration-100",
                   isFuture ? "opacity-30 cursor-default select-none" : "cursor-pointer hover:bg-muted/20",
                   isToday || hasData ? `border ${colors.bg}` : "",
                 ].filter(Boolean).join(" ")}

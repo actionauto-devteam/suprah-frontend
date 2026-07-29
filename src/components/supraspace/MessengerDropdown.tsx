@@ -75,8 +75,8 @@ function previewText(conv: SSConv): string {
   if ((conv.unreadCount || 0) >= 2) return `${conv.unreadCount} new messages`;
   if (!msg || msg.isDeleted) return 'No messages yet';
   const icons: Record<string, string> = {
-    image: '?? Photo', voice: '?? Voice message', gif: '?? GIF',
-    file: '?? File', poll: '?? Poll', event: '?? Event',
+    image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
+    file: '📎 File', poll: '📊 Poll', event: '📅 Event',
   };
   return icons[msg.type] ?? cleanPreviewContent(msg.content) ?? '';
 }

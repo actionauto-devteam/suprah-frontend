@@ -204,7 +204,7 @@ function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
@@ -315,7 +315,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
@@ -327,7 +327,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
           {!file ? (
             <button
               onClick={() => inputRef.current?.click()}
-              className="flex aspect-[9/12] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
+              className="flex aspect-9/12 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
             >
               <ImagePlus className="size-8 text-muted-foreground/50" />
               <div className="text-center">
@@ -336,7 +336,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
               </div>
             </button>
           ) : (
-            <div className="relative aspect-[9/12] w-full overflow-hidden rounded-2xl bg-black">
+            <div className="relative aspect-9/12 w-full overflow-hidden rounded-2xl bg-black">
               {isVideo ? (
                 <video src={previewUrl!} className="size-full object-contain" controls muted />
               ) : (
@@ -483,7 +483,7 @@ function StoryViewer({
     apiClient
       .get(`/api/crm/stories/${story._id}`)
       .then((res) => setDetail(res.data?.data?.story || null))
-      .catch(() => {});
+      .catch(() => { });
   }, [story?._id]);
 
   // On each story: reset duration/pause, mark viewed, load detail + light poll.
@@ -492,7 +492,7 @@ function StoryViewer({
     setDetail(null);
     setManualPause(false);
     setMediaDuration(story.media.mediaType === "image" ? PHOTO_DURATION_MS / 1000 : (story.media.durationSec || 0));
-    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => {});
+    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => { });
     loadDetail();
     const id = setInterval(loadDetail, 5000);
     return () => clearInterval(id);
@@ -527,7 +527,7 @@ function StoryViewer({
     const v = videoRef.current;
     if (!v) return;
     if (paused) v.pause();
-    else v.play().catch(() => {});
+    else v.play().catch(() => { });
   }, [paused]);
 
   const react = async (emoji: string) => {
@@ -567,7 +567,7 @@ function StoryViewer({
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <style>{`@keyframes storyReactFloat{0%{opacity:0;transform:translateY(28px) scale(.4)}25%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-150px) scale(1.75)}}`}</style>
       <button onClick={onClose} className="absolute right-4 top-4 z-30 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
         <X className="size-5" />
@@ -639,7 +639,7 @@ function StoryViewer({
             <img key={story._id} src={story.media.url} alt="" className="size-full object-contain" />
           )}
           {story.caption && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
               <p className="text-sm text-white/90">{story.caption}</p>
             </div>
           )}
@@ -848,8 +848,8 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
     <>
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl shadow-sm">
         {/* subtle top hairline glow for a more digital feel */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
-        <div className="flex items-stretch gap-4 overflow-x-auto px-4 py-4 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/60 hover:[&::-webkit-scrollbar-thumb]:bg-border">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/40 to-transparent" />
+        <div className="flex items-stretch gap-3 overflow-x-auto px-4 py-3 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/60 hover:[&::-webkit-scrollbar-thumb]:bg-border">
           {/* You */}
           <div className="flex shrink-0 flex-col items-center gap-1.5">
             <NoteBubble
@@ -861,24 +861,24 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
             <div className="relative">
               <button onClick={() => (meUser?.hasStory ? openStories(meUser._id) : setComposerOpen(true))}>
                 <StoryRing user={meUser ?? ({ hasStory: false, hasUnseen: false } as RailUser)}>
-                  <Avatar className="size-14 border-2 border-background">
+                  <Avatar className="size-11 border-2 border-background">
                     <AvatarImage src={me?.avatar || meUser?.avatar} />
-                    <AvatarFallback className="bg-muted font-bold text-sm">{ini(me?.fullName || meUser?.fullName)}</AvatarFallback>
+                    <AvatarFallback className="bg-muted font-bold text-xs">{ini(me?.fullName || meUser?.fullName)}</AvatarFallback>
                   </Avatar>
                 </StoryRing>
               </button>
               <button
                 onClick={() => setComposerOpen(true)}
-                className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground border-2 border-background shadow hover:scale-110 transition-transform"
+                className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground border-2 border-background shadow hover:scale-110 transition-transform"
                 aria-label="Add story"
               >
-                <Plus className="size-3" />
+                <Plus className="size-2.5" />
               </button>
             </div>
-            <span className="text-[10px] font-semibold text-muted-foreground max-w-16 truncate">Your day</span>
+            <span className="text-[10px] font-semibold text-muted-foreground max-w-14 truncate">Your day</span>
           </div>
 
-          <div className="w-px shrink-0 self-center bg-border/40" style={{ height: "3.5rem" }} />
+          <div className="w-px shrink-0 self-center bg-border/40" style={{ height: "2.75rem" }} />
 
           {/* Everyone else */}
           {users.filter((u) => !u.isMe).map((u) => (
@@ -886,13 +886,13 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
               <NoteBubble text={u.note?.text} />
               <button onClick={() => onAvatarClick(u)} disabled={!u.hasStory} className={u.hasStory ? "" : "cursor-default"}>
                 <StoryRing user={u}>
-                  <Avatar className="size-14 border-2 border-background">
+                  <Avatar className="size-11 border-2 border-background">
                     <AvatarImage src={u.avatar} />
-                    <AvatarFallback className="bg-muted font-bold text-sm">{ini(u.fullName)}</AvatarFallback>
+                    <AvatarFallback className="bg-muted font-bold text-xs">{ini(u.fullName)}</AvatarFallback>
                   </Avatar>
                 </StoryRing>
               </button>
-              <span className="text-[10px] font-medium text-muted-foreground max-w-16 truncate">{u.fullName.split(" ")[0]}</span>
+              <span className="text-[10px] font-medium text-muted-foreground max-w-14 truncate">{u.fullName.split(" ")[0]}</span>
             </div>
           ))}
 
@@ -941,14 +941,13 @@ function NoteBubble({
     <button
       onClick={onClick}
       disabled={!mine}
-      className={`group relative max-w-[6.5rem] ${mine ? "" : "cursor-default"}`}
+      className={`group relative max-w-26 ${mine ? "" : "cursor-default"}`}
     >
       <div
-        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm ${
-          hasText
+        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm ${hasText
             ? "bg-muted/80 text-foreground/80 border border-border/40"
             : "bg-emerald-500/10 text-emerald-600 border border-dashed border-emerald-500/40"
-        }`}
+          }`}
       >
         {hasText ? text : placeholder}
         {mine && <Pencil className="ml-1 inline size-2.5 opacity-0 transition-opacity group-hover:opacity-70" />}
