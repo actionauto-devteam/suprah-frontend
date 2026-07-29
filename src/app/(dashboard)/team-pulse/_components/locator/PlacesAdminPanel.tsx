@@ -1,14 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Plus, Trash2, Pencil, Loader2, Crosshair, Search, Users } from "lucide-react";
+import { MapPin, Plus, Trash2, Pencil, Loader2, Crosshair, Search, Users, ShieldAlert, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { haversineM } from "@/lib/geo";
 import { usePlaces, useCreatePlace, useUpdatePlace, useDeletePlace, useActiveEmployeeLocations, type Place } from "@/hooks/useLocator";
 import { PLACE_ICON_PRESETS as ICON_PRESETS, PLACE_ICON_NAMES as ICON_NAMES } from "./placeIcons";
 
@@ -21,11 +23,17 @@ interface FormState {
   lat: string;
   lng: string;
   radiusM: number;
+  warningEnabled: boolean;
+  warningRadiusM: number;
   color: string;
   icon: string;
 }
 
-const EMPTY_FORM: FormState = { name: "", address: "", description: "", lat: "", lng: "", radiusM: 100, color: COLOR_PRESETS[0], icon: ICON_NAMES[0] };
+const EMPTY_FORM: FormState = {
+  name: "", address: "", description: "", lat: "", lng: "",
+  radiusM: 100, warningEnabled: false, warningRadiusM: 150,
+  color: COLOR_PRESETS[0], icon: ICON_NAMES[0],
+};
 
 interface Props {
   pickMode?: boolean;
@@ -64,6 +72,26 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
     return places.filter((p) => p.name.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q));
   }, [places, search]);
 
+  // Warns (does not block) when the place being created/edited would overlap an
+  // existing one — two geofences fighting over the same physical spot means an
+  // employee standing there could flip between "at Place A" / "at Place B" on
+  // consecutive pings depending on tiny GPS jitter. Compares against the wider
+  // of radiusM/warningRadiusM on both sides, since the warning ring is real
+  // geofence territory too, not just a cosmetic line on the map.
+  const overlappingPlaces = React.useMemo(() => {
+    if (!dialogOpen) return [];
+    const lat = parseFloat(form.lat);
+    const lng = parseFloat(form.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return [];
+    const myRadius = form.warningEnabled ? Math.max(form.radiusM, form.warningRadiusM) : form.radiusM;
+    return places.filter((p) => {
+      if (editing && p._id === editing._id) return false;
+      const otherRadius = p.warningRadiusM ? Math.max(p.radiusM, p.warningRadiusM) : p.radiusM;
+      const distance = haversineM({ lat, lng }, p.coords);
+      return distance < myRadius + otherRadius;
+    });
+  }, [dialogOpen, places, editing, form.lat, form.lng, form.radiusM, form.warningEnabled, form.warningRadiusM]);
+
   React.useEffect(() => {
     if (!pickedCoords) return;
     setForm((f) => ({ ...f, lat: pickedCoords.lat.toFixed(6), lng: pickedCoords.lng.toFixed(6) }));
@@ -82,7 +110,9 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       // SAME circle instead of drawing a second one on top of it — one circle that visibly
       // grows/shrinks with the slider, not two overlapping rings.
       _id: editing ? editing._id : "__draft__", organizationId: "", name: form.name || "New Place",
-      coords: { lat, lng }, radiusM: form.radiusM, icon: form.icon, color: form.color,
+      coords: { lat, lng }, radiusM: form.radiusM,
+      warningRadiusM: form.warningEnabled ? form.warningRadiusM : undefined,
+      icon: form.icon, color: form.color,
       address: form.address, description: form.description, isActive: true, createdBy: "", createdAt: "", updatedAt: "",
     });
   }, [dialogOpen, form, editing, onDraftChange]);
@@ -107,6 +137,8 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       lat: String(place.coords.lat),
       lng: String(place.coords.lng),
       radiusM: place.radiusM,
+      warningEnabled: !!place.warningRadiusM,
+      warningRadiusM: place.warningRadiusM || Math.round(place.radiusM * 1.5),
       color: place.color || COLOR_PRESETS[0],
       icon: place.icon || ICON_NAMES[0],
     });
@@ -123,6 +155,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
 
     const payload = {
       name: form.name.trim(), lat, lng, radiusM: form.radiusM, color: form.color, icon: form.icon,
+      warningRadiusM: form.warningEnabled ? form.warningRadiusM : (editing?.warningRadiusM ? null : undefined),
       address: form.address.trim() || undefined,
       description: form.description.trim() || undefined,
     };
@@ -207,7 +240,10 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
                 </div>
                 {place.address && <p className="text-[10px] text-muted-foreground/60 truncate">{place.address}</p>}
                 {place.description && <p className="text-[10px] text-muted-foreground/50 mt-0.5 line-clamp-2">{place.description}</p>}
-                <p className="text-[9px] text-muted-foreground/40 mt-0.5">{place.radiusM}m radius</p>
+                <p className="text-[9px] text-muted-foreground/40 mt-0.5">
+                  {place.radiusM}m radius
+                  {place.warningRadiusM && <> · {place.warningRadiusM}m warning zone</>}
+                </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => openEdit(place)} className="text-muted-foreground/50 hover:text-foreground p-1">
@@ -289,9 +325,51 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
                 min={10}
                 max={1000}
                 step={10}
-                onValueChange={([v]) => setForm((f) => ({ ...f, radiusM: v }))}
+                onValueChange={([v]) => setForm((f) => ({
+                  ...f, radiusM: v,
+                  warningRadiusM: Math.max(f.warningRadiusM, v + 20),
+                }))}
               />
             </div>
+
+            <div className="space-y-1.5 rounded-lg border border-border/40 p-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <TriangleAlert className="size-3 text-amber-500" />
+                  <label className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">Warning Zone</label>
+                </div>
+                <Switch
+                  checked={form.warningEnabled}
+                  onCheckedChange={(checked) => setForm((f) => ({ ...f, warningEnabled: checked }))}
+                />
+              </div>
+              {form.warningEnabled ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[9px] text-muted-foreground/50">Stepping outside the radius but staying in here doesn&apos;t count as leaving yet.</p>
+                    <span className="text-[10px] font-bold tabular-nums shrink-0 ml-2">{form.warningRadiusM}m</span>
+                  </div>
+                  <Slider
+                    value={[form.warningRadiusM]}
+                    min={form.radiusM + 10}
+                    max={form.radiusM + 1000}
+                    step={10}
+                    onValueChange={([v]) => setForm((f) => ({ ...f, warningRadiusM: v }))}
+                  />
+                </>
+              ) : (
+                <p className="text-[9px] text-muted-foreground/40">Off — a small step outside the radius counts as leaving right away.</p>
+              )}
+            </div>
+
+            {overlappingPlaces.length > 0 && (
+              <div className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2">
+                <ShieldAlert className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-[9px] text-amber-700 dark:text-amber-400 leading-snug">
+                  Overlaps {overlappingPlaces.map((p) => p.name).join(", ")} — an employee here could flip between places on small GPS jitter.
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

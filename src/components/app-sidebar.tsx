@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import * as React from "react";
 import Image from "next/image";
@@ -321,7 +321,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-60 dark:opacity-80">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/[0.025] via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/[0.015] dark:to-emerald-500/[0.05]" />
+        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/2.5 via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/1.5k:to-emerald-500/[0.05]" />
 
         {/* digital grid — slowly drifts so the surface feels "live" */}
         <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.025)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.025)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.035)_1px,transparent_1px)]" />
@@ -415,11 +415,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                     {/* Team Pulse: unread Locator/TimeProof alerts (geofence,
                         shift alerts, location requests) — surfaced here so admins
-                        don't have to open the tab to know something needs a look. */}
+                        don't have to open the tab to know something needs a look.
+                        Disappears entirely once everything's read (locatorUnread
+                        hits 0), same as every other badge on this sidebar. */}
                     {item.title === "Team Pulse" && locatorUnread > 0 && (
                       <Badge
                         variant="secondary"
-                        className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-red-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                        className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-600 text-white border-none group-data-[collapsible=icon]:hidden"
                       >
                         {locatorUnread > 99 ? "99+" : locatorUnread}
                       </Badge>
