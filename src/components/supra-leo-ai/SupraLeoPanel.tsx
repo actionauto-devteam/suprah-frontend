@@ -504,7 +504,7 @@ export const UPDATED_PANEL_CSS = `
 }
 
 .axp-listen-hint {
-  font-size: 11px; font-weight: 300; color: rgba(34,197,94,.45);
+  font-size: 11.5px; font-weight: 300; color: rgba(34,197,94,.45);
   text-align: center; font-style: italic;
   font-family: 'Space Grotesk', sans-serif;
 }
@@ -521,7 +521,7 @@ export const UPDATED_PANEL_CSS = `
   padding: 8px 11px;
   background: rgba(34,197,94,.06);
   border-radius: 0 9px 9px 0;
-  font-size: 12px; font-weight: 300; font-style: italic;
+  font-size: 11.5px; font-weight: 300; font-style: italic;
   color: var(--p-tx2);
   line-height: 1.65; max-height: 70px; overflow-y: auto; width: 100%;
   font-family: 'Space Grotesk', sans-serif;
@@ -534,7 +534,7 @@ export const UPDATED_PANEL_CSS = `
   background: rgba(248,113,113,.05);
   border-radius: 12px;
 }
-.axp-err p { font-size: 12px; color: var(--p-red); line-height: 1.55; margin: 0; }
+.axp-err p { font-size: 11.5px; color: var(--p-red); line-height: 1.55; margin: 0; }
 
 .axp-done {
   display: flex; align-items: center; gap: 9px; padding: 11px 13px;
@@ -542,7 +542,7 @@ export const UPDATED_PANEL_CSS = `
   background: rgba(34,197,94,.05);
   border-radius: 12px;
 }
-.axp-done p { font-size: 12px; color: var(--p-green); margin: 0; }
+.axp-done p { font-size: 11.5px; color: var(--p-green); margin: 0; }
 
 .axp-empty { text-align: center; padding: 18px 0 10px; }
 
@@ -569,7 +569,7 @@ export const UPDATED_PANEL_CSS = `
 
 .axp-ta {
   flex: 1; background: transparent; border: none; outline: none; resize: none;
-  font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 300;
+  font-family: 'Space Grotesk', sans-serif; font-size: 11.5px; font-weight: 300;
   color: var(--p-tx); line-height: 1.5; min-height: 20px; max-height: 80px;
   overflow-y: auto; padding: 0; margin: 0;
   -webkit-user-select: text; user-select: text;

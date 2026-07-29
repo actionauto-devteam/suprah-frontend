@@ -8,7 +8,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
@@ -223,13 +223,6 @@ function DashboardLayoutContent({
 
               <div className="flex items-center gap-1 sm:gap-3">
                 <MountainTimeClock compact />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 rounded-full"
-                >
-                  <Plus className="size-5" />
-                </Button>
 
                 <ThemeModeToggle compact />
 

@@ -334,6 +334,19 @@ export default function TimeprofClockPage() {
   const [showTrayModal, setShowTrayModal] = React.useState(false)
   const [trayChecking, setTrayChecking] = React.useState(false)
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false)
+  // Authoritative, single-source on-break flag for gating the End Shift
+  // button — deliberately separate from `isOnBreak` below, which is also
+  // written by socket events AND a log-derived useEffect (computed from
+  // todayLogs). Those extra writers made `isOnBreak` race-prone: if that
+  // effect's log snapshot showed an unpaired break-in from data that didn't
+  // yet reflect a break-out, it could set `isOnBreak=true` even while this
+  // same poll's `s.isOnBreak=false` was correctly keeping the timer ticking
+  // — silently disabling End Shift with no modal, no error, nothing (seen in
+  // production: a user reported that clicking End Shift with hours already
+  // over 8h did nothing and the timer kept running). This flag never gets
+  // written by anything except this one poll, so it can't be stale/desynced
+  // by another writer racing it.
+  const [serverIsOnBreak, setServerIsOnBreak] = React.useState(false)
   const [serverIsShiftFromToday, setServerIsShiftFromToday] = React.useState(false)
   const [locallyResumedShift, setLocallyResumedShift] = React.useState(
     () => typeof window !== "undefined" && sessionStorage.getItem("crm_resumed_shift") === "true"
@@ -537,6 +550,7 @@ export default function TimeprofClockPage() {
       const s = res.data?.data
       if (s) {
         setServerIsOnShift(!!s.isOnShift)
+        setServerIsOnBreak(!!s.isOnBreak)
         setServerIsShiftFromToday(!!s.isShiftFromToday)
         setServerShiftStartedAt(s.shiftStartedAt ?? null)
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000)
@@ -1349,7 +1363,7 @@ export default function TimeprofClockPage() {
                           {isOnBreak ? <><Play className="h-4 w-4" /> Resume</> : <><Coffee className="h-4 w-4" /> Break</>}
                         </Button>
                       )}
-                      <Button onClick={handleEndShiftClick} disabled={isClocking || isOnBreak}
+                      <Button onClick={handleEndShiftClick} disabled={isClocking || serverIsOnBreak}
                         className="h-11 gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-500 hover:border-red-300 hover:bg-red-100 disabled:opacity-30 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
                         {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> End Shift</>}
                       </Button>
@@ -1991,7 +2005,7 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">Tray App Required</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Action Auto CRM Tray App</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah AI Time Tracker</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
                 </div>
               </div>
               <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 px-4 py-3 space-y-2">

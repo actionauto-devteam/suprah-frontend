@@ -4519,6 +4519,7 @@ export default function SupraSpacePage() {
     String((activeConv as any).createdBy) === uid
   ));
   const isReportGroup = /^DayPulse Reports$/i.test(activeConv?.name || '');
+  const isShiftAlertsGroup = /^Shift Alerts$/i.test(activeConv?.name || '');
 
   const isPinnedConv = React.useCallback((c: SSConversation) => (c.pinnedBy || []).map(String).includes(uid), [uid]);
   const isArchivedConv = React.useCallback((c: SSConversation) => (c.archivedBy || []).map(String).includes(uid), [uid]);
@@ -7420,9 +7421,11 @@ export default function SupraSpacePage() {
                       </div>
                     )}
 
-                    {isReportGroup ? (
+                    {isReportGroup || isShiftAlertsGroup ? (
                       <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>Read-only · DayPulse reports are posted here automatically</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>
+                          {isShiftAlertsGroup ? 'Read-only · Shift alerts are posted here automatically' : 'Read-only · DayPulse reports are posted here automatically'}
+                        </span>
                       </div>
                     ) : recording ? (
                       <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">

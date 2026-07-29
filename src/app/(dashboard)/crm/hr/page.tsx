@@ -291,7 +291,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
             <div className="shrink-0 flex items-center gap-2">
               <Badge
                 variant="outline"
-                className={`text-sm xl:text-base h-8 xl:h-9 px-4 xl:px-5 rounded-full font-bold ${entry.type === "birthday"
+                className={`text-[11px] xl:text-xs h-6 xl:h-7 px-2.5 xl:px-3 rounded-full font-bold ${entry.type === "birthday"
                   ? "bg-pink-500/10 text-pink-600 border-pink-500/20"
                   : "bg-amber-500/10 text-amber-600 border-amber-500/20"
                   }`}
