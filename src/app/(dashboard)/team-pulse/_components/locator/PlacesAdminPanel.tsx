@@ -77,11 +77,15 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
     const lng = parseFloat(form.lng);
     if (Number.isNaN(lat) || Number.isNaN(lng)) { onDraftChange(null); return; }
     onDraftChange({
-      _id: "__draft__", organizationId: "", name: form.name || "New Place",
+      // Reusing the real place's own _id while editing (instead of a separate "__draft__"
+      // id) makes the map's diff-in-place update swap the live-preview values onto the
+      // SAME circle instead of drawing a second one on top of it — one circle that visibly
+      // grows/shrinks with the slider, not two overlapping rings.
+      _id: editing ? editing._id : "__draft__", organizationId: "", name: form.name || "New Place",
       coords: { lat, lng }, radiusM: form.radiusM, icon: form.icon, color: form.color,
       address: form.address, description: form.description, isActive: true, createdBy: "", createdAt: "", updatedAt: "",
     });
-  }, [dialogOpen, form, onDraftChange]);
+  }, [dialogOpen, form, editing, onDraftChange]);
 
   function closeDialog(open: boolean) {
     setDialogOpen(open);

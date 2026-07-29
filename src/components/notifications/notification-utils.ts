@@ -271,6 +271,25 @@ export function resolveNotificationCategory(notification: Notification): Notific
   return notification.category ?? inferLegacyCategory(notification.type);
 }
 
+/**
+ * Everything admins actually monitor via the Locator/TimeProof feature: geofence
+ * enter/exit alerts, shift alerts (connection lost, stale clockout, location turned
+ * off mid-shift — all fired through the same admin_staff_activity type), an admin
+ * asking someone to share, and TimeProof-side location/idle alerts. Used to power
+ * the sidebar's Locator badge and the dedicated notification feed on the Locator
+ * tab, kept separate from the general bell/inbox per that feature's own request.
+ */
+const LOCATOR_NOTIFICATION_TYPES = new Set([
+  'driver_tracker_geofence_alert',
+  'location_share_requested',
+  'admin_staff_activity',
+  'crm_timeproof',
+]);
+
+export function isLocatorNotification(notification: Notification): boolean {
+  return LOCATOR_NOTIFICATION_TYPES.has(notification.type);
+}
+
 const CATEGORY_LABEL_BY_KEY: Record<string, string> = Object.fromEntries(
   [...notificationPreferenceCategories, ...adminNotificationPreferenceCategories].map(
     (c) => [c.key, c.label],

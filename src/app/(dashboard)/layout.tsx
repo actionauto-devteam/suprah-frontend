@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 
@@ -185,11 +185,19 @@ function DashboardLayoutContent({
   return (
     <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
       <AppSidebar />
-      <SidebarInset className={cn(isCrmRoute && "min-h-0 overflow-hidden")}>
+      {/* min-w-0 + w-full: lets this flex child shrink below its content's
+          intrinsic width instead of forcing the whole page wider than the
+          viewport (the classic flex-child overflow bug). */}
+      <SidebarInset
+        className={cn(
+          "min-w-0 w-full",
+          isCrmRoute && "min-h-0 overflow-hidden",
+        )}
+      >
         {showCrmHeader && <CrmHeader showMessenger={showCrmMessenger} />}
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
+            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1 min-w-0">
               <div className="flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
                 <SidebarTrigger className="-ml-1" />
                 <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
@@ -291,7 +299,10 @@ function DashboardLayoutContent({
         )}
         <main
           className={cn(
-            "relative bg-background md:pb-0",
+            // min-w-0 + overflow-x-hidden keep wide children (grids, charts)
+            // contained to the content column instead of pushing the page
+            // horizontally.
+            "relative bg-background md:pb-0 min-w-0 overflow-x-hidden",
             leadConvoActive ? "pb-0" : "pb-24",
             isCrmRoute
               ? "flex-1 min-h-0 overflow-y-auto " +
@@ -300,7 +311,7 @@ function DashboardLayoutContent({
                 "[&::-webkit-scrollbar-track]:bg-transparent " +
                 "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 " +
                 "[&::-webkit-scrollbar-thumb:hover]:bg-border"
-              : "flex-1 overflow-hidden"
+              : "flex-1"
           )}
         >
           {isStandaloneCrmShell && (

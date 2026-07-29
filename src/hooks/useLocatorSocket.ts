@@ -71,7 +71,7 @@ export function useLocatorSocket() {
             socket.on('locator:possible_incident', (data: { userName: string }) => {
                 queryClient.invalidateQueries({ queryKey: ['locator-driving-sessions'] });
                 toast.error(`⚠️ Possible incident — ${data.userName}`, {
-                    description: 'Detected during a test drive. Check the Driving tab in Beacon.',
+                    description: 'Detected during a test drive. Check the Driving tab in Locator.',
                     duration: 10000,
                 });
             });

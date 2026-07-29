@@ -8,6 +8,7 @@ import type {
   Popup as LeafletPopup,
   TileLayer as LeafletTileLayer,
   LayerGroup as LeafletLayerGroup,
+  Circle as LeafletCircle,
   LeafletMouseEvent,
 } from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -325,7 +326,7 @@ export function LocatorLiveMapSection({
     marker: LeafletMarker; popup: LeafletPopup; circleEl: HTMLDivElement; haloEl: HTMLDivElement; approxEl: HTMLSpanElement;
     lastState: string; lastSelected: boolean; lastHaloScale: number | null; lastApprox: boolean; isSelf: boolean;
   }>>(new Map());
-  const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
+  const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; haloCircle: LeafletCircle; mainCircle: LeafletCircle; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
   const trailLayerRef = React.useRef<LeafletLayerGroup | null>(null);
   const locationsRef = React.useRef(locations);
   locationsRef.current = locations;
@@ -854,12 +855,17 @@ export function LocatorLiveMapSection({
           existing.popup.setLatLng(latLng);
           const labelEl = existing.badgeEl.nextElementSibling as HTMLDivElement | null;
           if (labelEl) labelEl.textContent = p.name;
+          // Radius/color previously only applied at first render — editing an existing
+          // place's geofence (or live-previewing a draft's radius slider) never moved
+          // these circles, so the map kept showing the OLD size until a full reload.
+          existing.haloCircle.setLatLng(latLng).setRadius(p.radiusM * 1.4).setStyle({ color, fillColor: color });
+          existing.mainCircle.setLatLng(latLng).setRadius(p.radiusM).setStyle({ color, fillColor: color });
           return;
         }
 
         const geofence = L.layerGroup();
-        L.circle(latLng, { radius: p.radiusM * 1.4, color, weight: 0, fillColor: color, fillOpacity: 0.1 }).addTo(geofence);
-        L.circle(latLng, { radius: p.radiusM, color, weight: 2.5, fillColor: color, fillOpacity: 0.16 }).addTo(geofence);
+        const haloCircle = L.circle(latLng, { radius: p.radiusM * 1.4, color, weight: 0, fillColor: color, fillOpacity: 0.1 }).addTo(geofence);
+        const mainCircle = L.circle(latLng, { radius: p.radiusM, color, weight: 2.5, fillColor: color, fillOpacity: 0.16 }).addTo(geofence);
         geofence.addTo(map);
 
         const wrapper = document.createElement("div");
@@ -915,7 +921,7 @@ export function LocatorLiveMapSection({
           icon: L.divIcon({ html: wrapper, className: "locator-marker-icon", iconSize: [30, 49], iconAnchor: [15, 49] }),
         }).addTo(map);
 
-        placeMarkers.set(p._id, { marker, layerGroup: geofence, badgeEl, popup });
+        placeMarkers.set(p._id, { marker, layerGroup: geofence, haloCircle, mainCircle, badgeEl, popup });
       });
     })();
 

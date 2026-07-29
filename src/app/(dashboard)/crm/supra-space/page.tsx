@@ -15,7 +15,7 @@ import {
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
   MoreHorizontal, Copy, GripVertical, Link2, Star, MailOpen, Share2,
   Bell, VolumeX, EyeOff,
-  Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Type, ZoomIn, ZoomOut,
+  Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -26,7 +26,7 @@ import { DateTimePicker } from '@/components/ui/datetime-picker';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
-import { useSupraSpaceSocket, SSConversation, SSMessage, PresenceMap } from '@/hooks/useSupraSpaceSocket';
+import { useSupraSpaceSocket, SSConversation, SSMessage, SSAttachment, PresenceMap } from '@/hooks/useSupraSpaceSocket';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
 import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
@@ -48,11 +48,35 @@ import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
 const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
-type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'quote' | 'code';
+type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
+
+const SS4_BULLET_GLYPHS = ['•', '◦', '▪'];
+const SS4_LIST_INDENT_STEP = '  ';
+function ss4BulletGlyphForDepth(depth: number): string {
+  const i = ((depth % SS4_BULLET_GLYPHS.length) + SS4_BULLET_GLYPHS.length) % SS4_BULLET_GLYPHS.length;
+  return SS4_BULLET_GLYPHS[i];
+}
+function ss4FindPriorNumberedSibling(value: string, lineStart: number, indentLen: number): number {
+  const before = value.slice(0, Math.max(0, lineStart - 1));
+  const lines = before.length ? before.split('\n') : [];
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i];
+    if (!l.trim()) continue;
+    const m = l.match(/^(\s*)(\d+)\.(\s+)(.*)$/);
+    if (!m) break;
+    if (m[1].length === indentLen) return parseInt(m[2], 10);
+    if (m[1].length < indentLen) break;
+  }
+  return 0;
+}
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
 ]);
-const SS4_REACTIONS = ['\u{1f44d}', '\u{2764}\u{fe0f}', '\u{1f602}', '\u{1f62e}', '\u{1f622}', '\u{1f64f}', '\u{1f525}', '\u{1f389}'];
+const SS4_REACTIONS = [
+  '\u{1f44d}', '\u{2764}\u{fe0f}', '\u{1f602}', '\u{1f62e}', '\u{1f622}', '\u{1f64f}',
+  '\u{1f525}', '\u{1f389}', '\u{1f44f}', '\u{1f60d}', '\u{1f914}', '\u{1f440}',
+  '\u{1f4af}', '\u{1f64c}', '\u{1f60e}', '\u{1f480}',
+];
 const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
 const SS4_TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
 const SS4_MORE_TEXT_COLORS = [
@@ -65,15 +89,19 @@ const SS4_MORE_TEXT_COLORS = [
 ];
 
 
+// Wallpapers are an even, full-canvas wash (same color at both gradient stops) rather
+// than a corner accent that fades to transparent — so the tint reads as an actual chat
+// background behind every message (Messenger-style), not just a hint in one corner.
 const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: string | null }[] = [
   { name: 'Default', accent: null, wallpaper: null },
-  { name: 'Ocean', accent: '#2e7fff', wallpaper: 'linear-gradient(160deg, rgba(46,127,255,0.10), transparent)' },
-  { name: 'Sunset', accent: '#f0683c', wallpaper: 'linear-gradient(160deg, rgba(240,104,60,0.12), transparent)' },
-  { name: 'Forest', accent: '#22b060', wallpaper: 'linear-gradient(160deg, rgba(34,176,96,0.12), transparent)' },
-  { name: 'Berry', accent: '#a855f7', wallpaper: 'linear-gradient(160deg, rgba(168,85,247,0.12), transparent)' },
-  { name: 'Rose', accent: '#f0568a', wallpaper: 'linear-gradient(160deg, rgba(240,86,138,0.12), transparent)' },
-  { name: 'Gold', accent: '#e0a13a', wallpaper: 'linear-gradient(160deg, rgba(224,161,58,0.12), transparent)' },
-  { name: 'Slate', accent: '#64748b', wallpaper: 'linear-gradient(160deg, rgba(100,116,139,0.12), transparent)' },
+  { name: 'Ocean', accent: '#2e7fff', wallpaper: 'linear-gradient(160deg, rgba(46,127,255,0.14) 0%, rgba(46,127,255,0.05) 100%)' },
+  { name: 'Sunset', accent: '#f0683c', wallpaper: 'linear-gradient(160deg, rgba(240,104,60,0.16) 0%, rgba(240,104,60,0.06) 100%)' },
+  { name: 'Forest', accent: '#22b060', wallpaper: 'linear-gradient(160deg, rgba(34,176,96,0.16) 0%, rgba(34,176,96,0.06) 100%)' },
+  { name: 'Berry', accent: '#a855f7', wallpaper: 'linear-gradient(160deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.06) 100%)' },
+  { name: 'Rose', accent: '#f0568a', wallpaper: 'linear-gradient(160deg, rgba(240,86,138,0.16) 0%, rgba(240,86,138,0.06) 100%)' },
+  { name: 'Gold', accent: '#e0a13a', wallpaper: 'linear-gradient(160deg, rgba(224,161,58,0.16) 0%, rgba(224,161,58,0.06) 100%)' },
+  { name: 'Slate', accent: '#64748b', wallpaper: 'linear-gradient(160deg, rgba(100,116,139,0.16) 0%, rgba(100,116,139,0.06) 100%)' },
+  { name: 'Ice', accent: '#22d3ee', wallpaper: 'linear-gradient(160deg, rgba(34,211,238,0.14) 0%, rgba(34,211,238,0.05) 100%)' },
 ];
 
 if (typeof document !== 'undefined') {
@@ -1156,7 +1184,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
     const pushPlain = (plain: string) => {
       if (!plain) return;
       plain = plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, '');
-      const tokenPattern = /(https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+      const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
       while ((match = tokenPattern.exec(plain)) !== null) {
@@ -1729,7 +1757,7 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
 
 function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward,
+  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -1746,6 +1774,7 @@ function Bubble({
   hideTime?: boolean;
   onEditSave?: (id: string, content: string, replacementFiles?: File[]) => Promise<void>;
   onForward?: (m: SSMessage) => void;
+  defaultReactionEmoji?: string;
 }) {
   const [hov, setHov] = React.useState(false);
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
@@ -1779,6 +1808,7 @@ function Bubble({
     underline: false,
     strike: false,
     list: false,
+    numbered: false,
     quote: false,
     code: false,
   });
@@ -1916,6 +1946,7 @@ function Bubble({
         underline: document.queryCommandState('underline'),
         strike: document.queryCommandState('strikeThrough'),
         list: document.queryCommandState('insertUnorderedList'),
+        numbered: false,
         quote: false,
         code: false,
       });
@@ -2403,11 +2434,18 @@ function Bubble({
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
                   if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); syncEditDraft(); }
                   if (e.key === 'Escape') cancelEdit();
+                  if (e.ctrlKey || e.metaKey) {
+                    const k = e.key.toLowerCase();
+                    const cmd = k === 'b' ? 'bold' : k === 'i' ? 'italic' : k === 'u' ? 'underline' : (e.shiftKey && k === 'x') ? 'strikethrough' : null;
+                    if (cmd) { e.preventDefault(); document.execCommand(cmd, false); syncEditDraft(); refreshEditActiveFormats(); }
+                    if (k === 'e') { e.preventDefault(); document.execCommand('insertText', false, '`code`'); syncEditDraft(); refreshEditActiveFormats(); }
+                  }
                 }}
                 onPaste={e => {
                   const text = e.clipboardData?.getData('text/plain') || '';
                   const html = e.clipboardData?.getData('text/html') || '';
-                  if (html && (hasRichFormatting(html) || htmlAppearsToContainLists(html))) {
+                  const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
+                  if (html && (hasRichFormatting(html) || htmlAppearsToContainLists(html)) && !shouldUsePlainText) {
                     e.preventDefault();
                     const editorHtml = clipboardHtmlToEditorHtml(html);
                     const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
@@ -2423,9 +2461,13 @@ function Bubble({
                     });
                     return;
                   }
-                  if (text) {
+                  const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
+                  if (richText) {
                     e.preventDefault();
-                    const normalizedText = normalizeMessageMarkdownText(text);
+                    const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(richText)
+                      ? clipboardHtmlToListAwareText(html)
+                      : richText;
+                    const normalizedText = normalizeMessageMarkdownText(sourceText);
                     document.execCommand(hasMarkdownSyntax(normalizedText) ? 'insertHTML' : 'insertText', false, hasMarkdownSyntax(normalizedText) ? markdownTextToEditorHtml(normalizedText) : normalizedText);
                     requestAnimationFrame(() => {
                       normalizeContentEditableListArtifacts(editAreaRef.current);
@@ -2497,7 +2539,9 @@ function Bubble({
               </div>
             </div>
           ) : message.content ? (
-            <div className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+            <div
+              onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
+              className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
               <p className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
@@ -2507,7 +2551,7 @@ function Bubble({
               className="ss4-msg-actions ss4-msg-actions-pop"
               style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: actionSurface, color: actionText, border: `1px solid ${actionBorder}`, boxShadow: '0 8px 28px rgba(0,0,0,0.38)', minWidth: 'max-content' }}
               onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
-              {SS4_REACTIONS.slice(0, 3).map(emoji => (
+              {SS4_REACTIONS.slice(0, 6).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
                   className="ss4-action-emoji h-7 w-7 flex items-center justify-center text-base rounded-lg transition-all hover:scale-125 active:scale-95"
                   style={{ ['--ss4-action-hover' as any]: actionSurfaceHover }}
@@ -3711,9 +3755,12 @@ function ScheduleMeetingModal({
   );
 }
 
-function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['theme']; onClose: () => void; onApply: (t: { accent: string | null; wallpaper: string | null }) => void }) {
+function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['theme']; onClose: () => void; onApply: (t: { accent: string | null; wallpaper: string | null; emoji: string | null }) => void }) {
   const [accent, setAccent] = React.useState<string | null>(current?.accent || null);
   const [wallpaper, setWallpaper] = React.useState<string | null>(current?.wallpaper || null);
+  const [emoji, setEmoji] = React.useState<string | null>(current?.emoji || null);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const emojiBtnRef = React.useRef<HTMLButtonElement>(null);
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ss4-modal w-full max-w-sm overflow-hidden">
@@ -3742,7 +3789,32 @@ function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['t
               <span className="ss4-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{accent || 'default'}</span>
             </div>
           </div>
-          <button onClick={() => onApply({ accent, wallpaper })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13 }}>Apply Theme</button>
+          <div>
+            <p className="ss4-section-label mb-2">Default reaction (double-click a message)</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {SS4_REACTIONS.slice(0, 8).map(e => (
+                <button key={e} onClick={() => setEmoji(e)}
+                  className="h-9 w-9 flex items-center justify-center rounded-lg text-lg transition-all hover:scale-110"
+                  style={{ border: `1px solid ${emoji === e ? 'var(--accent)' : 'var(--border-2)'}`, background: emoji === e ? 'var(--accent-muted)' : 'transparent' }}>
+                  {e}
+                </button>
+              ))}
+              <button ref={emojiBtnRef} onClick={() => setPickerOpen(v => !v)}
+                className="h-9 w-9 flex items-center justify-center rounded-lg transition-all hover:scale-110"
+                style={{ border: '1px solid var(--border-2)' }}
+                title="More emojis">
+                <SmilePlus className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              </button>
+              {pickerOpen && (
+                <EmojiReactionPicker
+                  onSelect={e => setEmoji(e)}
+                  onClose={() => setPickerOpen(false)}
+                  position={emojiBtnRef.current ? { top: emojiBtnRef.current.getBoundingClientRect().bottom + 6, left: emojiBtnRef.current.getBoundingClientRect().left } : { top: 200, left: 200 }}
+                />
+              )}
+            </div>
+          </div>
+          <button onClick={() => onApply({ accent, wallpaper, emoji })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13 }}>Apply Theme</button>
         </div>
       </div>
     </div>
@@ -4108,6 +4180,17 @@ export default function SupraSpacePage() {
   const [showJumpToLatest, setShowJumpToLatest] = React.useState(false);
   const [messageScrollActive, setMessageScrollActive] = React.useState(false);
   const messageScrollIdleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether the *user* is actively driving the scroll (wheel/touch/scrollbar
+  // drag) vs. a programmatic scroll (auto-scroll-to-bottom, pin-to-bottom, pagination
+  // restore). Only real user gestures should suppress hover actions/reaction popovers —
+  // otherwise every app-driven scroll slams open reaction tooltips shut mid-interaction.
+  const userScrollGestureRef = React.useRef(false);
+  const userScrollGestureTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markUserScrollGesture = React.useCallback(() => {
+    userScrollGestureRef.current = true;
+    if (userScrollGestureTimerRef.current) clearTimeout(userScrollGestureTimerRef.current);
+    userScrollGestureTimerRef.current = setTimeout(() => { userScrollGestureRef.current = false; }, 400);
+  }, []);
 
   const [showModal, setShowModal] = React.useState<{ open: boolean; tab: 'dm' | 'group' | 'space' }>({ open: false, tab: 'dm' });
   const [collapsedSections, setCollapsedSections] = React.useState<Set<string>>(new Set());
@@ -4144,6 +4227,7 @@ export default function SupraSpacePage() {
     underline: false,
     strike: false,
     list: false,
+    numbered: false,
     quote: false,
     code: false,
   });
@@ -4154,6 +4238,32 @@ export default function SupraSpacePage() {
 
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned'>('members');
+  const [ssMediaItems, setSsMediaItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
+  const [ssFileItems, setSsFileItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
+  const [ssAttachmentsLoading, setSsAttachmentsLoading] = React.useState(false);
+
+  // Files/Media tab: query the whole conversation directly from the DB rather than
+  // filtering only the currently-loaded page of messages — a DM can easily have its
+  // one shared file sitting further back than the last ~40 loaded messages.
+  React.useEffect(() => {
+    if (!showInfo || !activeId || !token) return;
+    if (infoTab !== 'media' && infoTab !== 'files') return;
+    let cancelled = false;
+    setSsAttachmentsLoading(true);
+    apiClient
+      .get(`/api/supraspace/conversations/${activeId}/attachments`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { type: infoTab, limit: 60 },
+      })
+      .then((r) => {
+        if (cancelled) return;
+        const items = r.data?.data?.items || [];
+        if (infoTab === 'media') setSsMediaItems(items); else setSsFileItems(items);
+      })
+      .catch(() => { if (!cancelled) { if (infoTab === 'media') setSsMediaItems([]); else setSsFileItems([]); } })
+      .finally(() => { if (!cancelled) setSsAttachmentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [showInfo, activeId, infoTab, token]);
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
   const [pinnedModalOpen, setPinnedModalOpen] = React.useState(false);
   const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
@@ -4314,6 +4424,19 @@ export default function SupraSpacePage() {
     }, 6700);
   }, [scrollToLatest]);
 
+  // Cancels the "just opened this conversation" pin-to-bottom lock. Called the moment
+  // a *real* user scroll gesture happens while the lock is still active — otherwise the
+  // queued re-pin timers/ResizeObserver would yank the view back to the bottom a moment
+  // after the user manually scrolled up, which read as "it opens, I scroll up, then it
+  // snaps back down."
+  const cancelOpenBottomLock = React.useCallback(() => {
+    openScrollTimersRef.current.forEach(clearTimeout);
+    openScrollTimersRef.current = [];
+    if (openBottomReleaseTimerRef.current) { window.clearTimeout(openBottomReleaseTimerRef.current); openBottomReleaseTimerRef.current = null; }
+    forceScrollToBottomRef.current = null;
+    openBottomLockUntilRef.current = 0;
+  }, []);
+
   React.useEffect(() => {
     return () => {
       openScrollTimersRef.current.forEach(clearTimeout);
@@ -4328,7 +4451,12 @@ export default function SupraSpacePage() {
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
-  const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead } = useSupraSpaceSocket(token || null);
+  // #channel-mention state
+  const [channelMentionQuery, setChannelMentionQuery] = React.useState<string | null>(null);
+  const [channelMentionAnchor, setChannelMentionAnchor] = React.useState<number>(-1);
+  const [channelMentionIdx, setChannelMentionIdx] = React.useState(0);
+
+  const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceSocket(token || null);
   const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => {
     const previousPref =
@@ -4975,6 +5103,23 @@ export default function SupraSpacePage() {
     };
     socket.on('messages:read', onMsgsRead);
     socket.on('user:profile:updated', onProfileUpdated);
+    const onAllRead = ({ conversationIds }: { conversationIds: string[] }) => {
+      const idSet = new Set(conversationIds);
+      setConvos(prev => prev.map(c => {
+        if (!idSet.has(c._id)) return c;
+        if (!c.lastMessage) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
+        const rb = c.lastMessage.readBy || [];
+        if (rb.includes(uid)) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
+        return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+      }));
+      setManualUnread(prev => {
+        if (!prev.size) return prev;
+        const next = new Set(prev);
+        idSet.forEach(id => next.delete(id));
+        return next;
+      });
+    };
+    socket.on('conversations:all-read', onAllRead);
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
@@ -4985,6 +5130,7 @@ export default function SupraSpacePage() {
       socket.off('call:ended', onCallEnded);
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
+      socket.off('conversations:all-read', onAllRead);
     };
   }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages, token, handleJoinCall]);
 
@@ -5505,7 +5651,8 @@ export default function SupraSpacePage() {
       italic: document.queryCommandState('italic'),
       underline: document.queryCommandState('underline'),
       strike: document.queryCommandState('strikethrough'),
-      list: line.trimStart().startsWith('• '),
+      list: /^[•◦▪]\s/.test(line.trimStart()),
+      numbered: /^\d+\.\s/.test(line.trimStart()),
       quote: line.trimStart().startsWith('> '),
       code: beforeCursor.split('`').length % 2 === 0,
     });
@@ -5684,6 +5831,28 @@ export default function SupraSpacePage() {
         if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
       }
     }
+
+    const shouldInspectChannelMention =
+      channelMentionAnchor >= 0 ||
+      inputEvent.data === '#' ||
+      inputEvent.inputType === 'insertFromPaste';
+
+    if (shouldInspectChannelMention) {
+      const cursor = getCaretOffset(el);
+      composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
+      if (channelMentionAnchor >= 0) {
+        if (cursor <= channelMentionAnchor || val[channelMentionAnchor] !== '#') {
+          setChannelMentionQuery(null); setChannelMentionAnchor(-1);
+        } else {
+          const q = val.slice(channelMentionAnchor + 1, cursor);
+          if (q.includes('  ')) { setChannelMentionQuery(null); setChannelMentionAnchor(-1); }
+          else { setChannelMentionQuery(q); setChannelMentionIdx(0); }
+        }
+      } else {
+        const match = val.slice(0, cursor).match(/#(\w*)$/);
+        if (match) { setChannelMentionQuery(match[1]); setChannelMentionAnchor(cursor - match[0].length); setChannelMentionIdx(0); }
+      }
+    }
     if (!activeId) return;
     sendTypingStart(activeId);
     if (typingRef.current) clearTimeout(typingRef.current);
@@ -5772,6 +5941,26 @@ export default function SupraSpacePage() {
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [mentionAnchor, mentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, syncComposerText]);
+
+  const insertChannelMention = React.useCallback((name: string) => {
+    const el = textareaRef.current;
+    if (!el || channelMentionAnchor < 0) return;
+    const selection = window.getSelection();
+    const range = rangeFromTextOffset(el, channelMentionAnchor);
+    const endRange = rangeFromTextOffset(el, channelMentionAnchor + 1 + (channelMentionQuery?.length ?? 0));
+    range.setEnd(endRange.startContainer, endRange.startOffset);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand('insertText', false, `#${name} `);
+    const next = el.innerText.replace(/\n$/, '');
+    const caretOffset = channelMentionAnchor + name.length + 2;
+    syncComposerText(next, true);
+    setChannelMentionQuery(null);
+    setChannelMentionAnchor(-1);
+    composerCaretOffsetRef.current = caretOffset;
+    saveComposerSelection();
+    requestAnimationFrame(refreshActiveFormats);
+  }, [channelMentionAnchor, channelMentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, syncComposerText]);
 
   const startRecording = async () => {
     try {
@@ -6028,7 +6217,7 @@ export default function SupraSpacePage() {
     patchConv(activeConv._id, next);
     try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, next, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
-  const applyTheme = async (t: { accent: string | null; wallpaper: string | null }) => {
+  const applyTheme = async (t: { accent: string | null; wallpaper: string | null; emoji: string | null }) => {
     if (!activeConv) return; setThemeOpen(false);
     patchConv(activeConv._id, { theme: { ...(activeConv.theme || {}), ...t } } as any);
     try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}/theme`, { theme: { ...(activeConv.theme || {}), ...t } }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
@@ -6092,16 +6281,35 @@ export default function SupraSpacePage() {
     const leading = line.match(/^\s*/)?.[0] || '';
     const trimmed = line.trim();
 
-    if (trimmed === '•') {
+    if (/^[•◦▪]$/.test(trimmed)) {
       const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
       syncComposerText(next, true);
       setEditableTextAndCaret(next, lineStart);
       requestAnimationFrame(refreshActiveFormats);
       return true;
     }
-    if (line.trimStart().startsWith('• ')) {
+    const bulletMatch = line.match(/^(\s*)([•◦▪])(\s+)(.*)$/);
+    if (bulletMatch) {
       const listIndent = leading || '  ';
-      const insert = `\n${listIndent}• `;
+      const insert = `\n${listIndent}${bulletMatch[2]} `;
+      const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      const caret = cursor + insert.length;
+      syncComposerText(next, true);
+      setEditableTextAndCaret(next, caret);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    if (/^\d+\.$/.test(trimmed)) {
+      const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
+      syncComposerText(next, true);
+      setEditableTextAndCaret(next, lineStart);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    const numberedMatch = line.match(/^(\s*)(\d+)\.(\s+)(.*)$/);
+    if (numberedMatch) {
+      const nextNum = parseInt(numberedMatch[2], 10) + 1;
+      const insert = `\n${numberedMatch[1]}${nextNum}. `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
       const caret = cursor + insert.length;
       syncComposerText(next, true);
@@ -6142,6 +6350,9 @@ export default function SupraSpacePage() {
       case 'list':
         document.execCommand('insertText', false, (selectedText ? '\n' : '') + '  • ' + (selectedText || ''));
         break;
+      case 'numbered':
+        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '1. ' + (selectedText || ''));
+        break;
       case 'quote':
         document.execCommand('insertText', false, (selectedText ? '\n' : '') + '> ' + (selectedText || 'quote'));
         break;
@@ -6158,6 +6369,50 @@ export default function SupraSpacePage() {
     syncComposerText(el.innerText.replace(/\n$/, ''), true);
     requestAnimationFrame(refreshActiveFormats);
   }, [refreshActiveFormats, syncComposerText]);
+
+  // Tab/Shift+Tab on a bullet or numbered-list line: Tab nests one level deeper (cycling
+  // bullet glyph •→◦→▪, or renumbering from the nearest sibling at the new indent),
+  // Shift+Tab un-nests. Returns false (and lets Tab behave normally) when the cursor
+  // isn't on a list line.
+  const handleListIndent = React.useCallback((outdent: boolean): boolean => {
+    const el = textareaRef.current;
+    if (!el) return false;
+    const value = el.innerText.replace(/\n$/, '');
+    const cursor = getCaretOffset(el);
+    const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
+    const lineEndRaw = value.indexOf('\n', cursor);
+    const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
+    const line = value.slice(lineStart, lineEnd);
+
+    const bulletMatch = line.match(/^(\s*)([•◦▪])(\s+)(.*)$/);
+    const numberedMatch = !bulletMatch ? line.match(/^(\s*)(\d+)\.(\s+)(.*)$/) : null;
+    if (!bulletMatch && !numberedMatch) return false;
+
+    const leading = (bulletMatch || numberedMatch)![1];
+    if (outdent && leading.length === 0) return true;
+    const nextLeading = outdent
+      ? leading.slice(0, Math.max(0, leading.length - SS4_LIST_INDENT_STEP.length))
+      : leading + SS4_LIST_INDENT_STEP;
+
+    let newLine: string;
+    if (bulletMatch) {
+      const glyphIdx = SS4_BULLET_GLYPHS.indexOf(bulletMatch[2]);
+      const nextGlyphIdx = outdent
+        ? ((glyphIdx - 1) % SS4_BULLET_GLYPHS.length + SS4_BULLET_GLYPHS.length) % SS4_BULLET_GLYPHS.length
+        : (glyphIdx + 1) % SS4_BULLET_GLYPHS.length;
+      newLine = `${nextLeading}${SS4_BULLET_GLYPHS[nextGlyphIdx]} ${bulletMatch[4]}`;
+    } else {
+      const priorSibling = ss4FindPriorNumberedSibling(value, lineStart, nextLeading.length);
+      newLine = `${nextLeading}${priorSibling + 1}. ${numberedMatch![4]}`;
+    }
+
+    const next = `${value.slice(0, lineStart)}${newLine}${value.slice(lineEnd)}`;
+    const caret = cursor + (newLine.length - line.length);
+    syncComposerText(next, true);
+    setEditableTextAndCaret(next, Math.max(lineStart, caret));
+    requestAnimationFrame(refreshActiveFormats);
+    return true;
+  }, [refreshActiveFormats, setEditableTextAndCaret, syncComposerText]);
 
   const applyTextColor = React.useCallback((color: string) => {
     const el = textareaRef.current;
@@ -6291,21 +6546,28 @@ export default function SupraSpacePage() {
     const el = messageScrollRef.current;
     if (!el || !activeId) return;
     if (forceScrollToBottomRef.current === activeId && Date.now() <= openBottomLockUntilRef.current) {
-      setShowJumpToLatest(false);
-      return;
+      if (userScrollGestureRef.current) {
+        cancelOpenBottomLock();
+      } else {
+        setShowJumpToLatest(false);
+        return;
+      }
     }
-    setMessageScrollActive(true);
-    if (messageScrollIdleTimerRef.current) clearTimeout(messageScrollIdleTimerRef.current);
-    messageScrollIdleTimerRef.current = setTimeout(() => setMessageScrollActive(false), 220);
+    if (userScrollGestureRef.current) {
+      setMessageScrollActive(true);
+      if (messageScrollIdleTimerRef.current) clearTimeout(messageScrollIdleTimerRef.current);
+      messageScrollIdleTimerRef.current = setTimeout(() => setMessageScrollActive(false), 220);
+    }
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowJumpToLatest(distanceFromBottom > 360);
     if (!hasMore[activeId] || loadingMsgs) return;
     if (el.scrollTop < 180) loadMore();
-  }, [activeId, hasMore, loadingMsgs, loadMore]);
+  }, [activeId, hasMore, loadingMsgs, loadMore, cancelOpenBottomLock]);
 
   React.useEffect(() => {
     return () => {
       if (messageScrollIdleTimerRef.current) clearTimeout(messageScrollIdleTimerRef.current);
+      if (userScrollGestureTimerRef.current) clearTimeout(userScrollGestureTimerRef.current);
     };
   }, []);
 
@@ -6335,6 +6597,16 @@ export default function SupraSpacePage() {
     if (!q) return opts;
     return opts.filter(o => o.name.toLowerCase().startsWith(q) || o.fullName.toLowerCase().includes(q));
   }, [mentionQuery, activeConv, uid]);
+
+  const channelMentionOptions = React.useMemo(() => {
+    if (channelMentionQuery === null) return [];
+    const q = channelMentionQuery.toLowerCase();
+    const opts = convos
+      .filter(c => c.type === 'group' && c._id !== activeId && c.name)
+      .map(c => ({ id: c._id, name: (c.name as string).replace(/\s+/g, ''), label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}` }));
+    if (!q) return opts;
+    return opts.filter(o => o.name.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
+  }, [channelMentionQuery, convos, activeId]);
   const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
   const matchesConversationFilter = React.useCallback((conv: SSConversation) => {
@@ -6654,6 +6926,24 @@ export default function SupraSpacePage() {
               <div className="flex items-center justify-between">
                 <span className="ss4-section-label">Messages</span>
                 <div className="flex items-center gap-1.5">
+                  {convos.some(c => isConvUnreadForUser(c, uid, manualUnread)) && (
+                    <button
+                      onClick={() => {
+                        markAllRead();
+                        setConvos(prev => prev.map(c => {
+                          if (!c.lastMessage) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
+                          const rb = c.lastMessage.readBy || [];
+                          if (rb.includes(uid)) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
+                          return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
+                        }));
+                        setManualUnread(new Set());
+                      }}
+                      className="ss4-icon-btn h-7 w-7"
+                      title="Mark all as read"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
@@ -6999,6 +7289,9 @@ export default function SupraSpacePage() {
                     <div
                       ref={messageScrollRef}
                       onScroll={handleMessageScroll}
+                      onWheel={markUserScrollGesture}
+                      onTouchMove={markUserScrollGesture}
+                      onMouseDown={markUserScrollGesture}
                       data-supraspace-message-scroll="true"
                       className="h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
                       style={{ ...(wallpaper ? { backgroundImage: wallpaper } : {}), overflowAnchor: 'none' }}
@@ -7043,7 +7336,7 @@ export default function SupraSpacePage() {
                           <React.Fragment key={msg._id}>
                             {showDate && <DateSep date={msg.createdAt} />}
                             <div id={`ss4-msg-${msg._id}`}>
-                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} suppressActionsDuringScroll={messageScrollActive} />
+                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} suppressActionsDuringScroll={messageScrollActive} defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]} />
                             </div>
                             {pinEvents.find(e => e.msgId === msg._id) && (() => {
                               const ev = pinEvents.find(e => e.msgId === msg._id)!;
@@ -7164,6 +7457,22 @@ export default function SupraSpacePage() {
                             ))}
                           </div>
                         )}
+                        {channelMentionQuery !== null && channelMentionOptions.length > 0 && (
+                          <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                            {channelMentionOptions.map((opt, idx) => (
+                              <button key={opt.id}
+                                onMouseDown={e => { e.preventDefault(); insertChannelMention(opt.name); }}
+                                className={cn('w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors',
+                                  idx === channelMentionIdx ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)'
+                                )}>
+                                <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}>
+                                  <Hash className="h-3 w-3" style={{ color: 'var(--accent)' }} />
+                                </div>
+                                <span className="font-semibold truncate" style={{ fontSize: 12, color: 'var(--accent-text)' }}>{opt.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         {showFormatBar && (
                           <div className="flex items-center gap-1 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
@@ -7179,8 +7488,11 @@ export default function SupraSpacePage() {
                               <Strikethrough className="h-3.5 w-3.5" style={formatIconStyle('strike')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={formatButtonClass('list')} title="Bullet list" aria-pressed={activeFormats.list}>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={formatButtonClass('list')} title="Bullet list (Tab to nest)" aria-pressed={activeFormats.list}>
                               <List className="h-3.5 w-3.5" style={formatIconStyle('list')} />
+                            </button>
+                            <button onMouseDown={e => { e.preventDefault(); applyFormat('numbered'); }} className={formatButtonClass('numbered')} title="Numbered list (Tab to nest)" aria-pressed={activeFormats.numbered}>
+                              <ListOrdered className="h-3.5 w-3.5" style={formatIconStyle('numbered')} />
                             </button>
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className={formatButtonClass('quote')} title="Quote" aria-pressed={activeFormats.quote}>
                               <TextQuote className="h-3.5 w-3.5" style={formatIconStyle('quote')} />
@@ -7301,10 +7613,32 @@ export default function SupraSpacePage() {
                                   if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
                                   if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
                                 }
+                                if (channelMentionQuery !== null && channelMentionOptions.length > 0) {
+                                  if (e.key === 'ArrowDown') { e.preventDefault(); setChannelMentionIdx(i => Math.min(i + 1, channelMentionOptions.length - 1)); return; }
+                                  if (e.key === 'ArrowUp') { e.preventDefault(); setChannelMentionIdx(i => Math.max(i - 1, 0)); return; }
+                                  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertChannelMention(channelMentionOptions[channelMentionIdx].name); return; }
+                                  if (e.key === 'Escape') { setChannelMentionQuery(null); setChannelMentionAnchor(-1); return; }
+                                }
                                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                                 if (e.key === 'Enter' && e.shiftKey) {
                                   e.preventDefault();
                                   if (!handleFormattedLineBreak()) document.execCommand('insertLineBreak');
+                                }
+                                if (e.key === 'Tab') {
+                                  if (handleListIndent(e.shiftKey)) { e.preventDefault(); return; }
+                                }
+                                if (e.ctrlKey || e.metaKey) {
+                                  const k = e.key.toLowerCase();
+                                  if (k === 'b') { e.preventDefault(); applyFormat('bold'); return; }
+                                  if (k === 'i') { e.preventDefault(); applyFormat('italic'); return; }
+                                  if (k === 'u') { e.preventDefault(); applyFormat('underline'); return; }
+                                  if (k === 'k') { e.preventDefault(); applyFormat('link'); return; }
+                                  if (k === 'e') { e.preventDefault(); applyFormat('code'); return; }
+                                  if (e.shiftKey && k === 'x') { e.preventDefault(); applyFormat('strike'); return; }
+                                  if (e.shiftKey && k === 'c') { e.preventDefault(); applyFormat('codeblock'); return; }
+                                  if (e.shiftKey && k === '7') { e.preventDefault(); applyFormat('numbered'); return; }
+                                  if (e.shiftKey && k === '8') { e.preventDefault(); applyFormat('list'); return; }
+                                  if (e.shiftKey && k === '9') { e.preventDefault(); applyFormat('quote'); return; }
                                 }
                               }}
                               onPaste={e => {
@@ -7556,8 +7890,6 @@ export default function SupraSpacePage() {
             {showInfo && activeId && activeConv && (() => {
               const cName = getConvName(activeConv, uid);
               const cAvatar = getConvAvatar(activeConv, uid);
-              const mediaMsgs = activeMsgs.filter(m => m.attachments.some(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)));
-              const fileMsgs = activeMsgs.filter(m => m.attachments.some(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)));
               const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
               return (
                 <div className="absolute inset-0 z-30 flex flex-col" style={{ background: 'var(--bg-elevated)' }}>
@@ -7648,31 +7980,35 @@ export default function SupraSpacePage() {
                       )}
 
                       {infoTab === 'media' && (
-                        mediaMsgs.length === 0
+                        ssAttachmentsLoading && ssMediaItems.length === 0
+                          ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--text-tertiary)' }} /></div>
+                          : ssMediaItems.length === 0
                           ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No media yet</p>
                           : <div className="grid grid-cols-3 gap-1.5">
-                            {mediaMsgs.flatMap(m => m.attachments.filter(a => a.mimeType.startsWith('image/') || isVideoAttachment(a)).map((a, i) => {
+                            {ssMediaItems.map(({ messageId, attachment: a }, i) => {
                               const isVid = isVideoAttachment(a);
                               return (
-                                <button key={`${m._id}-${i}`} onClick={() => setLightbox({ src: a.url, type: isVid ? 'video' : 'image', name: a.originalName })} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
+                                <button key={`${messageId}-${i}`} onClick={() => setLightbox({ src: a.url, type: isVid ? 'video' : 'image', name: a.originalName })} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
                                   {isVid ? <><video src={a.url} className="w-full h-full object-cover" muted /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <img src={a.thumbnailUrl || a.url} alt={a.originalName} className="w-full h-full object-cover" />}
                                 </button>
                               );
-                            }))}
+                            })}
                           </div>
                       )}
 
                       {infoTab === 'files' && (
-                        fileMsgs.length === 0
+                        ssAttachmentsLoading && ssFileItems.length === 0
+                          ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--text-tertiary)' }} /></div>
+                          : ssFileItems.length === 0
                           ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No files yet</p>
                           : <div className="space-y-1.5">
-                            {fileMsgs.flatMap(m => m.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((a, i) => (
-                              <a key={`${m._id}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">
+                            {ssFileItems.map(({ messageId, attachment: a }, i) => (
+                              <a key={`${messageId}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">
                                 <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
                                 <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{fmtSize(a.size)}</p></div>
                                 <Download className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                               </a>
-                            )))}
+                            ))}
                           </div>
                       )}
 

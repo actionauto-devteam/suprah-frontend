@@ -231,6 +231,11 @@ export function LocationInfoPanel({
   // Beacon automatically; there's always a working way to stop it from TimeProof itself, so
   // this can never become the "no way out" trap the always-locked version used to be.
   const isShiftGoverned = isSelf && sharing && !!myStatus?.isOnShift && !myStatus?.isOnBreak;
+  // Lot Tech (and any other department flagged isMandatoryDept) can't stop it from
+  // TimeProof either while on shift — the backend rejects that too (locator.controller.ts's
+  // assertCanTurnOffLocation) — so the messaging here must not point them somewhere that
+  // will also refuse them. Their only way out is ending the shift.
+  const isHardLocked = isShiftGoverned && !!myStatus?.isMandatoryDept;
   // Not sharing right now but we still have their last known coords (never cleared on
   // stop) — show that as a Life360-style "last seen" instead of just a flat "Not Sharing".
   const isLastSeen = !isSelf && effectiveState === "off_duty" && !!loc?.coords;
@@ -334,7 +339,13 @@ export function LocationInfoPanel({
                 <StopButton pending={consentPending} onClick={stopSharing} />
               </>
             ) : isShiftGoverned ? (
-              <ShareToggleButton icon={Lock} disabled title="Controlled by your active TimeProof shift — stop it there, or it turns off automatically when your shift ends" />
+              <ShareToggleButton
+                icon={Lock}
+                disabled
+                title={isHardLocked
+                  ? "Lot Tech accounts can't turn off location while clocked in — end your shift to stop sharing"
+                  : "Controlled by your active TimeProof shift — stop it there, or it turns off automatically when your shift ends"}
+              />
             ) : isPaused ? (
               <>
                 <ShareToggleButton icon={Play} pending={sharingBusy} onClick={resumeSharing} variant="resume" title="Resume sharing" />
@@ -365,7 +376,9 @@ export function LocationInfoPanel({
           className="px-3.5 pt-2 text-[10px] text-muted-foreground/60 leading-snug shrink-0"
         >
           {isShiftGoverned
-            ? "Sharing because your shift is active — stop it from TimeProof, or it turns off automatically when your shift ends."
+            ? isHardLocked
+              ? "Sharing because your shift is active — Lot Tech accounts can't turn this off while clocked in. End your shift to stop."
+              : "Sharing because your shift is active — stop it from TimeProof, or it turns off automatically when your shift ends."
             : meta.description}
         </motion.p>
       </AnimatePresence>
