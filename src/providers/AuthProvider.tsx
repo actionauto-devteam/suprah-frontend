@@ -86,12 +86,40 @@ const isMissingRefreshTokenError = (err: any) => {
   );
 };
 
+/**
+ * A user is only "signed out" when the SERVER definitively rejects their
+ * credentials: HTTP 401 or 403, or the explicit missing-refresh-token
+ * message. Everything else — 429 rate limits, 5xx server errors, network
+ * failures, timeouts — is a TRANSIENT problem with the request, not with
+ * the session, and must NEVER clear auth state or redirect to sign-in.
+ *
+ * This is the fix for the "reload the page a few times → forced logout"
+ * bug: the bootstrap /users/me call was getting a 429 from the rate
+ * limiter, and the old catch-all treated it as "no session".
+ */
+const isDefinitiveAuthRejection = (err: any): boolean => {
+  const status = err?.response?.status;
+  return status === 401 || status === 403 || isMissingRefreshTokenError(err);
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Backoff schedule for transient bootstrap failures (429 / 5xx / network). */
+const BOOTSTRAP_RETRY_DELAYS_MS = [1500, 4000, 8000];
+
+/** How long to wait before re-attempting bootstrap after all retries fail. */
+const BACKGROUND_RETRY_MS = 20_000;
+
 // --- PROVIDER COMPONENT ---
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  // True when we could not CONFIRM the session either way (rate limited,
+  // server down, offline). While indeterminate, the redirection engine must
+  // NOT kick the user to /sign-in — we simply don't know yet.
+  const [authIndeterminate, setAuthIndeterminate] = useState(false);
   const [signUpState, setSignUpState] = useState<any>({ status: "missing" });
   const router = useRouter();
 
@@ -127,72 +155,131 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 1. Initial Load: Check if we have a valid session (via refresh token cookie)
   const refreshUser = useCallback(async () => {
-    try {
-      // Attempt silent refresh if we don't have a token in memory
-      let currentToken = null;
-      if (typeof window !== "undefined") {
-        currentToken = (window as any).__AUTH_TOKEN__;
-      }
+    // ── Step 1: ensure we have an access token ──────────────────────────
+    let currentToken: string | null = null;
+    if (typeof window !== "undefined") {
+      currentToken = (window as any).__AUTH_TOKEN__ || null;
+    }
 
-      if (!currentToken) {
-        // Check if a refresh is already in progress globally
-        if (globalRefreshPromise) {
-          currentToken = await globalRefreshPromise;
-        } else {
-          globalRefreshPromise = (async () => {
-            try {
-              const tokenRes = await apiClient.post("/api/auth/refresh-tokens");
-              const token =
-                tokenRes.data?.data?.accessToken || tokenRes.data?.accessToken;
-              return token || null;
-            } catch (err) {
-              if (!isMissingRefreshTokenError(err)) {
-                console.error(
-                  "[AuthProvider] Global refresh failed (Silent Refresh)",
-                );
-              }
+    if (!currentToken) {
+      // Silent refresh via the httpOnly cookie. Deduplicated globally.
+      if (globalRefreshPromise) {
+        currentToken = await globalRefreshPromise;
+      } else {
+        globalRefreshPromise = (async () => {
+          try {
+            const tokenRes = await apiClient.post("/api/auth/refresh-tokens");
+            const token =
+              tokenRes.data?.data?.accessToken || tokenRes.data?.accessToken;
+            return token || null;
+          } catch (err) {
+            if (isDefinitiveAuthRejection(err)) {
+              // Genuinely no session (no cookie / expired / revoked).
               return null;
-            } finally {
-              globalRefreshPromise = null;
             }
-          })();
-          currentToken = await globalRefreshPromise;
-        }
+            // Transient failure (429 / 5xx / network): rethrow so the
+            // caller knows this is "unknown", not "signed out".
+            throw err;
+          } finally {
+            globalRefreshPromise = null;
+          }
+        })();
 
-        if (currentToken) {
-          setAccessToken(currentToken);
-        } else {
-          setUser(null);
-          setAccessToken(null);
+        try {
+          currentToken = await globalRefreshPromise;
+        } catch (transientErr) {
+          // Could not reach the refresh endpoint for a non-auth reason.
+          // Do NOT sign the user out — mark the session as indeterminate
+          // and retry in the background.
+          console.warn(
+            "[AuthProvider] Silent refresh transiently failed — keeping session state, will retry.",
+            (transientErr as any)?.response?.status || (transientErr as any)?.message,
+          );
+          setAuthIndeterminate(true);
           setIsLoaded(true);
+          if (typeof window !== "undefined") {
+            window.setTimeout(() => refreshUser(), BACKGROUND_RETRY_MS);
+          }
           return;
         }
       }
 
-      const response = await apiClient.get("/api/users/me");
-      if (response.data?.success || response.data?.data) {
-        let userData = response.data.data || response.data;
-        if (process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && typeof window !== "undefined") {
-          const devRoleOverride = localStorage.getItem("dev_role_override");
-          if (devRoleOverride) userData = { ...userData, role: devRoleOverride };
-        }
-        setUser(userData);
-
-        const token =
-          response.data?.data?.accessToken || response.data?.accessToken;
-        if (token) {
-          setAccessToken(token);
-        }
+      if (currentToken) {
+        setAccessToken(currentToken);
       } else {
+        // Definitive: no session exists. Signed out for real.
         setUser(null);
         setAccessToken(null);
+        setAuthIndeterminate(false);
+        setIsLoaded(true);
+        return;
       }
-    } catch (error) {
-      console.error("[AuthProvider] Refresh error:", error);
-      setUser(null);
-      setAccessToken(null);
-    } finally {
-      setIsLoaded(true);
+    }
+
+    // ── Step 2: load the user profile, retrying transient failures ──────
+    let lastTransientError: any = null;
+
+    for (let attempt = 0; attempt <= BOOTSTRAP_RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        const response = await apiClient.get("/api/users/me");
+
+        if (response.data?.success || response.data?.data) {
+          let userData = response.data.data || response.data;
+          if (process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && typeof window !== "undefined") {
+            const devRoleOverride = localStorage.getItem("dev_role_override");
+            if (devRoleOverride) userData = { ...userData, role: devRoleOverride };
+          }
+          setUser(userData);
+          setAuthIndeterminate(false);
+
+          const token =
+            response.data?.data?.accessToken || response.data?.accessToken;
+          if (token) {
+            setAccessToken(token);
+          }
+        } else {
+          // Server answered but with no user payload — treat as signed out.
+          setUser(null);
+          setAccessToken(null);
+          setAuthIndeterminate(false);
+        }
+        setIsLoaded(true);
+        return;
+      } catch (error) {
+        if (isDefinitiveAuthRejection(error)) {
+          // The interceptor already attempted a token refresh for this 401
+          // and it was rejected — the session is genuinely dead.
+          setUser(null);
+          setAccessToken(null);
+          setAuthIndeterminate(false);
+          setIsLoaded(true);
+          return;
+        }
+
+        // Transient (429 rate limit / 5xx / network) — back off and retry.
+        lastTransientError = error;
+        const delay = BOOTSTRAP_RETRY_DELAYS_MS[attempt];
+        if (delay !== undefined) {
+          console.warn(
+            `[AuthProvider] /users/me transiently failed (attempt ${attempt + 1}), retrying in ${delay}ms`,
+            (error as any)?.response?.status || (error as any)?.message,
+          );
+          await sleep(delay);
+        }
+      }
+    }
+
+    // All retries exhausted on a TRANSIENT error. We hold a valid access
+    // token but couldn't load the profile. Do NOT sign out — mark
+    // indeterminate, keep the token, and keep retrying in the background.
+    console.error(
+      "[AuthProvider] Could not load user profile after retries — keeping session, will retry in background.",
+      (lastTransientError as any)?.response?.status || (lastTransientError as any)?.message,
+    );
+    setAuthIndeterminate(true);
+    setIsLoaded(true);
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => refreshUser(), BACKGROUND_RETRY_MS);
     }
   }, [setAccessToken]);
 
@@ -207,8 +294,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // CASE 1: NOT SIGNED IN
     if (!user) {
-      // FORCE REDIRECT for all non-public routes, including the root path
-      if (!isPublic) {
+      // Only force the redirect when we KNOW the user is signed out.
+      // If the session is indeterminate (rate limited / server unreachable
+      // during bootstrap), stay on the page — a background retry is
+      // running and will resolve the state shortly. Redirecting here is
+      // exactly the "forced logout on refresh spam" bug.
+      if (!isPublic && !authIndeterminate) {
         router.push("/sign-in" + search);
       }
       return;
@@ -277,11 +368,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       else if (user.role === "admin" && !user.organizationId)
         router.push("/org-selection");
     }
-  }, [isLoaded, user, router]);
-
-  // Redundant useEffect removed.
-
-  // Removed redundant useEffect because setAccessToken handles this now.
+  }, [isLoaded, user, authIndeterminate, router]);
 
   // 2. Token Management
   const getToken = useCallback(async () => {
@@ -359,6 +446,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setUser(null);
         setAccessToken(null);
+        setAuthIndeterminate(false);
         // Also clears crm_token (localStorage) + its IndexedDB mirror via
         // useCrmToken.ts's listener — otherwise a stale CRM SSO token would
         // sit in IndexedDB (readable by the service worker) after logout.
@@ -403,10 +491,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshUser();
 
-    // Register API failure listener
+    // Register API failure listener.
+    // The api-client only invokes this on a DEFINITIVE 401/403 rejection of
+    // the refresh token itself, so acting on it here is always correct.
     apiClient.setOnAuthFailure(() => {
       setUser(null);
       setAccessToken(null);
+      setAuthIndeterminate(false);
       const path = window.location.pathname;
       if (!isPublicRoute(path)) {
         router.push("/sign-in");
