@@ -51,16 +51,16 @@ import { useTeamMembers } from "@/hooks/useTeamPulse";
 
 import { LogisticsMonitor } from "./components/LogisticsMonitor";
 import { RevenueIntelligence } from "./components/RevenueIntelligence";
-import { OperationalHealth } from "./components/OperationalHealth";
 import { Panel, PanelSkeleton, ini, timeAgo } from "./components/DashboardPanel";
 import { MyClockStatus } from "./components/MyClockStatus";
 import { MyTasksSummary } from "./components/MyTasksSummary";
-import { InboxSnapshot } from "./components/InboxSnapshot";
 import { WhoIsOut } from "./components/WhoIsOut";
 import { InventorySnapshot } from "./components/InventorySnapshot";
-import { QuickActions } from "./components/QuickActions";
 import { StoriesRail } from "@/components/dashboard/StoriesRail";
 import { SpotifyPanel } from "@/components/dashboard/SpotifyPanel";
+// Suprah YapLine — live PTT channels + recent voice activity, embedded
+// directly below the Feeds section per the dashboard layout spec.
+import { YapLineWidget } from "@/components/yapline/YapLineWidget";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Shared bits
@@ -101,8 +101,20 @@ function greeting(): string {
   return "Good evening";
 }
 
+/** Small uppercase zone label with a fading rule — groups the widget grids. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-1">
+      <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground/45">
+        {children}
+      </span>
+      <span className="h-px flex-1 bg-linear-to-r from-border/50 via-border/20 to-transparent" />
+    </div>
+  );
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
- * Latest Posts — 5 most recent feed posts; scroll past #5 → /crm/feeds
+ * Latest Posts — 5 most recent feed posts
  * ──────────────────────────────────────────────────────────────────────────── */
 
 interface FeedAttachment {
@@ -166,7 +178,6 @@ function LatestPosts() {
   React.useEffect(() => {
     const controller = new AbortController();
     load(controller.signal);
-    // Lightweight freshness poll (socket wiring is a later enhancement).
     const id = setInterval(() => load(), 60_000);
     return () => {
       controller.abort();
@@ -286,7 +297,6 @@ function CalendarSummary() {
         <PanelSkeleton rows={4} />
       ) : (
         <div className="space-y-4">
-          {/* Next up */}
           {next ? (
             <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/6 p-3.5">
               <p className="text-[9px] font-black uppercase tracking-widest text-cyan-500/70 mb-1">Next up</p>
@@ -301,7 +311,6 @@ function CalendarSummary() {
             <p className="text-xs text-muted-foreground/60 text-center py-2">Nothing scheduled soon.</p>
           )}
 
-          {/* Counters */}
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: "Today", value: today.length, tone: "text-emerald-500" },
@@ -315,7 +324,6 @@ function CalendarSummary() {
             ))}
           </div>
 
-          {/* Today's schedule */}
           {today.length > 0 && (
             <div className="space-y-1.5">
               {today.slice(0, 3).map((o, i) => (
@@ -336,7 +344,7 @@ function CalendarSummary() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Leads summary  (defensive — wires to /api/leads, shows counts + CTA)
+ * Leads summary
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function LeadsSummary() {
@@ -387,7 +395,7 @@ function LeadsSummary() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Team Pulse snapshot — who's online right now, at a glance
+ * Team Pulse snapshot — who's online right now
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function TeamPulseSnapshot() {
@@ -453,7 +461,7 @@ function TeamPulseSnapshot() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Reviews summary  (real — reuses the same /api/crm/reviews shape)
+ * Reviews summary
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function ReviewsSummary() {
@@ -514,7 +522,7 @@ function ReviewsSummary() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Aftermarket summary  (real — catalog stats from /api/crm/aftermarket)
+ * Aftermarket summary
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function AftermarketSummary() {
@@ -567,6 +575,12 @@ function AftermarketSummary() {
  * Dashboard
  * ──────────────────────────────────────────────────────────────────────────── */
 
+// Responsive card grid: 1 column on phones, 2 on tablets, 3 on desktop.
+const CARD_GRID =
+  "grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
+const WIDE_GRID =
+  "grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]";
+
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
@@ -587,8 +601,6 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [revenuePeriod, setRevenuePeriod] = React.useState<string>("1Y");
 
-  // leaderboardMonth removed with the Standings widget — pass a stable value so
-  // the metrics hook signature stays satisfied without the old picker.
   const { data: metrics, isLoading, error } = useDashboardStats(revenuePeriod, "Mar");
 
   React.useEffect(() => {
@@ -617,17 +629,16 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-425 min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
-      {/* ── Ambient glow ── */}
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
+    <div className="relative mx-auto w-full max-w-[1700px] min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
+      {/* ── Digital backdrop: subtle grid + ambient glow ── */}
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(to_right,rgba(120,120,120,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,120,120,0.05)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent_80%)]" />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.06),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Header banner with embedded compact Spotify ── */}
       <div className="relative rounded-3xl border border-white/10 bg-card/40 px-4 py-5 backdrop-blur-xl sm:px-7 sm:py-6">
-        {/* Decorations are clipped in their own layer so the Spotify dropdown
-            (which overflows the banner) isn't cut off. */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
           <div className="absolute -right-20 -top-24 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="absolute -left-16 -bottom-20 size-56 rounded-full bg-cyan-500/8 blur-3xl" />
+          <div className="absolute -left-16 -bottom-20 size-56 rounded-full bg-green-500/8 blur-3xl" />
           <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
         </div>
         <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
@@ -636,10 +647,17 @@ export default function Dashboard() {
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
-                className="border-primary/20 bg-primary/5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary"
+                className="border-emerald-500/25 bg-emerald-500/8 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-500"
               >
                 Suprah AI
               </Badge>
+              <span className="flex items-center gap-1.5">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400/70" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-green-500" />
+                </span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Live</span>
+              </span>
               <div className="size-1 shrink-0 rounded-full bg-border" />
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 <Clock className="size-3 shrink-0" />
@@ -654,7 +672,9 @@ export default function Dashboard() {
             </div>
             <h1 className="text-xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               Welcome to{" "}
-              <span className="bg-linear-to-r from-emerald-500 to-cyan-400 bg-clip-text text-transparent">Suprah AI</span>
+              <span className="bg-linear-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(34,197,94,0.25)]">
+                Suprah AI
+              </span>
             </h1>
             <p className="mt-1 text-xs font-medium text-muted-foreground/70 sm:text-sm">
               {greeting()}, {firstName}. Here's your intelligent workspace.
@@ -670,17 +690,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Social strip: Stories + Notes, visible to the whole org ── */}
+      {/* ── Social strip: Stories + Notes ── */}
       <StoriesRail me={rawUser} />
 
-      {/* ── Quick Actions ── */}
-      <QuickActions />
-
-      {/* ── Lot Tech clock-in (dept-scoped) ── */}
+      {/* ── Alerts (conditional) ── */}
       {isLotTech && (
         <button
           onClick={() => router.push("/crm/timeproof-clock")}
-          className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12 active:scale-[0.99] transition-all text-left group"
+          className="group w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12 active:scale-[0.99] transition-all text-left"
         >
           <div className="h-11 w-11 rounded-xl bg-emerald-600/15 flex items-center justify-center shrink-0 group-hover:bg-emerald-600/20 transition-colors">
             <Clock className="h-5 w-5 text-emerald-500" />
@@ -695,7 +712,6 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* ── Admin push banner ── */}
       {isAdmin && pushSupported && !pushSubscribed && !pushLoading && !pushDismissed && (
         <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-amber-500/25 bg-amber-500/8">
           <div className="h-11 w-11 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
@@ -737,8 +753,8 @@ export default function Dashboard() {
               key={item.href + item.label}
               onClick={() => router.push(item.href)}
               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${active
-                  ? "bg-primary/10 border-primary/30 text-primary"
-                  : "border-border/40 bg-card/40 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "border-border/40 bg-card/40 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
                 }`}
             >
               <item.icon className="size-3 shrink-0" />
@@ -748,52 +764,54 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* ── 1. Feeds (full width) ── */}
-      <LatestPosts />
+      {/* ── Zone: Feed & Voice ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <SectionLabel>Feed &amp; Voice</SectionLabel>
+        <LatestPosts />
+        <YapLineWidget />
+      </section>
 
-      {/* ── 2. Team Pulse · 3. My Calendar · 4. Leads · 5. Reviews · 6. Aftermarket ── */}
-      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]">
-        <TeamPulseSnapshot />
-        <CalendarSummary />
-        <LeadsSummary />
-        <ReviewsSummary />
-        <AftermarketSummary />
-      </div>
+      {/* ── Widgets — one grid, 3 per line (3 × 3) ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <div className={CARD_GRID}>
+          <TeamPulseSnapshot />
+          <CalendarSummary />
+          <LeadsSummary />
+          <ReviewsSummary />
+          <AftermarketSummary />
+          <MyClockStatus />
+          <MyTasksSummary />
+          <WhoIsOut />
+          <InventorySnapshot />
+        </div>
+      </section>
 
-      {/* ── My Clock · My Tasks · Inbox · Who's Out · Inventory ── */}
-      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]">
-        <MyClockStatus />
-        <MyTasksSummary />
-        <InboxSnapshot />
-        <WhoIsOut />
-        <InventorySnapshot />
-      </div>
+      {/* ── Zone: Operations ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <SectionLabel>Operations</SectionLabel>
+        <div className={WIDE_GRID}>
+          <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
+            <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
+          </Panel>
+          <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/loads")}>
+            <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
+          </Panel>
+        </div>
+      </section>
 
-      {/* ── 6. Driver Status · 7. Load Status ── */}
-      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
-        <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
-          <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
-        </Panel>
-        <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/loads")}>
-          {/* LogisticsMonitor surfaces the load/logistics feed; swap in a dedicated
-              LoadStatus component here if you split loads out from logistics. */}
-          <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
-        </Panel>
-      </div>
-
-      {/* ── 8. Revenue Trajectory (Live Payments removed) ── */}
-      <div className="min-w-0 max-w-full overflow-x-auto">
-        <RevenueIntelligence
-          trajectory={metrics?.revenueTrajectory || []}
-          livePayments={[]}
-          period={revenuePeriod}
-          onPeriodChange={setRevenuePeriod}
-          isLoading={isLoading}
-        />
-      </div>
-
-      {/* ── 9. Pipeline Status ── */}
-      <OperationalHealth metrics={metrics} isLoading={isLoading} />
+      {/* ── Zone: Performance ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <SectionLabel>Performance</SectionLabel>
+        <div className="min-w-0 max-w-full overflow-x-auto">
+          <RevenueIntelligence
+            trajectory={metrics?.revenueTrajectory || []}
+            livePayments={[]}
+            period={revenuePeriod}
+            onPeriodChange={setRevenuePeriod}
+            isLoading={isLoading}
+          />
+        </div>
+      </section>
     </div>
   );
 }

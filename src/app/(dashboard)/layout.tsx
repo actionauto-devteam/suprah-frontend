@@ -23,6 +23,10 @@ import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 // behind it is a module-level singleton, so there is no provider to add.
 import { Pulse360Popup } from "@/components/crm/pulse360/Pulse360Popup";
 import { Pulse360Bell } from "@/components/crm/pulse360/Pulse360Bell";
+// Suprah YapLine — global floating PTT dock. Mounted once here (like
+// Pulse360Popup) so incoming voice broadcasts are received on EVERY route.
+// Module-level singleton store — no provider needed.
+import { YapLineDock } from "@/components/yapline/YapLineDock";
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -322,6 +326,12 @@ function DashboardLayoutContent({
 
       { /* Suprah Pulse360 — renders above everything, on every route. */}
       <Pulse360Popup />
+
+      { /* Suprah YapLine — always-on PTT dock, every route. Incoming voice
+           broadcasts, the LIVE join pills, and the mini-player all survive
+           navigation because this single mount keeps the store's socket and
+           WebRTC peers alive across the whole dashboard shell. */}
+      <YapLineDock />
 
       {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
 

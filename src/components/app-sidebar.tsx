@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Mail,
   MessageSquare,
+  RadioTower,
   Settings,
   Truck,
   User,
@@ -65,6 +66,9 @@ import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import { useWhatsNew } from "@/context/WhatsNewContext";
 import { useFeedBadge } from "@/lib/feed-notification-store";
+// Suprah YapLine — live PTT session count. Singleton useSyncExternalStore
+// store (no provider needed), same pattern as the Feeds badge below.
+import { useYapLineActiveCount } from "@/lib/yapline-store";
 import { useNotifications } from "@/context/NotificationContext";
 import { isLocatorNotification } from "@/components/notifications/notification-utils";
 import {
@@ -126,6 +130,12 @@ const data = {
       title: "Suprah Space",
       url: "/crm/supra-space",
       icon: MessageSquare,
+    },
+    {
+      title: "Suprah YapLine",
+      url: "/crm/yapline",
+      icon: RadioTower,
+      isNew: true,
     },
     {
       title: "Suprah Mail",
@@ -275,6 +285,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Feeds badge — singleton useSyncExternalStore store (no provider needed).
   // total = unseen posts since last visit + unread mentions/comments/@all.
   const feedBadge = useFeedBadge();
+  // YapLine badge — count of live PTT sessions in the user's conversations.
+  // Singleton useSyncExternalStore store, same pattern as the Feeds badge.
+  const yapLive = useYapLineActiveCount();
   // Locator badge — geofence/shift alerts admins asked to keep visible from the
   // sidebar, not just buried in the general bell. Red (not the usual emerald/blue)
   // since these are the "something needs attention" alerts, distinct from the
@@ -465,16 +478,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           </Badge>
                         )}
 
-                        {/* Suprah Mail: fresh module — "New" tag until the team
-                            has lived with it for a release or two. */}
-                        {item.title === "Suprah Mail" && (
+                        {/* Suprah YapLine: always-on "Live" tag — the app's
+                            branding, matching Suprah Space's ● Live treatment.
+                            Steady emerald while channels are quiet; switches to
+                            a pulsing rose alert whenever a PTT session is on
+                            the air in one of the user's conversations. */}
+                        {item.title === "Suprah YapLine" && (
                           <Badge
                             variant="secondary"
-                            className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                            className={cn(
+                              "ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter text-white border-none group-data-[collapsible=icon]:hidden",
+                              yapLive > 0
+                                ? "bg-rose-500 animate-pulse"
+                                : "bg-emerald-600",
+                            )}
                           >
-                            New
+                            Live
                           </Badge>
                         )}
+
+                        {/* Suprah Mail: fresh module — "New" tag until the team
+                            has lived with it for a release or two. */}
+                       
 
                         {/* Feeds: unseen posts since last visit + unread
                             mentions/comments/@all announcements. Comes from

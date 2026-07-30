@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   X,
@@ -17,7 +18,6 @@ import {
   MessageCircle,
   Pause,
   Play,
-  Users,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api-client";
@@ -69,13 +69,6 @@ interface RailUser {
 const MAX_VIDEO_SECONDS = 120;
 const PHOTO_DURATION_MS = 15_000;
 const NOTE_MAX = 100;
-// Fixed in px (not just a Tailwind class) so every avatar in the rail — mine,
-// a teammate's, real photo or initials fallback — is pixel-identical. Some
-// teammates' photos previously rendered noticeably larger than the initials
-// fallbacks because only a Tailwind size class constrained them; an explicit
-// inline size on both the ring wrapper and the Avatar itself removes any
-// ambiguity from class ordering.
-const AVATAR_SIZE = 44;
 const QUICK_REACTIONS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
 
@@ -91,6 +84,20 @@ function mdtTime(d: string | Date) {
 }
 function mdtDateTime(d: string | Date) {
   return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: MOUNTAIN_TZ });
+}
+
+/**
+ * Renders children into document.body. Full-screen overlays (viewer/composer/
+ * note modals) must escape ancestors that have transforms, filters, or
+ * backdrop-blur — otherwise `position: fixed` is contained by that ancestor and
+ * the overlay renders in the wrong place or not at all (this is what broke the
+ * story viewer on desktop, where the dashboard shell uses backdrop-blur).
+ */
+function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => { setMounted(true); }, []);
+  if (!mounted || typeof document === "undefined") return null;
+  return createPortal(children, document.body);
 }
 
 /** Downscale + re-encode an image to keep uploads light. */
@@ -212,7 +219,7 @@ function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
@@ -323,7 +330,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
   };
 
   return (
-    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
@@ -335,7 +342,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
           {!file ? (
             <button
               onClick={() => inputRef.current?.click()}
-              className="flex aspect-9/12 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
+              className="flex aspect-[9/12] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
             >
               <ImagePlus className="size-8 text-muted-foreground/50" />
               <div className="text-center">
@@ -344,7 +351,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
               </div>
             </button>
           ) : (
-            <div className="relative aspect-9/12 w-full overflow-hidden rounded-2xl bg-black">
+            <div className="relative aspect-[9/12] w-full overflow-hidden rounded-2xl bg-black">
               {isVideo ? (
                 <video src={previewUrl!} className="size-full object-contain" controls muted />
               ) : (
@@ -491,7 +498,7 @@ function StoryViewer({
     apiClient
       .get(`/api/crm/stories/${story._id}`)
       .then((res) => setDetail(res.data?.data?.story || null))
-      .catch(() => { });
+      .catch(() => {});
   }, [story?._id]);
 
   // On each story: reset duration/pause, mark viewed, load detail + light poll.
@@ -500,7 +507,7 @@ function StoryViewer({
     setDetail(null);
     setManualPause(false);
     setMediaDuration(story.media.mediaType === "image" ? PHOTO_DURATION_MS / 1000 : (story.media.durationSec || 0));
-    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => { });
+    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => {});
     loadDetail();
     const id = setInterval(loadDetail, 5000);
     return () => clearInterval(id);
@@ -535,7 +542,7 @@ function StoryViewer({
     const v = videoRef.current;
     if (!v) return;
     if (paused) v.pause();
-    else v.play().catch(() => { });
+    else v.play().catch(() => {});
   }, [paused]);
 
   const react = async (emoji: string) => {
@@ -575,7 +582,7 @@ function StoryViewer({
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
-    <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <style>{`@keyframes storyReactFloat{0%{opacity:0;transform:translateY(28px) scale(.4)}25%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-150px) scale(1.75)}}`}</style>
       <button onClick={onClose} className="absolute right-4 top-4 z-30 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
         <X className="size-5" />
@@ -647,7 +654,7 @@ function StoryViewer({
             <img key={story._id} src={story.media.url} alt="" className="size-full object-contain" />
           )}
           {story.caption && (
-            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
               <p className="text-sm text-white/90">{story.caption}</p>
             </div>
           )}
@@ -774,21 +781,173 @@ function StoryViewer({
   );
 }
 
+/* ── Note detail (full note + reactions + public comments) ─────────────────── */
+
+interface NoteDetailData {
+  _id: string;
+  authorName: string;
+  authorAvatar?: string;
+  text: string;
+  updatedAt: string;
+  isOwner: boolean;
+  myReaction: string | null;
+  reactionCount: number;
+  commentCount: number;
+  comments: StoryComment[];
+  reactions?: { userId: string; authorName?: string; authorAvatar?: string; emoji: string }[];
+}
+
+function NoteDetail({
+  noteId,
+  onClose,
+  onChanged,
+  onEdit,
+}: {
+  noteId: string;
+  onClose: () => void;
+  onChanged: () => void;
+  onEdit: () => void;
+}) {
+  const [note, setNote] = React.useState<NoteDetailData | null>(null);
+  const [commentText, setCommentText] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+
+  const loadDetail = React.useCallback(() => {
+    apiClient
+      .get(`/api/crm/notes/${noteId}`)
+      .then((res) => setNote(res.data?.data?.note || null))
+      .catch(() => setNote(null));
+  }, [noteId]);
+
+  React.useEffect(() => {
+    loadDetail();
+    const id = setInterval(loadDetail, 5000);
+    return () => clearInterval(id);
+  }, [loadDetail]);
+
+  const react = async (emoji: string) => {
+    try { await apiClient.post(`/api/crm/notes/${noteId}/react`, { emoji }); loadDetail(); onChanged(); } catch { /* ignore */ }
+  };
+
+  const sendComment = async () => {
+    if (!commentText.trim()) return;
+    setSending(true);
+    try {
+      await apiClient.post(`/api/crm/notes/${noteId}/comment`, { text: commentText.trim() });
+      setCommentText("");
+      loadDetail();
+      onChanged();
+    } catch { /* ignore */ } finally { setSending(false); }
+  };
+
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative z-10 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-card/95 shadow-2xl backdrop-blur-2xl">
+          {/* Header */}
+          <div className="flex items-center gap-2.5 border-b border-border/40 px-5 py-3.5">
+            <Avatar className="size-9">
+              <AvatarImage src={note?.authorAvatar} />
+              <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-bold">{ini(note?.authorName)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold">{note?.authorName || "Note"}</p>
+              {note && <p className="text-[10px] text-muted-foreground/60">{mdtDateTime(note.updatedAt)}</p>}
+            </div>
+            {note?.isOwner && (
+              <button onClick={onEdit} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted/60 hover:text-foreground" aria-label="Edit note">
+                <Pencil className="size-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60" aria-label="Close"><X className="size-4" /></button>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto p-5">
+            {/* The note itself */}
+            <div className="rounded-2xl rounded-bl-md border border-emerald-500/25 bg-emerald-500/[0.07] px-4 py-3">
+              <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-foreground/90">
+                {note?.text || "…"}
+              </p>
+            </div>
+
+            {/* Reactions */}
+            <div>
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                {QUICK_REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => react(emoji)}
+                    className={`text-2xl transition-transform duration-150 hover:scale-125 active:scale-[1.6] ${note?.myReaction === emoji ? "scale-125 drop-shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "opacity-80"}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              {(note?.reactionCount ?? 0) > 0 && (
+                <p className="mt-1.5 text-center text-[10px] font-medium text-muted-foreground/60">
+                  {note!.reactionCount} reaction{note!.reactionCount === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+
+            {/* Comments */}
+            <div className="space-y-3 border-t border-border/30 pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60">
+                Comments · {note?.commentCount ?? 0}
+              </p>
+              {(note?.comments?.length ?? 0) === 0 ? (
+                <p className="py-2 text-center text-xs text-muted-foreground/50">No comments yet. Be the first.</p>
+              ) : (
+                note!.comments.map((c) => (
+                  <div key={c._id} className="flex items-start gap-2.5">
+                    <Avatar className="size-7 shrink-0">
+                      <AvatarImage src={c.authorAvatar} />
+                      <AvatarFallback className="bg-muted text-[9px] font-bold">{ini(c.authorName)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs">
+                        <span className="font-semibold">{c.authorName}</span>{" "}
+                        <span className="text-foreground/80">{c.text}</span>
+                      </p>
+                      <p className="mt-0.5 text-[9px] text-muted-foreground/40">{mdtDateTime(c.createdAt)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Comment input */}
+          <div className="flex items-center gap-2 border-t border-border/40 p-3">
+            <input
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") sendComment(); }}
+              placeholder="Add a comment…"
+              className="min-w-0 flex-1 rounded-full border border-border/40 bg-background/50 px-4 py-2 text-sm focus:border-emerald-500/40 focus:outline-none placeholder:text-muted-foreground/40"
+            />
+            <button onClick={sendComment} disabled={!commentText.trim() || sending} className="rounded-full bg-emerald-600 p-2 text-white hover:bg-emerald-500 disabled:opacity-40">
+              {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 /* ── Ring wrapper (green / amber / plain) ──────────────────────────────────── */
 
 function StoryRing({ user, children }: { user: RailUser; children: React.ReactNode }) {
   const ring = user.hasUnseen
-    ? "bg-gradient-to-tr from-emerald-500 via-emerald-400 to-cyan-400 p-[2.5px]"
+    ? "bg-gradient-to-tr from-emerald-500 via-emerald-400 to-cyan-400 p-[2.5px]" // unread story
     : user.hasStory
-      ? "bg-gradient-to-tr from-amber-400 to-yellow-300 p-[2.5px]"
-      : "bg-border/40 p-[1.5px]";
-  // shrink-0 + explicit box-sizing keeps the ring's own footprint fixed too,
-  // so the padding around the avatar never inflates the item's layout size.
-  return (
-    <div className={`shrink-0 rounded-full ${ring}`} style={{ boxSizing: "content-box" }}>
-      {children}
-    </div>
-  );
+      ? "bg-gradient-to-tr from-amber-400 to-yellow-300 p-[2.5px]"               // read story
+      : user.note
+        ? "bg-emerald-500/40 p-[2px]"                                            // note only
+        : "bg-border/40 p-[1.5px]";                                             // nothing
+  return <div className={`rounded-full ${ring}`}>{children}</div>;
 }
 
 /* ── Rail (Instagram-style social strip) ───────────────────────────────────── */
@@ -798,64 +957,13 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
   const [ready, setReady] = React.useState(false);
   const [composerOpen, setComposerOpen] = React.useState(false);
   const [noteOpen, setNoteOpen] = React.useState(false);
+  const [noteDetailId, setNoteDetailId] = React.useState<string | null>(null);
   const [viewer, setViewer] = React.useState<{ author: number; story: number } | null>(null);
-  const [readNote, setReadNote] = React.useState<RailUser | null>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
 
-  const scrollerRef = React.useRef<HTMLDivElement>(null);
-  const dragRef = React.useRef({ down: false, startX: 0, startScroll: 0, moved: false });
-  const suppressClickRef = React.useRef(false);
-
-  // Mouse-only drag-to-scroll — the rail has no visible scrollbar to grab
-  // (see the hidden-scrollbar classes below), so desktop users need a way to
-  // pull it left/right with the mouse. Touch keeps its native swipe-scroll.
-  const onPointerDown = React.useCallback((e: React.PointerEvent) => {
-    if (e.pointerType !== "mouse") return;
-    const el = scrollerRef.current;
-    if (!el) return;
-    dragRef.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
-    el.setPointerCapture(e.pointerId);
-  }, []);
-  const onPointerMove = React.useCallback((e: React.PointerEvent) => {
-    const el = scrollerRef.current;
-    const st = dragRef.current;
-    if (!el || !st.down) return;
-    const dx = e.clientX - st.startX;
-    if (Math.abs(dx) > 3) st.moved = true;
-    el.scrollLeft = st.startScroll - dx;
-  }, []);
-  const endDrag = React.useCallback((e: React.PointerEvent) => {
-    const st = dragRef.current;
-    if (st.moved) suppressClickRef.current = true;
-    st.down = false;
-    try { scrollerRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-  }, []);
-  // A capture-phase click on the container fires before any avatar/note
-  // button's own onClick — swallow it once so a drag-release doesn't also
-  // register as "open this story".
-  const onClickCapture = React.useCallback((e: React.MouseEvent) => {
-    if (suppressClickRef.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      suppressClickRef.current = false;
-    }
-  }, []);
-
-  // Plain vertical mouse-wheel scrolls the rail horizontally (Netflix/IG-style),
-  // in addition to native trackpad/shift-wheel horizontal scroll. Wired via a
-  // non-passive listener so preventDefault actually works — React's JSX
-  // onWheel is passive by default and would otherwise warn and no-op.
-  React.useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      if (el.scrollWidth <= el.clientWidth) return;
-      e.preventDefault();
-      el.scrollLeft += e.deltaY;
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  const scrollBy = (dir: 1 | -1) => {
+    scrollRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
 
   const load = React.useCallback((signal?: AbortSignal) => {
     return apiClient
@@ -892,7 +1000,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
         reconnectionAttempts: 5,
       });
       const reload = () => load();
-      ["story:new", "story:deleted", "story:reaction", "story:comment", "story:view", "note:updated", "note:deleted"].forEach((ev) =>
+      ["story:new", "story:deleted", "story:reaction", "story:comment", "story:view", "note:updated", "note:deleted", "note:reaction", "note:comment"].forEach((ev) =>
         socket!.on(ev, reload)
       );
     } catch {
@@ -917,74 +1025,76 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
 
   return (
     <>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl shadow-sm">
+      <section className="group/rail relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl shadow-sm">
         {/* subtle top hairline glow for a more digital feel */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/40 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
 
-        {/* Title — so this strip reads as "team stories & notes", not an
-            unlabeled row of avatars. */}
-        <div className="flex items-center gap-2 px-4 pt-3.5 pb-1">
-          <Users className="size-3.5 text-emerald-500 shrink-0" />
-          <h2 className="text-xs font-black tracking-tight">Team Stories &amp; Notes</h2>
-          <span className="hidden sm:inline text-[10px] font-medium text-muted-foreground/45 truncate">
-            — tap a photo for stories, tap a note to read it in full
-          </span>
-        </div>
+        {/* Desktop scroll arrows (hidden on touch) */}
+        <button
+          onClick={() => scrollBy(-1)}
+          className="absolute left-1.5 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border/50 bg-background/90 text-foreground/70 shadow-md backdrop-blur transition hover:text-foreground md:flex"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <button
+          onClick={() => scrollBy(1)}
+          className="absolute right-1.5 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border/50 bg-background/90 text-foreground/70 shadow-md backdrop-blur transition hover:text-foreground md:flex"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="size-4" />
+        </button>
 
         <div
-          ref={scrollerRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerLeave={endDrag}
-          onClickCapture={onClickCapture}
-          className="flex items-stretch gap-3 overflow-x-auto px-4 pb-3 pt-1 cursor-grab select-none active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          ref={scrollRef}
+          className="flex items-stretch gap-4 overflow-x-auto scroll-smooth px-4 pt-4 pb-3 md:px-12 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/70 hover:[&::-webkit-scrollbar-thumb]:bg-border"
         >
           {/* You */}
           <div className="flex shrink-0 flex-col items-center gap-1.5">
             <NoteBubble
               text={meUser?.note?.text}
               placeholder="Leave a note"
-              onClick={() => setNoteOpen(true)}
+              onClick={() => (meUser?.note ? setNoteDetailId(meUser.note._id) : setNoteOpen(true))}
               mine
             />
-            <div className="relative shrink-0" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+            <div className="relative">
               <button onClick={() => (meUser?.hasStory ? openStories(meUser._id) : setComposerOpen(true))}>
                 <StoryRing user={meUser ?? ({ hasStory: false, hasUnseen: false } as RailUser)}>
-                  <Avatar className="border-2 border-background" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+                  <Avatar className="size-14 border-2 border-background">
                     <AvatarImage src={me?.avatar || meUser?.avatar} />
-                    <AvatarFallback className="bg-muted font-bold text-xs">{ini(me?.fullName || meUser?.fullName)}</AvatarFallback>
+                    <AvatarFallback className="bg-muted font-bold text-sm">{ini(me?.fullName || meUser?.fullName)}</AvatarFallback>
                   </Avatar>
                 </StoryRing>
               </button>
               <button
                 onClick={() => setComposerOpen(true)}
-                className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground border-2 border-background shadow hover:scale-110 transition-transform"
+                className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground border-2 border-background shadow hover:scale-110 transition-transform"
                 aria-label="Add story"
               >
-                <Plus className="size-2.5" />
+                <Plus className="size-3" />
               </button>
             </div>
-            <span className="text-[10px] font-semibold text-muted-foreground max-w-14 truncate">Your day</span>
+            <span className="text-[10px] font-semibold text-muted-foreground max-w-16 truncate">Your day</span>
           </div>
 
-          <div className="w-px shrink-0 self-center bg-border/40" style={{ height: "2.75rem" }} />
+          <div className="w-px shrink-0 self-center bg-border/40" style={{ height: "3.5rem" }} />
 
           {/* Everyone else */}
           {users.filter((u) => !u.isMe).map((u) => (
             <div key={u._id} className="flex shrink-0 flex-col items-center gap-1.5">
-              <NoteBubble text={u.note?.text} onClick={() => setReadNote(u)} />
-              <div className="shrink-0" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
-                <button onClick={() => onAvatarClick(u)} disabled={!u.hasStory} className={u.hasStory ? "" : "cursor-default"}>
-                  <StoryRing user={u}>
-                    <Avatar className="border-2 border-background" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
-                      <AvatarImage src={u.avatar} />
-                      <AvatarFallback className="bg-muted font-bold text-xs">{ini(u.fullName)}</AvatarFallback>
-                    </Avatar>
-                  </StoryRing>
-                </button>
-              </div>
-              <span className="text-[10px] font-medium text-muted-foreground max-w-14 truncate">{u.fullName.split(" ")[0]}</span>
+              <NoteBubble
+                text={u.note?.text}
+                onClick={u.note ? () => setNoteDetailId(u.note!._id) : undefined}
+              />
+              <button onClick={() => onAvatarClick(u)} disabled={!u.hasStory} className={u.hasStory ? "" : "cursor-default"}>
+                <StoryRing user={u}>
+                  <Avatar className="size-14 border-2 border-background">
+                    <AvatarImage src={u.avatar} />
+                    <AvatarFallback className="bg-muted font-bold text-sm">{ini(u.fullName)}</AvatarFallback>
+                  </Avatar>
+                </StoryRing>
+              </button>
+              <span className="text-[10px] font-medium text-muted-foreground max-w-16 truncate">{u.fullName.split(" ")[0]}</span>
             </div>
           ))}
 
@@ -996,17 +1106,30 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
         </div>
       </section>
 
-      {composerOpen && <StoryComposer onClose={() => setComposerOpen(false)} onPosted={() => load()} />}
+      {composerOpen && (
+        <Portal><StoryComposer onClose={() => setComposerOpen(false)} onPosted={() => load()} /></Portal>
+      )}
       {noteOpen && (
-        <NoteEditor
-          initial={meUser?.note?.text || ""}
-          onClose={() => setNoteOpen(false)}
-          onSaved={() => load()}
+        <Portal>
+          <NoteEditor
+            initial={meUser?.note?.text || ""}
+            onClose={() => setNoteOpen(false)}
+            onSaved={() => load()}
+          />
+        </Portal>
+      )}
+      {noteDetailId && (
+        <NoteDetail
+          noteId={noteDetailId}
+          onClose={() => setNoteDetailId(null)}
+          onChanged={() => load()}
+          onEdit={() => { setNoteDetailId(null); setNoteOpen(true); }}
         />
       )}
-      {readNote && <NoteReadModal user={readNote} onClose={() => setReadNote(null)} />}
       {viewer && (
-        <StoryViewer authors={storyUsers} start={viewer} onClose={() => { setViewer(null); load(); }} onChanged={() => load()} />
+        <Portal>
+          <StoryViewer authors={storyUsers} start={viewer} onClose={() => { setViewer(null); load(); }} onChanged={() => load()} />
+        </Portal>
       )}
     </>
   );
@@ -1030,54 +1153,23 @@ function NoteBubble({
     // Reserve vertical space so avatars stay aligned across the row.
     return <div className="h-7" aria-hidden />;
   }
-  // Anyone's note is clickable when it has text — mine opens the editor,
-  // a teammate's opens a read-only view. Only a placeholder-less, empty
-  // teammate bubble (which never renders, above) would have nothing to open.
-  const clickable = mine || hasText;
+  const clickable = Boolean(onClick);
   return (
     <button
       onClick={onClick}
       disabled={!clickable}
-      className={`group relative max-w-26 ${clickable ? "cursor-pointer" : "cursor-default"}`}
+      className={`group relative max-w-[6.5rem] ${clickable ? "cursor-pointer" : "cursor-default"}`}
     >
       <div
-        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm transition-colors ${hasText
-            ? `bg-muted/80 text-foreground/80 border border-border/40 ${!mine ? "group-hover:border-emerald-500/40 group-hover:bg-emerald-500/6" : ""}`
+        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm transition-colors ${
+          hasText
+            ? "bg-muted/80 text-foreground/80 border border-border/40 group-hover:border-emerald-500/40"
             : "bg-emerald-500/10 text-emerald-600 border border-dashed border-emerald-500/40"
-          }`}
+        }`}
       >
         {hasText ? text : placeholder}
         {mine && <Pencil className="ml-1 inline size-2.5 opacity-0 transition-opacity group-hover:opacity-70" />}
       </div>
     </button>
-  );
-}
-
-/* ── Read-only note viewer (teammate's note, click-to-expand) ─────────────── */
-
-function NoteReadModal({ user, onClose }: { user: RailUser; onClose: () => void }) {
-  if (!user.note) return null;
-  return (
-    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar className="size-7 shrink-0 ring-1 ring-border/40">
-              <AvatarImage src={user.avatar} />
-              <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(user.fullName)}</AvatarFallback>
-            </Avatar>
-            <h3 className="text-sm font-black tracking-tight truncate">{user.fullName}'s note</h3>
-          </div>
-          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60 shrink-0"><X className="size-4" /></button>
-        </div>
-        <div className="p-5 space-y-3">
-          <div className="relative rounded-2xl rounded-bl-md border border-emerald-500/30 bg-emerald-500/[0.07] px-4 py-3">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">{user.note.text}</p>
-          </div>
-          <p className="text-[10px] text-muted-foreground/50 text-right">Updated {mdtDateTime(user.note.updatedAt)}</p>
-        </div>
-      </div>
-    </div>
   );
 }
