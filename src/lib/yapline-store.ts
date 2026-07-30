@@ -374,8 +374,16 @@ async function handleSignal(from: string, data: any) {
       if (peer.ignoreOffer) return;
       await pc.setRemoteDescription(desc);
       if (desc.type === "offer") {
-        // Answerer side: transceivers were created by the remote offer —
-        // hang our local tracks (if any) on them before answering.
+        // Answerer side: transceivers were created by the remote offer, and
+        // the spec defaults their LOCAL direction to "recvonly". That silently
+        // breaks full-duplex — replaceTrack() attaches the mic/screen with no
+        // error, but the negotiated direction never lets media leave this
+        // side: PTT transmits nothing and a shared screen arrives black.
+        // Claim both directions before answering so the one-and-only
+        // negotiation is sendrecv both ways.
+        pc.getTransceivers().forEach((t) => {
+          try { t.direction = "sendrecv"; } catch { /* older impls: read-only */ }
+        });
         attachLocalTracks(peer);
         await pc.setLocalDescription();
         sendSignal(from, { description: pc.localDescription });
