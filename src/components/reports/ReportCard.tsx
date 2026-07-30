@@ -104,11 +104,10 @@ export function ReportCard({
       aria-label={selectionMode ? `${isSelected ? "Deselect" : "Select"} ${title}` : `Preview ${title}`}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
-      className={`group relative flex h-full min-h-[300px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-4 shadow-sm outline-none transition-[border-color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-primary/40 sm:p-4.5 ${
-        isSelected
-          ? "border-primary/70 bg-primary/[0.03] ring-2 ring-primary/10"
-          : "border-border/80 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md"
-      }`}
+      className={`group relative flex h-full min-h-75 min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-4 shadow-sm outline-none transition-[border-color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-primary/40 sm:p-4.5 ${isSelected
+        ? "border-primary/70 bg-primary/3 ring-2 ring-primary/10"
+        : "border-border/80 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md"
+        }`}
     >
       <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-primary via-primary/45 to-transparent opacity-70" />
 
@@ -119,7 +118,7 @@ export function ReportCard({
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h3 className="min-w-0 break-words text-base font-bold leading-snug text-foreground sm:text-[17px]">{title}</h3>
+              <h3 className="min-w-0 wrap-break-word text-base font-bold leading-snug text-foreground sm:text-[17px]">{title}</h3>
               <Badge variant="outline" className={`shrink-0 px-2 py-0.5 text-[10px] font-semibold ${categoryClass}`}>{category}</Badge>
             </div>
             <p className="mt-1.5 text-xs font-semibold sm:text-sm text-primary">{subtitle}</p>
@@ -152,19 +151,17 @@ export function ReportCard({
         {highlights.map((highlight, index) => (
           <div
             key={highlight.label}
-            className={`flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-lg border px-3 py-2 text-center ${
-              index === 0
-                ? "border-primary/25 bg-primary/[0.07]"
-                : "border-border/70 bg-muted/35"
-            }`}
+            className={`flex min-h-16 min-w-0 flex-col items-center justify-center rounded-lg border px-3 py-2 text-center ${index === 0
+              ? "border-primary/25 bg-primary/[0.07]"
+              : "border-border/70 bg-muted/35"
+              }`}
           >
-            <p className="w-full break-words text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[10px]">
+            <p className="w-full wrap-break-word text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[10px]">
               {highlight.label}
             </p>
             <p
-              className={`mt-1 w-full break-words text-center font-bold leading-none ${
-                index === 0 ? "text-lg sm:text-xl" : "text-base sm:text-lg"
-              } ${highlight.color}`}
+              className={`mt-1 w-full wrap-break-word text-center font-bold leading-none ${index === 0 ? "text-lg sm:text-xl" : "text-base sm:text-lg"
+                } ${highlight.color}`}
             >
               {highlight.value}
             </p>
@@ -174,11 +171,10 @@ export function ReportCard({
 
       {selectionMode && (
         <div
-          className={`mt-1.5 flex items-center justify-center rounded-md px-2 py-1 text-[8px] font-bold uppercase tracking-wide sm:text-[9px] ${
-            isSelected
-              ? "bg-primary/12 text-primary"
-              : "bg-muted/70 text-muted-foreground"
-          }`}
+          className={`mt-1.5 flex items-center justify-center rounded-md px-2 py-1 text-[8px] font-bold uppercase tracking-wide sm:text-[9px] ${isSelected
+            ? "bg-primary/12 text-primary"
+            : "bg-muted/70 text-muted-foreground"
+            }`}
         >
           {isSelected ? "Selected" : "Tap card to select"}
         </div>
@@ -186,13 +182,12 @@ export function ReportCard({
 
       {trend && (
         <div
-          className={`mt-2.5 flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-center text-[9px] font-semibold sm:text-[10px] ${
-            trend.direction === "up"
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              : trend.direction === "down"
-                ? "bg-red-500/10 text-red-600 dark:text-red-400"
-                : "bg-muted text-muted-foreground"
-          }`}
+          className={`mt-2.5 flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-center text-[9px] font-semibold sm:text-[10px] ${trend.direction === "up"
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : trend.direction === "down"
+              ? "bg-red-500/10 text-red-600 dark:text-red-400"
+              : "bg-muted text-muted-foreground"
+            }`}
         >
           {trend.direction === "up" ? (
             <ArrowUpRight className="size-3.5 shrink-0" />
@@ -201,7 +196,7 @@ export function ReportCard({
           ) : (
             <Minus className="size-3.5 shrink-0" />
           )}
-          <span className="min-w-0 break-words">{trend.label}</span>
+          <span className="min-w-0 wrap-break-word">{trend.label}</span>
         </div>
       )}
 

@@ -26,7 +26,6 @@ import {
   Star,
   Package,
   Target,
-  ChevronRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +47,18 @@ import {
   startOfDay,
   zonedNow,
 } from "@/utils/calendar.utils";
+import { useTeamMembers } from "@/hooks/useTeamPulse";
 
 import { LogisticsMonitor } from "./components/LogisticsMonitor";
 import { RevenueIntelligence } from "./components/RevenueIntelligence";
 import { OperationalHealth } from "./components/OperationalHealth";
+import { Panel, PanelSkeleton, ini, timeAgo } from "./components/DashboardPanel";
+import { MyClockStatus } from "./components/MyClockStatus";
+import { MyTasksSummary } from "./components/MyTasksSummary";
+import { InboxSnapshot } from "./components/InboxSnapshot";
+import { WhoIsOut } from "./components/WhoIsOut";
+import { InventorySnapshot } from "./components/InventorySnapshot";
+import { QuickActions } from "./components/QuickActions";
 import { StoriesRail } from "@/components/dashboard/StoriesRail";
 import { SpotifyPanel } from "@/components/dashboard/SpotifyPanel";
 
@@ -77,28 +84,6 @@ const QUICK_NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-function ini(n?: string) {
-  return (n || "U")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 /** Strip @[Name](id) mention tokens down to plain "@Name" for previews. */
 function stripMentions(content: string): string {
   return (content || "").replace(
@@ -114,58 +99,6 @@ function greeting(): string {
   if (hourMST < 12) return "Good morning";
   if (hourMST < 18) return "Good afternoon";
   return "Good evening";
-}
-
-/** Consistent glass card shell used across the redesigned widgets. */
-function Panel({
-  title,
-  icon: Icon,
-  accent = "text-primary",
-  action,
-  onAction,
-  children,
-  className = "",
-}: {
-  title: string;
-  icon: LucideIcon;
-  accent?: string;
-  action?: string;
-  onAction?: () => void;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <section
-      className={`relative flex h-full flex-col overflow-hidden rounded-3xl border border-border/40 bg-card/40 backdrop-blur-md shadow-sm ${className}`}
-    >
-      <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-border/20">
-        <div className="flex items-center gap-2 min-w-0">
-          <Icon className={`size-4 shrink-0 ${accent}`} />
-          <h2 className="text-sm font-black tracking-tight truncate">{title}</h2>
-        </div>
-        {action && (
-          <button
-            onClick={onAction}
-            className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground/60 hover:text-primary transition-colors shrink-0"
-          >
-            {action}
-            <ChevronRight className="size-3" />
-          </button>
-        )}
-      </div>
-      <div className="flex-1 p-5">{children}</div>
-    </section>
-  );
-}
-
-function PanelSkeleton({ rows = 3 }: { rows?: number }) {
-  return (
-    <div className="space-y-3 animate-pulse">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-10 rounded-xl bg-muted/40" />
-      ))}
-    </div>
-  );
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -226,7 +159,7 @@ function LatestPosts() {
           }
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -255,7 +188,7 @@ function LatestPosts() {
               <button
                 key={post._id}
                 onClick={() => router.push("/crm/feeds")}
-                className="w-full text-left flex gap-3 rounded-2xl border border-border/30 bg-background/40 p-3 hover:border-emerald-500/30 hover:bg-emerald-500/[0.04] transition-all"
+                className="w-full text-left flex gap-3 rounded-2xl border border-border/30 bg-background/40 p-3 hover:border-emerald-500/30 hover:bg-emerald-500/4 transition-all"
               >
                 <Avatar className="size-9 shrink-0 ring-1 ring-border/40">
                   <AvatarImage src={post.authorAvatar} />
@@ -355,7 +288,7 @@ function CalendarSummary() {
         <div className="space-y-4">
           {/* Next up */}
           {next ? (
-            <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/[0.06] p-3.5">
+            <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/6 p-3.5">
               <p className="text-[9px] font-black uppercase tracking-widest text-cyan-500/70 mb-1">Next up</p>
               <p className="text-sm font-bold truncate">{next.item.title}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -447,6 +380,72 @@ function LeadsSummary() {
               </p>
             </div>
           ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Team Pulse snapshot — who's online right now, at a glance
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function TeamPulseSnapshot() {
+  const router = useRouter();
+  const { data: members = [], isLoading } = useTeamMembers();
+
+  const online = members.filter((m) => m.onlineStatus === "online");
+  const activeCount = members.filter((m) => m.onlineStatus !== "offline").length;
+  const offlineCount = members.length - activeCount;
+  const shown = online.slice(0, 6);
+  const extra = online.length - shown.length;
+
+  return (
+    <Panel title="Team Pulse" icon={Activity} accent="text-primary" action="Open Team Pulse" onAction={() => router.push("/team-pulse")}>
+      {isLoading ? (
+        <PanelSkeleton rows={2} />
+      ) : members.length === 0 ? (
+        <p className="text-xs text-muted-foreground/60 text-center py-6">No teammates yet.</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Online", value: online.length, tone: "text-emerald-500" },
+              { label: "Active", value: activeCount, tone: "text-primary" },
+              { label: "Offline", value: offlineCount, tone: "text-muted-foreground/60" },
+            ].map((c) => (
+              <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
+                <p className={`text-xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {online.length > 0 ? (
+            <button
+              onClick={() => router.push("/team-pulse?tab=team")}
+              className="flex w-full items-center gap-3 rounded-2xl border border-border/30 bg-background/40 p-2.5 hover:border-emerald-500/30 hover:bg-emerald-500/4 transition-all text-left"
+            >
+              <div className="flex -space-x-2 shrink-0">
+                {shown.map((m) => (
+                  <Avatar key={m._id} className="size-7 ring-2 ring-card">
+                    <AvatarImage src={m.avatar} />
+                    <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(m.name)}</AvatarFallback>
+                  </Avatar>
+                ))}
+                {extra > 0 && (
+                  <div className="flex size-7 items-center justify-center rounded-full bg-muted ring-2 ring-card text-[9px] font-black text-muted-foreground">
+                    +{extra}
+                  </div>
+                )}
+              </div>
+              <span className="text-[11px] font-medium text-muted-foreground/70 truncate">
+                {online.length} {online.length === 1 ? "person" : "people"} online now
+              </span>
+            </button>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 text-center py-2">Nobody's online right now.</p>
+          )}
         </div>
       )}
     </Panel>
@@ -618,7 +617,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1700px] min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
+    <div className="mx-auto w-full max-w-425 min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
       {/* ── Ambient glow ── */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
@@ -628,11 +627,12 @@ export default function Dashboard() {
             (which overflows the banner) isn't cut off. */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
           <div className="absolute -right-20 -top-24 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
+          <div className="absolute -left-16 -bottom-20 size-56 rounded-full bg-cyan-500/8 blur-3xl" />
+          <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
         </div>
         <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
           {/* Greeting */}
-          <div className="min-w-0 flex-[2] basis-[19rem]">
+          <div className="min-w-0 flex-2 basis-76">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
@@ -654,12 +654,14 @@ export default function Dashboard() {
             </div>
             <h1 className="text-xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               Welcome to{" "}
-              <span className="bg-gradient-to-r from-emerald-500 to-cyan-400 bg-clip-text text-transparent">Suprah AI</span>
+              <span className="bg-linear-to-r from-emerald-500 to-cyan-400 bg-clip-text text-transparent">Suprah AI</span>
             </h1>
             <p className="mt-1 text-xs font-medium text-muted-foreground/70 sm:text-sm">
               {greeting()}, {firstName}. Here's your intelligent workspace.
             </p>
           </div>
+
+          <div className="hidden lg:block h-16 w-px shrink-0 self-center bg-linear-to-b from-transparent via-border/50 to-transparent" />
 
           {/* Embedded compact Spotify */}
           <div className="min-w-0 flex-1 basis-[16rem]">
@@ -670,6 +672,9 @@ export default function Dashboard() {
 
       {/* ── Social strip: Stories + Notes, visible to the whole org ── */}
       <StoriesRail me={rawUser} />
+
+      {/* ── Quick Actions ── */}
+      <QuickActions />
 
       {/* ── Lot Tech clock-in (dept-scoped) ── */}
       {isLotTech && (
@@ -731,11 +736,10 @@ export default function Dashboard() {
             <button
               key={item.href + item.label}
               onClick={() => router.push(item.href)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${
-                active
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${active
                   ? "bg-primary/10 border-primary/30 text-primary"
                   : "border-border/40 bg-card/40 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
-              }`}
+                }`}
             >
               <item.icon className="size-3 shrink-0" />
               {item.label}
@@ -747,16 +751,26 @@ export default function Dashboard() {
       {/* ── 1. Feeds (full width) ── */}
       <LatestPosts />
 
-      {/* ── 2. My Calendar · 3. Leads · 4. Reviews · 5. Aftermarket ── */}
-      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr))]">
+      {/* ── 2. Team Pulse · 3. My Calendar · 4. Leads · 5. Reviews · 6. Aftermarket ── */}
+      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]">
+        <TeamPulseSnapshot />
         <CalendarSummary />
         <LeadsSummary />
         <ReviewsSummary />
         <AftermarketSummary />
       </div>
 
+      {/* ── My Clock · My Tasks · Inbox · Who's Out · Inventory ── */}
+      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]">
+        <MyClockStatus />
+        <MyTasksSummary />
+        <InboxSnapshot />
+        <WhoIsOut />
+        <InventorySnapshot />
+      </div>
+
       {/* ── 6. Driver Status · 7. Load Status ── */}
-      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
+      <div className="grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
         <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
           <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
         </Panel>

@@ -430,12 +430,20 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   // specifically asked to monitor here (geofence, shift alerts, location
   // requests) from the general bell, which mixes in everything else in the app.
   const { notifications: allNotifications, markAsRead } = useNotifications();
+  // Full matching set drives the unread badge; only the popover LIST is
+  // capped (and scrolls) so the count never silently under-reports once
+  // there are more than a handful of Locator notifications.
   const locatorNotifications = React.useMemo(
-    () => allNotifications.filter(isLocatorNotification).slice(0, 8),
+    () => allNotifications.filter(isLocatorNotification),
     [allNotifications],
   );
   const locatorUnreadCount = React.useMemo(
     () => locatorNotifications.filter((n) => !n.isRead).length,
+    [locatorNotifications],
+  );
+  const LOCATOR_PANEL_LIMIT = 30;
+  const locatorPanelNotifications = React.useMemo(
+    () => locatorNotifications.slice(0, LOCATOR_PANEL_LIMIT),
     [locatorNotifications],
   );
   const locationByUserId = React.useMemo(() => new Map(activeLocations.map((l) => [l.userId, l])), [activeLocations]);
@@ -620,7 +628,10 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-80 p-0">
                     <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-border/30">
-                      <span className="text-[11px] font-bold">Locator Notifications</span>
+                      <span className="text-[11px] font-bold">
+                        Locator Notifications
+                        <span className="ml-1.5 text-muted-foreground/40 font-semibold">{locatorNotifications.length}</span>
+                      </span>
                       {locatorUnreadCount > 0 && (
                         <button
                           onClick={() => locatorNotifications.forEach((n) => { if (!n.isRead) markAsRead(n._id); })}
@@ -631,7 +642,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                       )}
                     </div>
                     <div className="divide-y divide-border/20 max-h-80 overflow-y-auto">
-                      {locatorNotifications.map((n) => (
+                      {locatorPanelNotifications.map((n) => (
                         <button
                           key={n._id}
                           onClick={() => {
@@ -653,6 +664,13 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                         </button>
                       ))}
                     </div>
+                    {locatorNotifications.length > locatorPanelNotifications.length && (
+                      <div className="px-3.5 py-2 border-t border-border/30 text-center">
+                        <span className="text-[9px] font-semibold text-muted-foreground/50">
+                          +{locatorNotifications.length - locatorPanelNotifications.length} older notification{locatorNotifications.length - locatorPanelNotifications.length === 1 ? "" : "s"} not shown
+                        </span>
+                      </div>
+                    )}
                   </PopoverContent>
                 </Popover>
               )}

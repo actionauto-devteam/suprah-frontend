@@ -130,12 +130,21 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
     </div>
   );
 
-  // BARE — embedded directly inside the Welcome banner (no card chrome).
+  // BARE — embedded directly inside the Welcome banner. A label + a matching
+  // translucent frame around the iframe keeps Spotify's own dark embed chrome
+  // from reading as an unrelated black box dropped into the glass banner.
   if (bare) {
     return (
       <div className="w-full min-w-0">
-        {player}
-        <div className="mt-1.5 flex justify-end">{changeBtn}</div>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">
+            <Music2 className="size-3 text-green-500" /> Team Jams
+          </span>
+          {changeBtn}
+        </div>
+        <div className="overflow-hidden rounded-2xl ring-1 ring-white/10 bg-black/20 shadow-inner">
+          {player}
+        </div>
         {editor}
       </div>
     );

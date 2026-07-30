@@ -199,25 +199,28 @@ export function MemberCard({
           </button>
         )}
 
-        <div className="flex flex-col items-end justify-center gap-1 h-10">
+        <div className="flex flex-col items-end justify-center gap-1 h-10 w-28 shrink-0">
           {leaveToday ? (
-            <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide", A[leaveToday.type]?.pill)}>
+            <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide truncate max-w-full", A[leaveToday.type]?.pill)}>
               {A[leaveToday.type]?.label}
             </span>
           ) : (
             <Badge
               variant="outline"
-              className={cn("text-[10px] font-semibold h-5 px-2 gap-1 border", S.badge[status])}
+              className={cn("text-[10px] font-semibold h-5 px-2 gap-1 border max-w-full", S.badge[status])}
             >
               <StatusDot s={status} />
-              {S.label[status]}
+              <span className="truncate">{S.label[status]}</span>
             </Badge>
           )}
-          <span className="text-[10px] text-muted-foreground/40 flex items-center gap-0.5 h-3 leading-none">
+          <span
+            className="text-[10px] text-muted-foreground/40 flex items-center justify-end gap-0.5 h-3 leading-none w-full truncate"
+            title={status === "offline" && since ? since : undefined}
+          >
             {status === "offline" && since ? (
               <>
-                <Clock className="size-2.5" />
-                {since}
+                <Clock className="size-2.5 shrink-0" />
+                <span className="truncate">{since}</span>
               </>
             ) : (
               " "

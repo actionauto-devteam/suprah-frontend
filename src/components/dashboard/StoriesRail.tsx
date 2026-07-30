@@ -17,6 +17,7 @@ import {
   MessageCircle,
   Pause,
   Play,
+  Users,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api-client";
@@ -68,6 +69,13 @@ interface RailUser {
 const MAX_VIDEO_SECONDS = 120;
 const PHOTO_DURATION_MS = 15_000;
 const NOTE_MAX = 100;
+// Fixed in px (not just a Tailwind class) so every avatar in the rail — mine,
+// a teammate's, real photo or initials fallback — is pixel-identical. Some
+// teammates' photos previously rendered noticeably larger than the initials
+// fallbacks because only a Tailwind size class constrained them; an explicit
+// inline size on both the ring wrapper and the Avatar itself removes any
+// ambiguity from class ordering.
+const AVATAR_SIZE = 44;
 const QUICK_REACTIONS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
 
@@ -774,7 +782,13 @@ function StoryRing({ user, children }: { user: RailUser; children: React.ReactNo
     : user.hasStory
       ? "bg-gradient-to-tr from-amber-400 to-yellow-300 p-[2.5px]"
       : "bg-border/40 p-[1.5px]";
-  return <div className={`rounded-full ${ring}`}>{children}</div>;
+  // shrink-0 + explicit box-sizing keeps the ring's own footprint fixed too,
+  // so the padding around the avatar never inflates the item's layout size.
+  return (
+    <div className={`shrink-0 rounded-full ${ring}`} style={{ boxSizing: "content-box" }}>
+      {children}
+    </div>
+  );
 }
 
 /* ── Rail (Instagram-style social strip) ───────────────────────────────────── */
@@ -785,6 +799,63 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
   const [composerOpen, setComposerOpen] = React.useState(false);
   const [noteOpen, setNoteOpen] = React.useState(false);
   const [viewer, setViewer] = React.useState<{ author: number; story: number } | null>(null);
+  const [readNote, setReadNote] = React.useState<RailUser | null>(null);
+
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const dragRef = React.useRef({ down: false, startX: 0, startScroll: 0, moved: false });
+  const suppressClickRef = React.useRef(false);
+
+  // Mouse-only drag-to-scroll — the rail has no visible scrollbar to grab
+  // (see the hidden-scrollbar classes below), so desktop users need a way to
+  // pull it left/right with the mouse. Touch keeps its native swipe-scroll.
+  const onPointerDown = React.useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse") return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    dragRef.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
+    el.setPointerCapture(e.pointerId);
+  }, []);
+  const onPointerMove = React.useCallback((e: React.PointerEvent) => {
+    const el = scrollerRef.current;
+    const st = dragRef.current;
+    if (!el || !st.down) return;
+    const dx = e.clientX - st.startX;
+    if (Math.abs(dx) > 3) st.moved = true;
+    el.scrollLeft = st.startScroll - dx;
+  }, []);
+  const endDrag = React.useCallback((e: React.PointerEvent) => {
+    const st = dragRef.current;
+    if (st.moved) suppressClickRef.current = true;
+    st.down = false;
+    try { scrollerRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+  }, []);
+  // A capture-phase click on the container fires before any avatar/note
+  // button's own onClick — swallow it once so a drag-release doesn't also
+  // register as "open this story".
+  const onClickCapture = React.useCallback((e: React.MouseEvent) => {
+    if (suppressClickRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      suppressClickRef.current = false;
+    }
+  }, []);
+
+  // Plain vertical mouse-wheel scrolls the rail horizontally (Netflix/IG-style),
+  // in addition to native trackpad/shift-wheel horizontal scroll. Wired via a
+  // non-passive listener so preventDefault actually works — React's JSX
+  // onWheel is passive by default and would otherwise warn and no-op.
+  React.useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const load = React.useCallback((signal?: AbortSignal) => {
     return apiClient
@@ -849,7 +920,26 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl shadow-sm">
         {/* subtle top hairline glow for a more digital feel */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/40 to-transparent" />
-        <div className="flex items-stretch gap-3 overflow-x-auto px-4 py-3 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/60 hover:[&::-webkit-scrollbar-thumb]:bg-border">
+
+        {/* Title — so this strip reads as "team stories & notes", not an
+            unlabeled row of avatars. */}
+        <div className="flex items-center gap-2 px-4 pt-3.5 pb-1">
+          <Users className="size-3.5 text-emerald-500 shrink-0" />
+          <h2 className="text-xs font-black tracking-tight">Team Stories &amp; Notes</h2>
+          <span className="hidden sm:inline text-[10px] font-medium text-muted-foreground/45 truncate">
+            — tap a photo for stories, tap a note to read it in full
+          </span>
+        </div>
+
+        <div
+          ref={scrollerRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerLeave={endDrag}
+          onClickCapture={onClickCapture}
+          className="flex items-stretch gap-3 overflow-x-auto px-4 pb-3 pt-1 cursor-grab select-none active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           {/* You */}
           <div className="flex shrink-0 flex-col items-center gap-1.5">
             <NoteBubble
@@ -858,10 +948,10 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
               onClick={() => setNoteOpen(true)}
               mine
             />
-            <div className="relative">
+            <div className="relative shrink-0" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
               <button onClick={() => (meUser?.hasStory ? openStories(meUser._id) : setComposerOpen(true))}>
                 <StoryRing user={meUser ?? ({ hasStory: false, hasUnseen: false } as RailUser)}>
-                  <Avatar className="size-11 border-2 border-background">
+                  <Avatar className="border-2 border-background" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
                     <AvatarImage src={me?.avatar || meUser?.avatar} />
                     <AvatarFallback className="bg-muted font-bold text-xs">{ini(me?.fullName || meUser?.fullName)}</AvatarFallback>
                   </Avatar>
@@ -883,15 +973,17 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
           {/* Everyone else */}
           {users.filter((u) => !u.isMe).map((u) => (
             <div key={u._id} className="flex shrink-0 flex-col items-center gap-1.5">
-              <NoteBubble text={u.note?.text} />
-              <button onClick={() => onAvatarClick(u)} disabled={!u.hasStory} className={u.hasStory ? "" : "cursor-default"}>
-                <StoryRing user={u}>
-                  <Avatar className="size-11 border-2 border-background">
-                    <AvatarImage src={u.avatar} />
-                    <AvatarFallback className="bg-muted font-bold text-xs">{ini(u.fullName)}</AvatarFallback>
-                  </Avatar>
-                </StoryRing>
-              </button>
+              <NoteBubble text={u.note?.text} onClick={() => setReadNote(u)} />
+              <div className="shrink-0" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+                <button onClick={() => onAvatarClick(u)} disabled={!u.hasStory} className={u.hasStory ? "" : "cursor-default"}>
+                  <StoryRing user={u}>
+                    <Avatar className="border-2 border-background" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+                      <AvatarImage src={u.avatar} />
+                      <AvatarFallback className="bg-muted font-bold text-xs">{ini(u.fullName)}</AvatarFallback>
+                    </Avatar>
+                  </StoryRing>
+                </button>
+              </div>
               <span className="text-[10px] font-medium text-muted-foreground max-w-14 truncate">{u.fullName.split(" ")[0]}</span>
             </div>
           ))}
@@ -912,6 +1004,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
           onSaved={() => load()}
         />
       )}
+      {readNote && <NoteReadModal user={readNote} onClose={() => setReadNote(null)} />}
       {viewer && (
         <StoryViewer authors={storyUsers} start={viewer} onClose={() => { setViewer(null); load(); }} onChanged={() => load()} />
       )}
@@ -937,15 +1030,19 @@ function NoteBubble({
     // Reserve vertical space so avatars stay aligned across the row.
     return <div className="h-7" aria-hidden />;
   }
+  // Anyone's note is clickable when it has text — mine opens the editor,
+  // a teammate's opens a read-only view. Only a placeholder-less, empty
+  // teammate bubble (which never renders, above) would have nothing to open.
+  const clickable = mine || hasText;
   return (
     <button
       onClick={onClick}
-      disabled={!mine}
-      className={`group relative max-w-26 ${mine ? "" : "cursor-default"}`}
+      disabled={!clickable}
+      className={`group relative max-w-26 ${clickable ? "cursor-pointer" : "cursor-default"}`}
     >
       <div
-        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm ${hasText
-            ? "bg-muted/80 text-foreground/80 border border-border/40"
+        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm transition-colors ${hasText
+            ? `bg-muted/80 text-foreground/80 border border-border/40 ${!mine ? "group-hover:border-emerald-500/40 group-hover:bg-emerald-500/6" : ""}`
             : "bg-emerald-500/10 text-emerald-600 border border-dashed border-emerald-500/40"
           }`}
       >
@@ -953,5 +1050,34 @@ function NoteBubble({
         {mine && <Pencil className="ml-1 inline size-2.5 opacity-0 transition-opacity group-hover:opacity-70" />}
       </div>
     </button>
+  );
+}
+
+/* ── Read-only note viewer (teammate's note, click-to-expand) ─────────────── */
+
+function NoteReadModal({ user, onClose }: { user: RailUser; onClose: () => void }) {
+  if (!user.note) return null;
+  return (
+    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Avatar className="size-7 shrink-0 ring-1 ring-border/40">
+              <AvatarImage src={user.avatar} />
+              <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(user.fullName)}</AvatarFallback>
+            </Avatar>
+            <h3 className="text-sm font-black tracking-tight truncate">{user.fullName}'s note</h3>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60 shrink-0"><X className="size-4" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="relative rounded-2xl rounded-bl-md border border-emerald-500/30 bg-emerald-500/[0.07] px-4 py-3">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">{user.note.text}</p>
+          </div>
+          <p className="text-[10px] text-muted-foreground/50 text-right">Updated {mdtDateTime(user.note.updatedAt)}</p>
+        </div>
+      </div>
+    </div>
   );
 }
