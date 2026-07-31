@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Scissors,
   Send,
+  Activity,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -40,6 +41,16 @@ interface HoursSummary {
   minutes: number
   totalSeconds: number
   decimal: number
+}
+
+interface IdleDiagnosticEntry {
+  at: string
+  event: "idle_detected" | "idle_periodic_check" | string
+  idleSeconds: number | null
+  idleSecondsHistory: number[]
+  idleDetectionExempt: boolean | null
+  platform: string | null
+  wasTracking: boolean | null
 }
 
 interface TimeprofData {
@@ -141,6 +152,30 @@ export default function AdminUserTimeprofPage() {
       .finally(() => { if (!cancelled) setIdleLogLoading(false) })
     return () => { cancelled = true }
   }, [showIdleLogForm, idleLogStart, idleLogEnd, userId])
+
+  /* ── Idle Detection Diagnostics — raw OS idle-seconds readings behind each
+     flagged idle event, straight from the tray-app. Lets a "but I wasn't
+     idle!" dispute be settled by checking what the OS itself measured,
+     instead of taking either side's word for it. ── */
+  const [showIdleDiagnostics, setShowIdleDiagnostics] = React.useState(false)
+  const [diagnosticsDate, setDiagnosticsDate] = React.useState(() => toDateStr(new Date()))
+  const [diagnosticsEntries, setDiagnosticsEntries] = React.useState<IdleDiagnosticEntry[]>([])
+  const [diagnosticsLoading, setDiagnosticsLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!showIdleDiagnostics) return
+    let cancelled = false
+    setDiagnosticsLoading(true)
+    const token = localStorage.getItem("crm_token")
+    apiClient
+      .get(`/api/crm/timeproof/user/${userId}/idle-diagnostics?date=${diagnosticsDate}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => { if (!cancelled) setDiagnosticsEntries(res.data?.data?.entries || []) })
+      .catch(() => { if (!cancelled) setDiagnosticsEntries([]) })
+      .finally(() => { if (!cancelled) setDiagnosticsLoading(false) })
+    return () => { cancelled = true }
+  }, [showIdleDiagnostics, diagnosticsDate, userId])
 
   /* ── Pay state ── */
   const [isPaying, setIsPaying] = React.useState(false)
@@ -1117,6 +1152,91 @@ export default function AdminUserTimeprofPage() {
                   >
                     <Download className="h-3.5 w-3.5" /> Confirm — Print / PDF Idle Log
                   </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Idle Detection Diagnostics: raw OS idle-seconds readings ── */}
+            <div className="rounded-2xl border border-border/40 bg-card p-4 space-y-3">
+              <button
+                onClick={() => setShowIdleDiagnostics((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Activity className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  <span className="text-[11px] font-black tracking-tight">Idle Detection Diagnostics</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground/40">{showIdleDiagnostics ? "Hide" : "Check raw idle data"}</span>
+              </button>
+
+              {showIdleDiagnostics && (
+                <div className="space-y-2.5 pt-1">
+                  <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
+                    The exact seconds-since-last-input the tray-app's computer reported at each moment it flagged this user idle — straight from the operating system, not derived or estimated. Use this to settle "but I wasn&apos;t idle!" disputes with the actual reading instead of guessing.
+                  </p>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={diagnosticsDate}
+                      onChange={(e) => setDiagnosticsDate(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                    />
+                  </div>
+
+                  {diagnosticsLoading ? (
+                    <div className="h-24 flex items-center justify-center gap-2">
+                      <div className="h-5 w-5 rounded-full border-2 border-border border-t-emerald-500 animate-spin" />
+                      <span className="text-xs text-muted-foreground/50">Loading…</span>
+                    </div>
+                  ) : diagnosticsEntries.length === 0 ? (
+                    <div className="h-16 flex items-center justify-center text-xs text-muted-foreground/50">
+                      No idle data at all for this date — the tray-app&apos;s idle-check loop never reported in, which is itself worth investigating (not the same as &quot;genuinely never idle&quot;).
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {diagnosticsEntries.map((entry, i) => {
+                        const idleMin = entry.idleSeconds !== null ? Math.floor(entry.idleSeconds / 60) : null
+                        const idleSec = entry.idleSeconds !== null ? entry.idleSeconds % 60 : null
+                        // A clean, steadily-rising history reads as genuine gradual
+                        // inactivity; a sudden jump from a low number suggests a
+                        // sleep/wake or clock event instead — flagged so an admin
+                        // doesn't have to eyeball the raw array to notice it.
+                        const history = entry.idleSecondsHistory || []
+                        const suddenJump = history.length >= 2 && (history[history.length - 1] - history[history.length - 2]) > 120
+                        const isPeriodic = entry.event === "idle_periodic_check"
+                        return (
+                          <div key={i} className={`rounded-xl border p-3 space-y-1.5 ${isPeriodic ? "border-border/30 bg-muted/10" : "border-border/40 bg-muted/20"}`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-bold">{new Date(entry.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isPeriodic ? "bg-muted text-muted-foreground/60" : "bg-rose-500/10 text-rose-500"}`}>
+                                  {isPeriodic ? "Periodic check" : "Flagged idle"}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground/50 font-mono">{entry.platform || "—"}</span>
+                            </div>
+                            {entry.idleDetectionExempt && (
+                              <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">⚠ idleDetectionExempt was TRUE at this check — idle detection is force-disabled for this account</p>
+                            )}
+                            <p className="text-[11px] text-muted-foreground/70">
+                              OS reported <span className="font-bold text-foreground">{idleMin !== null ? `${idleMin}m ${idleSec}s` : "—"}</span> since last input
+                            </p>
+                            {history.length > 0 && (
+                              <p className="text-[10px] font-mono text-muted-foreground/50">
+                                Trend (~30s apart): {history.join("s → ")}s
+                              </p>
+                            )}
+                            {suddenJump && (
+                              <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                ⚠ Sudden jump — may indicate a sleep/wake or clock event rather than gradual inactivity
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

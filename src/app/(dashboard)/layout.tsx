@@ -49,6 +49,7 @@ import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
+import { apiClient } from "@/lib/api-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,6 +109,34 @@ function DashboardLayoutContent({
     router.prefetch("/profile");
     router.prefetch("/settings");
   }, [router]);
+
+  // Proactively renews the CRM JWT (12h expiry — see crmAuth.middleware.ts)
+  // before it can expire. The tray-app already does this for its own,
+  // separate token copy every 10h, but the BROWSER's copy in localStorage
+  // was never refreshed anywhere — a tab left open past 12h (completely
+  // normal for a TimeProof Clock page kept open all shift) silently started
+  // getting 401s on every poll, with all those calls caught and swallowed,
+  // so the displayed Work Time/screenshots/etc. just froze at whatever they
+  // last were — while the tray's own, still-valid session kept the real
+  // TimeLog data correct underneath. Mirrors the tray's own 10h cadence.
+  React.useEffect(() => {
+    if (!isCrmRoute) return;
+    const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 60 * 1000; // 10 hours
+    const refresh = async () => {
+      const t = localStorage.getItem("crm_token");
+      if (!t) return;
+      try {
+        const res = await apiClient.post("/api/crm/token-refresh", {}, { headers: { Authorization: `Bearer ${t}` } });
+        const newToken = res.data?.data?.token;
+        if (newToken) localStorage.setItem("crm_token", newToken);
+      } catch {
+        // Best-effort — if this fails, the existing token just carries on
+        // until it actually expires, same as before this fix existed.
+      }
+    };
+    const id = setInterval(refresh, TOKEN_REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isCrmRoute]);
 
   React.useEffect(() => {
     if (isLoaded) {
