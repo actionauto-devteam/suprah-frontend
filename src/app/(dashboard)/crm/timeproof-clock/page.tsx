@@ -828,7 +828,17 @@ export default function TimeprofClockPage() {
       const t = localStorage.getItem("crm_token")
       return isMain ? {} : (t ? { headers: { Authorization: `Bearer ${t}` } } : {})
     }
-    if (isMobile || isLotTech || isMain) {
+    // Deliberately NOT `isMobile` (viewport width < 768px) — that hook exists
+    // for responsive layout and is true for ANY narrow/non-maximized desktop
+    // browser window, incognito or not. Using it here meant a desktop admin
+    // testing in a small window would silently skip the tray-app requirement
+    // entirely and start tracking with zero tray coverage (no idle detection,
+    // no screenshots) — confirmed in production: uninstalling the tray
+    // entirely and starting a shift from a narrow window let it through with
+    // no tray check at all. getDeviceHint() checks the actual OS/user-agent,
+    // which a resized desktop window can't fake.
+    const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
+    if (isGenuineMobileDevice || isLotTech || isMain) {
       try {
         if (token) {
           const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
@@ -866,7 +876,7 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [isMobile, user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
@@ -916,6 +926,26 @@ export default function TimeprofClockPage() {
         refreshShiftState()
       }
     } else {
+      // Resuming from break re-enters active tracking the exact same way
+      // Start Shift does, so it needs the same tray-app verification — an
+      // employee described exploiting the fact that it didn't: start the
+      // shift normally (one legitimate screenshot goes through), click
+      // Break, quit the tray app entirely, then click Resume here — which
+      // previously just posted break-out with zero tray check, silently
+      // resuming "active" wall-clock tracking with no screenshots/idle
+      // detection for as long as they liked before relaunching the tray.
+      const isLotTech = isMobileMonitoringDept(user?.department)
+      const isMain = authModeRef.current === 'main'
+      const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
+      if (!(isGenuineMobileDevice || isLotTech || isMain)) {
+        setTrayChecking(true)
+        const online = await isTrayOnline().finally(() => setTrayChecking(false))
+        if (!online) {
+          setShowTrayModal(true)
+          return
+        }
+      }
+
       setIsOnBreak(false)
       setCurrentBreakStartAt(null)
       setActivityStartAt(Date.now())
@@ -928,6 +958,27 @@ export default function TimeprofClockPage() {
       setTimeout(() => fetchActivityState(), 2500)
       setClockMsg(`Break ended at ${fmt(new Date())}`)
     }
+  }
+
+  // "Shift Open — Tap Resume" state: backend shows isOnShift=true but local
+  // tracking isn't running (fresh page load, tray restart mid-shift, coming
+  // back from idle, etc.). Same tray-app verification as Start Shift and
+  // ending a break — this is another way active wall-clock tracking could
+  // resume with zero tray coverage if the tray isn't actually running.
+  const handleResumePausedShift = async () => {
+    const isLotTech = isMobileMonitoringDept(user?.department)
+    const isMain = authModeRef.current === 'main'
+    const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
+    if (!(isGenuineMobileDevice || isLotTech || isMain)) {
+      setTrayChecking(true)
+      const online = await isTrayOnline().finally(() => setTrayChecking(false))
+      if (!online) {
+        setShowTrayModal(true)
+        return
+      }
+    }
+    setActivityStartAt(Date.now())
+    handleClock("time-in")
   }
 
   const sortedLogs = React.useMemo(
@@ -1361,7 +1412,7 @@ export default function TimeprofClockPage() {
                         </p>
                       )}
                       {isPausedOnShift ? (
-                        <Button onClick={() => { setActivityStartAt(Date.now()); handleClock("time-in") }} disabled={isClocking}
+                        <Button onClick={handleResumePausedShift} disabled={isClocking || trayChecking}
                           className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400">
                           <Play className="h-4 w-4" /> Resume Shift
                         </Button>
@@ -2018,7 +2069,7 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">Tray App Required</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah AI Time Tracker</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah AI - Timeproof Clock</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
                 </div>
               </div>
               <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 px-4 py-3 space-y-2">
