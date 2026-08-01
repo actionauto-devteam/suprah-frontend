@@ -126,7 +126,7 @@ export function PulseRing({
         >
           {Math.round(score)}
         </span>
-        <span className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/50">
+        <span className="text-[11px] font-black uppercase tracking-[0.22em] text-muted-foreground/80">
           {bandMeta.label}
         </span>
       </div>
@@ -157,7 +157,7 @@ export function PulseComponentBreakdown({
               style={{ backgroundColor: SEGMENT_COLORS[key] }}
               aria-hidden
             />
-            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-muted-foreground/70">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-muted-foreground/70">
               {label}
             </span>
             <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted/40" aria-hidden>
@@ -166,7 +166,7 @@ export function PulseComponentBreakdown({
                 style={{ width: `${value}%`, backgroundColor: SEGMENT_COLORS[key] }}
               />
             </div>
-            <span className="w-8 shrink-0 text-right font-mono text-[11px] font-bold tabular-nums text-foreground/70">
+            <span className="w-8 shrink-0 text-right font-mono text-[13px] font-bold tabular-nums text-foreground/70">
               {value}
             </span>
           </div>
@@ -188,7 +188,7 @@ export function PulseTrendline({
 }) {
   if (!trend?.length || trend.length < 2) {
     return (
-      <div className={cn("flex items-center text-[10px] text-muted-foreground/40", className)} style={{ height }}>
+      <div className={cn("flex items-center text-[12px] text-muted-foreground/75", className)} style={{ height }}>
         Not enough history yet
       </div>
     );

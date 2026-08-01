@@ -18,6 +18,7 @@
  */
 
 import * as React from "react";
+import type { Socket } from "socket.io-client";
 import {
   CalendarDays,
   Check,
@@ -27,6 +28,7 @@ import {
   Loader2,
   Paperclip,
   Pencil,
+  Play,
   Plus,
   Send,
   Trash2,
@@ -49,7 +51,12 @@ import {
   TaskStatusSelect,
   type ProjectTaskStatus,
 } from "@/components/project/task-status-badge";
+import {
+  PrioritySelect,
+  type ProjectTaskPriority,
+} from "@/components/project/task-priority-badge";
 import { MentionTextarea, MentionText } from "@/components/project/mention-textarea";
+import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
 
 /* ── Shared types (mirror backend lean shapes) ─────────────────────────── */
 
@@ -79,6 +86,7 @@ export type TaskDetail = {
   title: string;
   description?: string;
   status: ProjectTaskStatus;
+  priority: ProjectTaskPriority | null;
   createdBy: Member;
   assigneeIds: Member[];
   startDate?: string | null;
@@ -95,6 +103,7 @@ export type Comment = {
   message: string;
   mentions?: string[];
   attachments: Attachment[];
+  isEdited?: boolean;
   createdAt: string;
 };
 
@@ -164,11 +173,54 @@ export function SectionEyebrow({ children }: { children: React.ReactNode }) {
 export function AttachmentChip({
   attachment,
   compact,
+  onPreview,
 }: {
   attachment: Attachment;
   compact?: boolean;
+  /** Opens the shared lightbox instead of a new tab, for images/videos. */
+  onPreview?: (attachment: Attachment) => void;
 }) {
   const isImage = attachment.mimeType?.startsWith("image/");
+  const isVideo = attachment.mimeType?.startsWith("video/");
+
+  if (isImage || isVideo) {
+    const size = compact ? "h-16 w-16" : "h-20 w-20";
+    return (
+      <button
+        type="button"
+        onClick={() => onPreview?.(attachment)}
+        title={attachment.originalName}
+        className={cn(
+          "group relative shrink-0 overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-colors hover:border-emerald-500/40",
+          size,
+        )}
+      >
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={attachment.url}
+            alt={attachment.originalName}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <>
+            <video
+              src={attachment.url}
+              muted
+              preload="metadata"
+              className="h-full w-full object-cover"
+            />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/90">
+                <Play className="h-3.5 w-3.5 fill-current text-foreground" />
+              </span>
+            </span>
+          </>
+        )}
+      </button>
+    );
+  }
+
   return (
     <a
       href={attachment.url}
@@ -179,18 +231,9 @@ export function AttachmentChip({
         compact ? "px-2.5 py-1.5" : "px-3 py-2",
       )}
     >
-      {isImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={attachment.url}
-          alt={attachment.originalName}
-          className={cn("shrink-0 rounded-md object-cover", compact ? "h-6 w-6" : "h-8 w-8")}
-        />
-      ) : (
-        <FileText
-          className={cn("shrink-0 text-muted-foreground/60", compact ? "h-4 w-4" : "h-5 w-5")}
-        />
-      )}
+      <FileText
+        className={cn("shrink-0 text-muted-foreground/60", compact ? "h-4 w-4" : "h-5 w-5")}
+      />
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate font-medium", compact ? "text-[10px]" : "text-xs")}>
           {attachment.originalName}
@@ -494,6 +537,7 @@ export function EditTaskDialog({
 export function TaskDetailDialog({
   taskId,
   meId,
+  socket,
   highlightCommentId,
   onClose,
   onChanged,
@@ -501,6 +545,8 @@ export function TaskDetailDialog({
 }: {
   taskId: string | null;
   meId: string;
+  /** Connected socket (from useProjectSocket) — enables live comment/task updates while open. */
+  socket?: Socket | null;
   /** Scrolls to and flashes this comment once the thread loads (mention deep-link). */
   highlightCommentId?: string | null;
   onClose: () => void;
@@ -510,6 +556,7 @@ export function TaskDetailDialog({
   const [task, setTask] = React.useState<TaskDetail | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [statusSaving, setStatusSaving] = React.useState(false);
+  const [prioritySaving, setPrioritySaving] = React.useState(false);
   const [error, setError] = React.useState("");
 
   // Edit / delete
@@ -530,6 +577,22 @@ export function TaskDetailDialog({
   const [sending, setSending] = React.useState(false);
   const commentFileRef = React.useRef<HTMLInputElement>(null);
   const threadEndRef = React.useRef<HTMLDivElement>(null);
+  const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
+
+  // Edit / delete a single comment (author only — mirrors the backend rule).
+  const [editingCommentId, setEditingCommentId] = React.useState<string | null>(null);
+  const [editingText, setEditingText] = React.useState("");
+  const [editingMentionIds, setEditingMentionIds] = React.useState<string[]>([]);
+  const [editSaving, setEditSaving] = React.useState(false);
+  const [deletingCommentId, setDeletingCommentId] = React.useState<string | null>(null);
+  const [commentDeleting, setCommentDeleting] = React.useState(false);
+
+  const openPreview = (a: Attachment) =>
+    setLightbox({
+      src: a.url,
+      type: a.mimeType?.startsWith("video/") ? "video" : "image",
+      name: a.originalName,
+    });
 
   const loadTask = React.useCallback(async () => {
     if (!taskId) return;
@@ -604,6 +667,50 @@ export function TaskDetailDialog({
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [comments.length]);
 
+  // Live: comment/task activity on THIS open task, from other members.
+  React.useEffect(() => {
+    if (!socket || !taskId) return;
+
+    const onCommentNew = (payload: { taskId: string; comment: Comment }) => {
+      if (payload.taskId !== taskId) return;
+      setComments((prev) =>
+        prev.some((c) => c._id === payload.comment._id) ? prev : [...prev, payload.comment],
+      );
+    };
+    const onCommentUpdated = (payload: { taskId: string; comment: Comment }) => {
+      if (payload.taskId !== taskId) return;
+      setComments((prev) => prev.map((c) => (c._id === payload.comment._id ? payload.comment : c)));
+    };
+    const onCommentDeleted = (payload: { taskId: string; commentId: string }) => {
+      if (payload.taskId !== taskId) return;
+      setComments((prev) => prev.filter((c) => c._id !== payload.commentId));
+    };
+    // pm:task:updated carries the full task (id only nested at task._id);
+    // pm:task:status carries a flat { taskId, status } instead.
+    const onTaskUpdated = (payload: { task?: TaskDetail }) => {
+      if (payload.task?._id !== taskId) return;
+      setTask(payload.task!);
+    };
+    const onTaskStatus = (payload: { taskId: string; status: ProjectTaskStatus }) => {
+      if (payload.taskId !== taskId) return;
+      setTask((t) => (t ? { ...t, status: payload.status } : t));
+    };
+
+    socket.on("pm:comment:new", onCommentNew);
+    socket.on("pm:comment:updated", onCommentUpdated);
+    socket.on("pm:comment:deleted", onCommentDeleted);
+    socket.on("pm:task:updated", onTaskUpdated);
+    socket.on("pm:task:status", onTaskStatus);
+
+    return () => {
+      socket.off("pm:comment:new", onCommentNew);
+      socket.off("pm:comment:updated", onCommentUpdated);
+      socket.off("pm:comment:deleted", onCommentDeleted);
+      socket.off("pm:task:updated", onTaskUpdated);
+      socket.off("pm:task:status", onTaskStatus);
+    };
+  }, [socket, taskId]);
+
   // Mirror the backend rule: only the creator or an assignee can change the status.
   const canChangeStatus =
     !!task &&
@@ -624,6 +731,24 @@ export function TaskDetailDialog({
       setError(errMsg(err, "Failed to change the status."));
     } finally {
       setStatusSaving(false);
+    }
+  };
+
+  const changePriority = async (next: ProjectTaskPriority | null) => {
+    if (!task) return;
+    setPrioritySaving(true);
+    setError("");
+    const previous = task.priority;
+    setTask({ ...task, priority: next }); // optimistic
+    try {
+      const res = await apiClient.patch(`/api/crm/projects/tasks/${task._id}`, { priority: next ?? "" });
+      setTask(res.data?.data?.task);
+      onChanged();
+    } catch (err: any) {
+      setTask((t) => (t ? { ...t, priority: previous } : t)); // rollback
+      setError(errMsg(err, "Failed to change the priority."));
+    } finally {
+      setPrioritySaving(false);
     }
   };
 
@@ -692,6 +817,56 @@ export function TaskDetailDialog({
     }
   };
 
+  const startEditComment = (c: Comment) => {
+    setEditingCommentId(c._id);
+    setEditingText(c.message);
+    setEditingMentionIds(c.mentions || []);
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingText("");
+    setEditingMentionIds([]);
+  };
+
+  const saveEditComment = async () => {
+    if (!editingCommentId || !editingText.trim()) return;
+    setEditSaving(true);
+    setError("");
+    try {
+      const res = await apiClient.patch(`/api/crm/projects/comments/${editingCommentId}`, {
+        message: editingText.trim(),
+        mentions: editingMentionIds,
+      });
+      const updated: Comment | undefined = res.data?.data?.comment;
+      if (updated) {
+        setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+      }
+      cancelEditComment();
+    } catch (err: any) {
+      setError(errMsg(err, "Failed to update the comment."));
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!deletingCommentId) return;
+    setCommentDeleting(true);
+    setError("");
+    try {
+      await apiClient.delete(`/api/crm/projects/comments/${deletingCommentId}`);
+      setComments((prev) => prev.filter((c) => c._id !== deletingCommentId));
+      setTask((t) => (t ? { ...t, commentCount: Math.max(0, t.commentCount - 1) } : t));
+      setDeletingCommentId(null);
+    } catch (err: any) {
+      setError(errMsg(err, "Failed to delete the comment."));
+      setDeletingCommentId(null);
+    } finally {
+      setCommentDeleting(false);
+    }
+  };
+
   return (
     <Dialog open={!!taskId} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-2xl">
@@ -712,6 +887,11 @@ export function TaskDetailDialog({
                   {task.title}
                 </DialogTitle>
                 <div className="flex shrink-0 items-center gap-1.5">
+                  <PrioritySelect
+                    priority={task.priority}
+                    loading={prioritySaving}
+                    onChange={changePriority}
+                  />
                   <TaskStatusSelect
                     status={task.status}
                     disabled={!canChangeStatus}
@@ -797,9 +977,9 @@ export function TaskDetailDialog({
               {task.attachments?.length > 0 && (
                 <div className="space-y-1.5">
                   <SectionEyebrow>Attachments</SectionEyebrow>
-                  <div className="grid gap-1.5 sm:grid-cols-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {task.attachments.map((a, i) => (
-                      <AttachmentChip key={a._id || i} attachment={a} />
+                      <AttachmentChip key={a._id || i} attachment={a} onPreview={openPreview} />
                     ))}
                   </div>
                 </div>
@@ -822,11 +1002,12 @@ export function TaskDetailDialog({
                   <div className="space-y-3">
                     {comments.map((c) => {
                       const mine = c.userId === meId;
+                      const isEditing = editingCommentId === c._id;
                       return (
                         <div
                           key={c._id}
                           id={`pm-comment-${c._id}`}
-                          className={cn("flex gap-2.5", mine && "flex-row-reverse")}
+                          className={cn("group/cmt flex gap-2.5", mine && "flex-row-reverse")}
                         >
                           <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border">
                             <AvatarImage
@@ -851,27 +1032,85 @@ export function TaskDetailDialog({
                               <span className="text-[11px] font-semibold">{c.authorName}</span>
                               <span className="text-[9px] text-muted-foreground/50">
                                 {fmtTime(c.createdAt)}
+                                {c.isEdited && " · edited"}
                               </span>
+                              {mine && !isEditing && (
+                                <span className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover/cmt:opacity-100">
+                                  <button
+                                    onClick={() => startEditComment(c)}
+                                    title="Edit comment"
+                                    className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/50 hover:bg-black/5 hover:text-emerald-600 dark:hover:bg-white/10"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setDeletingCommentId(c._id)}
+                                    title="Delete comment"
+                                    className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/50 hover:bg-rose-500/10 hover:text-rose-500"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              )}
                             </div>
-                            {c.message && (
-                              <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">
-                                <MentionText
-                                  text={c.message}
-                                  mentionNames={(c.mentions || [])
-                                    .map((id) => {
-                                      const m = groupMembers.find((x) => x._id === id);
-                                      return m ? (m.fullName || m.username || m.email || "") : "";
-                                    })
-                                    .filter(Boolean)}
+
+                            {isEditing ? (
+                              <div className="space-y-1.5">
+                                <MentionTextarea
+                                  value={editingText}
+                                  onChange={setEditingText}
+                                  members={groupMembers.filter((m) => m._id !== meId)}
+                                  mentionIds={editingMentionIds}
+                                  onMentionIdsChange={setEditingMentionIds}
+                                  onSubmit={saveEditComment}
+                                  disabled={editSaving}
                                 />
-                              </p>
-                            )}
-                            {c.attachments?.length > 0 && (
-                              <div className="space-y-1 pt-0.5">
-                                {c.attachments.map((a, i) => (
-                                  <AttachmentChip key={a._id || i} attachment={a} compact />
-                                ))}
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={cancelEditComment}
+                                    disabled={editSaving}
+                                    className="rounded-lg px-2.5 py-1 text-[10px] font-medium text-muted-foreground/70 hover:bg-muted/40"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={saveEditComment}
+                                    disabled={editSaving || !editingText.trim()}
+                                    className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                  >
+                                    {editSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+                                    Save
+                                  </button>
+                                </div>
                               </div>
+                            ) : (
+                              <>
+                                {c.message && (
+                                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">
+                                    <MentionText
+                                      text={c.message}
+                                      mentionNames={(c.mentions || [])
+                                        .map((id) => {
+                                          const m = groupMembers.find((x) => x._id === id);
+                                          return m ? (m.fullName || m.username || m.email || "") : "";
+                                        })
+                                        .filter(Boolean)}
+                                    />
+                                  </p>
+                                )}
+                                {c.attachments?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {c.attachments.map((a, i) => (
+                                      <AttachmentChip
+                                        key={a._id || i}
+                                        attachment={a}
+                                        compact
+                                        onPreview={openPreview}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -884,28 +1123,7 @@ export function TaskDetailDialog({
             </div>
 
             {/* Composer */}
-            <div className="space-y-2 border-t border-border/40 px-6 py-4">
-              {commentFiles.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {commentFiles.map((f, i) => (
-                    <span
-                      key={`${f.name}-${i}`}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1 text-[10px]"
-                    >
-                      <Paperclip className="h-3 w-3" />
-                      <span className="max-w-32 truncate">{f.name}</span>
-                      <button
-                        onClick={() =>
-                          setCommentFiles((prev) => prev.filter((_, idx) => idx !== i))
-                        }
-                        className="opacity-60 hover:opacity-100"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+            <div className="border-t border-border/40 px-6 py-4">
               <div className="flex items-end gap-2">
                 <input
                   ref={commentFileRef}
@@ -927,16 +1145,42 @@ export function TaskDetailDialog({
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
-                <MentionTextarea
-                  value={message}
-                  onChange={setMessage}
-                  members={groupMembers.filter((m) => m._id !== meId)}
-                  mentionIds={mentionIds}
-                  onMentionIdsChange={setMentionIds}
-                  onSubmit={sendComment}
-                  placeholder="Write a message… @ to mention a teammate"
-                  disabled={sending}
-                />
+
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl border border-border/70 bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-emerald-500/30">
+                  {commentFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 border-b border-border/30 pb-1.5">
+                      {commentFiles.map((f, i) => (
+                        <span
+                          key={`${f.name}-${i}`}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1 text-[10px]"
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          <span className="max-w-32 truncate">{f.name}</span>
+                          <button
+                            onClick={() =>
+                              setCommentFiles((prev) => prev.filter((_, idx) => idx !== i))
+                            }
+                            className="opacity-60 hover:opacity-100"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <MentionTextarea
+                    value={message}
+                    onChange={setMessage}
+                    members={groupMembers.filter((m) => m._id !== meId)}
+                    mentionIds={mentionIds}
+                    onMentionIdsChange={setMentionIds}
+                    onSubmit={sendComment}
+                    placeholder="Write a message… @ to mention a teammate"
+                    disabled={sending}
+                    bare
+                  />
+                </div>
+
                 <Button
                   onClick={sendComment}
                   disabled={sending || (!message.trim() && commentFiles.length === 0)}
@@ -970,6 +1214,15 @@ export function TaskDetailDialog({
               onCancel={() => setDeleteOpen(false)}
               onConfirm={confirmDelete}
             />
+            <ConfirmDialog
+              open={!!deletingCommentId}
+              title="Delete this comment?"
+              description="This can't be undone. Any attachments on it are removed from storage too."
+              loading={commentDeleting}
+              onCancel={() => setDeletingCommentId(null)}
+              onConfirm={confirmDeleteComment}
+            />
+            <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
           </>
         )}
       </DialogContent>

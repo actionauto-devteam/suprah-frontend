@@ -2758,7 +2758,7 @@ function Bubble({
                       maxHeight: dropdownFixedPos.maxHeight,
                       overflowY: 'auto',
                       background: 'var(--surface-3, #1a1b1e)',
-                      border: '1px solid var(--border-2)',
+                      border: '1px solid var(--border-2, rgba(255,255,255,0.10))',
                       boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
                     }}
                   >
@@ -2766,36 +2766,36 @@ function Bubble({
                       { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => { onForward?.(message); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                        <Share2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Forward message</span>
+                        <Share2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Forward message</span>
                       </button>
                       { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => { toast.info('Mark as unread coming soon'); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                        <MailOpen className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Mark as unread</span>
+                        <MailOpen className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Mark as unread</span>
                       </button>
                       { }
                       <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                         onClick={() => { toast.info('Star coming soon'); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                        <Star className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Star</span>
+                        <Star className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Star</span>
                       </button>
-                      <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
+                      <div style={{ height: 1, background: 'var(--border-2, rgba(255,255,255,0.10))', margin: '3px 0' }} />
                       { }
                       {onPin && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { onPin(message._id); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                          <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? 'var(--accent)' : 'var(--text-secondary)' }} />
-                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
+                          <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? 'var(--accent, #5b7cf6)' : 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
                         </button>
                       )}
                       { }
                       {message.content && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { copyMessageText(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                          <Copy className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy message</span>
+                          <Copy className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Copy message</span>
                         </button>
                       )}
                       { }
@@ -2807,8 +2807,8 @@ function Bubble({
                             .catch(() => toast.error('Could not copy link'));
                           setMoreActionsOpen(false); setDropdownFixedPos(null);
                         }}>
-                        <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy message link</span>
+                        <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Copy message link</span>
                       </button>
                       { }
                       {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
@@ -2820,19 +2820,19 @@ function Bubble({
                             catch { toast.error('Could not copy image'); }
                             setMoreActionsOpen(false); setDropdownFixedPos(null);
                           }}>
-                          <ImageIcon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Copy image</span>
+                          <ImageIcon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Copy image</span>
                         </button>
                       )}
                       { }
                       {isOwn && (
-                        <div style={{ height: 1, background: 'var(--border-2)', margin: '3px 0' }} />
+                        <div style={{ height: 1, background: 'var(--border-2, rgba(255,255,255,0.10))', margin: '3px 0' }} />
                       )}
                       {canEditMessage && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { enterEdit(); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                          <Pencil className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Edit message</span>
+                          <Pencil className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Edit message</span>
                         </button>
                       )}
                       {isOwn && (

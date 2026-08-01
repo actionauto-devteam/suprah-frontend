@@ -44,7 +44,7 @@ export function VehicleDetailsModal({
           "fixed inset-0 left-0 top-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 rounded-none",
           /* Desktop: large centered sheet with subtle rounding */
           "lg:inset-auto lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2",
-          "lg:w-[96vw] lg:max-w-7xl lg:h-[94vh] lg:rounded-2xl",
+          "lg:w-[90vw] lg:max-w-6xl lg:h-[90vh] lg:rounded-2xl",
         )}
       >
         <DialogTitle className="sr-only">

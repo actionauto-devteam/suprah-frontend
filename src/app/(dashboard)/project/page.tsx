@@ -59,6 +59,11 @@ import {
   type ProjectTaskStatus,
 } from "@/components/project/task-status-badge";
 import {
+  PriorityIcon,
+  PrioritySelect,
+  type ProjectTaskPriority,
+} from "@/components/project/task-priority-badge";
+import {
   TaskDetailDialog,
   ConfirmDialog,
   AssigneeMultiSelect,
@@ -73,7 +78,12 @@ import {
 import { MyTasksPanel } from "@/components/project/my-tasks-panel";
 import { MentionsPanel } from "@/components/project/mentions-panel";
 import { NotificationsBell } from "@/components/project/notifications-bell";
-import { useProjectNotifications } from "@/context/ProjectNotificationContext";
+import {
+  ProjectNotificationProvider,
+  useProjectNotifications,
+} from "@/context/ProjectNotificationContext";
+import { useProjectSocket } from "@/hooks/useProjectSocket";
+import type { Socket } from "socket.io-client";
 
 /* ── Types (mirror backend lean shapes) ────────────────────────────────── */
 
@@ -95,6 +105,7 @@ type TaskSummary = {
   sectionId: string;
   title: string;
   status: ProjectTaskStatus;
+  priority?: ProjectTaskPriority | null;
   assigneeIds?: string[];
   createdBy: string;
   startDate?: string | null;
@@ -120,6 +131,15 @@ const TABS: Array<{ id: PageTab; label: string; icon: React.ElementType }> = [
 ];
 
 export default function ProjectManagementPage() {
+  const socket = useProjectSocket();
+  return (
+    <ProjectNotificationProvider socket={socket}>
+      <ProjectManagementPageInner socket={socket} />
+    </ProjectNotificationProvider>
+  );
+}
+
+function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   const { refresh: refreshBadge, markAllRead } = useProjectNotifications();
 
   const [tab, setTab] = React.useState<PageTab>("workspace");
@@ -164,6 +184,20 @@ export default function ProjectManagementPage() {
   React.useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  // Live: a group I'm in was created/renamed/deleted (membership changes too).
+  React.useEffect(() => {
+    if (!socket) return;
+    const onGroupChange = () => loadGroups();
+    socket.on("pm:group:new", onGroupChange);
+    socket.on("pm:group:updated", onGroupChange);
+    socket.on("pm:group:deleted", onGroupChange);
+    return () => {
+      socket.off("pm:group:new", onGroupChange);
+      socket.off("pm:group:updated", onGroupChange);
+      socket.off("pm:group:deleted", onGroupChange);
+    };
+  }, [socket, loadGroups]);
 
   const confirmDeleteGroup = async () => {
     if (!groupToDelete) return;
@@ -217,7 +251,7 @@ export default function ProjectManagementPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <NotificationsBell meId={meId} />
+          <NotificationsBell meId={meId} socket={socket} />
           {tab === "workspace" && (
             <Button
               onClick={() => {
@@ -242,13 +276,13 @@ export default function ProjectManagementPage() {
       {/* ── Tab bodies ── */}
       {tab === "mine" && (
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-          <MyTasksPanel view="active" meId={meId} />
+          <MyTasksPanel view="active" meId={meId} socket={socket} />
         </div>
       )}
 
       {tab === "done" && (
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-          <MyTasksPanel view="completed" meId={meId} />
+          <MyTasksPanel view="completed" meId={meId} socket={socket} />
         </div>
       )}
 
@@ -340,7 +374,7 @@ export default function ProjectManagementPage() {
           {/* ── Workspace ── */}
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
             {selectedGroupId ? (
-              <GroupWorkspace key={selectedGroupId} groupId={selectedGroupId} meId={meId} />
+              <GroupWorkspace key={selectedGroupId} groupId={selectedGroupId} meId={meId} socket={socket} />
             ) : (
               !groupsLoading && (
                 <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center">
@@ -640,7 +674,15 @@ function GroupDialog({
 /*  GROUP WORKSPACE — sections → folders → tasks                           */
 /* ══════════════════════════════════════════════════════════════════════ */
 
-function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
+function GroupWorkspace({
+  groupId,
+  meId,
+  socket,
+}: {
+  groupId: string;
+  meId: string;
+  socket: Socket | null;
+}) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [group, setGroup] = React.useState<Group | null>(null);
@@ -686,13 +728,29 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
     loadTree();
   }, [loadTree]);
 
-  // Keep the tree fresh when the tab regains focus (cheap real-time fallback;
-  // pm:* socket events can call loadTree() directly once wired).
+  // Keep the tree fresh when the tab regains focus (cheap fallback for
+  // whatever the socket misses, e.g. a dropped connection).
   React.useEffect(() => {
     const onFocus = () => loadTree();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [loadTree]);
+
+  // Live: any task/section/folder change inside THIS group refreshes the tree.
+  React.useEffect(() => {
+    if (!socket) return;
+    const onChange = (payload: { groupId?: string }) => {
+      if (payload?.groupId === groupId) loadTree();
+    };
+    const events = [
+      "pm:task:new", "pm:task:updated", "pm:task:status", "pm:task:deleted",
+      "pm:comment:new", "pm:comment:deleted",
+      "pm:section:new", "pm:section:updated", "pm:section:deleted",
+      "pm:folder:new", "pm:folder:updated", "pm:folder:deleted",
+    ];
+    events.forEach((e) => socket.on(e, onChange));
+    return () => events.forEach((e) => socket.off(e, onChange));
+  }, [socket, groupId, loadTree]);
 
   const membersById = React.useMemo(
     () => new Map(members.map((m) => [m._id, m])),
@@ -956,6 +1014,9 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                                     )}
                                   >
                                     <TaskStatusBadge status={task.status} />
+                                    {(task.priority === "urgent" || task.priority === "high") && (
+                                      <PriorityIcon priority={task.priority} className="h-3.5 w-3.5 shrink-0" />
+                                    )}
                                     {task.unseenForMe && (
                                       <span
                                         title="New activity since you last opened this task"
@@ -1116,6 +1177,7 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
       <TaskDetailDialog
         taskId={openTaskId}
         meId={meId}
+        socket={socket}
         onClose={() => setOpenTaskId(null)}
         onChanged={loadTree}
         onDeleted={loadTree}
@@ -1235,6 +1297,7 @@ function CreateTaskDialog({
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [assignees, setAssignees] = React.useState<Member[]>([]);
+  const [priority, setPriority] = React.useState<ProjectTaskPriority | null>("normal");
   const [startDate, setStartDate] = React.useState("");
   const [deadline, setDeadline] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
@@ -1244,7 +1307,7 @@ function CreateTaskDialog({
 
   React.useEffect(() => {
     if (!folder) {
-      setTitle(""); setDescription(""); setAssignees([]);
+      setTitle(""); setDescription(""); setAssignees([]); setPriority("normal");
       setStartDate(""); setDeadline(""); setFiles([]); setError("");
     }
   }, [folder]);
@@ -1260,6 +1323,7 @@ function CreateTaskDialog({
       const form = new FormData();
       form.append("title", title.trim());
       if (description.trim()) form.append("description", description.trim());
+      form.append("priority", priority ?? "");
       // Repeated multipart fields — the backend normalizes string | string[].
       assignees.forEach((m) => form.append("assigneeIds", m._id));
       if (startDate) form.append("startDate", startDate);
@@ -1321,6 +1385,11 @@ function CreateTaskDialog({
               onChange={setAssignees}
               disabled={saving}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-foreground/75">Priority</Label>
+            <PrioritySelect priority={priority} onChange={setPriority} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

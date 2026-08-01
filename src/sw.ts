@@ -73,6 +73,55 @@ const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL || self.location.origin
 ).replace(/\/$/, "");
 const DEFAULT_NOTIFICATION_ICON = "/icon-192x192.png";
+const SUMMARY_NOTIFICATION_TAG = "notification-summary";
+
+/**
+ * True when at least one tab has the app open AND in the foreground. This is
+ * the signal for "the user is actively looking at the system right now" —
+ * per-push spam there is fine (the user asked for that). It's false both
+ * when no tab is open at all AND when a tab exists but is backgrounded/
+ * minimized, which is exactly the "just turned my PC/browser on" case: the
+ * push service flushes its whole offline backlog in one burst, and each one
+ * used to fire its own showNotification() call, so closing one just revealed
+ * the next queued toast underneath it.
+ */
+async function isAppActive(): Promise<boolean> {
+  const clientList = await (self as any).clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  return clientList.some((c: any) => c.focused || c.visibilityState === "visible");
+}
+
+/**
+ * Folds a push into a single running tray notification instead of stacking a
+ * new one, while the app is closed/backgrounded. Reads the previous count off
+ * the still-showing notification's own `data` (no extra storage needed) — and
+ * because it reuses one `tag`, there is only ever ONE of these in the tray at
+ * a time; `renotify: true` still alerts/vibrates on every bump. It self-resets
+ * next burst because clicking (or dismissing) closes it, so the next push
+ * finds nothing under this tag and starts back at 1.
+ */
+async function showBurstSummary(data: any): Promise<void> {
+  const existing = await (self as any).registration.getNotifications({
+    tag: SUMMARY_NOTIFICATION_TAG,
+  });
+  const count = (existing[0]?.data?.count || 0) + 1;
+  const latest = data.title && data.body ? `${data.title}: ${data.body}` : (data.title || data.body || "New activity");
+
+  await (self as any).registration.showNotification(
+    `You have ${count} new notification${count === 1 ? "" : "s"}`,
+    {
+      body: count === 1 ? latest : `Latest: ${latest}`,
+      icon: DEFAULT_NOTIFICATION_ICON,
+      badge: DEFAULT_NOTIFICATION_ICON,
+      tag: SUMMARY_NOTIFICATION_TAG,
+      renotify: true,
+      vibrate: [100, 50, 100],
+      data: { url: "/notifications", count },
+    },
+  );
+}
 
 /**
  * Reads a token this SW itself has no other way to obtain — AuthProvider
@@ -112,9 +161,12 @@ self.addEventListener("push", (event: any) => {
   // mid-flight — both matter most precisely when no tab is open to notice.
   event.waitUntil(
     (async () => {
+      const fallback = { title: "New notification", body: "You have a new notification. Open the app to view it." };
+
       if (!event.data) {
-        await (self as any).registration.showNotification("New notification", {
-          body: "You have a new notification. Open the app to view it.",
+        if (!(await isAppActive())) return void (await showBurstSummary(fallback));
+        await (self as any).registration.showNotification(fallback.title, {
+          body: fallback.body,
           icon: DEFAULT_NOTIFICATION_ICON,
           badge: DEFAULT_NOTIFICATION_ICON,
         });
@@ -126,8 +178,9 @@ self.addEventListener("push", (event: any) => {
         data = event.data.json();
       } catch (err) {
         console.error("[SW] Push payload parse error:", err);
-        await (self as any).registration.showNotification("New notification", {
-          body: "You have a new notification. Open the app to view it.",
+        if (!(await isAppActive())) return void (await showBurstSummary(fallback));
+        await (self as any).registration.showNotification(fallback.title, {
+          body: fallback.body,
           icon: DEFAULT_NOTIFICATION_ICON,
           badge: DEFAULT_NOTIFICATION_ICON,
         });
@@ -141,7 +194,17 @@ self.addEventListener("push", (event: any) => {
         return;
       }
 
-      // 2. STANDARD NOTIFICATION DISPLAY
+      // 2. BURST COLLAPSE — app closed/backgrounded and this isn't a
+      // safety-critical Shift Alert (those keep their dedicated sound and
+      // always surface standalone). Everything else folds into one running
+      // summary tray notification so reconnecting after being away shows
+      // "You have N notifications" instead of a wall of individual toasts.
+      if (!data.data?.playSound && !(await isAppActive())) {
+        await showBurstSummary(data);
+        return;
+      }
+
+      // 3. STANDARD NOTIFICATION DISPLAY
       const options = {
         body: data.body,
         icon: data.icon || DEFAULT_NOTIFICATION_ICON,

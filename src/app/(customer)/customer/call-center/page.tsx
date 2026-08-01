@@ -69,6 +69,13 @@ interface StatusToast {
   crmUserName?: string;
 }
 
+interface CallStatusEventPayload {
+  status?: CallStatus;
+  text?: string;
+  crmUserName?: string;
+  message?: CallMessage;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(d: string) {
@@ -214,23 +221,24 @@ function CallModeToggle({
       {(["voice", "video"] as CallMode[]).map((m) => (
         <button
           key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          disabled={disabled}
-          aria-pressed={mode === m}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all touch-manipulation",
-            mode === m
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-            disabled && "opacity-60 cursor-not-allowed",
-          )}
+      type="button"
+      onClick={() => onChange(m)}
+      disabled={disabled}
+      aria-pressed={mode === m}
+      className={cn(
+        "flex items-center gap-1.5 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all touch-manipulation",
+        mode === m
+          ? "bg-card text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
+        disabled && "opacity-60 cursor-not-allowed",
+      )}
         >
-          {m === "voice" ? <Phone className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
-          {m === "voice" ? "Voice" : "Video"}
-        </button>
-      ))}
-    </div>
+      {m === "voice" ? <Phone className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
+      {m === "voice" ? "Voice" : "Video"}
+    </button>
+  ))
+}
+    </div >
   );
 }
 
@@ -540,7 +548,7 @@ export default function CustomerCallCenterPage() {
     let active = true;
     let socket: Socket | null = null;
 
-    const onStatus = (payload: any) => {
+    const onStatus = (payload: CallStatusEventPayload) => {
       if (payload?.status) setStatus(payload.status as CallStatus);
       if (payload?.text) {
         pushToast({
@@ -549,14 +557,13 @@ export default function CustomerCallCenterPage() {
           crmUserName: payload.crmUserName,
         });
       }
-      if (payload?.message) {
-        setTimeline((p) =>
-          p.find((m) => m._id === payload.message._id) ? p : [...p, payload.message]
-        );
+      const { message } = payload;
+      if (message) {
+        setTimeline((p) => (p.find((m) => m._id === message._id) ? p : [...p, message]));
       }
     };
 
-    const onStarted = (payload: any) => {
+    const onStarted = (payload: CallStatusEventPayload) => {
       setStatus("in_progress");
       pushToast({
         text: payload?.text || "Your call has started. Tap Join to enter.",
@@ -621,7 +628,7 @@ export default function CustomerCallCenterPage() {
     }
   };
 
-  const displayName = user?.fullName || (user as any)?.firstName || "Customer";
+  const displayName = user?.fullName || user?.firstName || "Customer";
   const meta = STATUS_META[status] ?? STATUS_META.idle;
   const canRequest = status === "idle" || status === "ended" || status === "declined";
   const canJoin = status === "in_progress" || status === "about_to_start";

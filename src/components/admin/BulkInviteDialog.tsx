@@ -177,7 +177,7 @@ export function BulkInviteDialog() {
                             setOpen(false)
                             reset()
                         }}>Done</Button>
-                    )}
+                    )}i
                 </DialogFooter>
             </DialogContent>
         </Dialog>

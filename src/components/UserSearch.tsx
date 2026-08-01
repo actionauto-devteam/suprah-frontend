@@ -18,6 +18,14 @@ interface User {
   avatar?: string
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = error as { response?: { data?: { message?: string } } }
+    return response.response?.data?.message || fallback
+  }
+  return error instanceof Error ? error.message || fallback : fallback
+}
+
 interface UserSearchProps {
   selectedUsers: string[]
   onSelectUsers: (userIds: string[]) => void
@@ -86,10 +94,9 @@ export function UserSearch({
       if (usersList.length === 0) {
         setError(`No users found matching "${query}"`)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[UserSearch] Search failed:', error)
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to search users'
-      setError(errorMessage)
+      setError(getErrorMessage(error, 'Failed to search users'))
       setUsers([])
     } finally {
       setIsLoading(false)
@@ -99,7 +106,7 @@ export function UserSearch({
   // Debounce search
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      fetchUsers(searchQuery)
+      fetchUsers(searchQuery);
     }, 300)
 
     return () => clearTimeout(timer)

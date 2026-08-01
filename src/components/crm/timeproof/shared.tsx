@@ -49,7 +49,7 @@ export const fmtHuman = (seconds: number) => {
 
 export const getDayColor = (seconds: number, isToday: boolean) => {
   if (isToday && seconds === 0)
-    return { bg: "bg-amber-400/10 border-amber-400/40", bar: "bg-muted/40", text: "text-muted-foreground/30" }
+    return { bg: "bg-amber-400/10 border-amber-400/40", bar: "bg-muted/40", text: "text-muted-foreground/75" }
   if (seconds === 0) return { bg: "", bar: "", text: "" }
   return { bg: "bg-blue-950/[0.07] border-blue-500/20", bar: "bg-blue-700", text: "text-white" }
 }
@@ -62,14 +62,14 @@ export const StatCard = ({ label, value, sub, icon: Icon, accent = false, amber 
     : amber ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
     : "border-border/40 bg-card"}`}>
     <div className="flex items-center justify-between">
-      <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">{label}</p>
-      <Icon className={`h-3.5 w-3.5 ${accent ? "text-emerald-600" : amber ? "text-amber-500" : "text-muted-foreground/25"}`} />
+      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-muted-foreground/75">{label}</p>
+      <Icon className={`h-3.5 w-3.5 ${accent ? "text-emerald-600" : amber ? "text-amber-500" : "text-muted-foreground/70"}`} />
     </div>
     <p className={`text-2xl font-black tracking-tight leading-none ${
       accent ? "text-emerald-700 dark:text-emerald-300" : amber ? "text-amber-700 dark:text-amber-300" : ""}`}>
       {value}
     </p>
-    {sub && <p className="text-[10px] text-muted-foreground/40 leading-none">{sub}</p>}
+    {sub && <p className="text-[12px] text-muted-foreground/75 leading-none">{sub}</p>}
   </div>
 )
 
@@ -400,7 +400,7 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
     <div className="w-full">
       <div className="grid grid-cols-7 border-b border-border/30">
         {DAYS.map((d) => (
-          <div key={d} className="py-2.5 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/35 border-r border-border/20 last:border-r-0">{d}</div>
+          <div key={d} className="py-2.5 text-center text-[12px] font-bold uppercase tracking-widest text-muted-foreground/75 border-r border-border/20 last:border-r-0">{d}</div>
         ))}
       </div>
       {Array.from({ length: cells.length / 7 }, (_, wi) => (
@@ -425,9 +425,9 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
               >
                 <div className="flex items-start justify-between">
                   <span className={isToday
-                    ? "h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black"
-                    : isFuture ? "text-[12px] font-bold text-muted-foreground/20"
-                    : "text-[12px] font-bold text-muted-foreground/50"}>
+                    ? "h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[12px] font-black"
+                    : isFuture ? "text-sm font-bold text-muted-foreground/70"
+                    : "text-sm font-bold text-muted-foreground/80"}>
                     {dayNum}
                   </span>
                   {isCurrentlyLive && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse mt-0.5" />}
@@ -437,18 +437,18 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
                     {hasData && (
                       <>
                         <div className={`rounded-[5px] px-1.5 py-1 text-center ${colors.bar}`}>
-                          <span className={`text-[11px] font-black font-mono ${colors.text}`}>{fmtHHMM(data.totalSeconds)}</span>
+                          <span className={`text-[13px] font-black font-mono ${colors.text}`}>{fmtHHMM(data.totalSeconds)}</span>
                         </div>
                         {!!data.breakSeconds && data.breakSeconds > 0 && (
                           <div className={`rounded-[5px] px-1.5 py-0.5 text-center ${data.breakSeconds >= BREAK_OVER_LIMIT_SECONDS ? "bg-red-500/90" : "bg-orange-500/80"}`}>
-                            <span className="text-[10px] font-bold font-mono text-white">{fmtHHMM(data.breakSeconds)}</span>
+                            <span className="text-[12px] font-bold font-mono text-white">{fmtHHMM(data.breakSeconds)}</span>
                           </div>
                         )}
                       </>
                     )}
                     {!!data?.weekTotalSeconds && data.weekTotalSeconds > 0 && (
                       <div className="rounded-[5px] px-1.5 py-0.5 text-center bg-emerald-600/90">
-                        <span className="text-[10px] font-bold font-mono text-white">{fmtHHMM(data.weekTotalSeconds)}</span>
+                        <span className="text-[12px] font-bold font-mono text-white">{fmtHHMM(data.weekTotalSeconds)}</span>
                       </div>
                     )}
                   </div>
@@ -456,7 +456,7 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
                 {isToday && !hasData && (
                   <div className="mt-auto">
                     <div className="rounded-[5px] px-1.5 py-1 bg-muted/25 text-center">
-                      <span className="text-[10px] text-muted-foreground/25 font-mono">--:--</span>
+                      <span className="text-[12px] text-muted-foreground/70 font-mono">--:--</span>
                     </div>
                   </div>
                 )}
@@ -516,8 +516,8 @@ export const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive 
                   )}
                 >
                   <div className="w-11 shrink-0 flex flex-col items-center gap-0.5">
-                    <span className={cn("text-[9px] font-bold uppercase tracking-widest",
-                      isToday ? "text-emerald-500" : "text-muted-foreground/30")}>{DOW[dow]}</span>
+                    <span className={cn("text-[11px] font-bold uppercase tracking-widest",
+                      isToday ? "text-emerald-500" : "text-muted-foreground/75")}>{DOW[dow]}</span>
                     <span className={cn("text-2xl font-black tabular-nums leading-none",
                       isToday ? "text-emerald-500" : "text-foreground/70")}>{day}</span>
                   </div>
@@ -531,24 +531,24 @@ export const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive 
                         </span>
                         {!!data!.breakSeconds && data!.breakSeconds > 0 && (
                           data!.breakSeconds! >= BREAK_OVER_LIMIT_SECONDS ? (
-                            <span className="text-[10px] font-bold font-mono text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                            <span className="text-[12px] font-bold font-mono text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
                               {fmtHHMM(data!.breakSeconds)} brk
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold font-mono text-orange-400/80 bg-orange-500/8 px-2 py-0.5 rounded-full border border-orange-500/15">
+                            <span className="text-[12px] font-bold font-mono text-orange-400/80 bg-orange-500/8 px-2 py-0.5 rounded-full border border-orange-500/15">
                               {fmtHHMM(data!.breakSeconds)} brk
                             </span>
                           )
                         )}
                       </>
                     ) : isToday ? (
-                      <span className="text-[13px] text-muted-foreground/30 font-medium">Not clocked in yet</span>
+                      <span className="text-base text-muted-foreground/75 font-medium">Not clocked in yet</span>
                     ) : (
-                      <span className="text-[15px] font-mono text-muted-foreground/15">—</span>
+                      <span className="text-lg font-mono text-muted-foreground/70">—</span>
                     )}
                   </div>
 
-                  {hasData && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/20 shrink-0" />}
+                  {hasData && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />}
                 </div>
               )
             })}
@@ -556,8 +556,8 @@ export const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive 
               <div className="flex items-center gap-4 px-4 py-2.5 bg-emerald-500/5 border-b border-emerald-500/10">
                 <div className="w-11 shrink-0" />
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/25">Week total</span>
-                  <span className="text-[13px] font-black font-mono text-emerald-600 dark:text-emerald-400">{fmtHHMM(week.weekTotal)}</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground/70">Week total</span>
+                  <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400">{fmtHHMM(week.weekTotal)}</span>
                 </div>
               </div>
             )}

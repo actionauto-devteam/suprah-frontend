@@ -38,6 +38,14 @@ import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
 type LeadStatus = "pending" | "contacted" | "converted" | "closed";
 type CallType = "voice" | "video";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = error as { response?: { data?: { message?: string } } };
+    return response.response?.data?.message || fallback;
+  }
+  return error instanceof Error ? error.message || fallback : fallback;
+}
+
 interface RegisteredUser {
   _id: string;
   name: string;
@@ -163,10 +171,8 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
       const data = res.data?.data;
       setResult(data);
       onConverted({ ...lead, status: "converted" });
-    } catch (err: any) {
-      setError(
-        err?.response?.data?.message || "Failed to create account. Please try again."
-      );
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to create account. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -223,7 +229,7 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Verify the customer email below and click <strong className="text-zinc-300">Create Account</strong>. A temporary password will be sent directly to the customer via email — you won't see it.
+                Verify the customer email below and click <strong className="text-zinc-300">Create Account</strong>. A temporary password will be sent directly to the customer via email — you won&apos;t see it.
               </p>
 
               <div className="space-y-1.5">
@@ -242,7 +248,7 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
 
               <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Password</p>
-                <p className="text-xs text-zinc-400">A temporary password will be auto-generated and sent <strong className="text-zinc-300">directly to the customer's email</strong> for security. You will not see it.</p>
+                <p className="text-xs text-zinc-400">A temporary password will be auto-generated and sent <strong className="text-zinc-300">directly to the customer&apos;s email</strong> for security. You will not see it.</p>
               </div>
 
               {error && (
@@ -302,8 +308,8 @@ function PreCallModal({ lead, token, onClose, onStartJitsi }: PreCallModalProps)
       );
       setCallData(res.data?.data);
       setStep("ready");
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to create call room.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to create call room."));
       setStep("error");
     }
   };
@@ -705,8 +711,8 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
       );
       const list = res.data?.data?.invites ?? [];
       if (list.length > 0) setInvite(list[0]);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to generate invite link.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to generate invite link."));
     } finally {
       setLoading(false);
     }
@@ -728,7 +734,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
           text: "Click the link below to create your account.",
           url: invite.link,
         });
-      } catch {  }
+      } catch { }
     } else {
       copyLink();
     }
@@ -861,8 +867,8 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
       const data = res.data?.data;
       setResults(data?.results ?? []);
       setSummary({ created: data?.created ?? 0, skipped: data?.skipped ?? 0, failed: data?.failed ?? 0 });
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to create accounts.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to create accounts."));
     } finally {
       setLoading(false);
     }
@@ -1007,8 +1013,8 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
       );
       setUsers(res.data?.data?.customers || []);
       setTotal(res.data?.data?.total ?? 0);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load customer accounts.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to load customer accounts."));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1035,8 +1041,8 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
       );
       setUsers((prev) => prev.filter((u) => u._id !== userId));
       setTotal((t) => t - 1);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to delete account.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to delete account."));
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -1079,7 +1085,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
       { }
       <div className="flex items-center gap-2 flex-wrap">
         { }
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative flex-1 min-w-45">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
           <input
             type="text"
@@ -1289,7 +1295,7 @@ export default function ReferralsPage() {
         try {
           const u = JSON.parse(localStorage.getItem("crm_user") || "{}");
           setUserRole(u.role ?? "");
-        } catch {  }
+        } catch { }
       });
   }, [router]);
 
@@ -1366,7 +1372,7 @@ export default function ReferralsPage() {
       >
         { }
         <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl">
-          <div className="flex items-center gap-3 h-14 sm:h-16 px-4 sm:px-6 max-w-6xl mx-auto">
+          <div className="flex items-center gap-3 h-14 sm:h-16 px-4 sm:px-6 max-w-7xl mx-auto">
             <button
               onClick={() => router.push("/crm/dashboard")}
               className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
@@ -1419,7 +1425,7 @@ export default function ReferralsPage() {
           </div>
         </header>
 
-        <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
 
           { }
           <div className="flex gap-1.5 flex-wrap">

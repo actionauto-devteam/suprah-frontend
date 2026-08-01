@@ -48,56 +48,13 @@ const STYLES = `
   --card-border-color: #1f2937;
 }
 
-/* Horizontal track matrix generating exactly 3 vehicles vertically per line column */
-.vpm-horizontal-matrix-track {
+.vpm-vehicle-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(3, 125px);
-  gap: 12px;
-  overflow-x: scroll !important; 
-  overflow-y: hidden !important;
-  padding-bottom: 16px; 
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr));
+  gap: 16px;
   width: 100%;
-  scrollbar-width: auto !important; 
-  scrollbar-color: #475569 #e2e8f0;
 }
 
-.dark .vpm-horizontal-matrix-track {
-  scrollbar-color: #94a3b8 #1e293b;
-}
-
-/* High-contrast webkit scrollbar rules ensuring it is always highly visible */
-.vpm-horizontal-matrix-track::-webkit-scrollbar {
-  height: 14px !important;
-  display: block !important;
-}
-.vpm-horizontal-matrix-track::-webkit-scrollbar-track {
-  background: #e2e8f0 !important;
-  border-radius: 10px !important;
-}
-.vpm-horizontal-matrix-track::-webkit-scrollbar-thumb {
-  background: #334155 !important;
-  border-radius: 10px !important;
-  border: 2px solid #cbd5e1 !important;
-}
-.vpm-horizontal-matrix-track::-webkit-scrollbar-thumb:hover {
-  background: #0f172a !important;
-}
-
-.dark .vpm-horizontal-matrix-track::-webkit-scrollbar-track { 
-  background: #1e293b !important; 
-}
-.dark .vpm-horizontal-matrix-track::-webkit-scrollbar-thumb { 
-  background: #94a3b8 !important; 
-  border: 2px solid #1e293b !important;
-}
-.dark .vpm-horizontal-matrix-track::-webkit-scrollbar-thumb:hover { 
-  background: #f8fafc !important; 
-}
-
-/* Wide gallery horizontal row cards layout - optimized vertical height */
 .vpm-h-gallery-card {
   background: white;
   border: 1.5px solid var(--card-border-color);
@@ -106,12 +63,10 @@ const STYLES = `
   display: flex;
   align-items: center;
   gap: 16px;
-  width: 480px; 
+  width: 100%;
   height: 125px;
-  scroll-snap-align: start;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: left;
-  flex-shrink: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01);
 }
 
@@ -121,7 +76,6 @@ const STYLES = `
 
 @media (max-width: 540px) {
   .vpm-h-gallery-card {
-    width: 325px;
     gap: 12px;
     padding: 10px;
     height: 125px;
@@ -345,7 +299,7 @@ export function VehiclePickerModal({
 
         const requestParams: Record<string, unknown> = {
           page: vehiclePage,
-          limit: 12, 
+          limit: 12,
           ...vehicleFilters,
           search: debouncedSearch || undefined,
         };
@@ -399,8 +353,8 @@ export function VehiclePickerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="vpm-container max-w-[1800px] w-[98vw] h-[95vh] overflow-hidden p-0 z-[250] flex flex-col rounded-3xl border-none shadow-2xl bg-white dark:bg-gray-950">
-        
+      <DialogContent className="vpm-container max-w-450 w-[98vw] h-[95vh] overflow-hidden p-0 z-250 flex flex-col rounded-3xl border-none shadow-2xl bg-white dark:bg-gray-950">
+
         {/* Modal Header */}
         <DialogHeader className="px-8 py-6 border-b bg-white dark:bg-gray-900/50 backdrop-blur-xl shrink-0 flex flex-row items-center justify-between gap-6">
           <div className="space-y-1 flex-1 min-w-0">
@@ -408,16 +362,16 @@ export function VehiclePickerModal({
               Select Inventory Assets
             </DialogTitle>
             <DialogDescription className="text-sm text-gray-500 truncate">
-              Exactly 3 vehicles are stacked per column line. Use the high-visibility scrollbar at the bottom to browse horizontally.
+              Browse the inventory below and select vehicles to attach to this appointment.
             </DialogDescription>
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <Badge variant="secondary" className="px-3.5 py-1.5 text-xs rounded-full font-bold">
               {selectedVehicles.length} Selected
             </Badge>
-            <Button 
+            <Button
               size="sm"
-              className="bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-5 rounded-xl shadow-md transition-all" 
+              className="bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-5 rounded-xl shadow-md transition-all"
               onClick={handleSaveSelection}
             >
               Confirm Selection
@@ -443,24 +397,24 @@ export function VehiclePickerModal({
             </Alert>
           )}
 
-          <div className="flex-1 flex items-center min-h-0 w-full pt-2">
+          <div className="flex-1 w-full pt-2">
             {isLoading ? (
-              <div className="vpm-horizontal-matrix-track w-full">
-                {[...Array(3)].map((_, i) => (
+              <div className="vpm-vehicle-grid">
+                {[...Array(6)].map((_, i) => (
                   <div key={i} className="vpm-h-gallery-card bg-muted/20 animate-pulse border-dashed" />
                 ))}
               </div>
             ) : vehicles.length > 0 ? (
-              <div className="vpm-horizontal-matrix-track w-full">
+              <div className="vpm-vehicle-grid">
                 {vehicles.map((vehicle) => {
                   const isSelected = selectedVehicles.some((v) => v.id === vehicle.id);
                   const isPending = vehicle.status?.toLowerCase() === 'pending' || vehicle.status?.toLowerCase() === 'sale pending';
-                  
+
                   const calculatedMonthlyEstimate = vehicle.price ? Math.round((vehicle.price * 0.018) + 45) : 345;
 
                   return (
-                    <div 
-                      key={vehicle.id} 
+                    <div
+                      key={vehicle.id}
                       onClick={() => toggleVehicleSelection(vehicle)}
                       className={`vpm-h-gallery-card group ${isSelected ? "active-selection" : ""}`}
                     >
@@ -481,11 +435,11 @@ export function VehiclePickerModal({
                         )}
 
                         {isPending && <div className="vpm-pending-label">Sale Pending</div>}
-                        
+
                         <div className="vpm-location-overlay-text">
                           {vehicle.location || "OREM"}
                         </div>
-                        
+
                         <div className="vpm-split-marketing-tags">
                           <div>Home Delivery</div>
                           <div>Online Financing</div>
@@ -503,7 +457,7 @@ export function VehiclePickerModal({
                               {vehicle.trim || "A-SPEC"}
                             </div>
                           </div>
-                          
+
                           <div className="vpm-pricing-wrapper-block shrink-0">
                             <span className="vpm-price-value-text">${calculatedMonthlyEstimate}</span>
                             <span className="text-[11px] font-bold text-slate-400">/mo</span>

@@ -50,7 +50,7 @@ export function MemberCard({
           onClick={onClick}
           onKeyDown={(e) => e.key === "Enter" && onClick()}
           className={cn(
-            "w-full text-left flex flex-col items-center gap-3 p-4 pt-5 rounded-xl border bg-card",
+            "w-full min-h-48 text-left flex flex-col items-center gap-3 p-4 pt-5 rounded-xl border bg-card",
             "hover:bg-accent/10 active:scale-[0.98] transition-all duration-150 cursor-pointer group",
             "border-border/40 hover:border-border/60",
             isMe && "ring-1 ring-primary/20 border-primary/20",
@@ -122,63 +122,78 @@ export function MemberCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) onClick();
+      }}
       className={cn(
-        "w-full flex items-center gap-3 sm:gap-4 pl-0 pr-3 sm:pr-4 py-3 rounded-xl border bg-card",
+        "w-full grid grid-cols-[auto_auto_minmax(0,1fr)_auto] sm:grid-cols-[auto_auto_minmax(0,1.3fr)_minmax(0,1fr)_auto]",
+        "items-center gap-3 sm:gap-4 pl-0 pr-3 sm:pr-4 py-3 rounded-xl border bg-card cursor-pointer",
         "transition-all duration-150 group overflow-hidden",
         "border-border/40 hover:border-border/60 hover:bg-accent/10",
         isMe && "ring-1 ring-primary/20 border-primary/20",
       )}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onClick}
-        onKeyDown={(e) => e.key === "Enter" && onClick()}
-        className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 cursor-pointer pl-0"
-      >
-        <div className={cn("w-0.5 self-stretch shrink-0 transition-opacity opacity-70 group-hover:opacity-100", S.dot[status])} />
+      <div className={cn("w-0.5 self-stretch shrink-0 transition-opacity opacity-70 group-hover:opacity-100", S.dot[status])} />
 
-        <Avatar className={cn(
-          "size-9 sm:size-10 ring-2 ring-offset-1 ring-offset-background transition-all shrink-0",
-          S.ring[status],
-          status === "offline" && "opacity-45",
-        )}>
-          <AvatarImage src={member.avatar} />
-          <AvatarFallback className="text-sm font-black bg-muted/60">{member.name[0]}</AvatarFallback>
-        </Avatar>
+      <Avatar className={cn(
+        "size-9 sm:size-10 ring-2 ring-offset-1 ring-offset-background transition-all shrink-0",
+        S.ring[status],
+        status === "offline" && "opacity-45",
+      )}>
+        <AvatarImage src={member.avatar} />
+        <AvatarFallback className="text-sm font-black bg-muted/60">{member.name[0]}</AvatarFallback>
+      </Avatar>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-            <span className="font-bold text-sm truncate">{member.name}</span>
-            {isMe && (
-              <span className="text-[9px] font-black text-primary uppercase tracking-widest shrink-0 px-1 py-0.5 rounded bg-primary/8">you</span>
-            )}
-            <Badge
-              variant="outline"
-              className={cn("text-[9px] font-black px-1.5 h-4 uppercase tracking-wide border shrink-0", ROLE_STYLE[member.role] ?? ROLE_STYLE.employee)}
-            >
-              {ROLE_LABEL[member.role] ?? member.role}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {member.personalInfo?.jobTitle && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70 shrink-0">
-                <Briefcase className="size-3 opacity-40 shrink-0" />
-                <span className="truncate max-w-32">{member.personalInfo.jobTitle}</span>
-              </span>
-            )}
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 shrink-0">
-              <Building2 className="size-3 opacity-40 shrink-0" />
-              <span className={cn("truncate max-w-28", noDept && "italic opacity-40")}>{dept}</span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+          <span className="font-bold text-sm truncate">{member.name}</span>
+          {isMe && (
+            <span className="text-[9px] font-black text-primary uppercase tracking-widest shrink-0 px-1 py-0.5 rounded bg-primary/8">you</span>
+          )}
+          <Badge
+            variant="outline"
+            className={cn("text-[9px] font-black px-1.5 h-4 uppercase tracking-wide border shrink-0", ROLE_STYLE[member.role] ?? ROLE_STYLE.employee)}
+          >
+            {ROLE_LABEL[member.role] ?? member.role}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap sm:hidden">
+          {member.personalInfo?.jobTitle && (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70 min-w-0">
+              <Briefcase className="size-3 opacity-40 shrink-0" />
+              <span className="truncate max-w-32">{member.personalInfo.jobTitle}</span>
             </span>
-            {member.customStatus && (
-              <span className="text-[10px] italic text-muted-foreground/40 truncate max-w-28">"{member.customStatus}"</span>
-            )}
-          </div>
+          )}
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 min-w-0">
+            <Building2 className="size-3 opacity-40 shrink-0" />
+            <span className={cn("truncate max-w-28", noDept && "italic opacity-40")}>{dept}</span>
+          </span>
+          {member.customStatus && (
+            <span className="text-[10px] italic text-muted-foreground/40 truncate max-w-28">"{member.customStatus}"</span>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0 h-10">
+      <div className="hidden sm:flex items-center gap-4 min-w-0">
+        {member.personalInfo?.jobTitle && (
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 min-w-0 flex-1">
+            <Briefcase className="size-3 opacity-40 shrink-0" />
+            <span className="truncate">{member.personalInfo.jobTitle}</span>
+          </span>
+        )}
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0 flex-1">
+          <Building2 className="size-3 opacity-40 shrink-0" />
+          <span className={cn("truncate", noDept && "italic opacity-40")}>{dept}</span>
+        </span>
+        {member.customStatus && (
+          <span className="text-[10px] italic text-muted-foreground/40 truncate min-w-0 flex-1">"{member.customStatus}"</span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 shrink-0 h-10" onClick={(e) => e.stopPropagation()}>
         {!isMe && (
           <button
             onClick={handleMessage}

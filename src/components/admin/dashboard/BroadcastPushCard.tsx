@@ -10,6 +10,14 @@ import { Megaphone, Send, Loader2, Globe } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
+function getErrorMessage(error: unknown, fallback: string) {
+    if (typeof error === "object" && error !== null && "response" in error) {
+        const response = error as { response?: { data?: { message?: string } } };
+        return response.response?.data?.message || fallback;
+    }
+    return error instanceof Error ? error.message || fallback : fallback;
+}
+
 export function BroadcastPushCard() {
     const [title, setTitle] = useState('');
     const [body, setBody] = useState('');
@@ -42,9 +50,9 @@ export function BroadcastPushCard() {
             setUrl('/');
             setImage('');
             setIcon('');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[Broadcast] Failed:', error);
-            toast.error(error.response?.data?.message || 'Failed to send broadcast');
+            toast.error(getErrorMessage(error, 'Failed to send broadcast'));
         } finally {
             setIsSending(false);
         }

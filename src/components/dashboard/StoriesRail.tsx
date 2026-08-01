@@ -22,6 +22,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api-client";
 import { io, type Socket } from "socket.io-client";
+import type { OnlineStatus } from "@/hooks/useTeamPulse";
+import { S } from "@/app/(dashboard)/team-pulse/_components/team-pulse-constants";
+import { StatusDot } from "@/app/(dashboard)/team-pulse/_components/StatusDot";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -62,6 +65,7 @@ interface RailUser {
   storyCount: number;
   stories: StoryItem[];
   note: RailNote | null;
+  onlineStatus?: OnlineStatus;
 }
 
 /* ── Constants / helpers ───────────────────────────────────────────────────── */
@@ -194,7 +198,6 @@ function NoteEditor({
 }) {
   const [draft, setDraft] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
-
   const save = async () => {
     setSaving(true);
     try {
@@ -219,7 +222,7 @@ function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 lex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
@@ -330,7 +333,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
@@ -342,7 +345,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
           {!file ? (
             <button
               onClick={() => inputRef.current?.click()}
-              className="flex aspect-[9/12] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
+              className="flex aspect-9/12 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
             >
               <ImagePlus className="size-8 text-muted-foreground/50" />
               <div className="text-center">
@@ -351,7 +354,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
               </div>
             </button>
           ) : (
-            <div className="relative aspect-[9/12] w-full overflow-hidden rounded-2xl bg-black">
+            <div className="relative aspect-9/12 w-full overflow-hidden rounded-2xl bg-black">
               {isVideo ? (
                 <video src={previewUrl!} className="size-full object-contain" controls muted />
               ) : (
@@ -498,7 +501,7 @@ function StoryViewer({
     apiClient
       .get(`/api/crm/stories/${story._id}`)
       .then((res) => setDetail(res.data?.data?.story || null))
-      .catch(() => {});
+      .catch(() => { });
   }, [story?._id]);
 
   // On each story: reset duration/pause, mark viewed, load detail + light poll.
@@ -507,7 +510,7 @@ function StoryViewer({
     setDetail(null);
     setManualPause(false);
     setMediaDuration(story.media.mediaType === "image" ? PHOTO_DURATION_MS / 1000 : (story.media.durationSec || 0));
-    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => {});
+    apiClient.post(`/api/crm/stories/${story._id}/view`).catch(() => { });
     loadDetail();
     const id = setInterval(loadDetail, 5000);
     return () => clearInterval(id);
@@ -542,7 +545,7 @@ function StoryViewer({
     const v = videoRef.current;
     if (!v) return;
     if (paused) v.pause();
-    else v.play().catch(() => {});
+    else v.play().catch(() => { });
   }, [paused]);
 
   const react = async (emoji: string) => {
@@ -582,7 +585,7 @@ function StoryViewer({
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <style>{`@keyframes storyReactFloat{0%{opacity:0;transform:translateY(28px) scale(.4)}25%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-150px) scale(1.75)}}`}</style>
       <button onClick={onClose} className="absolute right-4 top-4 z-30 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
         <X className="size-5" />
@@ -654,7 +657,7 @@ function StoryViewer({
             <img key={story._id} src={story.media.url} alt="" className="size-full object-contain" />
           )}
           {story.caption && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
               <p className="text-sm text-white/90">{story.caption}</p>
             </div>
           )}
@@ -842,7 +845,7 @@ function NoteDetail({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-95 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
         <div className="relative z-10 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-card/95 shadow-2xl backdrop-blur-2xl">
           {/* Header */}
@@ -866,7 +869,7 @@ function NoteDetail({
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
             {/* The note itself */}
             <div className="rounded-2xl rounded-bl-md border border-emerald-500/25 bg-emerald-500/[0.07] px-4 py-3">
-              <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-foreground/90">
+              <p className="whitespace-pre-wrap wrap-break-word text-[15px] leading-relaxed text-foreground/90">
                 {note?.text || "…"}
               </p>
             </div>
@@ -1027,7 +1030,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
     <>
       <section className="group/rail relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl shadow-sm">
         {/* subtle top hairline glow for a more digital feel */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/40 to-transparent" />
 
         {/* Desktop scroll arrows (hidden on touch) */}
         <button
@@ -1094,7 +1097,12 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
                   </Avatar>
                 </StoryRing>
               </button>
-              <span className="text-[10px] font-medium text-muted-foreground max-w-16 truncate">{u.fullName.split(" ")[0]}</span>
+              <span className="flex min-w-0 max-w-16 items-center gap-1" title={u.fullName}>
+                <StatusDot s={u.onlineStatus ?? "offline"} />
+                <span className="truncate text-[10px] font-medium text-muted-foreground">
+                  {S.label[u.onlineStatus ?? "offline"]}
+                </span>
+              </span>
             </div>
           ))}
 
@@ -1149,25 +1157,25 @@ function NoteBubble({
   onClick?: () => void;
 }) {
   const hasText = Boolean(text);
-  if (!hasText && !mine) {
-    // Reserve vertical space so avatars stay aligned across the row.
-    return <div className="h-7" aria-hidden />;
-  }
+  const show = hasText || mine;
   const clickable = Boolean(onClick);
+  // Always render the same bubble markup — even when hidden — so its box
+  // height is identical for every user and avatars never drift row to row.
   return (
     <button
       onClick={onClick}
       disabled={!clickable}
-      className={`group relative max-w-[6.5rem] ${clickable ? "cursor-pointer" : "cursor-default"}`}
+      aria-hidden={!show}
+      tabIndex={show ? undefined : -1}
+      className={`group relative max-w-26 ${clickable ? "cursor-pointer" : "cursor-default"} ${show ? "" : "invisible pointer-events-none"}`}
     >
       <div
-        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm transition-colors ${
-          hasText
-            ? "bg-muted/80 text-foreground/80 border border-border/40 group-hover:border-emerald-500/40"
-            : "bg-emerald-500/10 text-emerald-600 border border-dashed border-emerald-500/40"
-        }`}
+        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm transition-colors ${hasText
+          ? "bg-muted/80 text-foreground/80 border border-border/40 group-hover:border-emerald-500/40"
+          : "bg-emerald-500/10 text-emerald-600 border border-dashed border-emerald-500/40"
+          }`}
       >
-        {hasText ? text : placeholder}
+        {hasText ? text : placeholder || " "}
         {mine && <Pencil className="ml-1 inline size-2.5 opacity-0 transition-opacity group-hover:opacity-70" />}
       </div>
     </button>

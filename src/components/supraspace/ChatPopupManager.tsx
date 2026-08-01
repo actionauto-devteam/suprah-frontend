@@ -14,6 +14,9 @@ import {
 import { SSAttachment, SSMessage } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { toast } from 'sonner';
+import type { AxiosRequestConfig } from 'axios';
+
+type RequestConfigWithSkipRefresh = AxiosRequestConfig & { _skipAuthRefresh?: boolean };
 
 const POPUP_W = 400;
 const POPUP_GAP = 8;
@@ -878,7 +881,7 @@ function PinnedMessagesModal({
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8ea', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.sender?.fullName || 'Unknown'}</span>
                         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{dateStr}</span>
                       </div>
-                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any }}>
+                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                         {contentText}
                       </p>
                     </div>
@@ -1142,16 +1145,16 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     clearBar();
     try {
       await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
     } catch { /* best-effort */ }
   };
 
   const handleDelete = async (msgId: string) => {
     clearBar();
-    setMessages(prev => prev.map(m => m._id === msgId ? { ...m, isDeleted: true, content: '', attachments: [] } as any : m));
+    setMessages(prev => prev.map(m => m._id === msgId ? { ...m, isDeleted: true, content: '', attachments: [] } : m));
     try {
       await apiClient.delete(`/api/supraspace/messages/${msgId}`,
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
     } catch {
       setMessages(prev => prev.map(m => m._id === msgId ? { ...m, isDeleted: false } : m));
     }
@@ -1168,7 +1171,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     const targetId =
       typeof replyTo === 'string'
         ? replyTo
-        : (replyTo as any)?._id || (replyTo as any)?.id;
+        : replyTo?._id;
 
     if (!targetId) return;
 
@@ -1284,7 +1287,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     try {
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`,
         { content: '👍' },
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
       if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
     } catch { /* ignored */ } finally { setSending(false); }
@@ -1394,7 +1397,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         fd.append('content', nextDraft);
         editReplacementFiles.forEach(item => fd.append('files', item.file));
         const r = await apiClient.patch(`/api/supraspace/messages/${editingMsgId}/attachments`, fd,
-          { headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' }, _skipAuthRefresh: true } as any);
+          { headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
         const updated = r.data?.data;
         setMessages(prev => prev.map(m => m._id === editingMsgId ? {
           ...m,
@@ -1405,7 +1408,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         } : m));
       } else {
         await apiClient.patch(`/api/supraspace/messages/${editingMsgId}`, { content: nextDraft },
-          { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+          { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
         setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: nextDraft, isEdited: true } : m));
       }
       cancelEdit();
@@ -1559,8 +1562,9 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       });
       setMessages(r.data?.data ?? []);
       markAsRead(conv._id);
-    } catch (err: any) {
-      console.error('[ChatPopup] messages fetch failed:', err?.response?.status, err?.response?.data ?? err?.message);
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: unknown }; message?: string };
+      console.error('[ChatPopup] messages fetch failed:', e?.response?.status, e?.response?.data ?? e?.message);
       setFetchError(true);
     } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1600,7 +1604,13 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   }, [socket, conv._id, isMinimized, markAsRead]);
   React.useEffect(() => {
     if (!socket) return;
-    const handler = ({ conversationId, messageId, content, attachments, type }: any) => {
+    const handler = ({ conversationId, messageId, content, attachments, type }: {
+      conversationId: string;
+      messageId: string;
+      content: string;
+      attachments?: SSAttachment[];
+      type?: SSMessage['type'];
+    }) => {
       if (conversationId !== conv._id) return;
       setMessages(prev => prev.map(m => m._id === messageId ? {
         ...m,
@@ -1685,10 +1695,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     if (inputRef.current) inputRef.current.innerHTML = '';
     setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null);
     try {
-      const body: any = { content: text };
+      const body: { content: string; replyTo?: string } = { content: text };
       if (currentReplyTo) body.replyTo = currentReplyTo._id;
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any);
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
       if (sent) setMessages(prev => {
         if (prev.find(m => m._id === sent._id)) return prev.filter(m => m._id !== tempId);
@@ -1812,7 +1822,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       await apiClient.patch(
         `/api/supraspace/conversations/${conv._id}/notifications`,
         next,
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as any,
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh,
       ).then((res) => {
         const saved = res.data?.data || next;
         setNotifPrefs(prev => ({ ...prev, [conv._id]: saved }));
@@ -2112,10 +2122,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                 title="Jump to original message"
                               >
                                 <div className={cn('font-semibold truncate', isOwn ? 'text-white/80' : 'text-blue-400')}>
-                                  {(msg.replyTo as any)?.sender?.fullName || 'Reply'}
+                                  {msg.replyTo?.sender?.fullName || 'Reply'}
                                 </div>
                                 <div className={cn('truncate', isOwn ? 'text-white/60' : 'text-foreground/50')}>
-                                  {messagePreviewText((msg.replyTo as any)?.content) || '📎 Attachment'}
+                                  {messagePreviewText(msg.replyTo?.content) || '📎 Attachment'}
                                 </div>
                               </button>
                             )}
@@ -2155,7 +2165,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                 ? <span className="block text-[32px] leading-none">{msg.content}</span>
                                 : renderContent(msg, isOwn)
                               : msg.content ? <span>{msg.content}</span> : null}
-                            {(msg as any).isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
+                            {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
                             {!hideTime && (
                               <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
                                 <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
@@ -2185,7 +2195,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                             {msg.reactions.map(r => {
                               const mine = (r.users || []).includes(crmUserId || '');
                               const whoArr = (r.users || []).map((uid: string) => {
-                                const member = conv.members?.find((x: any) => x._id === uid);
+                                const member = conv.members?.find((x) => x._id === uid);
                                 return member?.fullName || '';
                               }).filter(Boolean);
                               const popId = msg._id + ':' + r.emoji;
@@ -2563,7 +2573,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           {(() => {
             const msg = messages.find(m => m._id === moreMenuMsgId);
             const isOwnMsg = msg?.sender?._id === crmUserId;
-            const imgAtt = msg?.attachments?.find((a: any) => a.mimeType?.startsWith('image/'));
+            const imgAtt = msg?.attachments?.find((a) => a.mimeType?.startsWith('image/'));
             const canEditMsg = isOwnMsg && !!msg && !msg.isDeleted && !['voice', 'poll', 'event'].includes(msg.type) && (Boolean(msg.content?.trim()) || (msg.attachments || []).some((a: SSAttachment) => !a.mimeType?.startsWith('audio/')));
             const close = () => { moreMenuMsgIdRef.current = null; setMoreMenuMsgId(null); setMoreMenuPos(null); };
             const isPinned = pinnedMsgIds.has(moreMenuMsgId);
@@ -2909,12 +2919,12 @@ function ChatOverflowDock({
           style={{ borderColor: 'rgba(255,255,255,0.18)' }}
           title={`${hiddenCount} hidden chat${hiddenCount === 1 ? '' : 's'}`}
         >
-          <MessageCircle className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white ring-2 ring-background">
-            +{hiddenCount}
-          </span>
-        </button>
-      </div>
+        <MessageCircle className="h-5 w-5" />
+        <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white ring-2 ring-background">
+          +{hiddenCount}
+        </span>
+      </button>
+    </div >
     </>
   );
 }

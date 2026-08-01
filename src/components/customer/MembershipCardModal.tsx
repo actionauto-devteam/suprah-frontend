@@ -13,7 +13,7 @@ import { ACTION_AUTO_BENEFITS_REP, ACTION_AUTO_SERVICE_DISCOUNT_PERCENT, buildMe
 
 function getMemberId(userId: string): string {
   const hex = userId.slice(-12).toUpperCase()
-  return `${hex.slice(0,4)} ${hex.slice(4,8)} ${hex.slice(8,12)}`
+  return `${hex.slice(0, 4)} ${hex.slice(4, 8)} ${hex.slice(8, 12)}`
 }
 
 function getSinceYear(userId: string): string {
@@ -123,18 +123,18 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
             <div className="flex items-center gap-3 flex-wrap">
               <svg width="38" height="30" viewBox="0 0 38 30" fill="none">
-                <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.25)" strokeWidth="1"/>
-                <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipG2)"/>
-                <line x1="13" y1="0.5" x2="13" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
-                <line x1="25" y1="0.5" x2="25" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
-                <line x1="0.5" y1="10" x2="37.5" y2="10" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
-                <line x1="0.5" y1="20" x2="37.5" y2="20" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75"/>
-                <rect x="13" y="10" width="12" height="10" rx="1.5" fill="rgba(0,0,0,0.2)" stroke="rgba(0,0,0,0.25)" strokeWidth="0.5"/>
+                <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipG2)" />
+                <line x1="13" y1="0.5" x2="13" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75" />
+                <line x1="25" y1="0.5" x2="25" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75" />
+                <line x1="0.5" y1="10" x2="37.5" y2="10" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75" />
+                <line x1="0.5" y1="20" x2="37.5" y2="20" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75" />
+                <rect x="13" y="10" width="12" height="10" rx="1.5" fill="rgba(0,0,0,0.2)" stroke="rgba(0,0,0,0.25)" strokeWidth="0.5" />
                 <defs>
                   <linearGradient id="chipG2" x1="0" y1="0" x2="38" y2="30" gradientUnits="userSpaceOnUse">
-                    <stop stopColor={tierGradient[0]}/>
-                    <stop offset="0.45" stopColor={tierPrimary}/>
-                    <stop offset="1" stopColor={tierGradient[tierGradient.length - 1]}/>
+                    <stop stopColor={tierGradient[0]} />
+                    <stop offset="0.45" stopColor={tierPrimary} />
+                    <stop offset="1" stopColor={tierGradient[tierGradient.length - 1]} />
                   </linearGradient>
                 </defs>
               </svg>
@@ -194,7 +194,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
           </div>
         </div>
-
+        909090909090909090909090909090909090909090GVBGVBGVBGVBGVBGVBGVBGVBGVBGVBGVBGVBGVBRFTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTSW
         <div className="mt-3 grid gap-2">
           <Button
             onClick={handleShare}

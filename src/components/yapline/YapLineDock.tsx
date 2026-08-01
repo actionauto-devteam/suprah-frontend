@@ -31,6 +31,8 @@ import {
   RadioTower,
   Maximize2,
   LogIn,
+  GripHorizontal,
+  PhoneOff,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -81,10 +83,112 @@ function ScreenView({ userId, version, className, onClick }: {
   );
 }
 
+const DOCK_POS_KEY = "yapline_dock_pos";
+
+function loadDockPos(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(DOCK_POS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.x === "number" && typeof parsed?.y === "number") return parsed;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveDockPos(pos: { x: number; y: number }) {
+  try {
+    localStorage.setItem(DOCK_POS_KEY, JSON.stringify(pos));
+  } catch { /* ignore */ }
+}
+
 export function YapLineDock() {
   const s = useYapLine();
   const router = useRouter();
   const [expandedScreen, setExpandedScreen] = React.useState(false);
+
+  // ── Draggable positioning ──────────────────────────────────────────────
+  // The dock defaults to bottom-right via CSS; once the user drags it, we
+  // switch to an explicit left/top (persisted) so it stays wherever they put
+  // it across reloads and route changes — this is the whole floating stack
+  // (join pills + mini-player), so one handle moves everything together.
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dockPos, setDockPos] = React.useState<{ x: number; y: number } | null>(null);
+  const dragRef = React.useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+
+  const clampToViewport = React.useCallback((x: number, y: number) => {
+    const el = containerRef.current;
+    const w = el?.offsetWidth ?? 220;
+    const h = el?.offsetHeight ?? 60;
+    const maxX = Math.max(8, window.innerWidth - w - 8);
+    const maxY = Math.max(8, window.innerHeight - h - 8);
+    return { x: Math.min(Math.max(8, x), maxX), y: Math.min(Math.max(8, y), maxY) };
+  }, []);
+
+  // Load the saved position once and clamp it against whatever's on screen
+  // right now — a position saved from a wider/taller window (or a smaller
+  // widget shape) could otherwise sit off-screen the moment it's restored.
+  React.useLayoutEffect(() => {
+    const loaded = loadDockPos();
+    if (loaded) setDockPos(clampToViewport(loaded.x, loaded.y));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    const onResize = () => setDockPos((prev) => (prev ? clampToViewport(prev.x, prev.y) : prev));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [clampToViewport]);
+
+  // Re-clamp whenever the dock's own footprint changes shape — minimized
+  // (~44px pill) vs. expanded (320px mini-player) vs. extra join-elsewhere
+  // pills. A position saved while minimized can otherwise sit right at a
+  // screen edge; joining a session forces minimized back to false (see
+  // yapline-store's join()), and the panel balloons out from that same
+  // corner with nothing pulling it back on-screen — this is what was
+  // cutting the reopened panel off after drag → minimize → leave → rejoin.
+  // useLayoutEffect so containerRef already reflects the new size by the
+  // time we measure it, before the user sees a frame of the overflow.
+  React.useLayoutEffect(() => {
+    setDockPos((prev) => {
+      if (!prev) return prev;
+      const clamped = clampToViewport(prev.x, prev.y);
+      if (clamped.x === prev.x && clamped.y === prev.y) return prev;
+      saveDockPos(clamped);
+      return clamped;
+    });
+  }, [s.current?.conversationId, s.minimized, Object.keys(s.sessions).length, clampToViewport]);
+
+  const beginDrag = React.useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: rect.left, originY: rect.top, moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  }, []);
+
+  const onDragMove = React.useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) drag.moved = true;
+    if (!drag.moved) return;
+    setDockPos(clampToViewport(drag.originX + dx, drag.originY + dy));
+  }, [clampToViewport]);
+
+  const endDrag = React.useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    if (drag?.moved) {
+      setDockPos((prev) => {
+        if (prev) saveDockPos(prev);
+        return prev;
+      });
+    }
+  }, []);
+
   const cur = s.current;
   const session = cur ? s.sessions[cur.conversationId] : null;
 
@@ -135,7 +239,7 @@ export function YapLineDock() {
       {/* Full-screen viewer for a shared screen */}
       {expandedScreen && sharer && cur && (
         <div
-          className="fixed inset-0 z-[90] flex flex-col bg-black/85 backdrop-blur-sm p-4 sm:p-8"
+          className="fixed inset-0 z-90 flex flex-col bg-black/85 backdrop-blur-sm p-4 sm:p-8"
           onClick={() => setExpandedScreen(false)}
         >
           <div className="mb-2 flex items-center justify-between text-white/80">
@@ -152,7 +256,26 @@ export function YapLineDock() {
         </div>
       )}
 
-      <div className="fixed bottom-24 right-3 z-[70] flex flex-col items-end gap-2 md:bottom-5 md:right-5">
+      <div
+        ref={containerRef}
+        className={cn(
+          "fixed z-70 flex flex-col items-end gap-2",
+          !dockPos && "bottom-24 right-3 md:bottom-5 md:right-5"
+        )}
+        style={dockPos ? { left: dockPos.x, top: dockPos.y, right: "auto", bottom: "auto" } : undefined}
+      >
+        {/* ── Drag handle — grabs and repositions the whole dock ── */}
+        <div
+          onPointerDown={beginDrag}
+          onPointerMove={onDragMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          title="Drag to move"
+          className="flex h-5 w-10 shrink-0 touch-none cursor-grab select-none items-center justify-center self-center rounded-full border border-border/30 bg-card/70 text-muted-foreground/50 backdrop-blur-xl transition-colors hover:text-muted-foreground active:cursor-grabbing"
+        >
+          <GripHorizontal className="size-3.5" />
+        </div>
+
         {/* ── Live-elsewhere pills ── */}
         {otherLive.slice(0, 2).map((live) => (
           <button
@@ -177,8 +300,9 @@ export function YapLineDock() {
         {cur && (s.minimized ? (
           <button
             onClick={() => yapline.setMinimized(false)}
+            title={cur.transmitting ? "Transmitting…" : speaker ? `${speaker.fullName.split(" ")[0]} speaking` : cur.conversationName || "YapLine"}
             className={cn(
-              "flex items-center gap-2 rounded-full border bg-card/80 py-2 pl-2.5 pr-3.5 shadow-lg backdrop-blur-xl transition-all active:scale-95",
+              "relative flex size-11 shrink-0 items-center justify-center rounded-full border bg-card/80 shadow-lg backdrop-blur-xl transition-all active:scale-95",
               cur.transmitting
                 ? "border-emerald-400/60 shadow-emerald-500/25"
                 : speaker
@@ -187,15 +311,12 @@ export function YapLineDock() {
             )}
           >
             <span className={cn(
-              "flex size-6 items-center justify-center rounded-full",
+              "flex size-7 items-center justify-center rounded-full",
               cur.transmitting ? "bg-emerald-500 text-white animate-pulse" : "bg-emerald-500/15 text-emerald-400"
             )}>
-              <RadioTower className="size-3.5" />
+              <RadioTower className="size-4" />
             </span>
-            <span className="max-w-32 truncate text-[11px] font-bold">
-              {cur.transmitting ? "Transmitting…" : speaker ? `${speaker.fullName.split(" ")[0]} speaking` : cur.conversationName || "YapLine"}
-            </span>
-            <span className={cn("size-1.5 rounded-full", q.dot)} />
+            <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-card", q.dot)} />
           </button>
         ) : (
           <div className="w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-3xl border border-white/10 bg-card/80 shadow-2xl shadow-emerald-500/10 backdrop-blur-xl">
@@ -217,11 +338,11 @@ export function YapLineDock() {
                   {cur.joining ? "Connecting…" : cur.transmitting ? "Transmitting" : speaker ? "Receiving" : `Standby · ${q.label}`}
                 </p>
               </div>
-              <button onClick={() => yapline.setMinimized(true)} className="rounded-lg p-1.5 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground">
+              <button onClick={() => yapline.setMinimized(true)} title="Minimize" className="rounded-lg p-1.5 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground">
                 <Minus className="size-3.5" />
               </button>
-              <button onClick={() => yapline.leave()} className="rounded-lg p-1.5 text-muted-foreground/50 hover:bg-rose-500/10 hover:text-rose-500">
-                <X className="size-3.5" />
+              <button onClick={() => yapline.leave()} title="Leave YapLine" className="rounded-lg bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20">
+                <PhoneOff className="size-3.5" />
               </button>
             </div>
 
