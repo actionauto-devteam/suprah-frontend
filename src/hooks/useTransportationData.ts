@@ -1,6 +1,7 @@
 import * as React from "react";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
+import { toast } from "sonner";
 import { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Load } from "@/types/load";
 import { Quote } from "@/types/transportation";
@@ -113,6 +114,9 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   });
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const [hasNewEntries, setHasNewEntries] = React.useState(false);
+  const [deletingLoadId, setDeletingLoadId] = React.useState<string | null>(
+    null,
+  );
 
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
@@ -180,10 +184,11 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           mileage: v.mileage || 0,
           vin: v.vin || "N/A",
           image:
+            v.images?.[0] ||
             v.image ||
             "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=600&fit=crop",
           location: v.location || "Unknown",
-          color: v.color || "N/A",
+          color: v.exteriorColor || v.color || "N/A",
           transmission: v.transmission || "Automatic",
           fuelType: v.fuelType || "Gasoline",
         };
@@ -243,6 +248,20 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     },
     [getAuthConfig],
   );
+
+  // ── Fetch stats (silent) ───────────────────────────────────────────────────
+
+  const refreshStats = React.useCallback(async () => {
+    try {
+      const config = await getAuthConfig();
+      if (!config) return;
+      const res = await apiClient.get("/api/loads/stats", config);
+      const data = res.data?.data ?? res.data;
+      if (data && typeof data === "object") setStats(data);
+    } catch {
+      // non-fatal — stale stats are corrected by the next socket refresh
+    }
+  }, [getAuthConfig]);
 
   // ── Core fetch (initial + full refresh) ───────────────────────────────────
 
@@ -394,15 +413,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
               loadsLimitRef.current,
               shipmentStatusRef.current,
             ),
-            // also refresh stats
-            getAuthConfig().then((cfg) =>
-              cfg
-                ? apiClient.get("/api/loads/stats", cfg).then((r) => {
-                  const d = r.data?.data ?? r.data;
-                  if (d && typeof d === "object") setStats(d);
-                })
-                : null,
-            ),
+            refreshStats(),
           ])
             .catch(() => { })
             .finally(() => {
@@ -433,7 +444,10 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       const { getSocket } = require("@/lib/socket.client");
       const sock = getSocket();
       if (sock) {
-        sock.off("shipment:change");
+        // BUG FIX: cleanup previously called sock.off("shipment:change") — a
+        // stale event name from the pre-migration era — so "load:change"
+        // handlers leaked across remounts and fired with stale closures.
+        sock.off("load:change");
         sock.off("quote:change");
       }
     };
@@ -668,25 +682,57 @@ export function useTransportationData(filters: TransportationFilters = {}) {
 
   const handleDeleteLoad = React.useCallback(
     async (loadId: string) => {
+      /*
+       * BUG FIX: this handler previously threw on failure, but nothing up the
+       * chain caught it — ConfirmationModal fires onDelete without awaiting —
+       * so failed deletes died as unhandled promise rejections and the button
+       * appeared to "do nothing". The handler is now self-contained: it owns
+       * its loading state, surfaces errors via toast, and never throws.
+       */
+      setDeletingLoadId(loadId);
       try {
         const config = await getAuthConfig();
-        await apiClient.delete(
-          `/api/loads/${loadId}`,
-          config ?? undefined,
-        );
+        if (!config) {
+          toast.error("Sign in again to delete this load.");
+          return;
+        }
+
+        await apiClient.delete(`/api/loads/${loadId}`, {
+          ...config,
+          timeout: 15_000,
+        });
+
         setLoads((prev) => prev.filter((s) => s._id !== loadId));
-        setStats((prev) => ({ ...prev, all: Math.max(0, prev.all - 1) }));
+        toast.success("Load deleted.");
+
+        // Reconcile pagination + stats with the server in the background
+        void fetchLoads(
+          loadsPageRef.current,
+          loadsLimitRef.current,
+          shipmentStatusRef.current,
+        ).catch(() => { });
+        void refreshStats();
       } catch (err) {
         const axiosError = err as AxiosError;
-        throw new Error(
-          "Failed to delete load: " +
-          ((axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Unknown error"),
+        const status = axiosError.response?.status;
+
+        // Already gone on the server — a successful final state for the user
+        if (status === 404) {
+          setLoads((prev) => prev.filter((s) => s._id !== loadId));
+          void refreshStats();
+          return;
+        }
+
+        toast.error(
+          (axiosError.response?.data as any)?.message ||
+          axiosError.message ||
+          "Failed to delete load. Please try again.",
         );
+      } finally {
+        setDeletingLoadId(null);
       }
     },
-    [getAuthConfig],
+    [getAuthConfig, fetchLoads, refreshStats],
   );
 
   const handleUpdateQuote = React.useCallback(
@@ -771,6 +817,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     handleConvertToLoad,
     handleDeleteQuote,
     handleDeleteLoad,
+    deletingLoadId,
     handleUpdateQuote,
     handleUpdateLoad,
   };

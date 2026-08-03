@@ -1,7 +1,3 @@
-// types/transportation.ts
-// Note: This file now only contains legacy Quote types. 
-// Shipment and the legacy Load alias have been purged in favor of the Load architecture in types/load.ts.
-
 export interface Quote {
   _id: string;
   firstName: string;

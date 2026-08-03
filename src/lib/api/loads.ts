@@ -51,6 +51,7 @@ export interface InventoryVehicle {
   model: string;
   color: string;
   condition: "Operable" | "Inoperable";
+  imageUrl?: string;
 }
 
 export async function getInventoryVehicles(q?: string): Promise<InventoryVehicle[]> {
@@ -100,10 +101,15 @@ export interface LoadsResult {
   pagination: LoadsPagination
 }
 
+// "Accepted" and "Picked Up" are optional so older API deployments (which
+// don't return them yet) and existing default-state objects stay compatible.
+// The sidebar renders missing keys as 0.
 export interface LoadStats {
   all: number
   Posted: number
   Assigned: number
+  Accepted?: number
+  "Picked Up"?: number
   "In-Transit": number
   Delivered: number
   Cancelled: number

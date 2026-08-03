@@ -178,6 +178,17 @@ body.app-fullscreen .main-content {
 .timeproof-scope {
   --muted-foreground: oklch(0.35 0.03 268.53);
 }
+
+/* Native <select> dropdown popups (the actual open list of options) are
+   rendered by the OS/browser itself, not by our CSS — none of the dark-mode
+   classes on the <select> element reach that popup, so it shows up in the
+   browser's default light appearance even when the rest of the page is
+   dark. color-scheme tells the browser which native-control appearance
+   (including this popup) to use, so it correctly follows the site's own
+   .dark toggle instead of defaulting to light. */
+.dark select {
+  color-scheme: dark;
+}
 .dark .timeproof-scope {
   --muted-foreground: oklch(0.78 0.03 269.46);
 }
