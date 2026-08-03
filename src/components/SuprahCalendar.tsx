@@ -215,44 +215,46 @@ export default function SuprahCalendar() {
       <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
 
       {/* Toolbar */}
-      <header className="relative z-10 flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-4">
-        <div className="flex items-center gap-2">
+      <header className="relative z-10 flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-3">
+        <div className="flex h-9 shrink-0 items-center gap-2">
           <button
             onClick={() => setCursor(startOfDay(zonedNow()))}
-            className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-400/20"
+            className="flex h-9 items-center rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 text-xs font-medium leading-none text-emerald-300 transition hover:bg-emerald-400/20"
           >
             Today
           </button>
           <button
             aria-label="Previous"
             onClick={() => step(-1)}
-            className="rounded-lg border border-white/10 px-2.5 py-1.5 text-zinc-300 transition hover:bg-white/5"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 leading-none text-zinc-300 transition hover:bg-white/5"
           >
             ‹
           </button>
           <button
             aria-label="Next"
             onClick={() => step(1)}
-            className="rounded-lg border border-white/10 px-2.5 py-1.5 text-zinc-300 transition hover:bg-white/5"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 leading-none text-zinc-300 transition hover:bg-white/5"
           >
             ›
           </button>
         </div>
 
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-100">
-          {headline}
-        </h1>
-        <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] tabular-nums text-zinc-400">
-          {CALENDAR_TZ_LABEL} · Mountain Time
-        </span>
+        <div className="flex h-9 min-w-0 items-center gap-2">
+          <h1 className="truncate text-lg font-semibold leading-none tracking-tight text-zinc-100">
+            {headline}
+          </h1>
+          <span className="flex h-6 shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-2 font-mono text-[10px] leading-none tabular-nums text-zinc-400">
+            {CALENDAR_TZ_LABEL} · Mountain Time
+          </span>
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex overflow-hidden rounded-lg border border-white/10">
+        <div className="ml-auto flex h-9 shrink-0 items-center gap-2">
+          <div className="flex h-9 items-center overflow-hidden rounded-lg border border-white/10">
             {(["day", "week", "month", "agenda"] as CalendarView[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-xs capitalize transition ${view === v
+                className={`flex h-full items-center px-3 text-xs capitalize leading-none transition ${view === v
                   ? "bg-emerald-400/15 text-emerald-300"
                   : "text-zinc-400 hover:bg-white/5"
                   }`}
@@ -263,7 +265,7 @@ export default function SuprahCalendar() {
           </div>
           <button
             onClick={() => setShowMySchedule((s) => !s)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${showMySchedule
+            className={`flex h-9 items-center rounded-lg border px-3 text-xs font-medium leading-none transition ${showMySchedule
               ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
               : "border-white/10 text-zinc-300 hover:bg-white/5"
               }`}
@@ -272,7 +274,7 @@ export default function SuprahCalendar() {
           </button>
           <button
             onClick={() => openCreate()}
-            className="rounded-lg bg-emerald-400/90 px-4 py-1.5 text-xs font-semibold text-zinc-950 shadow-[0_0_20px_-6px_rgba(52,211,153,0.9)] transition hover:bg-emerald-300"
+            className="flex h-9 items-center rounded-lg bg-emerald-400/90 px-4 text-xs font-semibold leading-none text-zinc-950 shadow-[0_0_20px_-6px_rgba(52,211,153,0.9)] transition hover:bg-emerald-300"
           >
             + Create
           </button>

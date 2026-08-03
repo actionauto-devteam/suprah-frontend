@@ -174,76 +174,107 @@ export function AttachmentChip({
   attachment,
   compact,
   onPreview,
+  onRemove,
+  removing,
 }: {
   attachment: Attachment;
   compact?: boolean;
   /** Opens the shared lightbox instead of a new tab, for images/videos. */
   onPreview?: (attachment: Attachment) => void;
+  /** Shows a small hover "x" that deletes this attachment from its parent. */
+  onRemove?: (attachment: Attachment) => void;
+  removing?: boolean;
 }) {
   const isImage = attachment.mimeType?.startsWith("image/");
   const isVideo = attachment.mimeType?.startsWith("video/");
 
+  const removeButton = onRemove && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onRemove(attachment);
+      }}
+      disabled={removing}
+      title="Remove attachment"
+      className={cn(
+        "absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground/70 shadow-sm transition-opacity hover:border-rose-500/50 hover:text-rose-500",
+        removing ? "opacity-100" : "opacity-0 group-hover/att:opacity-100",
+      )}
+    >
+      {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+    </button>
+  );
+
   if (isImage || isVideo) {
     const size = compact ? "h-16 w-16" : "h-20 w-20";
     return (
-      <button
-        type="button"
-        onClick={() => onPreview?.(attachment)}
-        title={attachment.originalName}
-        className={cn(
-          "group relative shrink-0 overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-colors hover:border-emerald-500/40",
-          size,
-        )}
-      >
-        {isImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={attachment.url}
-            alt={attachment.originalName}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <>
-            <video
+      <div className="group/att relative shrink-0">
+        <button
+          type="button"
+          onClick={() => onPreview?.(attachment)}
+          title={attachment.originalName}
+          className={cn(
+            "group relative block overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-colors hover:border-emerald-500/40",
+            size,
+          )}
+        >
+          {isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={attachment.url}
-              muted
-              preload="metadata"
+              alt={attachment.originalName}
               className="h-full w-full object-cover"
             />
-            <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/90">
-                <Play className="h-3.5 w-3.5 fill-current text-foreground" />
+          ) : (
+            <>
+              <video
+                src={attachment.url}
+                muted
+                preload="metadata"
+                className="h-full w-full object-cover"
+              />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/90">
+                  <Play className="h-3.5 w-3.5 fill-current text-foreground" />
+                </span>
               </span>
-            </span>
-          </>
-        )}
-      </button>
+            </>
+          )}
+        </button>
+        {removeButton}
+      </div>
     );
   }
 
   return (
-    <a
-      href={attachment.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cn(
-        "group flex items-center gap-2 rounded-xl border border-border/40 bg-background/60 transition-colors hover:border-emerald-500/40",
-        compact ? "px-2.5 py-1.5" : "px-3 py-2",
-      )}
-    >
-      <FileText
-        className={cn("shrink-0 text-muted-foreground/60", compact ? "h-4 w-4" : "h-5 w-5")}
-      />
-      <span className="min-w-0 flex-1">
-        <span className={cn("block truncate font-medium", compact ? "text-[10px]" : "text-xs")}>
-          {attachment.originalName}
+    <div className="group/att relative">
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "group flex items-center gap-2 rounded-xl border border-border/40 bg-background/60 transition-colors hover:border-emerald-500/40",
+          compact ? "py-1.5 pl-2.5 pr-2.5" : "py-2 pl-3 pr-3",
+          onRemove && (compact ? "pr-6" : "pr-7"),
+        )}
+      >
+        <FileText
+          className={cn("shrink-0 text-muted-foreground/60", compact ? "h-4 w-4" : "h-5 w-5")}
+        />
+        <span className="min-w-0 flex-1">
+          <span className={cn("block truncate font-medium", compact ? "text-[10px]" : "text-xs")}>
+            {attachment.originalName}
+          </span>
+          <span className="block text-[9px] text-muted-foreground/50">
+            {fmtSize(attachment.size)}
+          </span>
         </span>
-        <span className="block text-[9px] text-muted-foreground/50">
-          {fmtSize(attachment.size)}
-        </span>
-      </span>
-      <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-emerald-600" />
-    </a>
+        <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-emerald-600" />
+      </a>
+      {removeButton}
+    </div>
   );
 }
 
@@ -579,6 +610,13 @@ export function TaskDetailDialog({
   const threadEndRef = React.useRef<HTMLDivElement>(null);
   const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
 
+  // Attachments directly on the task (separate from comment attachments) —
+  // upload more any time, not just when the task is first created.
+  const taskFileRef = React.useRef<HTMLInputElement>(null);
+  const [attachUploading, setAttachUploading] = React.useState(false);
+  const [removingAttachmentId, setRemovingAttachmentId] = React.useState<string | null>(null);
+  const [dragOverAttachments, setDragOverAttachments] = React.useState(false);
+
   // Edit / delete a single comment (author only — mirrors the backend rule).
   const [editingCommentId, setEditingCommentId] = React.useState<string | null>(null);
   const [editingText, setEditingText] = React.useState("");
@@ -593,6 +631,43 @@ export function TaskDetailDialog({
       type: a.mimeType?.startsWith("video/") ? "video" : "image",
       name: a.originalName,
     });
+
+  const addTaskAttachments = async (list: FileList | File[] | null) => {
+    const picked = list ? Array.from(list) : [];
+    if (!task || picked.length === 0) return;
+    setAttachUploading(true);
+    setError("");
+    try {
+      const form = new FormData();
+      picked.forEach((f) => form.append("attachments", f));
+      const res = await apiClient.post(`/api/crm/projects/tasks/${task._id}/attachments`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setTask(res.data?.data?.task);
+      onChanged();
+    } catch (err: any) {
+      setError(errMsg(err, "Failed to upload attachment(s)."));
+    } finally {
+      setAttachUploading(false);
+    }
+  };
+
+  const removeTaskAttachment = async (attachment: Attachment) => {
+    if (!task || !attachment._id) return;
+    setRemovingAttachmentId(attachment._id);
+    setError("");
+    try {
+      const res = await apiClient.delete(
+        `/api/crm/projects/tasks/${task._id}/attachments/${attachment._id}`,
+      );
+      setTask(res.data?.data?.task);
+      onChanged();
+    } catch (err: any) {
+      setError(errMsg(err, "Failed to remove the attachment."));
+    } finally {
+      setRemovingAttachmentId(null);
+    }
+  };
 
   const loadTask = React.useCallback(async () => {
     if (!taskId) return;
@@ -622,6 +697,10 @@ export function TaskDetailDialog({
   }, [taskId]);
 
   React.useEffect(() => {
+    // Runs on every taskId change, including the dialog closing (taskId →
+    // null) — the lightbox in particular must never survive that, or the
+    // last-viewed image reappears the next time a task (any task) is opened.
+    setLightbox(null);
     if (taskId) {
       setTask(null);
       setComments([]);
@@ -869,7 +948,10 @@ export function TaskDetailDialog({
 
   return (
     <Dialog open={!!taskId} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-2xl">
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-2xl"
+      >
         {loading || !task ? (
           <div className="flex items-center justify-center py-16">
             {error ? (
@@ -916,6 +998,14 @@ export function TaskDetailDialog({
                     className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="mx-0.5 h-5 w-px shrink-0 bg-border/60" />
+                  <button
+                    onClick={onClose}
+                    title="Close"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -974,16 +1064,75 @@ export function TaskDetailDialog({
                 </div>
               )}
 
-              {task.attachments?.length > 0 && (
-                <div className="space-y-1.5">
-                  <SectionEyebrow>Attachments</SectionEyebrow>
-                  <div className="flex flex-wrap gap-1.5">
-                    {task.attachments.map((a, i) => (
-                      <AttachmentChip key={a._id || i} attachment={a} onPreview={openPreview} />
-                    ))}
-                  </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <SectionEyebrow>
+                    Attachments{task.attachments?.length > 0 && ` · ${task.attachments.length}`}
+                  </SectionEyebrow>
+                  <button
+                    type="button"
+                    onClick={() => taskFileRef.current?.click()}
+                    disabled={attachUploading}
+                    className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-bold text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600 disabled:opacity-50"
+                  >
+                    {attachUploading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3 w-3" />
+                    )}
+                    Add
+                  </button>
                 </div>
-              )}
+                <input
+                  ref={taskFileRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    void addTaskAttachments(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverAttachments(true);
+                  }}
+                  onDragLeave={() => setDragOverAttachments(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverAttachments(false);
+                    void addTaskAttachments(e.dataTransfer.files);
+                  }}
+                  className={cn(
+                    "rounded-xl transition-shadow",
+                    dragOverAttachments && "ring-2 ring-emerald-500/40 ring-offset-2 ring-offset-background",
+                  )}
+                >
+                  {task.attachments?.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 p-0.5">
+                      {task.attachments.map((a, i) => (
+                        <AttachmentChip
+                          key={a._id || i}
+                          attachment={a}
+                          onPreview={openPreview}
+                          onRemove={removeTaskAttachment}
+                          removing={removingAttachmentId === a._id}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => taskFileRef.current?.click()}
+                      disabled={attachUploading}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border/50 py-4 text-[11px] font-medium text-muted-foreground/50 transition-colors hover:border-emerald-500/40 hover:text-emerald-600"
+                    >
+                      <Paperclip className="h-3.5 w-3.5" /> Drop files here, or click to attach
+                    </button>
+                  )}
+                </div>
+              </div>
 
               {/* Comment thread */}
               <div className="space-y-2">

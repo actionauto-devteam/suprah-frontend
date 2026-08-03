@@ -799,13 +799,13 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4">
-        <div className={cn("space-y-3", mobilePanel === "roster" ? "block" : "hidden", "lg:block")}>
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4 lg:items-stretch">
+        <div className={cn("flex-col gap-3", LIST_HEIGHT, mobilePanel === "roster" ? "flex" : "hidden", "lg:flex")}>
           <SectionHeading icon={Users} label="Live Roster"
             right={<span className="text-[10px] text-muted-foreground/40 tabular-nums">{rosterPeople.length} shown</span>}
           />
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="shrink-0 flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/40" />
               <Input
@@ -830,7 +830,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             )}
           </div>
 
-          <div className="flex gap-1 flex-wrap">
+          <div className="shrink-0 flex gap-1 flex-wrap">
             {(Object.keys(FILTER_LABELS) as RosterFilter[]).map((f) => (
               <button
                 key={f}
@@ -847,7 +847,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             ))}
           </div>
 
-          <div className={cn("space-y-2 pr-0.5 overflow-y-auto", LIST_HEIGHT)}>
+          <div className="flex-1 min-h-0 space-y-2 pr-0.5 overflow-y-auto">
             {rosterPeople.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
                 <User2 className="size-8" />
@@ -898,12 +898,12 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
           </div>
         </div>
 
-        <div className={cn("space-y-3", mobilePanel === "stream" ? "block" : "hidden", "lg:block")}>
+        <div className={cn("flex-col gap-3", LIST_HEIGHT, mobilePanel === "stream" ? "flex" : "hidden", "lg:flex")}>
           <SectionHeading icon={TrendingUp} label="Activity Stream"
             right={<span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Live</span></span>}
           />
 
-          <div className="flex items-center gap-1 flex-wrap">
+          <div className="shrink-0 flex items-center gap-1 flex-wrap">
             {(Object.keys(STREAM_FILTER_LABELS) as StreamFilter[]).map((f) => (
               <button
                 key={f}
@@ -929,7 +929,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             )}
           </div>
 
-          <div className={cn("rounded-2xl border border-border/40 bg-card overflow-hidden flex flex-col", LIST_HEIGHT)}>
+          <div className="flex-1 min-h-0 rounded-2xl border border-border/40 bg-card overflow-hidden flex flex-col">
             {eventsLoading ? (
               <div className="space-y-0 divide-y divide-border/30 px-3">
                 {Array.from({ length: 8 }).map((_, i) => (

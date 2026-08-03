@@ -43,14 +43,14 @@ export function MemberCard({
 
   if (viewMode === "grid") {
     return (
-      <div className="relative">
+      <div className="relative h-full">
         <div
           role="button"
           tabIndex={0}
           onClick={onClick}
           onKeyDown={(e) => e.key === "Enter" && onClick()}
           className={cn(
-            "w-full min-h-48 text-left flex flex-col items-center gap-3 p-4 pt-5 rounded-xl border bg-card",
+            "w-full h-full min-h-48 text-left flex flex-col items-center gap-3 p-4 pt-5 rounded-xl border bg-card",
             "hover:bg-accent/10 active:scale-[0.98] transition-all duration-150 cursor-pointer group",
             "border-border/40 hover:border-border/60",
             isMe && "ring-1 ring-primary/20 border-primary/20",
@@ -78,7 +78,7 @@ export function MemberCard({
             {member.customStatus && (
               <p className="text-[10px] italic text-muted-foreground/50 truncate mt-0.5">"{member.customStatus}"</p>
             )}
-            <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+            <div className="flex items-center justify-center gap-1.5 mt-auto pt-2 flex-wrap">
               <Badge variant="outline" className={cn("text-[9px] font-black px-1.5 h-4 uppercase tracking-wide border", ROLE_STYLE[member.role] ?? ROLE_STYLE.employee)}>
                 {ROLE_LABEL[member.role] ?? member.role}
               </Badge>

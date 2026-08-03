@@ -19,7 +19,7 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Mic,
   MonitorUp,
@@ -33,6 +33,7 @@ import {
   LogIn,
   GripHorizontal,
   PhoneOff,
+  ChevronDown,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -104,7 +105,22 @@ function saveDockPos(pos: { x: number; y: number }) {
 export function YapLineDock() {
   const s = useYapLine();
   const router = useRouter();
+  const pathname = usePathname();
   const [expandedScreen, setExpandedScreen] = React.useState(false);
+
+  // ── "Live elsewhere" join list ─────────────────────────────────────────
+  // Collapsed to one small chip by default so a busy org (several channels
+  // live at once) doesn't stack up a wall of big pills before anyone has
+  // even joined. Dismissing a channel just hides that pill locally (not a
+  // "leave" — nothing to leave) until it stops being live, for anyone who
+  // doesn't want to join it.
+  const [liveExpanded, setLiveExpanded] = React.useState(false);
+  const [dismissedLive, setDismissedLive] = React.useState<Set<string>>(new Set());
+
+  // Suprah Space's chat composer sits flush against the bottom-right corner —
+  // the dock's default offset would otherwise sit right on top of its Send
+  // button. Lift the dock clear of the composer on that route only.
+  const isSupraSpace = pathname === "/crm/supra-space";
 
   // ── Draggable positioning ──────────────────────────────────────────────
   // The dock defaults to bottom-right via CSS; once the user drags it, we
@@ -156,7 +172,7 @@ export function YapLineDock() {
       saveDockPos(clamped);
       return clamped;
     });
-  }, [s.current?.conversationId, s.minimized, Object.keys(s.sessions).length, clampToViewport]);
+  }, [s.current?.conversationId, s.minimized, liveExpanded, Object.keys(s.sessions).length, clampToViewport]);
 
   const beginDrag = React.useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
@@ -200,10 +216,23 @@ export function YapLineDock() {
       ? session.participants.find((p) => p.userId === session.screenSharerId)
       : null;
 
-  // Sessions live elsewhere that I'm not part of.
+  // Sessions live elsewhere that I'm not part of, minus any I've dismissed.
   const otherLive = Object.values(s.sessions).filter(
     (x) => x.conversationId !== cur?.conversationId
   );
+  const joinableLive = otherLive.filter((x) => !dismissedLive.has(x.conversationId));
+  const otherLiveIds = otherLive.map((x) => x.conversationId).join(",");
+
+  // A dismissed channel only stays hidden while it's actually live — once it
+  // ends, forget it so the same conversation starting again shows fresh.
+  React.useEffect(() => {
+    setDismissedLive((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(otherLiveIds ? otherLiveIds.split(",") : []);
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [otherLiveIds]);
 
   // Keyboard PTT: hold ` outside inputs.
   React.useEffect(() => {
@@ -229,8 +258,8 @@ export function YapLineDock() {
     };
   }, [cur?.conversationId]);
 
-  // Nothing anywhere → zero footprint.
-  if (!cur && otherLive.length === 0) return null;
+  // Nothing anywhere (or everything live has been dismissed) → zero footprint.
+  if (!cur && joinableLive.length === 0) return null;
 
   const q = QUALITY_META[cur?.quality || "unknown"];
 
@@ -260,7 +289,9 @@ export function YapLineDock() {
         ref={containerRef}
         className={cn(
           "fixed z-70 flex flex-col items-end gap-2",
-          !dockPos && "bottom-24 right-3 md:bottom-5 md:right-5"
+          !dockPos && (isSupraSpace
+            ? "bottom-40 right-3 md:bottom-24 md:right-5"
+            : "bottom-24 right-3 md:bottom-5 md:right-5")
         )}
         style={dockPos ? { left: dockPos.x, top: dockPos.y, right: "auto", bottom: "auto" } : undefined}
       >
@@ -271,28 +302,81 @@ export function YapLineDock() {
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           title="Drag to move"
-          className="flex h-5 w-10 shrink-0 touch-none cursor-grab select-none items-center justify-center self-center rounded-full border border-border/30 bg-card/70 text-muted-foreground/50 backdrop-blur-xl transition-colors hover:text-muted-foreground active:cursor-grabbing"
+          className="group flex h-6 w-16 shrink-0 touch-none cursor-grab select-none items-center justify-center gap-1 self-center rounded-full border border-border/60 bg-card/90 text-muted-foreground/70 shadow-md backdrop-blur-xl transition-all hover:border-emerald-500/50 hover:text-emerald-500 hover:shadow-emerald-500/20 active:cursor-grabbing active:scale-95"
         >
-          <GripHorizontal className="size-3.5" />
+          <GripHorizontal className="size-4 transition-transform group-hover:scale-110" />
         </div>
 
-        {/* ── Live-elsewhere pills ── */}
-        {otherLive.slice(0, 2).map((live) => (
+        {/* ── Live-elsewhere: collapsed chip, or the full join list ── */}
+        {joinableLive.length > 0 && (liveExpanded || joinableLive.length === 1 ? (
+          <div className="w-64 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-emerald-500/25 bg-card/85 shadow-xl shadow-emerald-500/10 backdrop-blur-xl">
+            {joinableLive.length > 1 && (
+              <div className="flex items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
+                <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                  <RadioTower className="size-3.5" /> {joinableLive.length} live channels
+                </p>
+                <button
+                  onClick={() => setLiveExpanded(false)}
+                  title="Collapse"
+                  className="rounded-lg p-1 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground"
+                >
+                  <Minus className="size-3.5" />
+                </button>
+              </div>
+            )}
+            <div className="max-h-56 space-y-1 overflow-y-auto p-1.5 no-scrollbar">
+              {joinableLive.map((live) => (
+                <div
+                  key={live.conversationId}
+                  className="group/row flex items-center gap-1.5 rounded-xl border border-border/30 bg-background/40 py-1.5 pl-2.5 pr-1.5 transition-colors hover:border-emerald-400/40"
+                >
+                  <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
+                    <RadioTower className="size-3.5 text-emerald-400" />
+                    <span className="absolute -right-0.5 -top-0.5 size-2 animate-pulse rounded-full bg-rose-500" />
+                  </span>
+                  <button
+                    onClick={() => {
+                      void yapline.join(live.conversationId, live.conversationName);
+                      setLiveExpanded(false);
+                    }}
+                    className="min-w-0 flex-1 truncate text-left text-[11px] font-bold text-foreground"
+                    title={live.conversationName || "Direct YapLine"}
+                  >
+                    {live.conversationName || "Direct YapLine"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      void yapline.join(live.conversationId, live.conversationName);
+                      setLiveExpanded(false);
+                    }}
+                    className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-500 transition-colors hover:bg-emerald-500/20 active:scale-95"
+                  >
+                    <LogIn className="size-3" /> Join
+                  </button>
+                  <button
+                    onClick={() => setDismissedLive((prev) => new Set(prev).add(live.conversationId))}
+                    title="Not now — hide this channel"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 opacity-0 transition-opacity hover:bg-rose-500/10 hover:text-rose-500 group-hover/row:opacity-100"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
           <button
-            key={live.conversationId}
-            onClick={() => yapline.join(live.conversationId, live.conversationName)}
-            className="group flex items-center gap-2 rounded-full border border-emerald-500/30 bg-card/80 py-1.5 pl-2 pr-3 shadow-lg shadow-emerald-500/10 backdrop-blur-xl transition-all hover:border-emerald-400/50 hover:bg-emerald-500/10 active:scale-95"
+            onClick={() => setLiveExpanded(true)}
+            className="group flex items-center gap-2 rounded-full border border-emerald-500/30 bg-card/80 py-1.5 pl-2 pr-2.5 shadow-lg shadow-emerald-500/10 backdrop-blur-xl transition-all hover:border-emerald-400/50 hover:bg-emerald-500/10 active:scale-95"
           >
             <span className="relative flex size-6 items-center justify-center rounded-full bg-emerald-500/15">
               <RadioTower className="size-3.5 text-emerald-400" />
               <span className="absolute -right-0.5 -top-0.5 size-2 animate-pulse rounded-full bg-rose-500" />
             </span>
-            <span className="max-w-36 truncate text-[11px] font-bold text-foreground">
-              {live.conversationName || "Direct YapLine"}
+            <span className="text-[11px] font-bold text-foreground">
+              {joinableLive.length} live channels
             </span>
-            <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-500">
-              <LogIn className="size-3" /> Join
-            </span>
+            <ChevronDown className="size-3.5 text-muted-foreground/50 transition-transform group-hover:translate-y-0.5" />
           </button>
         ))}
 

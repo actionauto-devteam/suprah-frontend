@@ -1283,6 +1283,52 @@ function NameDialog({
 /*  CREATE TASK DIALOG                                                     */
 /* ══════════════════════════════════════════════════════════════════════ */
 
+const CREATE_TASK_MAX_FILES = 10;
+const CREATE_TASK_MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+/** Thumbnail for a not-yet-uploaded File — image preview or a filename chip. */
+function PendingFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const isImage = file.type.startsWith("image/");
+  const [url, setUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isImage) return;
+    const objUrl = URL.createObjectURL(file);
+    setUrl(objUrl);
+    return () => URL.revokeObjectURL(objUrl);
+  }, [file, isImage]);
+
+  if (isImage) {
+    return (
+      <div className="group/pf relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+        {url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={file.name} className="h-full w-full object-cover" />
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove"
+          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground/70 opacity-0 shadow-sm transition-opacity hover:border-rose-500/50 hover:text-rose-500 group-hover/pf:opacity-100"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-center gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5 text-[11px]">
+      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+      <span className="shrink-0 text-muted-foreground/50">{fmtSize(file.size)}</span>
+      <button onClick={onRemove} title="Remove" className="shrink-0 text-muted-foreground/50 hover:text-rose-500">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function CreateTaskDialog({
   folder,
   members,
@@ -1301,6 +1347,8 @@ function CreateTaskDialog({
   const [startDate, setStartDate] = React.useState("");
   const [deadline, setDeadline] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
+  const [fileNote, setFileNote] = React.useState("");
+  const [dragOver, setDragOver] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -1308,9 +1356,22 @@ function CreateTaskDialog({
   React.useEffect(() => {
     if (!folder) {
       setTitle(""); setDescription(""); setAssignees([]); setPriority("normal");
-      setStartDate(""); setDeadline(""); setFiles([]); setError("");
+      setStartDate(""); setDeadline(""); setFiles([]); setFileNote(""); setError("");
     }
   }, [folder]);
+
+  const addFiles = (list: FileList | File[] | null) => {
+    const picked = list ? Array.from(list) : [];
+    if (picked.length === 0) return;
+    const tooBig = picked.filter((f) => f.size > CREATE_TASK_MAX_FILE_BYTES);
+    const ok = picked.filter((f) => f.size <= CREATE_TASK_MAX_FILE_BYTES);
+    setFiles((prev) => [...prev, ...ok].slice(0, CREATE_TASK_MAX_FILES));
+    setFileNote(
+      tooBig.length > 0
+        ? `${tooBig.map((f) => f.name).join(", ")} ${tooBig.length > 1 ? "are" : "is"} over 25 MB and ${tooBig.length > 1 ? "were" : "was"} skipped.`
+        : "",
+    );
+  };
 
   const submit = async () => {
     setError("");
@@ -1343,15 +1404,27 @@ function CreateTaskDialog({
 
   return (
     <Dialog open={!!folder} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
-        <DialogHeader className="space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
-          <DialogTitle className="text-sm font-bold">New Task</DialogTitle>
-          <DialogDescription className="text-[11px] text-muted-foreground/60">
-            {folder ? `In folder "${folder.name}"` : ""}
-          </DialogDescription>
+      <DialogContent className="relative gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/60 to-transparent" />
+
+        <DialogHeader className="space-y-0 border-b border-border/40 px-6 pb-4 pt-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-1 ring-inset ring-white/20">
+              <Plus className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 text-left">
+              <DialogTitle className="text-sm font-bold">New Task</DialogTitle>
+              <DialogDescription asChild>
+                <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground/60">
+                  <Folder className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{folder ? folder.name : ""}</span>
+                </div>
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Title</Label>
             <Input
@@ -1359,7 +1432,8 @@ function CreateTaskDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
               disabled={saving}
-              className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
+              autoFocus
+              className="h-11 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
             />
           </div>
 
@@ -1375,8 +1449,11 @@ function CreateTaskDialog({
             />
           </div>
 
+          <div className="h-px bg-border/40" />
+
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground/75">
+            <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+              <Users className="h-3.5 w-3.5 text-muted-foreground/50" />
               Assignees <span className="text-muted-foreground/50">(select one or more)</span>
             </Label>
             <AssigneeMultiSelect
@@ -1394,7 +1471,9 @@ function CreateTaskDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/75">Start date</Label>
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Start date
+              </Label>
               <Input
                 type="date"
                 value={startDate}
@@ -1404,7 +1483,9 @@ function CreateTaskDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/75">Deadline</Label>
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Deadline
+              </Label>
               <Input
                 type="date"
                 value={deadline}
@@ -1415,44 +1496,69 @@ function CreateTaskDialog({
             </div>
           </div>
 
+          <div className="h-px bg-border/40" />
+
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground/75">Attachments</Label>
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                <Paperclip className="h-3.5 w-3.5 text-muted-foreground/50" /> Attachments
+              </Label>
+              {files.length > 0 && (
+                <span className="text-[10px] font-semibold text-muted-foreground/50">
+                  {files.length}/{CREATE_TASK_MAX_FILES}
+                </span>
+              )}
+            </div>
             <input
               ref={fileInputRef}
               type="file"
               multiple
               className="hidden"
               onChange={(e) => {
-                const picked = Array.from(e.target.files || []);
-                setFiles((prev) => [...prev, ...picked].slice(0, 10));
+                addFiles(e.target.files);
                 e.target.value = "";
               }}
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 py-3 text-xs text-muted-foreground/70 transition-colors hover:border-emerald-500/40 hover:text-emerald-600"
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => !saving && fileInputRef.current?.click()}
+              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (!saving) setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                if (!saving) addFiles(e.dataTransfer.files);
+              }}
+              className={cn(
+                "flex w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed py-4 text-center transition-colors",
+                saving && "pointer-events-none opacity-60",
+                dragOver
+                  ? "border-emerald-500/60 bg-emerald-500/5"
+                  : "border-border/60 hover:border-emerald-500/40 hover:bg-muted/20",
+              )}
             >
-              <Paperclip className="h-3.5 w-3.5" /> Attach files (max 10, 25 MB each)
-            </button>
+              <Paperclip className={cn("h-4 w-4", dragOver ? "text-emerald-500" : "text-muted-foreground/50")} />
+              <p className="text-xs font-medium text-muted-foreground/70">
+                <span className="text-emerald-600">Click to upload</span> or drag & drop
+              </p>
+              <p className="text-[10px] text-muted-foreground/45">
+                Up to {CREATE_TASK_MAX_FILES} files, 25 MB each · images, docs, videos
+              </p>
+            </div>
+            {fileNote && <p className="text-[10px] text-amber-600">{fileNote}</p>}
             {files.length > 0 && (
-              <div className="space-y-1 pt-1">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {files.map((f, i) => (
-                  <div
-                    key={`${f.name}-${i}`}
-                    className="flex items-center gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5 text-[11px]"
-                  >
-                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                    <span className="text-muted-foreground/50">{fmtSize(f.size)}</span>
-                    <button
-                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="text-muted-foreground/50 hover:text-rose-500"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  <PendingFilePreview
+                    key={`${f.name}-${f.size}-${i}`}
+                    file={f}
+                    onRemove={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                  />
                 ))}
               </div>
             )}
