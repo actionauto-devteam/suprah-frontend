@@ -538,6 +538,16 @@ export default function TimeprofClockPage() {
   }, [refreshShiftState, refreshLocatorStatus])
 
   const fetchActivityState = React.useCallback(async () => {
+    // Stamped BEFORE the request goes out, not after the response lands —
+    // wallClockRenderedSeconds below is only accurate as of roughly this
+    // moment (when the server read it), not whenever the round-trip happens
+    // to finish. Anchoring wallClockBaseAt to the response-received time
+    // instead double-counts nothing but silently DROPS however long the
+    // round-trip took: a slow response (network hiccup, server load) would
+    // otherwise make the displayed timer visibly jump backward every time it
+    // lands, then climb again until the next poll — reported as the timer
+    // "looping" every ~10s.
+    const requestSentAt = Date.now()
     let res
     if (authModeRef.current === 'main') {
       try { res = await apiClient.get("/api/timeclock/shift-state") } catch { return }
@@ -560,7 +570,7 @@ export default function TimeprofClockPage() {
         // actively on shift and not on break, so the client-side tick (see
         // ActivityTimer) only runs when it should.
         setWallClockBaseMs((s.wallClockRenderedSeconds ?? 0) * 1000)
-        setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? Date.now() : null)
+        setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? requestSentAt : null)
         const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000
         const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0
         const shiftStartedRecently = shiftStartedMs > 0 && (Date.now() - shiftStartedMs) < SHIFT_AUTO_RESUME_MS
@@ -702,17 +712,31 @@ export default function TimeprofClockPage() {
     check()
   }, [router])
 
-  React.useEffect(() => {
+  // Powers the "Today" card, monthly calendar, and streak — separate from
+  // (and previously never re-synced with) the shift-state poll that drives
+  // the Time Clock widget above it. Fetched once on mount only used to leave
+  // this permanently stale for the rest of a long-lived tab: a user who
+  // clocked in, worked all day, and clocked out without ever reloading the
+  // page would see "Today" frozen at whatever partial total existed at page
+  // load, still labeled "Live session" long after actually clocking out,
+  // while the Time Clock widget right next to it correctly showed "Shift
+  // Complete" with the real final total — two contradictory numbers for the
+  // same day on the same screen.
+  const fetchTpData = React.useCallback(() => {
     if (!token) return
     setTpLoading(true)
     const endpoint = authModeRef.current === 'main' ? "/api/timeclock/my?range=365" : "/api/crm/timeproof/my?range=365"
     const options = authModeRef.current === 'main' ? {} : { headers: { Authorization: `Bearer ${localStorage.getItem("crm_token")}` } }
-    apiClient
+    return apiClient
       .get(endpoint, options)
       .then((res) => setTpData(res.data?.data))
       .catch((e: any) => setTpError(e?.response?.data?.message || "Failed to load timeproof data."))
       .finally(() => setTpLoading(false))
   }, [token])
+
+  React.useEffect(() => {
+    fetchTpData()
+  }, [fetchTpData])
 
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     // Skip the GPS-permission gate entirely for a department exempted via
@@ -755,7 +779,7 @@ export default function TimeprofClockPage() {
         sessionStorage.removeItem("crm_resumed_shift")
       }
       setClockMsg(`${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`)
-      setTimeout(() => fetchActivityState(), 2500)
+      setTimeout(() => { fetchActivityState(); fetchTpData() }, 2500)
     } catch (err: unknown) {
       const apiError = err as ApiError
       const msg = apiError.response?.data?.message || "Failed"
@@ -946,6 +970,7 @@ export default function TimeprofClockPage() {
         }
       }
 
+      const previousBreakStartAt = currentBreakStartAt
       setIsOnBreak(false)
       setCurrentBreakStartAt(null)
       setActivityStartAt(Date.now())
@@ -953,10 +978,22 @@ export default function TimeprofClockPage() {
         const res = await apiClient.post(breakEndpoint, { type: "break-out" }, breakHeaders)
         const d = res.data?.data || res.data
         if (d?.todayLogs) setTodayLogs(d.todayLogs)
-      } catch { }
+        setClockMsg(`Break ended at ${fmt(new Date())}`)
+      } catch (err: any) {
+        // The optimistic flip above assumed this would succeed. Leaving it
+        // as-is on failure would silently desync from the server: the
+        // employee sees a normal ticking timer with no idea they're still
+        // "on break" server-side (a dangling break-in with no matching
+        // break-out), right up until they try to End Shift much later and
+        // get rejected with a break-related error that makes no sense to
+        // them since they never knowingly stayed on break.
+        setIsOnBreak(true)
+        setCurrentBreakStartAt(previousBreakStartAt)
+        setActivityStartAt(null)
+        setClockMsg(err?.response?.data?.message || "Failed to end break — please try again")
+      }
       refreshShiftState()
       setTimeout(() => fetchActivityState(), 2500)
-      setClockMsg(`Break ended at ${fmt(new Date())}`)
     }
   }
 
@@ -1273,43 +1310,46 @@ export default function TimeprofClockPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background timeproof-scope">
 
-      <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
-        <div className="w-full px-4 sm:px-6 h-14 flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-emerald-600/10 flex items-center justify-center">
+      <div
+        className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="w-full px-4 sm:px-6 h-14 flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 shrink-0 rounded-lg bg-emerald-600/10 flex items-center justify-center">
               <Clock className="h-3.5 w-3.5 text-emerald-600" />
             </div>
-            <span className="text-sm font-black tracking-tight">Timeproof Clock</span>
+            <span className="text-sm font-black tracking-tight truncate">Timeproof Clock</span>
             {(tpData?.isLive || isActive) && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <Radio className="h-2.5 w-2.5 animate-pulse" />
-                Live
+                <span className="hidden xs:inline">Live</span>
               </span>
             )}
           </div>
           {tpData && (
-            <p className="hidden sm:block text-[11px] text-muted-foreground/40 font-semibold ml-1 truncate">
+            <p className="hidden md:block text-[11px] text-muted-foreground/40 font-semibold ml-1 truncate min-w-0">
               — {tpData.user.fullName.toUpperCase()}
             </p>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto shrink-0 flex items-center gap-1.5 sm:gap-2">
             {(user.role === "admin" || user.role === "manager") && (
               <button
                 onClick={() => router.push("/crm/timeproof/users")}
-                className="h-9 px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"
+                className="h-9 px-2.5 sm:px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"
               >
                 <Users className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">View Users</span>
               </button>
             )}
-            <button onClick={exportCSV} title="Export CSV" className="h-9 w-9 rounded-xl border border-border/40 flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground">
+            <button onClick={exportCSV} title="Export CSV" className="h-9 w-9 shrink-0 rounded-xl border border-border/40 flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground">
               <Download className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={copyProof}
-              className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700" : "border-border/40 hover:bg-muted/30 text-muted-foreground"}`}
+              className={`h-9 px-2.5 sm:px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700" : "border-border/40 hover:bg-muted/30 text-muted-foreground"}`}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">{copied ? "Copied!" : "Copy Proof"}</span>
