@@ -222,7 +222,7 @@ function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 lex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
