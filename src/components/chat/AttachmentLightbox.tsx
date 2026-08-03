@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { X, Download, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { X, Download, ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface LightboxAttachment {
@@ -23,7 +23,13 @@ export function AttachmentLightbox({
 }) {
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   const dragRef = React.useRef<{ startX: number; startY: number; originX: number; originY: number; dragged: boolean } | null>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  // A capability flag, not tied to whether rootRef is attached yet — iOS
+  // Safari is the notable browser where this is false (no arbitrary-element
+  // Fullscreen API), so the button simply doesn't render there.
+  const fullscreenSupported = typeof document !== "undefined" && document.fullscreenEnabled;
 
   // Every new attachment (or closing) starts fresh — a leftover zoom/pan from
   // the last image would otherwise carry over and look like a broken view.
@@ -31,6 +37,29 @@ export function AttachmentLightbox({
     setZoom(1);
     setPan({ x: 0, y: 0 });
   }, [attachment?.src]);
+
+  // Reflect the real fullscreen state (also changes when the user exits via
+  // the browser's own UI/Esc, not just our button) and always leave native
+  // fullscreen behind when the viewer itself closes.
+  React.useEffect(() => {
+    const onFsChange = () => setIsFullscreen(document.fullscreenElement === rootRef.current);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  React.useEffect(() => {
+    if (!attachment && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [attachment]);
+
+  const toggleFullscreen = React.useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      rootRef.current?.requestFullscreen?.().catch(() => {});
+    }
+  }, []);
 
   const zoomTo = React.useCallback((next: number) => {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
@@ -84,6 +113,7 @@ export function AttachmentLightbox({
 
   return (
     <div
+      ref={rootRef}
       className="fixed inset-0 z-100 flex flex-col bg-black/95 backdrop-blur-sm"
       onClick={onClose}
     >
@@ -123,6 +153,15 @@ export function AttachmentLightbox({
                 </button>
               )}
             </div>
+          )}
+          {fullscreenSupported && (
+            <button
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </button>
           )}
           <a
             href={attachment.src}

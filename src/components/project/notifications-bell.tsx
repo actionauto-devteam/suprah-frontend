@@ -173,7 +173,7 @@ export function NotificationsBell({ meId, socket }: { meId: string; socket?: Soc
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-96 overflow-hidden rounded-2xl border border-border/60 bg-popover shadow-xl">
+        <div className="absolute right-0 top-full z-40 mt-2 w-96 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover shadow-xl">
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
             <p className="text-xs font-bold tracking-tight">Notifications</p>
             <button

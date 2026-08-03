@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
 import { playShiftAlertSound } from "@/lib/notification-sound";
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
+const UPDATE_TOAST_ID = "sw-update-available";
 
 export function ServiceWorkerRegistration() {
+    const waitingWorkerRef = useRef<ServiceWorker | null>(null);
+
     useEffect(() => {
         if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
@@ -37,12 +42,37 @@ export function ServiceWorkerRegistration() {
             window.location.reload();
         };
 
+        // sw.ts now registers with `skipWaiting: false`, so a freshly-installed
+        // update sits in `registration.waiting` instead of taking over
+        // instantly — this surfaces it as a dismissible toast instead of
+        // yanking the page out from under whatever the user is doing.
+        const applyUpdate = () => {
+            waitingWorkerRef.current?.postMessage({ type: "SKIP_WAITING" });
+        };
+
+        const announceUpdate = (worker: ServiceWorker) => {
+            waitingWorkerRef.current = worker;
+            toast("A new version is available.", {
+                id: UPDATE_TOAST_ID,
+                duration: Infinity,
+                icon: <RefreshCw className="h-4 w-4" />,
+                action: { label: "Refresh", onClick: applyUpdate },
+                cancel: { label: "Later", onClick: () => {} },
+            });
+        };
+
         const registerServiceWorker = async () => {
             try {
                 const registration = await navigator.serviceWorker.register("/sw.js", {
                     updateViaCache: "none",
                 });
                 void registration.update();
+
+                // An update may have finished installing in a previous tab/session
+                // and still be waiting.
+                if (registration.waiting && navigator.serviceWorker.controller) {
+                    announceUpdate(registration.waiting);
+                }
 
                 registration.addEventListener("updatefound", () => {
                     const nextWorker = registration.installing;
@@ -53,7 +83,7 @@ export function ServiceWorkerRegistration() {
                             nextWorker.state === "installed" &&
                             navigator.serviceWorker.controller
                         ) {
-                            handleControllerChange();
+                            announceUpdate(nextWorker);
                         }
                     });
                 });

@@ -200,7 +200,9 @@ export function AttachmentChip({
       title="Remove attachment"
       className={cn(
         "absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground/70 shadow-sm transition-opacity hover:border-rose-500/50 hover:text-rose-500",
-        removing ? "opacity-100" : "opacity-0 group-hover/att:opacity-100",
+        // Always visible on touch (no hover there to reveal it); desktop keeps
+        // the hover-reveal declutter.
+        removing ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover/att:opacity-100",
       )}
     >
       {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
@@ -478,7 +480,7 @@ export function EditTaskDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="max-h-[65dvh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Title</Label>
             <Input
@@ -950,7 +952,7 @@ export function TaskDetailDialog({
     <Dialog open={!!taskId} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-2xl"
+        className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-2xl sm:rounded-2xl sm:border"
       >
         {loading || !task ? (
           <div className="flex items-center justify-center py-16">
@@ -963,12 +965,12 @@ export function TaskDetailDialog({
         ) : (
           <>
             {/* Header */}
-            <DialogHeader className="space-y-2.5 border-b border-border/40 px-6 pb-4 pt-6">
-              <div className="flex items-start justify-between gap-3">
+            <DialogHeader className="space-y-2.5 border-b border-border/40 px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                 <DialogTitle className="min-w-0 text-base font-bold leading-snug">
                   {task.title}
                 </DialogTitle>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <PrioritySelect
                     priority={task.priority}
                     loading={prioritySaving}
@@ -999,11 +1001,11 @@ export function TaskDetailDialog({
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
-                  <span className="mx-0.5 h-5 w-px shrink-0 bg-border/60" />
+                  <span className="mx-0.5 hidden h-5 w-px shrink-0 bg-border/60 sm:block" />
                   <button
                     onClick={onClose}
                     title="Close"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+                    className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground sm:ml-0"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1054,7 +1056,7 @@ export function TaskDetailDialog({
             </DialogHeader>
 
             {/* Scrollable body */}
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 [scrollbar-width:thin]">
               {task.description && (
                 <div className="space-y-1.5">
                   <SectionEyebrow>Description</SectionEyebrow>
@@ -1184,7 +1186,7 @@ export function TaskDetailDialog({
                                 {c.isEdited && " · edited"}
                               </span>
                               {mine && !isEditing && (
-                                <span className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover/cmt:opacity-100">
+                                <span className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover/cmt:opacity-100">
                                   <button
                                     onClick={() => startEditComment(c)}
                                     title="Edit comment"
@@ -1272,7 +1274,7 @@ export function TaskDetailDialog({
             </div>
 
             {/* Composer */}
-            <div className="border-t border-border/40 px-6 py-4">
+            <div className="border-t border-border/40 px-4 py-3 sm:px-6 sm:py-4">
               <div className="flex items-end gap-2">
                 <input
                   ref={commentFileRef}

@@ -87,7 +87,11 @@ let state: YapLineState = {
   myUserId: null,
   sessions: {},
   current: null,
-  autoListen: true,
+  // Opt-in: silently pulling someone into a live audio session they never
+  // asked to join — just because a teammate opened a YapLine somewhere — is
+  // exactly the "auto joined into a channel for no reason" surprise. The
+  // toggle lives on the full YapLine page for anyone who actually wants it.
+  autoListen: false,
   minimized: false,
   error: null,
 };
@@ -163,7 +167,7 @@ async function ensureInit(): Promise<void> {
     try {
       const al = localStorage.getItem(LS_AUTO_LISTEN);
       const vol = localStorage.getItem(LS_VOLUME);
-      setState({ autoListen: al === null ? true : al === "1" });
+      setState({ autoListen: al === null ? false : al === "1" });
       if (vol !== null) defaultVolume = Math.min(1, Math.max(0, Number(vol) || 1));
     } catch { /* ignore */ }
 
@@ -657,7 +661,7 @@ const serverSnapshot: YapLineState = {
   myUserId: null,
   sessions: {},
   current: null,
-  autoListen: true,
+  autoListen: false,
   minimized: false,
   error: null,
 };
