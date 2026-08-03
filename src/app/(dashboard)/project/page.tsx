@@ -524,8 +524,8 @@ function GroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
-        <DialogHeader className="space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
+        <DialogHeader className="shrink-0 space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
           <DialogTitle className="text-sm font-bold">
             {isEdit ? "Edit Project Group" : "New Project Group"}
           </DialogTitle>
@@ -536,7 +536,7 @@ function GroupDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Group name</Label>
             <Input
@@ -1404,10 +1404,10 @@ function CreateTaskDialog({
 
   return (
     <Dialog open={!!folder} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="relative gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg">
+      <DialogContent className="relative flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/60 to-transparent" />
 
-        <DialogHeader className="space-y-0 border-b border-border/40 px-6 pb-4 pt-6">
+        <DialogHeader className="shrink-0 space-y-0 border-b border-border/40 px-6 pb-4 pt-6">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-1 ring-inset ring-white/20">
               <Plus className="h-5 w-5" />
@@ -1424,7 +1424,7 @@ function CreateTaskDialog({
           </div>
         </DialogHeader>
 
-        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Title</Label>
             <Input
