@@ -1,4 +1,5 @@
 import * as React from "react";
+import { toast } from "sonner";
 import {
   getLoads,
   getLoadStats,
@@ -163,17 +164,45 @@ export function useLoadsData(searchQuery?: string, selectedStatus?: string) {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const handleDeleteLoad = React.useCallback(async (loadId: string) => {
+    /*
+     * BUG FIX: this previously had try/finally with NO catch, so any failed
+     * delete became an unhandled promise rejection — the spinner stopped and
+     * nothing else happened. Errors are now surfaced via toast, 404 is
+     * treated as an already-deleted success, and the current page is
+     * re-fetched afterwards so pagination stays in sync.
+     */
     setDeletingId(loadId);
     try {
       await deleteLoad(loadId);
       setLoads((prev) => prev.filter((l) => l._id !== loadId));
+      toast.success("Load deleted.");
+
+      // Reconcile page contents + counts with the server
+      void fetchLoads(pageRef.current, limitRef.current).catch(() => {});
       getLoadStats()
         .then(setStats)
         .catch(() => {});
+    } catch (err: any) {
+      const status = err?.response?.status;
+
+      if (status === 404) {
+        // Already gone on the server — remove locally and move on
+        setLoads((prev) => prev.filter((l) => l._id !== loadId));
+        getLoadStats()
+          .then(setStats)
+          .catch(() => {});
+        return;
+      }
+
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to delete load. Please try again.",
+      );
     } finally {
       setDeletingId(null);
     }
-  }, []);
+  }, [fetchLoads]);
 
   return {
     loads,
