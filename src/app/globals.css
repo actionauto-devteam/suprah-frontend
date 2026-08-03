@@ -165,6 +165,23 @@ body.app-fullscreen .main-content {
   --shadow-2xl: 0px 1px 2px 0px oklch(0 0 0 / 0.03);
 }
 
+/* Scoped contrast fix for TimeProof's small/secondary text in BOTH themes —
+   text-muted-foreground/25 through /40 (used pervasively for the 9-10px
+   labels throughout TimeProof) reads fine at full opacity, but blending a
+   mid-gray toward transparent at low opacity washes out badly at either
+   extreme: it disappears into the near-black dark background, and just as
+   badly fades into near-white on the light background. Darkening it for
+   light mode and lightening it for dark mode gives the same low-opacity
+   utility classes real contrast either way. Scoped to .timeproof-scope
+   rather than touching --muted-foreground globally so the rest of the
+   app's existing light/dark contrast elsewhere is untouched. */
+.timeproof-scope {
+  --muted-foreground: oklch(0.35 0.03 268.53);
+}
+.dark .timeproof-scope {
+  --muted-foreground: oklch(0.78 0.03 269.46);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
