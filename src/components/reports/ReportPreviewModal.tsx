@@ -23,10 +23,10 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { formatCurrency } from "@/utils/format";
 import { Payment } from "@/types/billing";
 import { DriverPayout } from "@/types/driver-payout";
 import { Load } from "@/types/load";
+import ReportAnalyticsPanel from "@/components/reports/analytics/ReportAnalyticsPanel";
 import {
   loadCustomer,
   loadVehicle,
@@ -34,6 +34,8 @@ import {
   fmtDate,
   driverName,
 } from "@/lib/transportation-reports";
+
+import { BillingRevenuePreview } from "./finance/preview/BillingRevenuePreview";
 
 interface ReportPreviewModalProps {
   open: boolean
@@ -147,17 +149,6 @@ function statusBadgeClass(status: string) {
   return "bg-muted text-muted-foreground border-border";
 }
 
-function paymentBadgeClass(status: string) {
-  if (status === "succeeded")
-    return "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
-  if (status === "pending" || status === "processing")
-    return "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800";
-  if (status === "failed" || status === "cancelled")
-    return "bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800";
-  return "bg-muted text-muted-foreground border-border";
-}
-
-
 function StatCard({
   label,
   value,
@@ -197,7 +188,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ── Driver Preview ────────────────────────────────────────────────────────────
 
-function DriverPreview({ loads }: { loads: Load[] }) {
+function DriverPreview({
+  loads,
+  payouts,
+  periodLabel,
+}: {
+  loads: Load[];
+  payouts: DriverPayout[];
+  periodLabel?: string;
+}) {
   const assigned = loads.filter(s => s.assignedDriverId != null)
   const delivered = assigned.filter(s => s.status === "Delivered").length
   const pendingApproval = assigned.filter(
@@ -237,6 +236,14 @@ function DriverPreview({ loads }: { loads: Load[] }) {
         />
       </div>
 
+      <ReportAnalyticsPanel
+        reportId="driver-report"
+        loads={loads}
+        payouts={payouts}
+        periodContext={{ label: periodLabel }}
+        compact
+      />
+
       {/* Table */}
       <div>
         <SectionLabel>Load Details</SectionLabel>
@@ -263,13 +270,13 @@ function DriverPreview({ loads }: { loads: Load[] }) {
                     <TableHead className="text-xs font-semibold">
                       Route
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-22.5">
+                    <TableHead className="w-22.5 text-center text-xs font-semibold">
                       Delivered
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-25">
+                    <TableHead className="w-25 text-center text-xs font-semibold">
                       Status
                     </TableHead>
-                    <TableHead className="text-xs font-semibold w-22.5">
+                    <TableHead className="w-22.5 text-center text-xs font-semibold">
                       Approval
                     </TableHead>
                   </TableRow>
@@ -288,16 +295,16 @@ function DriverPreview({ loads }: { loads: Load[] }) {
                       </TableCell>
                       <TableCell>
                         <span
-                          className="inline-block max-w-50 truncate text-muted-foreground"
+                          className="block whitespace-normal break-words text-muted-foreground"
                           title={loadRoute(s)}
                         >
                           {loadRoute(s)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">
+                      <TableCell className="whitespace-nowrap text-center text-muted-foreground">
                         {fmtDate(s.deliveredAt)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <Badge
                           variant="outline"
                           className={`text-[10px] font-medium ${statusBadgeClass(s.status)}`}
@@ -305,7 +312,7 @@ function DriverPreview({ loads }: { loads: Load[] }) {
                           {s.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         {s.proofOfDelivery?.confirmedAt ? (
                           <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                             Approved
@@ -319,193 +326,6 @@ function DriverPreview({ loads }: { loads: Load[] }) {
                             —
                           </span>
                         )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Billing Preview ───────────────────────────────────────────────────────────
-
-function BillingPreview({
-  payments,
-  payouts,
-}: {
-  payments: Payment[];
-  payouts: DriverPayout[];
-}) {
-  const revenue = payments
-    .filter((p) => p.status === "succeeded")
-    .reduce((sum, p) => sum + p.amount, 0);
-  const pendingIn = payments
-    .filter((p) => p.status === "pending" || p.status === "processing")
-    .reduce((sum, p) => sum + p.amount, 0);
-  const paidOut = payouts
-    .filter((p) => p.status === "paid")
-    .reduce((sum, p) => sum + p.amount, 0);
-  const pendingOut = payouts
-    .filter((p) => p.status === "pending" || p.status === "processing")
-    .reduce((sum, p) => sum + p.amount, 0);
-
-  return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="flex flex-wrap gap-2.5">
-        <StatCard
-          label="Revenue Collected"
-          value={formatCurrency(revenue)}
-          accent="border-l-2 border-l-emerald-500 border-t-border border-r-border border-b-border"
-          icon={<TrendingUp className="size-3.5 text-emerald-500" />}
-        />
-        <StatCard
-          label="Pending Payments"
-          value={formatCurrency(pendingIn)}
-          accent="border-l-2 border-l-amber-500 border-t-border border-r-border border-b-border"
-          icon={<Clock className="size-3.5 text-amber-500" />}
-        />
-        <StatCard
-          label="Paid to Drivers"
-          value={formatCurrency(paidOut)}
-          accent="border-l-2 border-l-blue-500 border-t-border border-r-border border-b-border"
-          icon={<CheckCircle2 className="size-3.5 text-blue-500" />}
-        />
-        <StatCard
-          label="Pending Payouts"
-          value={formatCurrency(pendingOut)}
-          accent="border-border"
-          icon={<Clock className="size-3.5" />}
-        />
-      </div>
-
-      {/* Customer Payments */}
-      <div>
-        <SectionLabel>Customer Payments to Dealer</SectionLabel>
-        {payments.length === 0 ? (
-          <div className="rounded-lg border border-border py-8 text-center text-sm text-muted-foreground">
-            No payments recorded this period.
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <div className="overflow-y-auto max-h-105">
-                <Table className="min-w-[760px]">
-                <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
-                  <TableRow className="bg-transparent hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold">
-                      Customer
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold">
-                      Description
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold">
-                      Amount
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold">
-                      Status
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold whitespace-nowrap">
-                      Date
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments.map((p) => (
-                    <TableRow key={p._id} className="text-xs hover:bg-muted/30">
-                      <TableCell className="font-medium text-foreground">
-                        {p.customerName}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <span className="block truncate max-w-50" title={p.description}>
-                          {p.description}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-semibold text-foreground">
-                        {formatCurrency(p.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-medium ${paymentBadgeClass(p.status)}`}
-                        >
-                          {p.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">
-                        {fmtDate(p.paidAt || p.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Driver Payouts */}
-      <div>
-        <SectionLabel>Driver Payouts from Dealer</SectionLabel>
-        {payouts.length === 0 ? (
-          <div className="rounded-lg border border-border py-8 text-center text-sm text-muted-foreground">
-            No driver payouts recorded this period.
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <div className="overflow-y-auto max-h-105">
-                <Table className="min-w-[760px]">
-                <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
-                  <TableRow className="bg-transparent hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold">
-                      Driver
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold">
-                      Description
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold">
-                      Amount
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold">
-                      Status
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold whitespace-nowrap">
-                      Date
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payouts.map((p) => (
-                    <TableRow key={p._id} className="text-xs hover:bg-muted/30">
-                      <TableCell className="font-medium text-foreground">
-                        {p.driverName}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <span className="block truncate max-w-50" title={p.description || "—"}>
-                          {p.description || "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-semibold text-foreground">
-                        {formatCurrency(p.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-medium ${paymentBadgeClass(p.status)}`}
-                        >
-                          {p.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">
-                        {fmtDate(p.paidAt || p.createdAt)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -563,10 +383,10 @@ export function ReportPreviewModal({
               <FileText className={`size-4.5 ${accentColor}`} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-foreground leading-tight truncate">
+              <h2 className="text-base font-bold text-foreground leading-tight break-words">
                 {title}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              <p className="text-xs text-muted-foreground mt-0.5 break-words">
                 {monthLabel}
                 <span className="mx-1.5 opacity-40">·</span>
                 Preview before download
@@ -592,10 +412,19 @@ export function ReportPreviewModal({
         </div>
 
         <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
-          {isDriver
-            ? <DriverPreview loads={loads} />
-            : <BillingPreview payments={payments} payouts={payouts} />
-          }
+          {isDriver ? (
+            <DriverPreview
+              loads={loads}
+              payouts={payouts}
+              periodLabel={monthLabel}
+            />
+          ) : (
+            <BillingRevenuePreview
+              payments={payments}
+              payouts={payouts}
+              periodLabel={monthLabel}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

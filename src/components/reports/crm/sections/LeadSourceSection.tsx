@@ -19,6 +19,8 @@ import {
 
 import type { Lead } from "@/types/lead";
 
+import ReportAnalyticsPanel from "@/components/reports/analytics/ReportAnalyticsPanel";
+
 import {
   buildLeadSourceSummary,
   calculateSourceCoverage,
@@ -27,6 +29,7 @@ import {
 
 interface LeadSourceSectionProps {
   leads: Lead[];
+  periodLabel?: string;
 }
 
 function StatCard({
@@ -59,7 +62,7 @@ function StatCard({
       </p>
 
       {description ? (
-        <p className="mt-1.5 truncate text-[10px] text-muted-foreground">
+        <p className="mt-1.5 whitespace-normal break-words text-[10px] text-muted-foreground">
           {description}
         </p>
       ) : null}
@@ -107,6 +110,7 @@ function EmptyState({
 
 export function LeadSourceSection({
   leads,
+  periodLabel,
 }: LeadSourceSectionProps) {
   const sourceSummary = React.useMemo(
     () => buildLeadSourceSummary(leads),
@@ -177,6 +181,13 @@ export function LeadSourceSection({
         />
       </div>
 
+      <ReportAnalyticsPanel
+        reportId="lead-source-report"
+        leads={leads}
+        periodContext={{ label: periodLabel }}
+        compact
+      />
+
       <div>
         <SectionLabel>Lead Source Distribution</SectionLabel>
 
@@ -226,7 +237,7 @@ export function LeadSourceSection({
 
                         <TableCell>
                           <div className="min-w-0">
-                            <p className="truncate font-medium text-foreground">
+                            <p className="whitespace-normal break-words font-medium text-foreground">
                               {item.source}
                             </p>
 

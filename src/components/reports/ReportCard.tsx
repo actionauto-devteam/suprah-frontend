@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowDownRight, ArrowUpRight, ChevronDown, Download, Eye, FileSpreadsheet, FileText, Loader2, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronDown, Download, Eye, FileSpreadsheet, FileText, Loader2, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -35,6 +35,7 @@ interface ReportCardProps {
   onToggle: () => void;
   onDownload: (format: "pdf" | "xlsx") => void;
   onPreview: () => void;
+  onOpen?: () => void;
 }
 
 export function ReportCard({
@@ -53,6 +54,7 @@ export function ReportCard({
   onToggle,
   onDownload,
   onPreview,
+  onOpen,
 }: ReportCardProps) {
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = React.useState(false);
   const downloadMenuRef = React.useRef<HTMLDivElement | null>(null);
@@ -83,7 +85,7 @@ export function ReportCard({
       if (selectionMode) {
         onToggle();
       } else {
-        onPreview();
+        (onOpen ?? onPreview)();
       }
     }
   };
@@ -94,14 +96,14 @@ export function ReportCard({
       return;
     }
 
-    onPreview();
+    (onOpen ?? onPreview)();
   };
 
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={selectionMode ? `${isSelected ? "Deselect" : "Select"} ${title}` : `Preview ${title}`}
+      aria-label={selectionMode ? `${isSelected ? "Deselect" : "Select"} ${title}` : `Open ${title}`}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       className={`group relative flex h-full min-h-[300px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-4 shadow-sm outline-none transition-[border-color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-primary/40 sm:p-4.5 ${
@@ -218,18 +220,32 @@ export function ReportCard({
         <span className="font-semibold">PDF · XLSX</span>
       </div>
 
-      <div className="mt-auto grid min-w-0 grid-cols-2 gap-2.5 border-t border-border/70 pt-3">
+      <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2 border-t border-border/70 pt-3">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            (onOpen ?? onPreview)();
+          }}
+          className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:text-sm"
+        >
+          Open Report
+          <ArrowRight className="size-4" />
+        </button>
+
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
             onPreview();
           }}
-          className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3.5 text-xs font-semibold sm:text-sm text-foreground transition-colors hover:border-primary/30 hover:bg-muted"
+          className="inline-flex size-10 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-colors hover:border-primary/30 hover:bg-muted"
+          title="Quick preview"
+          aria-label={`Quick preview ${title}`}
         >
           <Eye className="size-4" />
-          Preview
         </button>
+
         <div
           ref={downloadMenuRef}
           className="relative min-w-0"
@@ -241,15 +257,16 @@ export function ReportCard({
             disabled={isDownloading}
             aria-haspopup="menu"
             aria-expanded={isDownloadMenuOpen}
-            className="inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+            className="inline-flex size-10 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-colors hover:border-primary/30 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            title="Quick download"
+            aria-label={`Download ${title}`}
           >
             {isDownloading ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Download className="size-4" />
             )}
-            {isDownloading ? "Generating" : "Download"}
-            {!isDownloading && <ChevronDown className="size-3.5" />}
+            {!isDownloading && <ChevronDown className="size-3" />}
           </button>
 
           {isDownloadMenuOpen && !isDownloading && (

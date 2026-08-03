@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import {
@@ -17,7 +18,6 @@ import {
   Search,
   RefreshCw,
   Sparkles,
-  SlidersHorizontal,
   ChevronDown,
   ChevronUp,
   ArrowUpRight,
@@ -39,8 +39,22 @@ import { Payment } from "@/types/billing";
 import { DriverPayout } from "@/types/driver-payout";
 import type { Lead } from "@/types/lead";
 import { ReportCard } from "@/components/reports/ReportCard";
+import RecentReports from "@/components/reports/workspace/RecentReports";
 import { ReportExportMenu } from "@/components/reports/ReportExportMenu";
 import { ReportPreviewModal } from "@/components/reports/ReportPreviewModal";
+import {
+  createDefaultFiltersByReport,
+  REPORT_LABELS,
+  type ReportId,
+} from "@/types/report-filters";
+import {
+  filterLeads,
+  filterLoads,
+  filterPayments,
+  filterPayouts,
+  filterQuotes,
+  getReportPeriodLabel,
+} from "@/lib/report-filter-engine";
 import {
   CRMPreviewModal,
   type CRMReportType,
@@ -49,6 +63,14 @@ import { generateLeadStatusPdf } from "@/components/reports/crm/pdf/LeadStatusPd
 import { generateLeadSourcePdf } from "@/components/reports/crm/pdf/LeadSourcePdf";
 import { generateLeadStatusExcel } from "@/components/reports/crm/excel/LeadStatusExcel";
 import { generateLeadSourceExcel } from "@/components/reports/crm/excel/LeadSourceExcel";
+import { generateBillingRevenuePdf } from "@/components/reports/finance/pdf/BillingRevenuePdf";
+import { generateBillingRevenueExcel } from "@/components/reports/finance/excel/BillingRevenueExcel";
+import { getBillingSummary } from "@/components/reports/finance/shared/billing-report-utils";
+import { writeLeadReportCache } from "@/components/reports/crm/shared/lead-report-cache";
+import {
+  buildLeadSourceSummary,
+  countUnknownSources,
+} from "@/components/reports/crm/utils/crm-preview-utils";
 import { ReportsAnalytics } from "@/components/reports/ReportsAnalytics";
 import { Quote as TransportQuote } from "@/types/transportation";
 import { Load } from "@/types/load";
@@ -76,15 +98,11 @@ import {
   saveGeneratedReportFile,
   type ReportFileCategory,
 } from "@/lib/report-files";
-
-function safeText(value: unknown, fallback = "—"): string {
-  const text = String(value ?? "").trim();
-  return text || fallback;
-}
-
-function percentage(part: number, whole: number): string {
-  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "0%";
-}
+import { createReportExportContext } from "@/components/reports/export/report-export-context";
+import {
+  generateDriverPerformanceExcel,
+  generateDriverPerformancePdf,
+} from "@/components/reports/workspace/driver-report-export";
 
 type TrendDirection = "up" | "down" | "flat";
 
@@ -124,534 +142,9 @@ function getRateTrend(current: number, previous: number): TrendInfo {
   };
 }
 
-function addFooter(doc: any, label: string, generatedAt: string) {
-  const pages = doc.getNumberOfPages();
-  for (let page = 1; page <= pages; page += 1) {
-    doc.setPage(page);
-    const width = doc.internal.pageSize.getWidth();
-    const height = doc.internal.pageSize.getHeight();
-    doc.setDrawColor(226, 232, 240);
-    doc.line(14, height - 12, width - 14, height - 12);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Suprah AI • ${label}`, 14, height - 7);
-    doc.text(generatedAt, width / 2, height - 7, { align: "center" });
-    doc.text(`Page ${page} of ${pages}`, width - 14, height - 7, {
-      align: "right",
-    });
-  }
-}
-
-function drawHeader(
-  doc: any,
-  title: string,
-  subtitle: string,
-  period: string,
-  accent: [number, number, number] = [16, 185, 129],
-) {
-  const width = doc.internal.pageSize.getWidth();
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, width, 25, "F");
-  doc.setFillColor(...accent);
-  doc.roundedRect(14, 7, 10, 10, 2, 2, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text("S", 19, 13.7, { align: "center" });
-  doc.setFontSize(13);
-  doc.text(title, 29, 11.5);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(subtitle, 29, 17);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(255, 255, 255);
-  doc.text(period, width - 14, 11.5, { align: "right" });
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(203, 213, 225);
-  doc.text("Generated locally in Suprah AI", width - 14, 17, {
-    align: "right",
-  });
-}
-
-function drawSummaryCards(
-  doc: any,
-  items: Array<{ label: string; value: string }>,
-  startY = 32,
-  valueColor: [number, number, number] = [5, 150, 105],
-) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const gap = 4;
-  const left = 14;
-  const available = pageWidth - 28;
-  const cardWidth = (available - gap * (items.length - 1)) / items.length;
-
-  items.forEach((item, index) => {
-    const x = left + index * (cardWidth + gap);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, startY, cardWidth, 17, 2, 2, "FD");
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.text(item.label, x + 3, startY + 5.5);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...valueColor);
-    doc.text(item.value, x + 3, startY + 12.5);
-  });
-}
-
-async function generateDriverPerformancePdf(
-  loads: Load[],
-  payouts: DriverPayout[],
-  monthLabel: string,
-): Promise<Blob> {
-  const { jsPDF } = await import("jspdf");
-  const autoTable = (await import("jspdf-autotable")).default;
-  const doc = new jsPDF({ orientation: "landscape" });
-  const operationsBlue: [number, number, number] = [37, 99, 235];
-  const generatedAt = new Date().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  const assigned = loads.filter((load) => Boolean(load.assignedDriverId));
-  const delivered = assigned.filter((load) => load.status === "Delivered");
-  const approved = assigned.filter((load) =>
-    Boolean(load.proofOfDelivery?.confirmedAt),
-  );
-  const paidPayouts = payouts.filter((payout) => payout.status === "paid");
-  const payoutTotal = payouts.reduce(
-    (sum, payout) => sum + Number(payout.amount || 0),
-    0,
-  );
-
-  drawHeader(
-    doc,
-    "Suprah AI Driver Performance",
-    "Fleet productivity and settlement report",
-    monthLabel,
-    operationsBlue,
-  );
-  drawSummaryCards(doc, [
-    { label: "Assigned Loads", value: String(assigned.length) },
-    { label: "Delivered", value: String(delivered.length) },
-    {
-      label: "Delivery Rate",
-      value: percentage(delivered.length, assigned.length),
-    },
-    { label: "POD Approved", value: String(approved.length) },
-    { label: "Total Payouts", value: formatCurrency(payoutTotal) },
-    { label: "Paid Settlements", value: String(paidPayouts.length) },
-  ], 32, operationsBlue);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 41, 59);
-  doc.text("Driver Load Activity", 14, 58);
-
-  autoTable(doc, {
-    startY: 61,
-    showHead: "everyPage",
-    rowPageBreak: "avoid",
-    pageBreak: "auto",
-    head: [
-      [
-        "Driver",
-        "Load",
-        "Vehicle",
-        "Customer",
-        "Route",
-        "Status",
-        "Delivered",
-        "POD",
-      ],
-    ],
-    body:
-      assigned.length > 0
-        ? assigned.map((load) => [
-            driverName(load),
-            safeText(load.loadNumber),
-            loadVehicle(load),
-            loadCustomer(load),
-            loadRoute(load),
-            safeText(load.status),
-            fmtDate(load.deliveredAt),
-            load.proofOfDelivery?.confirmedAt
-              ? "Approved"
-              : load.proofOfDelivery?.submittedAt
-                ? "Pending"
-                : "Not submitted",
-          ])
-        : [
-            [
-              "No assigned driver activity for this period",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-            ],
-          ],
-    margin: { top: 42, left: 14, right: 14, bottom: 18 },
-    styles: {
-      fontSize: 7.2,
-      cellPadding: 2.4,
-      overflow: "linebreak",
-      valign: "middle",
-      textColor: [30, 41, 59],
-    },
-    headStyles: {
-      fillColor: operationsBlue,
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    didDrawPage: (data) => {
-      if (data.pageNumber > 1) {
-        drawHeader(
-          doc,
-          "Suprah AI Driver Performance",
-          "Driver Load Activity • Continued",
-          monthLabel,
-          operationsBlue,
-        );
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 41, 59);
-        doc.text("Driver Load Activity", 14, 40);
-      }
-    },
-  });
-
-
-  // Keep the Driver Performance download consistent with its preview.
-  // Driver payout records are shown in Billings & Revenue and are not
-  // duplicated as an extra settlement page here.
-
-  doc.addPage();
-  drawHeader(
-    doc,
-    "Suprah AI Driver Settlements",
-    "Driver payout ledger",
-    monthLabel,
-    operationsBlue,
-  );
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 41, 59);
-  doc.text("Driver Settlement Details", 14, 32);
-
-  autoTable(doc, {
-    startY: 35,
-    showHead: "everyPage",
-    rowPageBreak: "avoid",
-    pageBreak: "auto",
-    head: [
-      [
-        "Payout #",
-        "Driver",
-        "Load",
-        "Description",
-        "Amount",
-        "Status",
-        "Paid At",
-        "Failure Reason",
-      ],
-    ],
-    body:
-      payouts.length > 0
-        ? payouts.map((payout) => [
-            safeText(payout.payoutNumber),
-            safeText(payout.driverName),
-            typeof payout.loadId === "object"
-              ? safeText(
-                  payout.loadId.loadNumber || payout.loadId.trackingNumber,
-                )
-              : safeText(payout.loadId),
-            safeText(payout.description),
-            formatCurrency(Number(payout.amount || 0)),
-            safeText(payout.status),
-            fmtDate(payout.paidAt),
-            safeText(payout.failureReason),
-          ])
-        : [
-            [
-              "No payout records for this period",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-            ],
-          ],
-    margin: { top: 42, left: 14, right: 14, bottom: 18 },
-    styles: {
-      fontSize: 7.2,
-      cellPadding: 2.4,
-      overflow: "linebreak",
-      valign: "middle",
-      textColor: [30, 41, 59],
-    },
-    headStyles: {
-      fillColor: operationsBlue,
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [239, 246, 255] },
-    columnStyles: { 4: { halign: "right" } },
-    didDrawPage: (data) => {
-      if (data.pageNumber > 1) {
-        drawHeader(
-          doc,
-          "Suprah AI Driver Settlements",
-          "Driver payout ledger • Continued",
-          monthLabel,
-          operationsBlue,
-        );
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 41, 59);
-        doc.text("Driver Settlement Details", 14, 40);
-      }
-    },
-  });
-
-  addFooter(doc, "Driver Performance", generatedAt);
-  return doc.output("blob");
-}
-
-async function generateBillingRevenuePdf(
-  payments: Payment[],
-  payouts: DriverPayout[],
-  monthLabel: string,
-): Promise<Blob> {
-  const { jsPDF } = await import("jspdf");
-  const autoTable = (await import("jspdf-autotable")).default;
-  const doc = new jsPDF({ orientation: "landscape" });
-  const financeViolet: [number, number, number] = [124, 58, 237];
-  const generatedAt = new Date().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  const succeeded = payments.filter(
-    (payment) => payment.status === "succeeded",
-  );
-  const pending = payments.filter((payment) =>
-    ["pending", "processing"].includes(payment.status),
-  );
-  const failed = payments.filter((payment) =>
-    ["failed", "cancelled"].includes(payment.status),
-  );
-  const grossRevenue = succeeded.reduce(
-    (sum, payment) => sum + Number(payment.amount || 0),
-    0,
-  );
-  const pendingRevenue = pending.reduce(
-    (sum, payment) => sum + Number(payment.amount || 0),
-    0,
-  );
-  const driverCosts = payouts.reduce(
-    (sum, payout) => sum + Number(payout.amount || 0),
-    0,
-  );
-  const netPosition = grossRevenue - driverCosts;
-
-  drawHeader(
-    doc,
-    "Suprah AI Billings & Revenue",
-    "Payment audit and operating margin report",
-    monthLabel,
-    financeViolet,
-  );
-  drawSummaryCards(doc, [
-    { label: "Transactions", value: String(payments.length) },
-    { label: "Succeeded", value: String(succeeded.length) },
-    { label: "Gross Revenue", value: formatCurrency(grossRevenue) },
-    { label: "Pending", value: formatCurrency(pendingRevenue) },
-    { label: "Driver Costs", value: formatCurrency(driverCosts) },
-    { label: "Net Position", value: formatCurrency(netPosition) },
-  ], 32, financeViolet);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 41, 59);
-  doc.text("Customer Payments to Dealer", 14, 58);
-
-  autoTable(doc, {
-    startY: 61,
-    showHead: "everyPage",
-    rowPageBreak: "avoid",
-    pageBreak: "auto",
-    head: [
-      [
-        "Invoice",
-        "Customer",
-        "Description",
-        "Amount",
-        "Status",
-        "Method",
-        "Paid At",
-        "Due Date",
-      ],
-    ],
-    body:
-      payments.length > 0
-        ? payments.map((payment) => [
-            safeText(payment.invoiceNumber),
-            safeText(payment.customerName),
-            safeText(payment.description),
-            formatCurrency(Number(payment.amount || 0)),
-            safeText(payment.status),
-            safeText(payment.paymentMethod),
-            fmtDate(payment.paidAt),
-            fmtDate(payment.dueDate),
-          ])
-        : [["No billing activity for this period", "", "", "", "", "", "", ""]],
-    margin: { top: 42, left: 14, right: 14, bottom: 18 },
-    styles: {
-      fontSize: 7.2,
-      cellPadding: 2.4,
-      overflow: "linebreak",
-      valign: "middle",
-      textColor: [30, 41, 59],
-    },
-    headStyles: {
-      fillColor: financeViolet,
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [250, 245, 255] },
-    columnStyles: { 3: { halign: "right" } },
-    didDrawPage: (data) => {
-      if (data.pageNumber > 1) {
-        drawHeader(
-          doc,
-          "Suprah AI Billings & Revenue",
-          "Customer Payments to Dealer • Continued",
-          monthLabel,
-          financeViolet,
-        );
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 41, 59);
-        doc.text("Customer Payments to Dealer", 14, 40);
-      }
-    },
-  });
-
-  doc.addPage();
-  drawHeader(
-    doc,
-    "Suprah AI Billings & Revenue",
-    "Driver Payouts from Dealer",
-    monthLabel,
-    financeViolet,
-  );
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 41, 59);
-  doc.text("Driver Payouts from Dealer", 14, 40);
-
-  autoTable(doc, {
-    startY: 43,
-    showHead: "everyPage",
-    rowPageBreak: "avoid",
-    pageBreak: "auto",
-    head: [
-      [
-        "Driver",
-        "Payout #",
-        "Load",
-        "Description",
-        "Amount",
-        "Status",
-        "Paid At",
-      ],
-    ],
-    body:
-      payouts.length > 0
-        ? payouts.map((payout) => [
-            safeText(payout.driverName),
-            safeText(payout.payoutNumber),
-            typeof payout.loadId === "object"
-              ? safeText(
-                  payout.loadId.loadNumber || payout.loadId.trackingNumber,
-                )
-              : safeText(payout.loadId),
-            safeText(payout.description),
-            formatCurrency(Number(payout.amount || 0)),
-            safeText(payout.status),
-            fmtDate(payout.paidAt),
-          ])
-        : [
-            [
-              "No payout activity for this period",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-            ],
-          ],
-    margin: { top: 42, left: 14, right: 14, bottom: 18 },
-    styles: {
-      fontSize: 7.2,
-      cellPadding: 2.4,
-      overflow: "linebreak",
-      valign: "middle",
-      textColor: [30, 41, 59],
-    },
-    headStyles: {
-      fillColor: financeViolet,
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [240, 253, 250] },
-    columnStyles: { 4: { halign: "right" } },
-    didDrawPage: (data) => {
-      if (data.pageNumber > 1) {
-        drawHeader(
-          doc,
-          "Suprah AI Billings & Revenue",
-          "Driver Payouts from Dealer • Continued",
-          monthLabel,
-          financeViolet,
-        );
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 41, 59);
-        doc.text("Driver Payouts from Dealer", 14, 40);
-      }
-    },
-  });
-
-  addFooter(doc, "Billings & Revenue", generatedAt);
-  return doc.output("blob");
-}
-
-
-
-
 type ExportFormat = "pdf" | "xlsx";
 
-function createBrowserDownload(blob: Blob, filename: string) {
+function createBrowserDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -661,566 +154,6 @@ function createBrowserDownload(blob: Blob, filename: string) {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
-
-function safeWorkbookText(value: unknown, fallback = "—"): string {
-  const text = String(value ?? "").trim();
-  return text || fallback;
-}
-
-function workbookDate(value: unknown): string {
-  if (!value) return "—";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function setExcelColumns(worksheet: any, widths: number[]) {
-  worksheet["!cols"] = widths.map((wch) => ({ wch }));
-}
-
-
-const EXCEL_REPORT_COLORS = {
-  navy: "0F172A",
-  green: "10B981",
-  greenDark: "047857",
-  greenSoft: "D1FAE5",
-  blueSoft: "DBEAFE",
-  blue: "2563EB",
-  amberSoft: "FEF3C7",
-  amber: "D97706",
-  redSoft: "FEE2E2",
-  red: "DC2626",
-  graySoft: "F1F5F9",
-  columnSoft: "F8FAFC",
-  columnAltSoft: "F1F8F5",
-  gray: "64748B",
-  white: "FFFFFF",
-  border: "CBD5E1",
-  text: "1E293B",
-};
-
-function styleExcelCell(
-  worksheet: any,
-  address: string,
-  style: Record<string, unknown>,
-) {
-  if (!worksheet[address]) worksheet[address] = { t: "s", v: "" };
-  worksheet[address].s = style;
-}
-
-function styleExcelRange(
-  XLSX: any,
-  worksheet: any,
-  range: string,
-  style: Record<string, unknown>,
-) {
-  const decoded = XLSX.utils.decode_range(range);
-  for (let row = decoded.s.r; row <= decoded.e.r; row += 1) {
-    for (let col = decoded.s.c; col <= decoded.e.c; col += 1) {
-      styleExcelCell(
-        worksheet,
-        XLSX.utils.encode_cell({ r: row, c: col }),
-        style,
-      );
-    }
-  }
-}
-
-function workbookStatusStyle(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized.includes("deliver") || normalized.includes("paid")) {
-    return {
-      fill: EXCEL_REPORT_COLORS.greenSoft,
-      font: EXCEL_REPORT_COLORS.greenDark,
-    };
-  }
-
-  if (
-    normalized.includes("pending") ||
-    normalized.includes("processing") ||
-    normalized.includes("submitted")
-  ) {
-    return {
-      fill: EXCEL_REPORT_COLORS.amberSoft,
-      font: EXCEL_REPORT_COLORS.amber,
-    };
-  }
-
-  if (
-    normalized.includes("failed") ||
-    normalized.includes("cancel") ||
-    normalized.includes("reject")
-  ) {
-    return {
-      fill: EXCEL_REPORT_COLORS.redSoft,
-      font: EXCEL_REPORT_COLORS.red,
-    };
-  }
-
-  return {
-    fill: EXCEL_REPORT_COLORS.blueSoft,
-    font: EXCEL_REPORT_COLORS.blue,
-  };
-}
-
-function styleWorkbookSummary(
-  XLSX: any,
-  worksheet: any,
-  metricEndRow: number,
-) {
-  worksheet["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
-  ];
-
-  styleExcelRange(XLSX, worksheet, "A1:B1", {
-    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.navy } },
-    font: {
-      color: { rgb: EXCEL_REPORT_COLORS.white },
-      bold: true,
-      sz: 18,
-    },
-    alignment: { horizontal: "center", vertical: "center" },
-  });
-
-  styleExcelRange(XLSX, worksheet, "A2:B2", {
-    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.green } },
-    font: {
-      color: { rgb: EXCEL_REPORT_COLORS.white },
-      bold: true,
-      sz: 13,
-    },
-    alignment: { horizontal: "center", vertical: "center" },
-  });
-
-  styleExcelRange(XLSX, worksheet, "A5:B5", {
-    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.navy } },
-    font: {
-      color: { rgb: EXCEL_REPORT_COLORS.white },
-      bold: true,
-      sz: 11,
-    },
-    alignment: { horizontal: "center", vertical: "center" },
-    border: {
-      top: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-      bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-      left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-      right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-    },
-  });
-
-  for (let row = 6; row <= metricEndRow; row += 1) {
-    const fill =
-      row % 2 === 0
-        ? EXCEL_REPORT_COLORS.graySoft
-        : EXCEL_REPORT_COLORS.white;
-
-    styleExcelRange(XLSX, worksheet, `A${row}:B${row}`, {
-      fill: { fgColor: { rgb: fill } },
-      font: { color: { rgb: EXCEL_REPORT_COLORS.text }, sz: 11 },
-      border: {
-        bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-        left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-        right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-      },
-      alignment: { vertical: "center" },
-    });
-
-    styleExcelCell(worksheet, `B${row}`, {
-      fill: { fgColor: { rgb: fill } },
-      font: {
-        color: { rgb: EXCEL_REPORT_COLORS.text },
-        bold: true,
-        sz: 12,
-      },
-      alignment: { horizontal: "center", vertical: "center" },
-      border: {
-        bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-        left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-        right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-      },
-    });
-  }
-
-  worksheet["!cols"] = [{ wch: 28 }, { wch: 22 }];
-  worksheet["!rows"] = [
-    { hpt: 28 },
-    { hpt: 22 },
-    { hpt: 18 },
-    { hpt: 8 },
-    { hpt: 22 },
-  ];
-  worksheet["!freeze"] = { xSplit: 0, ySplit: 5 };
-  worksheet["!sheetView"] = [{ showGridLines: false }];
-}
-
-function styleWorkbookData(
-  XLSX: any,
-  worksheet: any,
-  rowCount: number,
-  columnCount: number,
-  statusColumnIndex?: number,
-  centerColumns: number[] = [],
-  rightColumns: number[] = [],
-  emphasisColumns: number[] = [],
-  currencyColumns: number[] = [],
-  dateColumns: number[] = [],
-) {
-  if (rowCount <= 0) return;
-
-  const lastColumn = XLSX.utils.encode_col(columnCount - 1);
-  const lastRow = rowCount + 1;
-
-  styleExcelRange(XLSX, worksheet, `A1:${lastColumn}1`, {
-    fill: { fgColor: { rgb: EXCEL_REPORT_COLORS.navy } },
-    font: {
-      color: { rgb: EXCEL_REPORT_COLORS.white },
-      bold: true,
-      sz: 11.5,
-    },
-    alignment: {
-      horizontal: "center",
-      vertical: "center",
-      wrapText: true,
-    },
-    border: {
-      top: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.green } },
-      bottom: { style: "medium", color: { rgb: EXCEL_REPORT_COLORS.green } },
-      left: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-      right: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-    },
-  });
-
-  for (let row = 2; row <= lastRow; row += 1) {
-    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-      const address = `${XLSX.utils.encode_col(columnIndex)}${row}`;
-      if (!worksheet[address]) continue;
-
-      const isOddExcelColumn = (columnIndex + 1) % 2 === 1;
-
-      // Very subtle column contrast:
-      // odd columns remain neutral; even columns receive a light Suprah tint.
-      const fill =
-        row % 2 === 0
-          ? isOddExcelColumn
-            ? EXCEL_REPORT_COLORS.columnSoft
-            : EXCEL_REPORT_COLORS.columnAltSoft
-          : isOddExcelColumn
-            ? EXCEL_REPORT_COLORS.white
-            : "F5FBF8";
-
-      const isCentered = centerColumns.includes(columnIndex);
-      const isRightAligned = rightColumns.includes(columnIndex);
-      const isEmphasized = emphasisColumns.includes(columnIndex);
-      const isCurrency = currencyColumns.includes(columnIndex);
-      const isDate = dateColumns.includes(columnIndex);
-
-      styleExcelCell(worksheet, address, {
-        fill: { fgColor: { rgb: fill } },
-        font: {
-          color: {
-            rgb: isCurrency
-              ? EXCEL_REPORT_COLORS.greenDark
-              : isDate
-                ? EXCEL_REPORT_COLORS.gray
-                : EXCEL_REPORT_COLORS.text,
-          },
-          bold: isCurrency || isEmphasized || isRightAligned,
-          sz: isEmphasized ? 11 : 10.5,
-        },
-        alignment: {
-          horizontal: isCurrency || isRightAligned
-            ? "right"
-            : isDate || isCentered
-              ? "center"
-              : "left",
-          vertical: "center",
-          wrapText: true,
-          indent: isCurrency || isRightAligned || isDate || isCentered ? 0 : 1,
-        },
-        border: {
-          bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-          left: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
-          right: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
-        },
-      });
-    }
-
-    // Status colors take priority over the alternating-column treatment.
-    if (statusColumnIndex !== undefined) {
-      const address = `${XLSX.utils.encode_col(statusColumnIndex)}${row}`;
-      const status = safeWorkbookText(worksheet[address]?.v, "");
-      const colors = workbookStatusStyle(status);
-
-      styleExcelCell(worksheet, address, {
-        fill: { fgColor: { rgb: colors.fill } },
-        font: { color: { rgb: colors.font }, bold: true, sz: 10.5 },
-        alignment: { horizontal: "center", vertical: "center" },
-        border: {
-          bottom: { style: "thin", color: { rgb: EXCEL_REPORT_COLORS.border } },
-          left: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
-          right: { style: "hair", color: { rgb: EXCEL_REPORT_COLORS.border } },
-        },
-      });
-    }
-  }
-
-  worksheet["!autofilter"] = { ref: `A1:${lastColumn}${lastRow}` };
-  worksheet["!freeze"] = { xSplit: 0, ySplit: 1 };
-  worksheet["!sheetView"] = [{ showGridLines: false }];
-  worksheet["!rows"] = [
-    { hpt: 34 },
-    ...Array.from({ length: rowCount }, () => ({ hpt: 25 })),
-  ];
-}
-
-async function generateDriverPerformanceExcel(
-  loads: Load[],
-  payouts: DriverPayout[],
-  monthLabel: string,
-): Promise<Blob> {
-  const XLSX = await import("xlsx-js-style");
-  const workbook = XLSX.utils.book_new();
-
-  const assigned = loads.filter((load) => Boolean(load.assignedDriverId));
-  const delivered = assigned.filter((load) => load.status === "Delivered");
-  const approved = assigned.filter((load) =>
-    Boolean(load.proofOfDelivery?.confirmedAt),
-  );
-  const payoutTotal = payouts.reduce(
-    (sum, payout) => sum + Number(payout.amount || 0),
-    0,
-  );
-
-  const summarySheet = XLSX.utils.aoa_to_sheet([
-    ["SUPRAH AI — DRIVER PERFORMANCE REPORT"],
-    [monthLabel],
-    ["Generated", new Date().toLocaleString("en-US")],
-    [],
-    ["Summary Metric", "Value"],
-    ["Assigned Loads", assigned.length],
-    ["Delivered", delivered.length],
-    [
-      "Delivery Rate",
-      assigned.length > 0 ? delivered.length / assigned.length : 0,
-    ],
-    ["POD Approved", approved.length],
-    ["Total Payouts", payoutTotal],
-  ]);
-  styleWorkbookSummary(XLSX, summarySheet, 10);
-  summarySheet["B8"] = {
-    t: "n",
-    v: assigned.length > 0 ? delivered.length / assigned.length : 0,
-    z: "0%",
-  };
-  summarySheet["B10"] = {
-    t: "n",
-    v: payoutTotal,
-    z: "$#,##0.00",
-  };
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-
-  const loadRows = assigned.map((load) => ({
-    Driver: driverName(load),
-    Load: safeWorkbookText(load.loadNumber),
-    Vehicle: loadVehicle(load),
-    Customer: loadCustomer(load),
-    Route: loadRoute(load),
-    Status: safeWorkbookText(load.status),
-    Delivered: workbookDate(load.deliveredAt),
-    POD: load.proofOfDelivery?.confirmedAt
-      ? "Approved"
-      : load.proofOfDelivery?.submittedAt
-        ? "Pending"
-        : "Not submitted",
-  }));
-  const loadSheet = XLSX.utils.json_to_sheet(loadRows);
-  setExcelColumns(loadSheet, [27, 20, 28, 27, 38, 17, 18, 19]);
-  styleWorkbookData(
-    XLSX,
-    loadSheet,
-    loadRows.length,
-    8,
-    5,
-    [1, 5, 6, 7],
-    [],
-    [0, 2, 3],
-    [],
-    [6],
-  );
-
-  XLSX.utils.book_append_sheet(workbook, loadSheet, "Driver Activity");
-
-  const payoutRows = payouts.map((payout) => ({
-    "Payout #": safeWorkbookText(payout.payoutNumber),
-    Driver: safeWorkbookText(payout.driverName),
-    Load:
-      typeof payout.loadId === "object"
-        ? safeWorkbookText(
-            payout.loadId.loadNumber || payout.loadId.trackingNumber,
-          )
-        : safeWorkbookText(payout.loadId),
-    Description: safeWorkbookText(payout.description),
-    Amount: Number(payout.amount || 0),
-    Status: safeWorkbookText(payout.status),
-    "Paid At": workbookDate(payout.paidAt),
-    "Failure Reason": safeWorkbookText(payout.failureReason),
-  }));
-  const payoutSheet = XLSX.utils.json_to_sheet(payoutRows);
-  setExcelColumns(payoutSheet, [20, 27, 20, 36, 18, 16, 18, 30]);
-  styleWorkbookData(
-    XLSX,
-    payoutSheet,
-    payoutRows.length,
-    8,
-    5,
-    [0, 2, 5, 6],
-    [4],
-    [1],
-    [4],
-    [6],
-  );
-  for (let row = 2; row <= payoutRows.length + 1; row += 1) {
-    if (payoutSheet[`E${row}`]) payoutSheet[`E${row}`].z = "$#,##0.00";
-  }
-  XLSX.utils.book_append_sheet(workbook, payoutSheet, "Settlements");
-
-  const output = XLSX.write(workbook, {
-    bookType: "xlsx",
-    type: "array",
-    cellStyles: true,
-  });
-
-  return new Blob([output], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-}
-
-async function generateBillingRevenueExcel(
-  payments: Payment[],
-  payouts: DriverPayout[],
-  monthLabel: string,
-): Promise<Blob> {
-  const XLSX = await import("xlsx-js-style");
-  const workbook = XLSX.utils.book_new();
-
-  const succeeded = payments.filter(
-    (payment) => payment.status === "succeeded",
-  );
-  const pending = payments.filter((payment) =>
-    ["pending", "processing"].includes(payment.status),
-  );
-  const grossRevenue = succeeded.reduce(
-    (sum, payment) => sum + Number(payment.amount || 0),
-    0,
-  );
-  const pendingRevenue = pending.reduce(
-    (sum, payment) => sum + Number(payment.amount || 0),
-    0,
-  );
-  const driverCosts = payouts.reduce(
-    (sum, payout) => sum + Number(payout.amount || 0),
-    0,
-  );
-  const netPosition = grossRevenue - driverCosts;
-
-  const summarySheet = XLSX.utils.aoa_to_sheet([
-    ["SUPRAH AI — BILLINGS & REVENUE REPORT"],
-    [monthLabel],
-    ["Generated", new Date().toLocaleString("en-US")],
-    [],
-    ["Summary Metric", "Value"],
-    ["Transactions", payments.length],
-    ["Succeeded", succeeded.length],
-    ["Gross Revenue", grossRevenue],
-    ["Pending Revenue", pendingRevenue],
-    ["Driver Costs", driverCosts],
-    ["Net Position", netPosition],
-  ]);
-  styleWorkbookSummary(XLSX, summarySheet, 11);
-  for (const cell of ["B8", "B9", "B10", "B11"]) {
-    if (summarySheet[cell]) summarySheet[cell].z = "$#,##0.00";
-  }
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-
-  const paymentRows = payments.map((payment) => ({
-    Invoice: safeWorkbookText(payment.invoiceNumber),
-    Customer: safeWorkbookText(payment.customerName),
-    Description: safeWorkbookText(payment.description),
-    Amount: Number(payment.amount || 0),
-    Status: safeWorkbookText(payment.status),
-    Method: safeWorkbookText(payment.paymentMethod),
-    "Paid At": workbookDate(payment.paidAt),
-    "Due Date": workbookDate(payment.dueDate),
-  }));
-  const paymentSheet = XLSX.utils.json_to_sheet(paymentRows);
-  setExcelColumns(paymentSheet, [20, 28, 38, 18, 16, 20, 18, 18]);
-  styleWorkbookData(
-    XLSX,
-    paymentSheet,
-    paymentRows.length,
-    8,
-    4,
-    [0, 4, 5, 6, 7],
-    [3],
-    [1],
-    [3],
-    [6, 7],
-  );
-  for (let row = 2; row <= paymentRows.length + 1; row += 1) {
-    if (paymentSheet[`D${row}`]) paymentSheet[`D${row}`].z = "$#,##0.00";
-  }
-  XLSX.utils.book_append_sheet(workbook, paymentSheet, "Customer Payments");
-
-  const payoutRows = payouts.map((payout) => ({
-    Driver: safeWorkbookText(payout.driverName),
-    "Payout #": safeWorkbookText(payout.payoutNumber),
-    Load:
-      typeof payout.loadId === "object"
-        ? safeWorkbookText(
-            payout.loadId.loadNumber || payout.loadId.trackingNumber,
-          )
-        : safeWorkbookText(payout.loadId),
-    Description: safeWorkbookText(payout.description),
-    Amount: Number(payout.amount || 0),
-    Status: safeWorkbookText(payout.status),
-    "Paid At": workbookDate(payout.paidAt),
-  }));
-  const payoutSheet = XLSX.utils.json_to_sheet(payoutRows);
-  setExcelColumns(payoutSheet, [28, 20, 20, 38, 18, 16, 18]);
-  styleWorkbookData(
-    XLSX,
-    payoutSheet,
-    payoutRows.length,
-    7,
-    5,
-    [1, 2, 5, 6],
-    [4],
-    [0],
-    [4],
-    [6],
-  );
-  for (let row = 2; row <= payoutRows.length + 1; row += 1) {
-    if (payoutSheet[`E${row}`]) payoutSheet[`E${row}`].z = "$#,##0.00";
-  }
-  XLSX.utils.book_append_sheet(workbook, payoutSheet, "Driver Payouts");
-
-  const output = XLSX.write(workbook, {
-    bookType: "xlsx",
-    type: "array",
-    cellStyles: true,
-  });
-
-  return new Blob([output], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-}
-
 
 type TabValue =
   | "ALL"
@@ -1261,6 +194,7 @@ const CATEGORIES = [
 
 export default function ReportsPage() {
   const { getToken } = useAuth();
+  const router = useRouter();
   const [activeTab, setActiveTab] = React.useState<TabValue>("ALL");
   const [selectedMonth, setSelectedMonth] = React.useState(
     new Date().getMonth(),
@@ -1279,11 +213,18 @@ export default function ReportsPage() {
   const [rawLoads, setRawLoads] = React.useState<Load[]>([]);
   const [rawQuotes, setRawQuotes] = React.useState<TransportQuote[]>([]);
   const [rawPayments, setRawPayments] = React.useState<Payment[]>([]);
+  const [rawPayouts, setRawPayouts] = React.useState<DriverPayout[]>([]);
+  const [rawLeads, setRawLeads] = React.useState<Lead[]>([]);
+
+  const [filtersByReport, setFiltersByReport] = React.useState(() =>
+    createDefaultFiltersByReport(
+      new Date(selectedYear, selectedMonth, 1),
+    ),
+  );
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = React.useState(false);
   const [downloading, setDownloading] = React.useState<string | null>(null);
-  const searchQuery = "";
   const [showTransportationAnalytics, setShowTransportationAnalytics] = React.useState(true);
   const [showOperationalAnalytics, setShowOperationalAnalytics] = React.useState(true);
 
@@ -1313,6 +254,7 @@ export default function ReportsPage() {
         pRes,
         allPaymentsRes,
         payRes,
+        allPayoutsRes,
         previousLoadsRes,
         previousPaymentsRes,
         previousPayoutsRes,
@@ -1336,6 +278,9 @@ export default function ReportsPage() {
         apiClient.get(`/api/driver-payouts?${reportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        apiClient.get(`/api/driver-payouts?page=1&limit=5000`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
         apiClient.get(`/api/loads?${previousReportQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -1355,6 +300,8 @@ export default function ReportsPage() {
       const paymentPayload = pRes.data?.data;
       const allPaymentsPayload = allPaymentsRes.data?.data;
       const payoutPayload = payRes.data?.data;
+      const allPayoutPayload =
+        allPayoutsRes.data?.data ?? allPayoutsRes.data;
       const previousLoadPayload = previousLoadsRes.data?.data;
       const previousPaymentPayload = previousPaymentsRes.data?.data;
       const previousPayoutPayload = previousPayoutsRes.data?.data;
@@ -1389,6 +336,11 @@ export default function ReportsPage() {
         : Array.isArray(payoutPayload?.payouts)
           ? payoutPayload.payouts
           : [];
+      const allPayouts = Array.isArray(allPayoutPayload)
+        ? allPayoutPayload
+        : Array.isArray(allPayoutPayload?.payouts)
+          ? allPayoutPayload.payouts
+          : [];
       const quotes = Array.isArray(qRes.data?.data)
         ? qRes.data.data
         : Array.isArray(qRes.data?.data?.quotes)
@@ -1415,6 +367,10 @@ export default function ReportsPage() {
         : Array.isArray(leadPayload?.leads)
           ? leadPayload.leads
           : [];
+
+      // Reuse the lead data that the overview already loaded when opening
+      // Lead Status or Lead Source. This avoids a second large API request.
+      writeLeadReportCache(allLeads);
 
       const isLeadInPeriod = (
         lead: Lead,
@@ -1456,6 +412,8 @@ export default function ReportsPage() {
       setRawLoads(allLoads);
       setRawQuotes(quotes);
       setRawPayments(allPayments);
+      setRawPayouts(allPayouts);
+      setRawLeads(allLeads);
     } catch (error) {
       console.error("Report fetch error:", error);
       toast.error("Failed to load report data");
@@ -1468,41 +426,125 @@ export default function ReportsPage() {
     fetchData();
   }, [fetchData]);
 
+  React.useEffect(() => {
+    const referenceDate = `${selectedYear}-${String(
+      selectedMonth + 1,
+    ).padStart(2, "0")}-01`;
+
+    setFiltersByReport((current) => {
+      const next = { ...current };
+
+      (Object.keys(next) as ReportId[]).forEach((reportId) => {
+        next[reportId] = {
+          ...next[reportId],
+          referenceDate,
+        };
+      });
+
+      return next;
+    });
+  }, [selectedMonth, selectedYear]);
+
   // ─── Filter Logic ───────────────────────────────────────────────────────────
 
   const monthLabel = `${MONTHS[selectedMonth]} ${selectedYear}`;
+  const workspaceReferenceDate = `${selectedYear}-${String(
+    selectedMonth + 1,
+  ).padStart(2, "0")}-01`;
+  const openReportWorkspace = React.useCallback(
+    (reportId: ReportId) => {
+      router.push(
+        `/reports/${reportId}?referenceDate=${workspaceReferenceDate}`,
+      );
+    },
+    [router, workspaceReferenceDate],
+  );
   const previousPeriodDate = new Date(selectedYear, selectedMonth - 1, 1);
   const previousMonthLabel = `${MONTHS[previousPeriodDate.getMonth()]} ${previousPeriodDate.getFullYear()}`;
 
-  const filteredLoads = React.useMemo(() => {
-    if (!reportData?.loads) return [];
-    return reportData.loads.filter((l) => {
-      const q = searchQuery.toLowerCase();
-      return (
-        l.loadNumber?.toLowerCase().includes(q) ||
-        l.pickupLocation?.city?.toLowerCase().includes(q) ||
-        l.deliveryLocation?.city?.toLowerCase().includes(q)
-      );
-    });
-  }, [reportData?.loads, searchQuery]);
+  const filteredLoads = React.useMemo(
+    () => filterLoads(rawLoads, filtersByReport["load-report"]),
+    [filtersByReport, rawLoads],
+  );
 
-  const filteredQuotes = React.useMemo(() => {
-    if (!rawQuotes) return [];
-    // Filter quotes by the selected year/month based on createdAt
-    const monthStr = String(selectedMonth + 1).padStart(2, "0");
-    const yearMonth = `${selectedYear}-${monthStr}`;
-    return rawQuotes.filter((q) => {
-      const matchesDate = q.createdAt?.startsWith(yearMonth);
-      if (!matchesDate) return false;
-      const query = searchQuery.toLowerCase();
-      return (
-        q.firstName?.toLowerCase().includes(query) ||
-        q.lastName?.toLowerCase().includes(query) ||
-        q.fromAddress?.toLowerCase().includes(query) ||
-        q.toAddress?.toLowerCase().includes(query)
-      );
-    });
-  }, [rawQuotes, selectedMonth, selectedYear, searchQuery]);
+  const filteredQuotes = React.useMemo(
+    () => filterQuotes(rawQuotes, filtersByReport["quote-report"]),
+    [filtersByReport, rawQuotes],
+  );
+
+  const filteredLeadStatus = React.useMemo(
+    () =>
+      filterLeads(
+        rawLeads,
+        filtersByReport["lead-status-report"],
+      ),
+    [filtersByReport, rawLeads],
+  );
+
+  const filteredLeadSource = React.useMemo(
+    () =>
+      filterLeads(
+        rawLeads,
+        filtersByReport["lead-source-report"],
+      ),
+    [filtersByReport, rawLeads],
+  );
+
+  const filteredDriverLoads = React.useMemo(
+    () => filterLoads(rawLoads, filtersByReport["driver-report"]),
+    [filtersByReport, rawLoads],
+  );
+
+  const filteredDriverPayouts = React.useMemo(
+    () =>
+      filterPayouts(
+        rawPayouts,
+        filtersByReport["driver-report"],
+      ),
+    [filtersByReport, rawPayouts],
+  );
+
+  const filteredBillingPayments = React.useMemo(
+    () =>
+      filterPayments(
+        rawPayments,
+        filtersByReport["billing-report"],
+      ),
+    [filtersByReport, rawPayments],
+  );
+
+  const filteredBillingPayouts = React.useMemo(
+    () =>
+      filterPayouts(
+        rawPayouts,
+        filtersByReport["billing-report"],
+      ),
+    [filtersByReport, rawPayouts],
+  );
+
+  const reportPeriodLabels = React.useMemo(
+    () => ({
+      "load-report": getReportPeriodLabel(
+        filtersByReport["load-report"],
+      ),
+      "quote-report": getReportPeriodLabel(
+        filtersByReport["quote-report"],
+      ),
+      "lead-status-report": getReportPeriodLabel(
+        filtersByReport["lead-status-report"],
+      ),
+      "lead-source-report": getReportPeriodLabel(
+        filtersByReport["lead-source-report"],
+      ),
+      "driver-report": getReportPeriodLabel(
+        filtersByReport["driver-report"],
+      ),
+      "billing-report": getReportPeriodLabel(
+        filtersByReport["billing-report"],
+      ),
+    }),
+    [filtersByReport],
+  );
 
   const previousQuotes = React.useMemo(() => {
     const previousKey = `${previousPeriodDate.getFullYear()}-${String(
@@ -1512,40 +554,61 @@ export default function ReportsPage() {
     return rawQuotes.filter((quote) => quote.createdAt?.startsWith(previousKey));
   }, [rawQuotes, previousPeriodDate]);
 
-  const loadSummary = React.useMemo(() => {
-    return buildLoadSummary(filteredLoads);
-  }, [filteredLoads]);
-
-  const quoteSummary = React.useMemo(() => {
-    return buildQuoteSummary(filteredQuotes);
-  }, [filteredQuotes]);
-
-  const revenueTotal = React.useMemo(
-    () =>
-      (reportData?.payments || [])
-        .filter((payment) => payment.status === "succeeded")
-        .reduce((total, payment) => total + Number(payment.amount || 0), 0),
-    [reportData?.payments],
+  const loadSummary = React.useMemo(
+    () => buildLoadSummary(filteredLoads),
+    [filteredLoads],
   );
 
-  const payoutTotal = React.useMemo(
+  const quoteSummary = React.useMemo(
+    () => buildQuoteSummary(filteredQuotes),
+    [filteredQuotes],
+  );
+
+  const billingSummary = React.useMemo(
+    () => getBillingSummary(filteredBillingPayments, filteredBillingPayouts),
+    [filteredBillingPayments, filteredBillingPayouts],
+  );
+
+  const revenueTotal = billingSummary.revenueCollected;
+  const payoutTotal = billingSummary.paidDriverCosts;
+
+  const driverPayoutTotal = React.useMemo(
     () =>
-      (reportData?.payouts || []).reduce(
+      filteredDriverPayouts.reduce(
         (total, payout) => total + Number(payout.amount || 0),
         0,
       ),
-    [reportData?.payouts],
+    [filteredDriverPayouts],
   );
 
-  const previousRevenueTotal = React.useMemo(
+  const driverAssignedLoads = React.useMemo(
+    () => filteredDriverLoads.filter((load) => Boolean(load.assignedDriverId)),
+    [filteredDriverLoads],
+  );
+
+  const driverDeliveredLoads = React.useMemo(
+    () => driverAssignedLoads.filter((load) => load.status === "Delivered"),
+    [driverAssignedLoads],
+  );
+
+  const driverDeliveryRate =
+    driverAssignedLoads.length > 0
+      ? Math.round((driverDeliveredLoads.length / driverAssignedLoads.length) * 100)
+      : 0;
+
+  const previousBillingSummary = React.useMemo(
     () =>
-      (previousReportData?.payments || [])
-        .filter((payment) => payment.status === "succeeded")
-        .reduce((total, payment) => total + Number(payment.amount || 0), 0),
-    [previousReportData?.payments],
+      getBillingSummary(
+        previousReportData?.payments || [],
+        previousReportData?.payouts || [],
+      ),
+    [previousReportData?.payments, previousReportData?.payouts],
   );
 
-  const previousPayoutTotal = React.useMemo(
+  const previousRevenueTotal = previousBillingSummary.revenueCollected;
+  const previousPayoutTotal = previousBillingSummary.paidDriverCosts;
+
+  const previousDriverPayoutTotal = React.useMemo(
     () =>
       (previousReportData?.payouts || []).reduce(
         (total, payout) => total + Number(payout.amount || 0),
@@ -1554,37 +617,34 @@ export default function ReportsPage() {
     [previousReportData?.payouts],
   );
 
-  const deliveredLoads =
-    reportData?.loads.filter((load) => load.status === "Delivered").length || 0;
+  const deliveredLoads = filteredLoads.filter(
+    (load) => load.status === "Delivered",
+  ).length;
   const previousDeliveredLoads =
     previousReportData?.loads.filter((load) => load.status === "Delivered")
       .length || 0;
-  const totalLoads = reportData?.loads.length || 0;
+  const totalLoads = filteredLoads.length;
   const previousTotalLoads = previousReportData?.loads.length || 0;
   const deliveryRate = totalLoads > 0 ? (deliveredLoads / totalLoads) * 100 : 0;
   const previousDeliveryRate =
     previousTotalLoads > 0
       ? (previousDeliveredLoads / previousTotalLoads) * 100
       : 0;
-  const netRevenue = revenueTotal - payoutTotal;
-  const previousNetRevenue = previousRevenueTotal - previousPayoutTotal;
+  const netRevenue = billingSummary.netPosition;
+  const previousNetRevenue = previousBillingSummary.netPosition;
 
   const leadStats = React.useMemo(() => {
-    const leads = reportData?.leads ?? [];
+    const leads = filteredLeadStatus;
 
     return {
       total: leads.length,
       new: leads.filter((lead) => lead.status === "New").length,
       contacted: leads.filter((lead) => lead.status === "Contacted").length,
       pending: leads.filter((lead) => lead.status === "Pending").length,
-      appointment: leads.filter(
-        (lead) => lead.status === "Appointment Set",
-      ).length,
+      appointment: leads.filter((lead) => Boolean(lead.appointment)).length,
       closed: leads.filter((lead) => lead.status === "Closed").length,
     };
-  }, [reportData?.leads]);
-
-
+  }, [filteredLeadStatus]);
 
   const previousLeadStats = React.useMemo(() => {
     const leads = previousReportData?.leads ?? [];
@@ -1594,34 +654,15 @@ export default function ReportsPage() {
       new: leads.filter((lead) => lead.status === "New").length,
       contacted: leads.filter((lead) => lead.status === "Contacted").length,
       pending: leads.filter((lead) => lead.status === "Pending").length,
-      appointment: leads.filter(
-        (lead) => lead.status === "Appointment Set",
-      ).length,
+      appointment: leads.filter((lead) => Boolean(lead.appointment)).length,
       closed: leads.filter((lead) => lead.status === "Closed").length,
     };
   }, [previousReportData?.leads]);
 
   const leadSourceStats = React.useMemo(() => {
-    const leads = reportData?.leads ?? [];
-
-    const sourceCounts = leads.reduce<Record<string, number>>((counts, lead) => {
-      const source = String(lead.source ?? "").trim() || "Unknown";
-
-      counts[source] = (counts[source] ?? 0) + 1;
-
-      return counts;
-    }, {});
-
-    const sources = Object.entries(sourceCounts)
-      .map(([source, count]) => ({
-        source,
-        count,
-        percentage:
-          leads.length > 0
-            ? Math.round((count / leads.length) * 100)
-            : 0,
-      }))
-      .sort((a, b) => b.count - a.count);
+    const leads = filteredLeadSource;
+    const sources = buildLeadSourceSummary(leads);
+    const unknownCount = countUnknownSources(sources);
 
     return {
       total: leads.length,
@@ -1629,39 +670,22 @@ export default function ReportsPage() {
       topSource: sources[0]?.source ?? "No source",
       topSourceCount: sources[0]?.count ?? 0,
       uniqueSources: sources.length,
-      unknownCount: sourceCounts.Unknown ?? 0,
+      unknownCount,
     };
-  }, [reportData?.leads]);
+  }, [filteredLeadSource]);
 
   const previousLeadSourceStats = React.useMemo(() => {
-  const leads = previousReportData?.leads ?? [];
+    const leads = previousReportData?.leads ?? [];
+    const sources = buildLeadSourceSummary(leads);
 
-  const sourceCounts = leads.reduce<Record<string, number>>(
-    (counts, lead) => {
-      const source = String(lead.source ?? "").trim() || "Unknown";
-
-      counts[source] = (counts[source] ?? 0) + 1;
-
-      return counts;
-    },
-    {},
-  );
-
-  const sources = Object.entries(sourceCounts)
-    .map(([source, count]) => ({
-      source,
-      count,
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  return {
-    total: leads.length,
-    topSource: sources[0]?.source ?? "No source",
-    topSourceCount: sources[0]?.count ?? 0,
-    uniqueSources: sources.length,
-    unknownCount: sourceCounts.Unknown ?? 0,
-  };
-}, [previousReportData?.leads]);
+    return {
+      total: leads.length,
+      topSource: sources[0]?.source ?? "No source",
+      topSourceCount: sources[0]?.count ?? 0,
+      uniqueSources: sources.length,
+      unknownCount: countUnknownSources(sources),
+    };
+  }, [previousReportData?.leads]);
 
   const previousLoadSummary = React.useMemo(
     () => buildLoadSummary(previousReportData?.loads || []),
@@ -1672,13 +696,12 @@ export default function ReportsPage() {
     [previousQuotes],
   );
 
-  const succeededPayments =
-    reportData?.payments.filter((payment) => payment.status === "succeeded")
-      .length || 0;
-  const pendingPayments =
-    reportData?.payments.filter((payment) =>
-      ["pending", "processing"].includes(payment.status),
-    ).length || 0;
+  const succeededPayments = filteredBillingPayments.filter(
+    (payment) => payment.status === "succeeded",
+  ).length;
+  const pendingPayments = filteredBillingPayments.filter((payment) =>
+    ["pending", "processing"].includes(payment.status),
+  ).length;
 
   // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -1747,122 +770,149 @@ export default function ReportsPage() {
     id: string,
     format: ExportFormat = "pdf",
   ) => {
+    const reportId = id as ReportId;
+    const periodLabel = reportPeriodLabels[reportId];
+    const reportRecordCount =
+      reportId === "load-report"
+        ? filteredLoads.length
+        : reportId === "quote-report"
+          ? filteredQuotes.length
+          : reportId === "lead-status-report"
+            ? filteredLeadStatus.length
+            : reportId === "lead-source-report"
+              ? filteredLeadSource.length
+              : reportId === "driver-report"
+                ? filteredDriverLoads.filter((load) => Boolean(load.assignedDriverId)).length +
+                  filteredDriverPayouts.length
+                : filteredBillingPayments.length + filteredBillingPayouts.length;
+    const exportContext = createReportExportContext({
+      reportId,
+      title: REPORT_LABELS[reportId],
+      periodLabel,
+      recordCount: reportRecordCount,
+      sectionCounts:
+        reportId === "driver-report"
+          ? {
+              "Assigned Load Records": filteredDriverLoads.filter((load) => Boolean(load.assignedDriverId)).length,
+              "Settlement Records": filteredDriverPayouts.length,
+            }
+          : reportId === "billing-report"
+            ? {
+                "Customer Payment Records": filteredBillingPayments.length,
+                "Driver Payout Records": filteredBillingPayouts.length,
+              }
+            : undefined,
+    });
+    const safePeriodLabel = periodLabel
+      .replace(/\s+/g, "_")
+      .replace(/[^\w-]/g, "");
+
     setDownloading(id);
+
     try {
       let blob: Blob | null = null;
       const extension = format === "xlsx" ? "xlsx" : "pdf";
-      let filename = `Report_${id}_${monthLabel.replace(" ", "_")}.${extension}`;
+      let filename = `Report_${id}_${safePeriodLabel}.${extension}`;
       let category: ReportFileCategory = "transportation";
 
-      if (id === "load-report") {
+      if (reportId === "load-report") {
         blob =
           format === "xlsx"
-            ? await generateShipmentReportExcel(filteredLoads, monthLabel)
-            : await generateLoadReportPdf(filteredLoads, monthLabel);
-        filename = `Suprah_AI_Unified_Load_Report_${monthLabel.replace(" ", "_")}.${extension}`;
+            ? await generateShipmentReportExcel(
+                filteredLoads,
+                exportContext,
+              )
+            : await generateLoadReportPdf(
+                filteredLoads,
+                exportContext,
+              );
+        filename = `Suprah_AI_Unified_Load_Report_${safePeriodLabel}.${extension}`;
         category = "transportation";
-      } else if (id === "quote-report") {
+      } else if (reportId === "quote-report") {
         blob =
           format === "xlsx"
-            ? await generateQuoteReportExcel(filteredQuotes, monthLabel)
-            : await generateQuoteReportPdf(filteredQuotes, monthLabel);
-        filename = `Suprah_AI_Quotes_Drafts_${monthLabel.replace(" ", "_")}.${extension}`;
+            ? await generateQuoteReportExcel(
+                filteredQuotes,
+                exportContext,
+              )
+            : await generateQuoteReportPdf(
+                filteredQuotes,
+                exportContext,
+              );
+        filename = `Suprah_AI_Quotes_Drafts_${safePeriodLabel}.${extension}`;
         category = "transportation";
-      } else if (id === "driver-report") {
+      } else if (reportId === "driver-report") {
         blob =
           format === "xlsx"
             ? await generateDriverPerformanceExcel(
-                filteredLoads,
-                reportData?.payouts || [],
-                monthLabel,
+                filteredDriverLoads,
+                filteredDriverPayouts,
+                exportContext,
               )
             : await generateDriverPerformancePdf(
-                filteredLoads,
-                reportData?.payouts || [],
-                monthLabel,
+                filteredDriverLoads,
+                filteredDriverPayouts,
+                exportContext,
               );
-        filename = `Suprah_AI_Driver_Performance_${monthLabel.replace(" ", "_")}.${extension}`;
+        filename = `Suprah_AI_Driver_Performance_${safePeriodLabel}.${extension}`;
         category = "driver";
-      } else if (id === "billing-report") {
-          blob =
-            format === "xlsx"
-              ? await generateBillingRevenueExcel(
-                  reportData?.payments || [],
-                  reportData?.payouts || [],
-                  monthLabel,
-                )
-              : await generateBillingRevenuePdf(
-                  reportData?.payments || [],
-                  reportData?.payouts || [],
-                  monthLabel,
-                );
+      } else if (reportId === "billing-report") {
+        blob =
+          format === "xlsx"
+            ? await generateBillingRevenueExcel(
+                filteredBillingPayments,
+                filteredBillingPayouts,
+                exportContext,
+              )
+            : await generateBillingRevenuePdf(
+                filteredBillingPayments,
+                filteredBillingPayouts,
+                exportContext,
+              );
+        filename = `Suprah_AI_Billings_Revenue_${safePeriodLabel}.${extension}`;
+        category = "billings";
+      } else if (reportId === "lead-status-report") {
+        blob =
+          format === "xlsx"
+            ? await generateLeadStatusExcel(
+                filteredLeadStatus,
+                exportContext,
+              )
+            : await generateLeadStatusPdf(
+                filteredLeadStatus,
+                exportContext,
+              );
+        filename = `Suprah_AI_Lead_Status_${safePeriodLabel}.${extension}`;
+        category = "crm";
+      } else if (reportId === "lead-source-report") {
+        blob =
+          format === "xlsx"
+            ? await generateLeadSourceExcel(
+                filteredLeadSource,
+                exportContext,
+              )
+            : await generateLeadSourcePdf(
+                filteredLeadSource,
+                exportContext,
+              );
+        filename = `Suprah_AI_Lead_Source_${safePeriodLabel}.${extension}`;
+        category = "crm";
+      }
 
-          filename = `Suprah_AI_Billings_Revenue_${monthLabel.replace(
-            " ",
-            "_",
-          )}.${extension}`;
+      if (blob) {
+        await saveGeneratedReportFile({
+          name: filename,
+          category,
+          type: format === "xlsx" ? "XLSX" : "PDF",
+          blob,
+        });
 
-          category = "billings";
-        } else if (id === "lead-status-report") {
-            blob =
-              format === "xlsx"
-                ? await generateLeadStatusExcel(
-                    reportData?.leads ?? [],
-                    monthLabel,
-                  )
-                : await generateLeadStatusPdf(
-                    reportData?.leads ?? [],
-                    monthLabel,
-                  );
+        createBrowserDownload(blob, filename);
 
-            const safeMonthLabel = monthLabel
-              .replace(/\s+/g, "_")
-              .replace(/[^\w-]/g, "");
-
-            filename =
-              format === "xlsx"
-                ? `Suprah_AI_Lead_Status_${safeMonthLabel}.xlsx`
-                : `Suprah_AI_Lead_Status_${safeMonthLabel}.pdf`;
-
-            category = "crm";
-          } else if (id === "lead-source-report") {
-            blob =
-              format === "xlsx"
-                ? await generateLeadSourceExcel(
-                    reportData?.leads ?? [],
-                    monthLabel,
-                  )
-                : await generateLeadSourcePdf(
-                    reportData?.leads ?? [],
-                    monthLabel,
-                  );
-
-            const safeMonthLabel = monthLabel
-              .replace(/\s+/g, "_")
-              .replace(/[^\w-]/g, "");
-
-            filename =
-              format === "xlsx"
-                ? `Suprah_AI_Lead_Source_${safeMonthLabel}.xlsx`
-                : `Suprah_AI_Lead_Source_${safeMonthLabel}.pdf`;
-
-            category = "crm";
-          }
-
-          if (blob) {
-            await saveGeneratedReportFile({
-              name: filename,
-              category,
-              type: format === "xlsx" ? "XLSX" : "PDF",
-              blob,
-            });
-
-            createBrowserDownload(blob, filename);
-
-            toast.success(
-              `${format === "xlsx" ? "Excel workbook" : "PDF report"} downloaded and saved to Generated Files`,
-            );
-          }
+        toast.success(
+          `${format === "xlsx" ? "Excel workbook" : "PDF report"} downloaded and saved to Generated Files`,
+        );
+      }
     } catch (err) {
       console.error(err);
       toast.error(
@@ -2029,7 +1079,7 @@ export default function ReportsPage() {
                   </span>
                 </div>
                 <p className="hidden text-xs text-muted-foreground sm:block">
-                  Preview, generate, organize, and export operational reports.
+                  Open focused report workspaces, review results, and export operational reports.
                 </p>
               </div>
             </div>
@@ -2053,7 +1103,7 @@ export default function ReportsPage() {
 
           <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13.5rem),1fr))]">
             <StatBox
-              label="Gross Revenue"
+              label="Revenue Collected"
               value={formatCurrency(revenueTotal)}
               sub={`${succeededPayments} successful payment${succeededPayments === 1 ? "" : "s"}`}
               icon={DollarSign}
@@ -2065,7 +1115,7 @@ export default function ReportsPage() {
             <StatBox
               label="Net Position"
               value={formatCurrency(netRevenue)}
-              sub="Revenue after driver payouts"
+              sub="Collected revenue less paid driver costs"
               icon={WalletCards}
               color="text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40"
               accentClass="bg-violet-500"
@@ -2091,9 +1141,9 @@ export default function ReportsPage() {
               trend={getTrend(totalLoads, previousTotalLoads)}
             />
             <StatBox
-              label="Driver Payouts"
+              label="Paid Driver Costs"
               value={formatCurrency(payoutTotal)}
-              sub={`${pendingPayments} payment${pendingPayments === 1 ? "" : "s"} pending`}
+              sub="Completed driver payouts"
               icon={Users}
               color="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40"
               accentClass="bg-amber-500"
@@ -2103,6 +1153,8 @@ export default function ReportsPage() {
           </div>
         </section>
 
+        <RecentReports />
+
         <div className="min-w-0">
           <main className="w-full min-w-0 space-y-3.5">
             <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
@@ -2111,7 +1163,7 @@ export default function ReportsPage() {
                   {activeTab === "ALL" ? "Available Reports" : activeTab}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-                  Showing results for {monthLabel}
+                  Open a report to filter, review, save, share, and export its results
                 </p>
               </div>
 
@@ -2156,7 +1208,7 @@ export default function ReportsPage() {
                     description="Full delivery cycles, carrier payouts, and logistics efficiency tracking."
                     category="Logistics"
                     categoryClass="text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40"
-                    period={monthLabel}
+                    period={reportPeriodLabels["load-report"]}
                     trend={getRateTrend(loadSummary.onTimeRate, previousLoadSummary.onTimeRate)}
                     stats={[
                       {
@@ -2185,7 +1237,10 @@ export default function ReportsPage() {
                     isDownloading={downloading === "load-report"}
                     onToggle={() => toggleSelect("load-report")}
                     onDownload={(format) => downloadReport("load-report", format)}
-                    onPreview={() => setTransportPreview("load")}
+                    onOpen={() => openReportWorkspace("load-report")}
+                    onPreview={() => {
+                      setTransportPreview("load");
+                    }}
                   />
                   <ReportCard
                     title="Quotes & Drafts"
@@ -2193,7 +1248,7 @@ export default function ReportsPage() {
                     description="Market quote history, conversion rates and pending logistics drafts."
                     category="Transportation"
                     categoryClass="text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40"
-                    period={monthLabel}
+                    period={reportPeriodLabels["quote-report"]}
                     trend={getRateTrend(quoteSummary.conversionRate, previousQuoteSummary.conversionRate)}
                     stats={[
                       {
@@ -2222,7 +1277,10 @@ export default function ReportsPage() {
                     isDownloading={downloading === "quote-report"}
                     onToggle={() => toggleSelect("quote-report")}
                     onDownload={(format) => downloadReport("quote-report", format)}
-                    onPreview={() => setTransportPreview("quote")}
+                    onOpen={() => openReportWorkspace("quote-report")}
+                    onPreview={() => {
+                      setTransportPreview("quote");
+                    }}
                   />
                 </>
               )}
@@ -2233,7 +1291,7 @@ export default function ReportsPage() {
                   description="A clear overview of lead volume, pipeline activity, appointments, and closed opportunities."
                   category="CRM & Leads"
                   categoryClass="text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-950/40"
-                  period={monthLabel}
+                  period={reportPeriodLabels["lead-status-report"]}
                   trend={getTrend(leadStats.total, previousLeadStats.total)}
                   stats={[
                     {
@@ -2268,7 +1326,10 @@ export default function ReportsPage() {
                   onDownload={(format) =>
                     downloadReport("lead-status-report", format)
                   }
-                  onPreview={() => setCrmPreview("lead-status")}
+                  onOpen={() => openReportWorkspace("lead-status-report")}
+                    onPreview={() => {
+                    setCrmPreview("lead-status");
+                  }}
                 />
               )}
 
@@ -2279,7 +1340,7 @@ export default function ReportsPage() {
                   description="Shows where customer inquiries are coming from and identifies the channels producing the most leads."
                   category="CRM & Leads"
                   categoryClass="text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-950/40"
-                  period={monthLabel}
+                  period={reportPeriodLabels["lead-source-report"]}
                   trend={getTrend(
                     leadSourceStats.total,
                     previousLeadSourceStats.total,
@@ -2317,7 +1378,10 @@ export default function ReportsPage() {
                   onDownload={(format) =>
                     downloadReport("lead-source-report", format)
                   }
-                  onPreview={() => setCrmPreview("lead-source")}
+                  onOpen={() => openReportWorkspace("lead-source-report")}
+                    onPreview={() => {
+                    setCrmPreview("lead-source");
+                  }}
                 />
               )}
 
@@ -2328,8 +1392,8 @@ export default function ReportsPage() {
                   description="Individual driver metrics, completion rates and settlement logs."
                   category="Operations"
                   categoryClass="text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-950/40"
-                  period={monthLabel}
-                  trend={getTrend(payoutTotal, previousPayoutTotal)}
+                  period={reportPeriodLabels["driver-report"]}
+                  trend={getTrend(driverPayoutTotal, previousDriverPayoutTotal)}
                   stats={[
                     { icon: <Truck className="size-3" />, label: "Fleet Wide" },
                     {
@@ -2339,13 +1403,13 @@ export default function ReportsPage() {
                   ]}
                   highlights={[
                     {
-                      label: "Avg Score",
-                      value: "98.2",
+                      label: "Delivery Rate",
+                      value: `${driverDeliveryRate}%`,
                       color: "text-blue-600 dark:text-blue-400",
                     },
                     {
                       label: "Payouts",
-                      value: formatCurrency(payoutTotal),
+                      value: formatCurrency(driverPayoutTotal),
                       color: "text-foreground",
                     },
                   ]}
@@ -2354,7 +1418,10 @@ export default function ReportsPage() {
                   isDownloading={downloading === "driver-report"}
                   onToggle={() => toggleSelect("driver-report")}
                   onDownload={(format) => downloadReport("driver-report", format)}
-                  onPreview={() => setPreviewType("DRIVER")}
+                  onOpen={() => openReportWorkspace("driver-report")}
+                    onPreview={() => {
+                    setPreviewType("DRIVER");
+                  }}
                 />
               )}
 
@@ -2362,10 +1429,10 @@ export default function ReportsPage() {
                 <ReportCard
                   title="Billings & Revenue"
                   subtitle="Financial Audit"
-                  description="Complete financial audit of succeeding payments and gross revenue."
+                  description="Customer payments, driver costs, payment outcomes, and revenue after completed payouts."
                   category="Finance"
                   categoryClass="text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-950/40"
-                  period={monthLabel}
+                  period={reportPeriodLabels["billing-report"]}
                   trend={getTrend(revenueTotal, previousRevenueTotal)}
                   stats={[
                     {
@@ -2379,13 +1446,13 @@ export default function ReportsPage() {
                   ]}
                   highlights={[
                     {
-                      label: "Gross",
+                      label: "Collected",
                       value: formatCurrency(revenueTotal),
                       color: "text-violet-600 dark:text-violet-400",
                     },
                     {
                       label: "Vol.",
-                      value: rawPayments.length,
+                      value: filteredBillingPayments.length,
                       color: "text-foreground",
                     },
                   ]}
@@ -2394,7 +1461,10 @@ export default function ReportsPage() {
                   isDownloading={downloading === "billing-report"}
                   onToggle={() => toggleSelect("billing-report")}
                   onDownload={(format) => downloadReport("billing-report", format)}
-                  onPreview={() => setPreviewType("BILLING")}
+                  onOpen={() => openReportWorkspace("billing-report")}
+                    onPreview={() => {
+                    setPreviewType("BILLING");
+                  }}
                 />
               )}
             </div>
@@ -2420,7 +1490,7 @@ export default function ReportsPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground sm:text-base">Operational Analytics</p>
                   <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                    {formatCurrency(revenueTotal)} gross · {formatCurrency(netRevenue)} net · {succeededPayments} successful · {pendingPayments} pending
+                    {formatCurrency(revenueTotal)} collected · {formatCurrency(netRevenue)} after driver costs · {succeededPayments} successful · {pendingPayments} pending
                   </p>
                 </div>
                 {showOperationalAnalytics ? <ChevronUp className="size-5 text-primary" /> : <ChevronDown className="size-5 text-muted-foreground" />}
@@ -2457,7 +1527,11 @@ export default function ReportsPage() {
         reportType={transportPreview ?? "load"}
         loads={filteredLoads}
         quotes={filteredQuotes}
-        monthLabel={monthLabel}
+        monthLabel={
+          transportPreview === "quote"
+            ? reportPeriodLabels["quote-report"]
+            : reportPeriodLabels["load-report"]
+        }
         isDownloading={
           downloading === "load-report" ||
           downloading === "quote-report"
@@ -2476,8 +1550,16 @@ export default function ReportsPage() {
         open={crmPreview !== null}
         onClose={() => setCrmPreview(null)}
         reportType={crmPreview ?? "lead-status"}
-        leads={reportData?.leads ?? []}
-        monthLabel={monthLabel}
+        leads={
+          crmPreview === "lead-source"
+            ? filteredLeadSource
+            : filteredLeadStatus
+        }
+        monthLabel={
+          crmPreview === "lead-source"
+            ? reportPeriodLabels["lead-source-report"]
+            : reportPeriodLabels["lead-status-report"]
+        }
         isDownloading={
           downloading === "lead-status-report" ||
           downloading === "lead-source-report"
@@ -2497,10 +1579,20 @@ export default function ReportsPage() {
         reportType={
           previewType?.toLowerCase() as "driver" | "billing"
         }
-        loads={reportData?.loads ?? []}
-        payments={reportData?.payments ?? []}
-        payouts={reportData?.payouts ?? []}
-        monthLabel={monthLabel}
+        loads={
+          previewType === "DRIVER" ? filteredDriverLoads : []
+        }
+        payments={filteredBillingPayments}
+        payouts={
+          previewType === "DRIVER"
+            ? filteredDriverPayouts
+            : filteredBillingPayouts
+        }
+        monthLabel={
+          previewType === "DRIVER"
+            ? reportPeriodLabels["driver-report"]
+            : reportPeriodLabels["billing-report"]
+        }
         isDownloading={
           downloading ===
           (previewType === "DRIVER"

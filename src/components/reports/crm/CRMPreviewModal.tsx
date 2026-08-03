@@ -215,9 +215,9 @@ export function CRMPreviewModal({
 
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {isLeadStatus ? (
-            <LeadStatusSection leads={leads} />
+            <LeadStatusSection leads={leads} periodLabel={monthLabel} />
           ) : (
-            <LeadSourceSection leads={leads} />
+            <LeadSourceSection leads={leads} periodLabel={monthLabel} />
           )}
         </div>
       </DialogContent>

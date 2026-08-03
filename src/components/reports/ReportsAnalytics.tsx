@@ -31,6 +31,72 @@ interface Props {
   monthLabel: string
 }
 
+interface ChartThemeColors {
+  axis: string;
+  grid: string;
+  cursor: string;
+}
+
+function normalizeCssColor(rawValue: string, fallback: string): string {
+  const value = rawValue.trim();
+  if (!value) return fallback;
+  if (
+    value.startsWith("#") ||
+    value.startsWith("rgb") ||
+    value.startsWith("hsl") ||
+    value.startsWith("oklch") ||
+    value.startsWith("oklab") ||
+    value.startsWith("lab") ||
+    value.startsWith("lch") ||
+    value.startsWith("color(")
+  ) {
+    return value;
+  }
+  return `hsl(${value})`;
+}
+
+function useChartThemeColors(): ChartThemeColors {
+  const [colors, setColors] = React.useState<ChartThemeColors>({
+    axis: "#64748B",
+    grid: "#CBD5E1",
+    cursor: "#E2E8F0",
+  });
+
+  React.useEffect(() => {
+    const update = () => {
+      const rootStyles = window.getComputedStyle(document.documentElement);
+      const bodyStyles = document.body
+        ? window.getComputedStyle(document.body)
+        : rootStyles;
+      const read = (name: string, fallback: string) =>
+        normalizeCssColor(
+          rootStyles.getPropertyValue(name) || bodyStyles.getPropertyValue(name),
+          fallback,
+        );
+      setColors({
+        axis: read("--muted-foreground", "#64748B"),
+        grid: read("--border", "#CBD5E1"),
+        cursor: read("--muted", "#E2E8F0"),
+      });
+    };
+
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener?.("change", update);
+    return () => {
+      observer.disconnect();
+      media.removeEventListener?.("change", update);
+    };
+  }, []);
+
+  return colors;
+}
+
 
 // Suprah AI semantic status palette used consistently by chart slices,
 // legends, and tooltips across the Reports module.
@@ -134,7 +200,7 @@ function buildRevenueData(rawPayments: Payment[], monthLabel: string) {
 function RevenueTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-xl">
+    <div className="w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-xl">
       <p className="mb-1 text-muted-foreground">{label}</p>
       <p className="font-bold text-foreground">
         {formatCurrency(payload[0].value)}
@@ -157,7 +223,7 @@ function DeliveryTooltip({ active, payload }: any) {
 
   return (
     <div
-      className="pointer-events-none relative z-[100] min-w-[8.5rem] rounded-xl border bg-card/98 px-4 py-3 text-sm shadow-2xl backdrop-blur-sm"
+      className="pointer-events-none relative z-[100] w-max min-w-[8.5rem] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border bg-card/98 px-4 py-3 text-sm shadow-2xl backdrop-blur-sm"
       style={{
         borderColor: accentColor,
         boxShadow: `0 14px 32px color-mix(in srgb, ${accentColor} 24%, transparent)`,
@@ -214,20 +280,7 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
     [rawPayments, monthLabel],
   )
 
-  const [tickColor, setTickColor] = React.useState("#6b7280");
-  React.useEffect(() => {
-    const update = () => {
-      const isDark = document.documentElement.classList.contains("dark");
-      setTickColor(isDark ? "#9ca3af" : "#6b7280");
-    };
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
+  const chartTheme = useChartThemeColors();
 
   const totalLoads = loads.length
   const delivered = loads.filter(s => s.status === "Delivered").length
@@ -294,12 +347,12 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                   <PieChart width={210} height={210} style={{ overflow: "visible" }}>
                     <Tooltip
                       content={<DeliveryTooltip />}
-                      allowEscapeViewBox={{ x: true, y: true }}
+                      allowEscapeViewBox={{ x: false, y: false }}
                       cursor={false}
                       wrapperStyle={{
                         zIndex: 100,
                         pointerEvents: "none",
-                        overflow: "visible",
+                        maxWidth: "min(18rem, calc(100vw - 1.5rem))",
                       }}
                     />
                     <Pie
@@ -383,24 +436,24 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                 <BarChart
                   data={revenueData}
                   barSize={38}
-                  margin={{ top: 10, right: 12, left: 8, bottom: 14 }}
+                  margin={{ top: 10, right: 36, left: 8, bottom: 14 }}
                 >
                   <CartesianGrid
                     vertical={false}
                     strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
+                    stroke={chartTheme.grid}
                   />
                   <XAxis
                     dataKey="month"
                     tickLine={false}
                     axisLine={false}
-                    tick={{ fontSize: 13, fill: tickColor }}
+                    tick={{ fontSize: 13, fill: chartTheme.axis }}
                   />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
                     width={58}
-                    tick={{ fontSize: 13, fill: tickColor }}
+                    tick={{ fontSize: 13, fill: chartTheme.axis }}
                     tickFormatter={(v) =>
                       v === 0
                         ? "$0"
@@ -411,7 +464,14 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                   />
                   <Tooltip
                     content={<RevenueTooltip />}
-                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                    cursor={{ fill: chartTheme.cursor, fillOpacity: 0.22 }}
+                    allowEscapeViewBox={{ x: false, y: false }}
+                    offset={12}
+                    wrapperStyle={{
+                      zIndex: 100,
+                      pointerEvents: "none",
+                      maxWidth: "min(18rem, calc(100vw - 1.5rem))",
+                    }}
                   />
                   <Bar
                     dataKey="revenue"
