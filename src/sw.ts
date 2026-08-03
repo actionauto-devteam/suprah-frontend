@@ -44,7 +44,14 @@ const navigationFix: RuntimeCaching[] = [
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: true,
+  // Was `true` (new SW takes over the instant it finishes installing), which
+  // forced every open tab to hard-reload with zero warning on every deploy —
+  // including mid-edit in Project Management. `false` leaves the new worker
+  // in "waiting" until the client explicitly posts SKIP_WAITING (Serwist wires
+  // that message listener automatically when this is off) — see
+  // ServiceWorkerRegistration.tsx, which now surfaces a "Refresh" toast
+  // instead of reloading out from under the user.
+  skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,
   // Our fix is placed BEFORE defaultCache so it wins the match for real

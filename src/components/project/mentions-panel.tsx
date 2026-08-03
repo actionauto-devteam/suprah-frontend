@@ -62,8 +62,11 @@ export function MentionsPanel({ meId }: { meId: string }) {
     commentId: string;
   } | null>(null);
 
-  const load = React.useCallback(async (targetPage: number) => {
-    setLoading(true);
+  // `silent` (used by the detail dialog's onChanged/onDeleted, after the user
+  // already sees their status/comment change reflected live) swaps the data
+  // in place instead of blanking the list behind a spinner.
+  const load = React.useCallback(async (targetPage: number, opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true);
     setError("");
     try {
       const res = await apiClient.get("/api/crm/projects/mentions", {
@@ -77,7 +80,7 @@ export function MentionsPanel({ meId }: { meId: string }) {
     } catch (err: any) {
       setError(errMsg(err, "Failed to load your mentions."));
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, []);
 
@@ -86,8 +89,8 @@ export function MentionsPanel({ meId }: { meId: string }) {
   }, [load]);
 
   return (
-    <div className="space-y-4 p-5">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-3 sm:p-5">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <AtSign className="h-4 w-4 text-emerald-600" />
           <h2 className="text-sm font-bold tracking-tight">Mentions</h2>
@@ -192,8 +195,8 @@ export function MentionsPanel({ meId }: { meId: string }) {
         meId={meId}
         highlightCommentId={openTarget?.commentId ?? null}
         onClose={() => setOpenTarget(null)}
-        onChanged={() => load(page)}
-        onDeleted={() => load(page)}
+        onChanged={() => load(page, { silent: true })}
+        onDeleted={() => load(page, { silent: true })}
       />
     </div>
   );

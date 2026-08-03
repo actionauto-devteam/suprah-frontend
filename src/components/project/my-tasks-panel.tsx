@@ -173,8 +173,13 @@ export function MyTasksPanel({
   const sort = SORT_OPTIONS[sortIndex];
   const now = Date.now();
 
-  const load = React.useCallback(async (targetPage: number) => {
-    setLoading(true);
+  // `silent` refreshes (background socket activity, or the detail dialog's
+  // own onChanged/onDeleted after a status/comment change the user already
+  // sees reflected live) swap the data in place instead of blanking the list
+  // behind a spinner — that full-panel flash is what read as "the whole page
+  // refreshes" every time a task was touched.
+  const load = React.useCallback(async (targetPage: number, opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true);
     setError("");
     try {
       const res = await apiClient.get("/api/crm/projects/my-tasks", {
@@ -191,7 +196,7 @@ export function MyTasksPanel({
       const pages: number = data?.totalPages || 1;
 
       if (list.length === 0 && targetPage > 1) {
-        return load(targetPage - 1);
+        return load(targetPage - 1, opts);
       }
 
       setTasks(list);
@@ -201,7 +206,7 @@ export function MyTasksPanel({
     } catch (err: any) {
       setError(errMsg(err, "Failed to load tasks."));
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, [view, sort.sortBy, sort.sortDir]);
 
@@ -211,10 +216,11 @@ export function MyTasksPanel({
 
   // Live: any task/comment activity that might affect this cross-group list
   // reloads the current page (payloads don't carry enough to filter cheaply
-  // against "is this actually one of my tasks").
+  // against "is this actually one of my tasks") — silently, so a teammate's
+  // update elsewhere doesn't flash a spinner over the list you're reading.
   React.useEffect(() => {
     if (!socket) return;
-    const onChange = () => load(page);
+    const onChange = () => load(page, { silent: true });
     const events = [
       "pm:task:new", "pm:task:updated", "pm:task:status", "pm:task:deleted",
       "pm:comment:new", "pm:comment:deleted",
@@ -247,8 +253,8 @@ export function MyTasksPanel({
   }, [tasks, groupBy, groupKeyOf]);
 
   return (
-    <div className="space-y-4 p-5">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-3 sm:p-5">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           {isCompletedView ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -263,11 +269,11 @@ export function MyTasksPanel({
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-1.5 rounded-lg border border-border/50 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground/70 transition-colors hover:border-emerald-500/40 hover:text-emerald-600">
-                Sort: {sort.label}
+                <span className="hidden sm:inline">Sort: </span>{sort.label}
                 <ChevronDown className="h-3 w-3 opacity-60" />
               </button>
             </DropdownMenuTrigger>
@@ -288,7 +294,7 @@ export function MyTasksPanel({
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-1.5 rounded-lg border border-border/50 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground/70 transition-colors hover:border-emerald-500/40 hover:text-emerald-600">
                 <Layers className="h-3 w-3" />
-                Group: {groupBy === "none" ? "None" : groupBy === "group" ? "Project group" : groupBy === "assignee" ? "Assignee" : "Status"}
+                <span className="hidden sm:inline">Group: </span>{groupBy === "none" ? "None" : groupBy === "group" ? "Project group" : groupBy === "assignee" ? "Assignee" : "Status"}
                 <ChevronDown className="h-3 w-3 opacity-60" />
               </button>
             </DropdownMenuTrigger>
@@ -415,8 +421,8 @@ export function MyTasksPanel({
         meId={meId}
         socket={socket}
         onClose={() => setOpenTaskId(null)}
-        onChanged={() => load(page)}
-        onDeleted={() => load(page)}
+        onChanged={() => load(page, { silent: true })}
+        onDeleted={() => load(page, { silent: true })}
       />
     </div>
   );

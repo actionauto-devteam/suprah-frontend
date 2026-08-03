@@ -258,8 +258,15 @@ export function YapLineDock() {
     };
   }, [cur?.conversationId]);
 
+  // The full YapLine page already shows every live channel (with its own
+  // "Live" tag and join-by-tap) and the active session's full-size controls —
+  // the floating dock here would be a redundant popup fighting the page's own
+  // controls for the same slice of screen, which is especially unusable on a
+  // small phone. Skip it on that route.
+  const isYapLinePage = pathname === "/crm/yapline";
+
   // Nothing anywhere (or everything live has been dismissed) → zero footprint.
-  if (!cur && joinableLive.length === 0) return null;
+  if (isYapLinePage || (!cur && joinableLive.length === 0)) return null;
 
   const q = QUALITY_META[cur?.quality || "unknown"];
 
@@ -403,9 +410,9 @@ export function YapLineDock() {
             <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-card", q.dot)} />
           </button>
         ) : (
-          <div className="w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-3xl border border-white/10 bg-card/80 shadow-2xl shadow-emerald-500/10 backdrop-blur-xl">
-            {/* Header */}
-            <div className="relative flex items-center gap-2 border-b border-border/30 px-4 py-2.5">
+          <div className="flex max-h-[min(32rem,calc(100dvh-7rem))] w-80 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-3xl border border-white/10 bg-card/80 shadow-2xl shadow-emerald-500/10 backdrop-blur-xl">
+            {/* Header — always visible: never scrolls away on a short viewport */}
+            <div className="relative flex shrink-0 items-center gap-2 border-b border-border/30 px-4 py-2.5">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
               <span className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-xl",
@@ -430,52 +437,55 @@ export function YapLineDock() {
               </button>
             </div>
 
-            {/* Incoming screen share preview */}
-            {sharer && (
-              <div className="relative border-b border-border/30 bg-black/40 p-2">
-                <ScreenView
-                  userId={sharer.userId}
-                  version={cur.screenVersion}
-                  className="h-36 cursor-zoom-in"
-                  onClick={() => setExpandedScreen(true)}
-                />
-                <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white/90">
-                  <MonitorUp className="size-3 text-cyan-400" /> {sharer.fullName.split(" ")[0]}'s screen
+            {/* Screen preview + participants — the only part that scrolls, so
+                a tall session (screen share + a big roster) never pushes the
+                talk/leave controls below a short mobile viewport. */}
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
+              {sharer && (
+                <div className="relative border-b border-border/30 bg-black/40 p-2">
+                  <ScreenView
+                    userId={sharer.userId}
+                    version={cur.screenVersion}
+                    className="h-28 cursor-zoom-in sm:h-36"
+                    onClick={() => setExpandedScreen(true)}
+                  />
+                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white/90">
+                    <MonitorUp className="size-3 text-cyan-400" /> {sharer.fullName.split(" ")[0]}'s screen
+                  </div>
+                  <button
+                    onClick={() => setExpandedScreen(true)}
+                    className="absolute bottom-3 right-3 rounded-lg bg-black/60 p-1.5 text-white/80 hover:text-white"
+                  >
+                    <Maximize2 className="size-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setExpandedScreen(true)}
-                  className="absolute bottom-3 right-3 rounded-lg bg-black/60 p-1.5 text-white/80 hover:text-white"
-                >
-                  <Maximize2 className="size-3.5" />
-                </button>
-              </div>
-            )}
+              )}
 
-            {/* Participants */}
-            <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2.5 no-scrollbar">
-              {(session?.participants || []).map((p) => (
-                <div key={p.userId} className="flex shrink-0 flex-col items-center gap-1" title={p.fullName}>
-                  <Avatar className={cn(
-                    "size-8 ring-2 transition-all",
-                    p.speaking ? "ring-emerald-400 shadow-md shadow-emerald-500/40" : "ring-border/40"
-                  )}>
-                    <AvatarImage src={p.avatar || undefined} />
-                    <AvatarFallback className="bg-emerald-600 text-[9px] font-bold text-white">
-                      {ini(p.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className={cn(
-                    "max-w-12 truncate text-[8px] font-bold",
-                    p.speaking ? "text-emerald-500" : "text-muted-foreground/60"
-                  )}>
-                    {p.userId === s.myUserId ? "You" : p.fullName.split(" ")[0]}
-                  </span>
-                </div>
-              ))}
+              <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2.5 no-scrollbar">
+                {(session?.participants || []).map((p) => (
+                  <div key={p.userId} className="flex shrink-0 flex-col items-center gap-1" title={p.fullName}>
+                    <Avatar className={cn(
+                      "size-8 ring-2 transition-all",
+                      p.speaking ? "ring-emerald-400 shadow-md shadow-emerald-500/40" : "ring-border/40"
+                    )}>
+                      <AvatarImage src={p.avatar || undefined} />
+                      <AvatarFallback className="bg-emerald-600 text-[9px] font-bold text-white">
+                        {ini(p.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className={cn(
+                      "max-w-12 truncate text-[8px] font-bold",
+                      p.speaking ? "text-emerald-500" : "text-muted-foreground/60"
+                    )}>
+                      {p.userId === s.myUserId ? "You" : p.fullName.split(" ")[0]}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center gap-2 border-t border-border/30 px-3 py-3">
+            {/* Controls — always visible */}
+            <div className="flex shrink-0 items-center gap-2 border-t border-border/30 px-3 py-3">
               {/* PTT — hold to talk */}
               <button
                 onPointerDown={(e) => { e.preventDefault(); void yapline.startTransmit(); }}
@@ -522,8 +532,8 @@ export function YapLineDock() {
               </button>
             </div>
 
-            {/* Volume + hint */}
-            <div className="flex items-center gap-3 px-4 pb-3">
+            {/* Volume + hint — always visible */}
+            <div className="flex shrink-0 items-center gap-3 px-4 pb-3">
               <input
                 type="range"
                 min={0}
@@ -535,12 +545,12 @@ export function YapLineDock() {
               />
               <button
                 onClick={() => router.push("/crm/yapline")}
-                className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-emerald-500"
+                className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-emerald-500"
               >
                 Open YapLine
               </button>
             </div>
-            <p className="hidden px-4 pb-2 text-center text-[9px] font-medium text-muted-foreground/40 md:block">
+            <p className="hidden shrink-0 px-4 pb-2 text-center text-[9px] font-medium text-muted-foreground/40 md:block">
               Tip: hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">`</kbd> anywhere to talk
             </p>
           </div>
