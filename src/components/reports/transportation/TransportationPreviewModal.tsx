@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Quote } from "@/types/transportation";
 import { Load } from "@/types/load";
+import ReportAnalyticsPanel from "@/components/reports/analytics/ReportAnalyticsPanel";
 import {
   buildLoadSummary,
   buildQuoteSummary,
@@ -61,399 +62,10 @@ interface TransportationPreviewModalProps {
 }
 
 
-export async function generateLoadReportPdf(
-  loads: Load[],
-  monthLabel: string,
-): Promise<Blob> {
-  const { jsPDF } = await import("jspdf");
-  const autoTable = (await import("jspdf-autotable")).default;
-  const doc = new jsPDF({ orientation: "landscape" });
-  const summary = buildLoadSummary(loads);
-
-  const generatedAt = new Date();
-  const generatedAtLabel = generatedAt.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/Denver",
-  });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const left = 14;
-  const right = pageWidth - 14;
-  const contentWidth = right - left;
-
-  const drawReportHeader = (subtitle?: string) => {
-    doc.setFillColor(16, 185, 129);
-    doc.roundedRect(left, 10, 8, 8, 1.5, 1.5, "F");
-
-    doc.setTextColor(255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text("AA", left + 4, 15.4, { align: "center" });
-
-    doc.setTextColor(20, 26, 38);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("Action Auto Utah", left + 12, 14);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(95, 107, 122);
-    doc.text(subtitle || "Load Management Report", left + 12, 18.5);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(33, 41, 54);
-    doc.text("Logistics Report", right, 13.8, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(95, 107, 122);
-    doc.text(`Period: ${monthLabel}`, right, 17.8, { align: "right" });
-
-    doc.setDrawColor(218, 225, 235);
-    doc.setLineWidth(0.2);
-    doc.line(left, 22.5, right, 22.5);
-  };
-
-  const drawSectionTitle = (title: string, y: number) => {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(31, 41, 55);
-    doc.text(title, left, y);
-    const lineStart = left + doc.getTextWidth(title) + 3;
-    doc.setDrawColor(224, 230, 238);
-    doc.line(lineStart, y - 0.8, right, y - 0.8);
-  };
-
-  drawReportHeader();
-
-  // Summary block
-  const summaryTitleY = 31;
-  drawSectionTitle("Global Performance", summaryTitleY);
-
-  const stats = [
-    { label: "Total Loads", value: String(summary.total) },
-    { label: "Delivered", value: String(summary.delivered) },
-    {
-      label: "In Transit",
-      value: String(summary.inTransit),
-    },
-    { label: "Posted", value: String(summary.posted) },
-    { label: "Revenue", value: fmtCurrency(summary.totalRate) },
-    { label: "Efficiency", value: `${summary.onTimeRate}%` },
-  ];
-
-  const cardGap = 4;
-  const cardW = (contentWidth - cardGap * (stats.length - 1)) / stats.length;
-  const cardY = 34;
-  const cardH = 16;
-  stats.forEach((stat, i) => {
-    const x = left + i * (cardW + cardGap);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(223, 231, 241);
-    doc.roundedRect(x, cardY, cardW, cardH, 1.8, 1.8, "FD");
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.8);
-    doc.setTextColor(107, 114, 128);
-    doc.text(stat.label, x + 3, cardY + 5);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(16, 132, 96);
-    doc.text(stat.value, x + 3, cardY + 12);
-  });
-
-  // Loads table section
-  const shipmentsTitleY = cardY + cardH + 10;
-  drawSectionTitle("Detailed Load Ledger", shipmentsTitleY);
-
-  if (loads.length === 0) {
-    const emptyY = shipmentsTitleY + 4;
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(223, 231, 241);
-    doc.roundedRect(left, emptyY, contentWidth, 42, 2, 2, "FD");
-
-    doc.setTextColor(170, 180, 195);
-    doc.setFontSize(18);
-    doc.text("📭", pageWidth / 2, emptyY + 18, { align: "center" });
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(87, 96, 110);
-    doc.text("No load data available", pageWidth / 2, emptyY + 27, {
-      align: "center",
-    });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(126, 137, 154);
-    doc.text(
-      "Logistics data will appear here once loads are assigned.",
-      pageWidth / 2,
-      emptyY + 33,
-      { align: "center" },
-    );
-  } else {
-    autoTable(doc, {
-      startY: shipmentsTitleY + 3,
-      showHead: "everyPage",
-      rowPageBreak: "avoid",
-      pageBreak: "auto",
-      head: [
-        [
-          "Load #",
-          "Status",
-          "Contact",
-          "Vehicle",
-          "VIN",
-          "Origin",
-          "Destination",
-          "Trailer",
-          "Carrier Pay",
-          "Driver",
-        ],
-      ],
-      body: loads.map((l) => [
-        l.loadNumber || "—",
-        l.status,
-        loadCustomer(l),
-        loadVehicle(l),
-        loadVin(l),
-        l.pickupLocation?.city || "—",
-        l.deliveryLocation?.city || "—",
-        loadTransportType(l),
-        fmtCurrency(loadRate(l)),
-        driverName(l),
-      ]),
-      margin: {
-        top: 31,
-        left,
-        right,
-        bottom: 18,
-      },
-      styles: {
-        fontSize: 7.2,
-        cellPadding: { top: 2.6, right: 2.8, bottom: 2.6, left: 2.8 },
-        minCellHeight: 7,
-        overflow: "linebreak",
-        valign: "middle",
-        textColor: [36, 44, 56],
-        lineColor: [226, 232, 240],
-        lineWidth: 0.12,
-      },
-      headStyles: {
-        fillColor: [16, 132, 96],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "left",
-      },
-      alternateRowStyles: { fillColor: [247, 250, 248] },
-      bodyStyles: { fillColor: [255, 255, 255] },
-      columnStyles: {
-        0: { cellWidth: 23 },
-        1: { cellWidth: 19 },
-        2: { cellWidth: 29 },
-        3: { cellWidth: 30 },
-        4: { cellWidth: 23 },
-        5: { cellWidth: 28 },
-        6: { cellWidth: 28 },
-        7: { cellWidth: 18 },
-        8: { cellWidth: 22, halign: "right" },
-        9: { cellWidth: 28 },
-      },
-      didDrawPage: (data) => {
-        if (data.pageNumber > 1) {
-          drawReportHeader("Detailed Load Ledger • Continued");
-          drawSectionTitle("Detailed Load Ledger", 28);
-        }
-      },
-    });
-  }
-
-  // The downloaded Unified Load Report intentionally contains only the
-  // report summary and the complete detailed load ledger. The ledger may
-  // continue across multiple pages depending on the selected period.
-  // Extra analytics pages were removed because they duplicated or derived
-  // information that was not part of the visible Unified Load preview.
-
-  // Footer on all pages
-  const totalPages = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    const footerY = pageHeight - 8.5;
-
-    doc.setDrawColor(224, 230, 238);
-    doc.setLineWidth(0.2);
-    doc.line(left, footerY - 3.7, right, footerY - 3.7);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(115, 125, 141);
-    doc.text("Action Auto Utah · Unified Load Report", left, footerY);
-    doc.text(`Generated ${generatedAtLabel}`, pageWidth / 2, footerY, {
-      align: "center",
-    });
-    doc.text(`Page ${i} of ${totalPages}`, right, footerY, { align: "right" });
-  }
-
-  return doc.output("blob");
-}
-
-export async function generateQuoteReportPdf(
-  quotes: Quote[],
-  monthLabel: string,
-): Promise<Blob> {
-  const { jsPDF } = await import("jspdf");
-  const autoTable = (await import("jspdf-autotable")).default;
-  const doc = new jsPDF({ orientation: "landscape" });
-  const summary = buildQuoteSummary(quotes);
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const left = 14;
-  const right = pageWidth - 14;
-
-  const drawQuoteHeader = (subtitle = "Quotes & Drafts Report") => {
-    doc.setFillColor(245, 158, 11);
-    doc.rect(0, 0, pageWidth, 22, "F");
-
-    doc.setTextColor(255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("ACTION AUTO UTAH", left, 10);
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(subtitle, left, 17);
-
-    doc.setTextColor(0);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Period: ${monthLabel}`, left, 29);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(
-      `Generated: ${new Date().toLocaleDateString("en-US", {
-        dateStyle: "long",
-        timeZone: "America/Denver",
-      } as Intl.DateTimeFormatOptions)}`,
-      left,
-      35,
-    );
-    doc.setTextColor(0);
-  };
-
-  drawQuoteHeader();
-
-  const stats = [
-    { label: "Total Quotes", value: String(summary.total) },
-    { label: "Booked", value: String(summary.booked) },
-    { label: "Conversion", value: `${summary.conversionRate}%` },
-    { label: "Pending", value: String(summary.pending) },
-    { label: "Total Value", value: fmtCurrency(summary.totalRate) },
-    { label: "Avg Rate", value: fmtCurrency(summary.avgRate) },
-  ];
-  const boxW = 46,
-    boxH = 14,
-    startX = 14,
-    startY = 41;
-  stats.forEach((stat, i) => {
-    const x = startX + (i % 6) * (boxW + 2);
-    doc.setFillColor(255, 251, 235);
-    doc.roundedRect(x, startY, boxW, boxH, 2, 2, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(245, 158, 11);
-    doc.text(stat.value, x + boxW / 2, startY + 6.5, { align: "center" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    doc.setTextColor(100);
-    doc.text(stat.label, x + boxW / 2, startY + 11.5, { align: "center" });
-  });
-  doc.setTextColor(0);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("All Quotes & Drafts", 14, 63);
-
-  autoTable(doc, {
-    startY: 66,
-    showHead: "everyPage",
-    rowPageBreak: "avoid",
-    pageBreak: "auto",
-    head: [
-      [
-        "Customer",
-        "Vehicle",
-        "From",
-        "To",
-        "Miles",
-        "Rate",
-        "ETA",
-        "Type",
-        "Units",
-        "Status",
-      ],
-    ],
-    body:
-      quotes.length > 0
-        ? quotes.map((q) => [
-          quoteCustomer(q),
-          quoteVehicle(q),
-          quoteFromAddr(q),
-          quoteToAddr(q),
-          fmtNumber(q.miles || 0),
-          fmtCurrency(q.rate || 0),
-          quoteEta(q),
-          quoteTransportType(q),
-          String(q.units || 1),
-          q.status,
-        ])
-        : [["No quotes this period", "", "", "", "", "", "", "", "", ""]],
-    margin: { top: 42, left, right: 14, bottom: 18 },
-    styles: {
-      fontSize: 6.5,
-      cellPadding: 1.8,
-      overflow: "linebreak",
-      valign: "middle",
-    },
-    headStyles: {
-      fillColor: [245, 158, 11],
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [255, 251, 235] },
-    didDrawPage: (data) => {
-      if (data.pageNumber > 1) {
-        drawQuoteHeader("Quotes & Drafts Report • Continued");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 41, 59);
-        doc.text("All Quotes & Drafts", left, 40);
-      }
-    },
-  });
-
-
-  const totalPages = doc.getNumberOfPages();
-  for (let page = 1; page <= totalPages; page++) {
-    doc.setPage(page);
-    const footerY = pageHeight - 8;
-    doc.setDrawColor(226, 232, 240);
-    doc.line(left, footerY - 4, right, footerY - 4);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(100);
-    doc.text("Action Auto Utah · Quotes & Drafts Report", left, footerY);
-    doc.text(`Page ${page} of ${totalPages}`, right, footerY, {
-      align: "right",
-    });
-  }
-
-  return doc.output("blob");
-}
+export {
+  generateLoadReportPdf,
+  generateQuoteReportPdf,
+} from "./pdf-generators";
 
 // ─── Modal Component ──────────────────────────────────────────────────────────
 
@@ -604,7 +216,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function LoadPreview({ loads }: { loads: Load[] }) {
+function LoadPreview({
+  loads,
+  periodLabel,
+}: {
+  loads: Load[];
+  periodLabel?: string;
+}) {
   const summary = buildLoadSummary(loads);
 
   return (
@@ -687,6 +305,13 @@ function LoadPreview({ loads }: { loads: Load[] }) {
         </div>
       </div>
 
+      <ReportAnalyticsPanel
+        reportId="load-report"
+        loads={loads}
+        periodContext={{ label: periodLabel }}
+        compact
+      />
+
       <div>
         <SectionLabel>Load Details</SectionLabel>
         {loads.length === 0 ? (
@@ -700,10 +325,10 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/60 hover:bg-muted/60">
-                      <TableHead className="text-xs font-semibold w-25">
+                      <TableHead className="w-25 text-center text-xs font-semibold">
                         Load #
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-22.5">
+                      <TableHead className="w-22.5 text-center text-xs font-semibold">
                         Status
                       </TableHead>
                       <TableHead className="text-xs font-semibold w-27.5">
@@ -712,7 +337,7 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                       <TableHead className="text-xs font-semibold w-30">
                         Vehicle
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-30">
+                      <TableHead className="w-30 text-center text-xs font-semibold">
                         VIN
                       </TableHead>
                       <TableHead className="text-xs font-semibold w-22.5">
@@ -721,10 +346,10 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                       <TableHead className="text-xs font-semibold w-22.5">
                         Destination
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-17.5">
+                      <TableHead className="w-17.5 text-center text-xs font-semibold">
                         Type
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-20">
+                      <TableHead className="w-20 text-right text-xs font-semibold">
                         Rate
                       </TableHead>
                       <TableHead className="text-xs font-semibold w-25">
@@ -738,10 +363,10 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                         key={l._id}
                         className="text-xs hover:bg-muted/30"
                       >
-                        <TableCell className="font-mono text-[11px] text-foreground">
+                        <TableCell className="text-center font-mono text-[11px] text-foreground">
                           {l.loadNumber || "—"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge
                             variant="outline"
                             className={`text-[10px] font-medium ${statusBadgeClass(l.status)}`}
@@ -752,10 +377,10 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                         <TableCell className="font-medium text-foreground">
                           {loadCustomer(l)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate max-w-30">
+                        <TableCell className="whitespace-normal break-words text-muted-foreground">
                           {loadVehicle(l)}
                         </TableCell>
-                        <TableCell className="font-mono text-[10px] text-muted-foreground">
+                        <TableCell className="text-center font-mono text-[10px] text-muted-foreground">
                           {loadVin(l)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -764,12 +389,12 @@ function LoadPreview({ loads }: { loads: Load[] }) {
                         <TableCell className="text-muted-foreground">
                           {l.deliveryLocation?.city || "—"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge variant="secondary" className="text-[10px]">
                             {loadTransportType(l)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground">
+                        <TableCell className="text-right font-semibold text-foreground">
                           {fmtCurrency(loadRate(l))}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -788,7 +413,13 @@ function LoadPreview({ loads }: { loads: Load[] }) {
   );
 }
 
-function QuotePreview({ quotes }: { quotes: Quote[] }) {
+function QuotePreview({
+  quotes,
+  periodLabel,
+}: {
+  quotes: Quote[];
+  periodLabel?: string;
+}) {
   const summary = buildQuoteSummary(quotes);
 
   return (
@@ -863,6 +494,13 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
         </div>
       </div>
 
+      <ReportAnalyticsPanel
+        reportId="quote-report"
+        quotes={quotes}
+        periodContext={{ label: periodLabel }}
+        compact
+      />
+
       <div>
         <SectionLabel>Quote Details</SectionLabel>
         {quotes.length === 0 ? (
@@ -888,22 +526,22 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
                       <TableHead className="text-xs font-semibold w-25">
                         To
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-17.5">
+                      <TableHead className="w-17.5 text-right text-xs font-semibold">
                         Miles
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-20">
+                      <TableHead className="w-20 text-right text-xs font-semibold">
                         Rate
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-15">
+                      <TableHead className="w-15 text-center text-xs font-semibold">
                         ETA
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-17.5">
+                      <TableHead className="w-17.5 text-center text-xs font-semibold">
                         Type
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-12.5">
+                      <TableHead className="w-12.5 text-center text-xs font-semibold">
                         Units
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-20">
+                      <TableHead className="w-20 text-center text-xs font-semibold">
                         Status
                       </TableHead>
                     </TableRow>
@@ -917,7 +555,7 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
                         <TableCell className="font-medium text-foreground">
                           {quoteCustomer(q)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate max-w-30">
+                        <TableCell className="whitespace-normal break-words text-muted-foreground">
                           {quoteVehicle(q)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -926,16 +564,16 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
                         <TableCell className="text-muted-foreground">
                           {quoteToAddr(q)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-right text-muted-foreground">
                           {fmtNumber(q.miles || 0)}
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground">
+                        <TableCell className="text-right font-semibold text-foreground">
                           {fmtCurrency(q.rate || 0)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-center text-muted-foreground">
                           {quoteEta(q)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge variant="secondary" className="text-[10px]">
                             {quoteTransportType(q)}
                           </Badge>
@@ -943,7 +581,7 @@ function QuotePreview({ quotes }: { quotes: Quote[] }) {
                         <TableCell className="text-center text-muted-foreground">
                           {q.units || 1}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge
                             variant="outline"
                             className={`text-[10px] font-medium capitalize ${quoteStatusBadgeClass(q.status)}`}
@@ -1008,10 +646,10 @@ export function TransportationPreviewModal({
               )}
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-foreground leading-tight truncate">
+              <h2 className="text-base font-bold text-foreground leading-tight break-words">
                 {title}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              <p className="text-xs text-muted-foreground mt-0.5 break-words">
                 {monthLabel}
                 <span className="mx-1.5 opacity-40">·</span>
                 Preview before download
@@ -1038,9 +676,9 @@ export function TransportationPreviewModal({
 
         <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 flex-1">
           {isLoad ? (
-            <LoadPreview loads={loads} />
+            <LoadPreview loads={loads} periodLabel={monthLabel} />
           ) : (
-            <QuotePreview quotes={quotes} />
+            <QuotePreview quotes={quotes} periodLabel={monthLabel} />
           )}
         </div>
       </DialogContent>

@@ -20,6 +20,8 @@ import {
 
 import type { Lead } from "@/types/lead";
 
+import ReportAnalyticsPanel from "@/components/reports/analytics/ReportAnalyticsPanel";
+
 import {
   buildLeadStatusSummary,
   countActiveLeads,
@@ -37,6 +39,7 @@ import {
 
 interface LeadStatusSectionProps {
   leads: Lead[];
+  periodLabel?: string;
 }
 
 function StatCard({
@@ -69,7 +72,7 @@ function StatCard({
       </p>
 
       {description ? (
-        <p className="mt-1.5 truncate text-[10px] text-muted-foreground">
+        <p className="mt-1.5 whitespace-normal break-words text-[10px] text-muted-foreground">
           {description}
         </p>
       ) : null}
@@ -117,6 +120,7 @@ function EmptyState({
 
 export function LeadStatusSection({
   leads,
+  periodLabel,
 }: LeadStatusSectionProps) {
   const statusSummary = React.useMemo(
     () => buildLeadStatusSummary(leads),
@@ -179,6 +183,13 @@ export function LeadStatusSection({
           }
         />
       </div>
+
+      <ReportAnalyticsPanel
+        reportId="lead-status-report"
+        leads={leads}
+        periodContext={{ label: periodLabel }}
+        compact
+      />
 
       <div>
         <SectionLabel>Status Distribution</SectionLabel>
@@ -317,7 +328,7 @@ export function LeadStatusSection({
                         >
                           <TableCell className="font-medium text-foreground">
                             <span
-                              className="block max-w-40 truncate"
+                              className="block whitespace-normal break-words"
                               title={getLeadName(lead)}
                             >
                               {getLeadName(lead)}
@@ -327,14 +338,14 @@ export function LeadStatusSection({
                           <TableCell className="text-muted-foreground">
                             <div className="max-w-48">
                               <p
-                                className="truncate"
+                                className="break-all"
                                 title={email}
                               >
                                 {email}
                               </p>
 
                               <p
-                                className="truncate"
+                                className="break-all"
                                 title={phone}
                               >
                                 {phone}
@@ -344,7 +355,7 @@ export function LeadStatusSection({
 
                           <TableCell className="text-muted-foreground">
                             <span
-                              className="block max-w-40 truncate"
+                              className="block whitespace-normal break-words"
                               title={getLeadVehicle(lead)}
                             >
                               {getLeadVehicle(lead)}
@@ -353,7 +364,7 @@ export function LeadStatusSection({
 
                           <TableCell className="text-muted-foreground">
                             <span
-                              className="block max-w-28 truncate"
+                              className="block whitespace-normal break-words"
                               title={getLeadSource(lead)}
                             >
                               {getLeadSource(lead)}
@@ -380,7 +391,7 @@ export function LeadStatusSection({
                   </TableBody>
                 </Table>
               </div>
-            </div>
+            </div>  
           </div>
         )}
       </div>

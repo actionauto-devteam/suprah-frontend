@@ -1,5 +1,6 @@
 import { Quote } from "@/types/transportation"
 import { Load } from "@/types/load"
+import { getLoadReportRate } from "@/lib/report-filter-engine"
 
 export interface LoadSummary {
   total: number
@@ -31,7 +32,7 @@ export interface QuoteSummary {
 
 function loadData(l: Load) {
   return {
-    rate: l.pricing?.carrierPayAmount || l.pricing?.estimatedRate || 0,
+    rate: getLoadReportRate(l),
     miles: l.pricing?.miles || 0,
     enclosedTrailer: l.trailerType?.toLowerCase().includes('enclosed'),
     firstName: l.pickupLocation?.contactName?.split(' ')[0] || "",
@@ -92,7 +93,9 @@ export function buildQuoteSummary(quotes: Quote[]): QuoteSummary {
 
 export function fmtDate(d?: string): string {
   if (!d) return "—"
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })
+  const date = new Date(d)
+  if (Number.isNaN(date.getTime())) return "—"
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })
 }
 
 export function fmtCurrency(amount: number): string {
@@ -104,7 +107,19 @@ export function fmtNumber(num: number): string {
 }
 
 export function loadCustomer(l: Load): string {
-  return l.pickupLocation?.contactName || l.deliveryLocation?.contactName || "—"
+  const pickup = l.pickupLocation
+  const delivery = l.deliveryLocation
+  return (
+    pickup?.companyName ||
+    pickup?.contactName ||
+    [pickup?.firstName, pickup?.lastName].filter(Boolean).join(" ") ||
+    pickup?.email ||
+    delivery?.companyName ||
+    delivery?.contactName ||
+    [delivery?.firstName, delivery?.lastName].filter(Boolean).join(" ") ||
+    delivery?.email ||
+    "—"
+  )
 }
 
 export function loadVehicle(l: Load): string {
@@ -124,7 +139,7 @@ export function loadStock(l: Load): string {
 }
 
 export function loadRate(l: Load): number {
-  return l.pricing?.carrierPayAmount || l.pricing?.estimatedRate || 0
+  return getLoadReportRate(l)
 }
 
 export function loadMiles(l: Load): number {
@@ -152,8 +167,8 @@ export function calcDuration(pickedUp?: string, delivered?: string): string {
 export function driverName(l: Load): string {
   const driver = l.assignedDriverId
   if (!driver) return "Unassigned"
-  if (typeof driver === "object") return driver.name || "Unknown"
-  return "Assigned"
+  if (typeof driver === "string") return driver
+  return driver.name || driver.email || driver._id || "Assigned"
 }
 
 export function quoteCustomer(q: Quote): string {
@@ -161,10 +176,11 @@ export function quoteCustomer(q: Quote): string {
 }
 
 export function quoteVehicle(q: Quote): string {
+  if (q.vehicleName) return q.vehicleName
   if (q.vehicleId) {
-    return `${q.vehicleId.year || ''} ${q.vehicleId.make || ''} ${q.vehicleId.modelName || ''}`.trim() || "—"
+    return `${q.vehicleId.year || ''} ${q.vehicleId.make || ''} ${q.vehicleId.modelName || ''}`.trim() || q.vehicleId.vin || "—"
   }
-  return q.vehicleName || "—"
+  return q.vin || "—"
 }
 
 export function quoteFromAddr(q: Quote): string {
