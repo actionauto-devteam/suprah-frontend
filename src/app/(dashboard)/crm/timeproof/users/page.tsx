@@ -15,7 +15,6 @@ import {
   Users,
   Zap,
   Apple,
-  ChevronDown,
   Search,
   X,
   Wallet,
@@ -24,6 +23,7 @@ import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { initializeSocket } from "@/lib/socket.client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn, resolveImageUrl } from "@/lib/utils"
 
 interface HoursSummary {
@@ -540,20 +540,23 @@ export default function AdminShiftBoardPage() {
                 </button>
               )}
             </div>
-            {/* Department filter */}
-            <div className="relative shrink-0">
-              <select
-                value={selectedDept}
-                onChange={(e) => setSelectedDept(e.target.value)}
-                className="h-9 pl-3 pr-7 rounded-xl border border-border bg-muted/30 text-foreground/80 text-[11px] font-bold appearance-none focus:outline-none focus:border-ring/50 cursor-pointer"
-              >
-                <option value="all">All Departments</option>
+            {/* Department filter — Radix-based Select, not a native <select>.
+                A native select's open dropdown popup is rendered by the
+                OS/browser itself (not by our CSS), so it ignored dark mode
+                entirely and always showed up in the browser's default light
+                appearance. This renders its own popup as real themed DOM,
+                so it always matches the page. */}
+            <Select value={selectedDept} onValueChange={setSelectedDept}>
+              <SelectTrigger className="h-9 shrink-0 rounded-xl border-border bg-muted/30 text-foreground/80 text-[11px] font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
                 {DEPARTMENTS.map((d) => (
-                  <option key={d} value={`dept:${d}`}>{d}</option>
+                  <SelectItem key={d} value={`dept:${d}`}>{d}</SelectItem>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            </div>
+              </SelectContent>
+            </Select>
             <button
               onClick={() => router.push("/crm/timeproof/payroll-status")}
               className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
