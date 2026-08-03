@@ -20,6 +20,7 @@
  */
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AtSign,
   CalendarDays,
@@ -27,6 +28,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   ClipboardList,
   Folder,
   FolderKanban,
@@ -148,6 +150,7 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   const [groupsLoading, setGroupsLoading] = React.useState(true);
   const [selectedGroupId, setSelectedGroupId] = React.useState<string | null>(null);
   const [pageError, setPageError] = React.useState("");
+  const [groupOrderIds, setGroupOrderIds] = React.useState<string[]>([]);
 
   // Group dialogs
   const [groupDialogMode, setGroupDialogMode] = React.useState<"closed" | "create" | "edit">("closed");
@@ -184,6 +187,49 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   React.useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  // Personal, per-user display order for "My Project Groups" — a browser-local
+  // preference, not shared group data, so it's stored client-side per meId.
+  React.useEffect(() => {
+    if (!meId) return;
+    try {
+      const raw = localStorage.getItem(`pm_group_order_${meId}`);
+      setGroupOrderIds(raw ? JSON.parse(raw) : []);
+    } catch {
+      setGroupOrderIds([]);
+    }
+  }, [meId]);
+
+  const orderedGroups = React.useMemo(() => {
+    if (groupOrderIds.length === 0) return groups;
+    const remaining = new Map(groups.map((g) => [g._id, g]));
+    const ordered: Group[] = [];
+    groupOrderIds.forEach((id) => {
+      const g = remaining.get(id);
+      if (g) {
+        ordered.push(g);
+        remaining.delete(id);
+      }
+    });
+    groups.forEach((g) => {
+      if (remaining.has(g._id)) ordered.push(g);
+    });
+    return ordered;
+  }, [groups, groupOrderIds]);
+
+  const moveGroup = (groupId: string, direction: -1 | 1) => {
+    const ids = orderedGroups.map((g) => g._id);
+    const idx = ids.indexOf(groupId);
+    const swapIdx = idx + direction;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= ids.length) return;
+    [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+    setGroupOrderIds(ids);
+    if (meId) {
+      try {
+        localStorage.setItem(`pm_group_order_${meId}`, JSON.stringify(ids));
+      } catch {}
+    }
+  };
 
   // Live: a group I'm in was created/renamed/deleted (membership changes too).
   React.useEffect(() => {
@@ -314,7 +360,7 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
                   </p>
                 </div>
               ) : (
-                groups.map((g) => (
+                orderedGroups.map((g, idx) => (
                   <div
                     key={g._id}
                     className={cn(
@@ -354,6 +400,22 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
                         Always visible on touch (no hover to reveal them there);
                         desktop keeps the hover-reveal declutter. */}
                     <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover/grow:opacity-100">
+                      <button
+                        onClick={() => moveGroup(g._id, -1)}
+                        disabled={idx === 0}
+                        title="Move up"
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 hover:bg-muted/50 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-30"
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => moveGroup(g._id, 1)}
+                        disabled={idx === orderedGroups.length - 1}
+                        title="Move down"
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 hover:bg-muted/50 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-30"
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
                       <button
                         onClick={() => {
                           setGroupBeingEdited(g);
@@ -644,10 +706,11 @@ function GroupDialog({
               )}
             </div>
           </div>
+        </div>
 
+        <div className="shrink-0 space-y-2 border-t border-border/40 px-6 py-4">
           {error && <p className="text-[11px] text-rose-500">{error}</p>}
-
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={onClose}
@@ -704,7 +767,19 @@ function GroupWorkspace({
   const [sectionDialogOpen, setSectionDialogOpen] = React.useState(false);
   const [folderDialogFor, setFolderDialogFor] = React.useState<Section | null>(null);
   const [taskDialogFor, setTaskDialogFor] = React.useState<FolderGroup | null>(null);
-  const [openTaskId, setOpenTaskId] = React.useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [openTaskId, setOpenTaskId] = React.useState<string | null>(
+    () => searchParams.get("task"),
+  );
+
+  // Deep link from a Pulse360 alert ("open this task") — consume the query
+  // param once so switching project groups doesn't keep re-opening it.
+  React.useEffect(() => {
+    if (searchParams.get("task")) router.replace(pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Rename / delete dialogs
   const [sectionToRename, setSectionToRename] = React.useState<Section | null>(null);
@@ -1413,7 +1488,7 @@ function CreateTaskDialog({
 
   return (
     <Dialog open={!!folder} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="relative flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-lg sm:rounded-2xl sm:border">
+      <DialogContent className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-2xl sm:rounded-2xl sm:border">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/60 to-transparent" />
 
         <DialogHeader className="shrink-0 space-y-0 border-b border-border/40 px-6 pb-4 pt-6">
@@ -1460,48 +1535,52 @@ function CreateTaskDialog({
 
           <div className="h-px bg-border/40" />
 
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
-              <Users className="h-3.5 w-3.5 text-muted-foreground/50" />
-              Assignees <span className="text-muted-foreground/50">(select one or more)</span>
-            </Label>
-            <AssigneeMultiSelect
-              members={members}
-              selected={assignees}
-              onChange={setAssignees}
-              disabled={saving}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground/75">Priority</Label>
-            <PrioritySelect priority={priority} onChange={setPriority} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
-                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Start date
+                <Users className="h-3.5 w-3.5 text-muted-foreground/50" />
+                Assignees <span className="text-muted-foreground/50">(select one or more)</span>
               </Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+              <AssigneeMultiSelect
+                members={members}
+                selected={assignees}
+                onChange={setAssignees}
                 disabled={saving}
-                className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
-                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Deadline
-              </Label>
-              <Input
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                disabled={saving}
-                className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
-              />
+
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground/75">Priority</Label>
+                <PrioritySelect priority={priority} onChange={setPriority} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                    <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Start date
+                  </Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    disabled={saving}
+                    className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                    <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Deadline
+                  </Label>
+                  <Input
+                    type="date"
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    disabled={saving}
+                    className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1572,10 +1651,11 @@ function CreateTaskDialog({
               </div>
             )}
           </div>
+        </div>
 
+        <div className="shrink-0 space-y-2 border-t border-border/40 px-6 py-4">
           {error && <p className="text-[11px] text-rose-500">{error}</p>}
-
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={onClose}

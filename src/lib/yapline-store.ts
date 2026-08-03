@@ -465,6 +465,8 @@ function startStatsLoop() {
 
 // ─── Public actions ──────────────────────────────────────────────────────────
 
+const MOBILE_DOCK_BREAKPOINT = 768;
+
 async function join(
   conversationId: string,
   conversationName?: string | null,
@@ -474,6 +476,12 @@ async function join(
   if (!socket) return;
   if (state.current?.conversationId === conversationId) return;
   if (state.current) await leave(); // one session at a time — like a real radio
+
+  // The full mini-player is ~320px wide — on a phone that's most of the
+  // screen. Start docked to the small status pill there; the desktop-sized
+  // player still opens automatically on wider screens.
+  const startMinimized =
+    typeof window !== "undefined" && window.innerWidth < MOBILE_DOCK_BREAKPOINT;
 
   setState({
     current: {
@@ -489,7 +497,7 @@ async function join(
       screenSharing: false,
       screenVersion: 0,
     },
-    minimized: false,
+    minimized: startMinimized,
     error: null,
   });
 

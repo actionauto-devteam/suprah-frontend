@@ -57,6 +57,7 @@ const ICONS: Record<string, LucideIcon> = {
 const SNOOZE_OPTIONS = [
   { label: "15 min", minutes: 15 },
   { label: "1 hour", minutes: 60 },
+  { label: "4 hours", minutes: 240 },
   { label: "Rest of day", minutes: 480 },
 ];
 
@@ -236,9 +237,6 @@ function PulseAlertCard({ alert, onClose }: { alert: PulseAlert; onClose: () => 
                     className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                   >
                     {option.label}
-                    {isCritical && option.minutes > 60 && (
-                      <span className="text-[8px] uppercase text-red-500/60">capped</span>
-                    )}
                   </button>
                 ))}
               </div>

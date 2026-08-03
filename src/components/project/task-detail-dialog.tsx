@@ -472,15 +472,15 @@ export function EditTaskDialog({
 
   return (
     <Dialog open={!!task} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
-        <DialogHeader className="space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
+      <DialogContent className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-md sm:rounded-2xl sm:border">
+        <DialogHeader className="shrink-0 space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
           <DialogTitle className="text-sm font-bold">Edit Task</DialogTitle>
           <DialogDescription className="text-[11px] text-muted-foreground/60">
             Only the task creator, the assignee, or an admin can save changes.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65dvh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Title</Label>
             <Input
@@ -536,10 +536,11 @@ export function EditTaskDialog({
               />
             </div>
           </div>
+        </div>
 
+        <div className="shrink-0 space-y-2 border-t border-border/40 px-6 py-4">
           {error && <p className="text-[11px] text-rose-500">{error}</p>}
-
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={onClose}
@@ -970,45 +971,49 @@ export function TaskDetailDialog({
                 <DialogTitle className="min-w-0 text-base font-bold leading-snug">
                   {task.title}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <PrioritySelect
-                    priority={task.priority}
-                    loading={prioritySaving}
-                    onChange={changePriority}
-                  />
-                  <TaskStatusSelect
-                    status={task.status}
-                    disabled={!canChangeStatus}
-                    loading={statusSaving}
-                    onChange={changeStatus}
-                  />
-                  <button
-                    onClick={openEdit}
-                    disabled={editLoading}
-                    title="Edit task"
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
-                  >
-                    {editLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Pencil className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setDeleteOpen(true)}
-                    title="Delete task"
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="mx-0.5 hidden h-5 w-px shrink-0 bg-border/60 sm:block" />
-                  <button
-                    onClick={onClose}
-                    title="Close"
-                    className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground sm:ml-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <PrioritySelect
+                      priority={task.priority}
+                      loading={prioritySaving}
+                      onChange={changePriority}
+                    />
+                    <TaskStatusSelect
+                      status={task.status}
+                      disabled={!canChangeStatus}
+                      loading={statusSaving}
+                      onChange={changeStatus}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={openEdit}
+                      disabled={editLoading}
+                      title="Edit task"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
+                    >
+                      {editLoading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Pencil className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setDeleteOpen(true)}
+                      title="Delete task"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="mx-0.5 h-5 w-px shrink-0 bg-border/60" />
+                    <button
+                      onClick={onClose}
+                      title="Close"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <DialogDescription asChild>

@@ -7,9 +7,11 @@ import { playShiftAlertSound } from "@/lib/notification-sound";
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 const UPDATE_TOAST_ID = "sw-update-available";
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 export function ServiceWorkerRegistration() {
     const waitingWorkerRef = useRef<ServiceWorker | null>(null);
+    const registrationRef = useRef<globalThis.ServiceWorkerRegistration | null>(null);
 
     useEffect(() => {
         if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -66,6 +68,7 @@ export function ServiceWorkerRegistration() {
                 const registration = await navigator.serviceWorker.register("/sw.js", {
                     updateViaCache: "none",
                 });
+                registrationRef.current = registration;
                 void registration.update();
 
                 // An update may have finished installing in a previous tab/session
@@ -109,9 +112,22 @@ export function ServiceWorkerRegistration() {
             }
         };
 
+        // Browsers only byte-diff sw.js on navigation, so a tab left open for a
+        // long session would otherwise never notice a deployed update. Poll
+        // periodically and on tab-refocus so the toast can appear without a
+        // manual reload.
+        const checkForUpdate = () => {
+            registrationRef.current?.update().catch(() => {});
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") checkForUpdate();
+        };
+
         navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
         navigator.serviceWorker.addEventListener("message", handleSwMessage);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
         registerServiceWorker();
+        const intervalId = window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
 
         return () => {
             cancelled = true;
@@ -120,6 +136,8 @@ export function ServiceWorkerRegistration() {
                 handleControllerChange,
             );
             navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.clearInterval(intervalId);
         };
     }, []);
 
