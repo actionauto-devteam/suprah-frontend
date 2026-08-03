@@ -1413,7 +1413,7 @@ function CreateTaskDialog({
 
   return (
     <Dialog open={!!folder} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="relative flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-lg sm:rounded-2xl sm:border">
+      <DialogContent className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-lg sm:rounded-2xl sm:border">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/60 to-transparent" />
 
         <DialogHeader className="shrink-0 space-y-0 border-b border-border/40 px-6 pb-4 pt-6">
