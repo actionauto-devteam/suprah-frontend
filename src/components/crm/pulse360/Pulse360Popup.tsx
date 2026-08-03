@@ -269,7 +269,7 @@ export function Pulse360Popup() {
   const isCritical = current.severity >= 90;
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-end justify-center p-4 sm:items-center">
+    <div className="fixed inset-0 z-250 flex items-end justify-center p-4 sm:items-center">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => {

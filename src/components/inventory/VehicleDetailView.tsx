@@ -909,7 +909,7 @@ export function VehicleDetailView({
                   <h3 className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                     Quick Facts
                   </h3>
-                  <div className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
                     <SpecRow
                       icon={Calendar}
                       label="Year"
@@ -1079,14 +1079,16 @@ export function VehicleDetailView({
                       <section.icon className="h-3.5 w-3.5" />
                       {section.title}
                     </h4>
-                    {section.rows.map((row) => (
-                      <SpecRow
-                        key={row.label}
-                        icon={row.icon}
-                        label={row.label}
-                        value={row.value}
-                      />
-                    ))}
+                    <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+                      {section.rows.map((row) => (
+                        <SpecRow
+                          key={row.label}
+                          icon={row.icon}
+                          label={row.label}
+                          value={row.value}
+                        />
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1099,7 +1101,7 @@ export function VehicleDetailView({
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       Installed Options & Equipment
                     </h3>
-                    <div className="columns-1 gap-x-8 sm:columns-2">
+                    <div className="columns-1 gap-x-8 sm:columns-2 lg:columns-3">
                       {options.map((opt, i) => (
                         <div
                           key={i}

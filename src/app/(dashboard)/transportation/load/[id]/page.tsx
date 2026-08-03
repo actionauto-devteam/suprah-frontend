@@ -408,9 +408,10 @@ export default function LoadDetailsPage() {
     iframe.style.position = "fixed"
     iframe.style.right = "0"
     iframe.style.bottom = "0"
-    iframe.style.width = "0"
-    iframe.style.height = "0"
+    iframe.style.width = "8.5in"
+    iframe.style.height = "11in"
     iframe.style.border = "0"
+    iframe.style.visibility = "hidden"
     document.body.appendChild(iframe)
 
     try {
@@ -523,18 +524,14 @@ export default function LoadDetailsPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-y-3 text-sm pt-2">
-                    {toTitleCase(load.pickupLocation?.companyName) && (
-                      <div className="col-span-2 flex items-center gap-2.5 text-muted-foreground bg-muted/50 p-2 rounded-lg border border-border/50">
-                        <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className="font-medium text-foreground">{toTitleCase(load.pickupLocation.companyName)}</span>
-                      </div>
-                    )}
+                    <div className="col-span-2 flex items-center gap-2.5 text-muted-foreground bg-muted/50 p-2 rounded-lg border border-border/50">
+                      <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className={toTitleCase(load.pickupLocation?.companyName) ? "font-medium text-foreground" : "italic text-muted-foreground/60"}>{toTitleCase(load.pickupLocation?.companyName) || "No company on file"}</span>
+                    </div>
                     <div className="col-span-2 flex flex-col gap-1 text-muted-foreground pl-1">
                       <div className="flex items-center gap-2">
                         <Phone className="size-3.5 shrink-0" /> <span className="font-medium">{formatPhone(load.pickupLocation?.phone, load.pickupLocation?.phoneExt) || "Phone not provided"}</span>
                       </div>
-                      {toTitleCase(load.pickupLocation?.contactName) && (
-                        <div className="text-sm pl-5 text-muted-foreground/80">{toTitleCase(load.pickupLocation.contactName)}</div>
-                      )}
+                      <div className="text-sm pl-5 text-muted-foreground/80">{toTitleCase(load.pickupLocation?.contactName) || <span className="italic text-muted-foreground/50">No contact name</span>}</div>
                     </div>
                   </div>
                 </div>
@@ -572,18 +569,14 @@ export default function LoadDetailsPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-y-3 text-sm pt-2">
-                    {toTitleCase(load.deliveryLocation?.companyName) && (
-                      <div className="col-span-2 flex items-center gap-2.5 text-muted-foreground bg-muted/50 p-2 rounded-lg border border-border/50">
-                        <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className="font-medium text-foreground">{toTitleCase(load.deliveryLocation.companyName)}</span>
-                      </div>
-                    )}
+                    <div className="col-span-2 flex items-center gap-2.5 text-muted-foreground bg-muted/50 p-2 rounded-lg border border-border/50">
+                      <Building2 className="size-4 shrink-0 text-foreground/70" /> <span className={toTitleCase(load.deliveryLocation?.companyName) ? "font-medium text-foreground" : "italic text-muted-foreground/60"}>{toTitleCase(load.deliveryLocation?.companyName) || "No company on file"}</span>
+                    </div>
                     <div className="col-span-2 flex flex-col gap-1 text-muted-foreground pl-1">
                       <div className="flex items-center gap-2">
                         <Phone className="size-3.5 shrink-0" /> <span className="font-medium">{formatPhone(load.deliveryLocation?.phone, load.deliveryLocation?.phoneExt) || "Phone not provided"}</span>
                       </div>
-                      {toTitleCase(load.deliveryLocation?.contactName) && (
-                        <div className="text-sm pl-5 text-muted-foreground/80">{toTitleCase(load.deliveryLocation.contactName)}</div>
-                      )}
+                      <div className="text-sm pl-5 text-muted-foreground/80">{toTitleCase(load.deliveryLocation?.contactName) || <span className="italic text-muted-foreground/50">No contact name</span>}</div>
                     </div>
                   </div>
                 </div>

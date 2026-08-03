@@ -463,7 +463,7 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate, userId 
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background timeproof-scope">
       <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <button onClick={() => router.back()} className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
@@ -694,6 +694,7 @@ export default function ScreenshotGalleryPage() {
   const [screenshots, setScreenshots] = React.useState<Screenshot[]>([])
   const [deletionNotices, setDeletionNotices] = React.useState<{ reason: string; at: string }[]>([])
   const [actualBreaks, setActualBreaks] = React.useState<ActualBreak[]>([])
+  const [idlePeriodsCount, setIdlePeriodsCount] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null)
@@ -754,6 +755,20 @@ export default function ScreenshotGalleryPage() {
       ? `/api/crm/timeproof/user/${userId}?range=365`
       : `/api/crm/timeproof/my?range=365`
 
+    // idleLog (same source that already powers the "Idle Log (read-only)"
+    // export) is derived from tray-detected inactivity gaps in ActivityInterval
+    // data — a real idle period exists here whether or not a screenshot ever
+    // got captured during it. The previous idleCount (screenshots.filter by
+    // idleDetected) undercounted almost every real idle stretch: regular
+    // screenshot capture explicitly stops the moment idle begins (see
+    // captureAndUpload in the tray), and the one code path that WOULD tag a
+    // screenshot idleDetected=true (captureAndUploadOnce) is only ever called
+    // on shift end, not on an idle transition — so this card showed 0 even
+    // for users who really were flagged idle that day.
+    const idleLogEndpoint = userId
+      ? `/api/crm/timeproof/user/${userId}/idle-log?startDate=${dateStr}&endDate=${dateStr}`
+      : `/api/crm/timeproof/idle-log?startDate=${dateStr}&endDate=${dateStr}`
+
     Promise.all([
       apiClient.get(`/api/crm/timeproof/screenshots?${qs.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -761,8 +776,11 @@ export default function ScreenshotGalleryPage() {
       apiClient.get(calendarEndpoint, {
         headers: { Authorization: `Bearer ${token}` },
       }),
+      apiClient.get(idleLogEndpoint, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => null),
     ])
-      .then(([ssRes, tpRes]) => {
+      .then(([ssRes, tpRes, idleRes]) => {
         const list: Screenshot[] = ssRes.data?.data?.screenshots ?? []
         list.sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())
         setScreenshots(list)
@@ -771,13 +789,14 @@ export default function ScreenshotGalleryPage() {
         const dayBreaks: ActualBreak[] = cal[dateStr]?.breaks ?? []
         setActualBreaks(dayBreaks)
         setMyRole(tpRes.data?.data?.user?.role ?? null)
+        setIdlePeriodsCount(idleRes?.data?.data?.idleLog?.length ?? 0)
       })
       .catch((e: any) => setError(e?.response?.data?.message || "Failed to load screenshots."))
       .finally(() => setLoading(false))
   }, [dateStr, userId, router, isLotTechMain])
 
   const breaks = React.useMemo(() => actualBreaksToSegments(actualBreaks), [actualBreaks])
-  const idleCount = screenshots.filter((s) => s.idleDetected).length
+  const idleCount = idlePeriodsCount
   const breakTotalMs = totalBreakMs(breaks)
 
   const openLightbox = (i: number) => setLightboxIndex(i)
@@ -832,7 +851,7 @@ export default function ScreenshotGalleryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background timeproof-scope">
       {/* ── Header ── */}
       <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
@@ -944,11 +963,16 @@ export default function ScreenshotGalleryPage() {
                 </p>
               </div>
 
-              {/* Idle Alerts */}
+              {/* Idle Alerts — clicking through only makes sense once there's
+                  something recorded; an empty day just stays a static card. */}
               <div
+                onClick={idleCount > 0 ? () => {
+                  const qs = userId ? `?userId=${userId}` : ""
+                  router.push(`/crm/timeproof/idle-records/${dateStr}${qs}`)
+                } : undefined}
                 className={`rounded-xl border px-4 py-3.5 space-y-2 ${
                   idleCount > 0
-                    ? "border-rose-500/25 bg-rose-50/40 dark:bg-rose-950/15"
+                    ? "border-rose-500/25 bg-rose-50/40 dark:bg-rose-950/15 cursor-pointer hover:bg-rose-50/60 dark:hover:bg-rose-950/25 transition-colors"
                     : "border-border/40 bg-card"
                 }`}
               >

@@ -776,71 +776,71 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                   </Button>
                 </div>
               )
-            : isEmpty
-              ? (
-                <div className="rounded-2xl border border-dashed border-border/35 px-5 py-12 text-center">
-                  <UserX className="mx-auto h-7 w-7 text-muted-foreground/20" />
-                  <p className="mt-3 text-sm font-semibold text-muted-foreground/50">
-                    {emptyMessage}
-                  </p>
-                  <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground/35">
-                    {emptyDescription}
-                  </p>
-                </div>
-              )
-              : users.map((u) => (
-                <div
-                  key={u._id}
-                  className="rounded-2xl border border-border/35 bg-card/80 p-4 shadow-xs transition-colors active:bg-muted/20"
-                >
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-9 w-9 shrink-0">
-                      <AvatarImage src={u.avatar} />
-                      <AvatarFallback
-                        className={`text-[10px] font-bold text-white ${u.role === "admin"
-                          ? "bg-violet-500"
-                          : u.role === "manager"
-                            ? "bg-blue-500"
-                            : "bg-emerald-600"
-                          }`}
-                      >
-                        {ini(u.fullName)}
-                      </AvatarFallback>
-                    </Avatar>
+              : isEmpty
+                ? (
+                  <div className="rounded-2xl border border-dashed border-border/35 px-5 py-12 text-center">
+                    <UserX className="mx-auto h-7 w-7 text-muted-foreground/20" />
+                    <p className="mt-3 text-sm font-semibold text-muted-foreground/50">
+                      {emptyMessage}
+                    </p>
+                    <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground/35">
+                      {emptyDescription}
+                    </p>
+                  </div>
+                )
+                : users.map((u) => (
+                  <div
+                    key={u._id}
+                    className="rounded-2xl border border-border/35 bg-card/80 p-4 shadow-xs transition-colors active:bg-muted/20"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-9 w-9 shrink-0">
+                        <AvatarImage src={u.avatar} />
+                        <AvatarFallback
+                          className={`text-[10px] font-bold text-white ${u.role === "admin"
+                            ? "bg-violet-500"
+                            : u.role === "manager"
+                              ? "bg-blue-500"
+                              : "bg-emerald-600"
+                            }`}
+                        >
+                          {ini(u.fullName)}
+                        </AvatarFallback>
+                      </Avatar>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold leading-tight text-foreground">
-                            {u.fullName}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold leading-tight text-foreground">
+                              {u.fullName}
+                            </p>
+                            <p className="mt-0.5 wrap-break-word text-xs leading-relaxed text-muted-foreground/60">
+                              {u.email}
+                            </p>
+                          </div>
+                          <div className="shrink-0">{renderUserActions(u)}</div>
+                        </div>
+
+                        <div className="mt-3 rounded-xl border border-border/35 bg-muted/20 px-3 py-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                            Employee ID
                           </p>
-                          <p className="mt-0.5 wrap-break-word text-xs leading-relaxed text-muted-foreground/60">
-                            {u.email}
+                          <p className="mt-1 break-all font-mono text-xs font-semibold text-foreground">
+                            {u.username}
                           </p>
                         </div>
-                        <div className="shrink-0">{renderUserActions(u)}</div>
-                      </div>
 
-                      <div className="mt-3 rounded-xl border border-border/35 bg-muted/20 px-3 py-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
-                          Employee ID
-                        </p>
-                        <p className="mt-1 break-all font-mono text-xs font-semibold text-foreground">
-                          {u.username}
-                        </p>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <RoleBadge role={u.role} />
-                        <StatusBadge isActive={u.isActive} />
-                        <span className="rounded-full border border-border/35 bg-background px-2 py-1 text-[10px] font-semibold text-muted-foreground/60">
-                          Joined {formatDate(u.createdAt)}
-                        </span>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <RoleBadge role={u.role} />
+                          <StatusBadge isActive={u.isActive} />
+                          <span className="rounded-full border border-border/35 bg-background px-2 py-1 text-[10px] font-semibold text-muted-foreground/60">
+                            Joined {formatDate(u.createdAt)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -928,76 +928,76 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                       </td>
                     </tr>
                   )
-                : isEmpty
-                  ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-16">
-                        <div className="flex flex-col items-center justify-center text-center">
-                          <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center mb-4">
-                            <UserX className="h-6 w-6 text-muted-foreground/15" />
+                  : isEmpty
+                    ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-16">
+                          <div className="flex flex-col items-center justify-center text-center">
+                            <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center mb-4">
+                              <UserX className="h-6 w-6 text-muted-foreground/15" />
+                            </div>
+                            <p className="text-sm font-semibold text-muted-foreground/40">
+                              {emptyMessage}
+                            </p>
+                            <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
+                              {emptyDescription}
+                            </p>
                           </div>
-                          <p className="text-sm font-semibold text-muted-foreground/40">
-                            {emptyMessage}
-                          </p>
-                          <p className="text-xs text-muted-foreground/25 mt-1 max-w-xs">
-                            {emptyDescription}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                  : users.map((u) => (
-                    <tr
-                      key={u._id}
-                      className="border-b border-border/20 last:border-0 hover:bg-muted/2.5 transition-colors"
-                    >
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-7 w-7 shrink-0">
-                            <AvatarImage src={u.avatar} />
-                            <AvatarFallback
-                              className={`text-[9px] font-bold text-white ${u.role === "admin"
-                                ? "bg-violet-500"
-                                : u.role === "manager"
-                                  ? "bg-blue-500"
-                                  : "bg-emerald-600"
-                                }`}
-                            >
-                              {ini(u.fullName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold truncate leading-tight">{u.fullName}</p>
-                            <p className="text-[11px] text-muted-foreground/40 truncate mt-0.5">{u.email}</p>
+                        </td>
+                      </tr>
+                    )
+                    : users.map((u) => (
+                      <tr
+                        key={u._id}
+                        className="border-b border-border/20 last:border-0 hover:bg-muted/2.5 transition-colors"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-7 w-7 shrink-0">
+                              <AvatarImage src={u.avatar} />
+                              <AvatarFallback
+                                className={`text-[9px] font-bold text-white ${u.role === "admin"
+                                  ? "bg-violet-500"
+                                  : u.role === "manager"
+                                    ? "bg-blue-500"
+                                    : "bg-emerald-600"
+                                  }`}
+                              >
+                                {ini(u.fullName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold truncate leading-tight">{u.fullName}</p>
+                              <p className="text-[11px] text-muted-foreground/40 truncate mt-0.5">{u.email}</p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs font-mono text-muted-foreground/60 bg-muted/30 px-2 py-0.5 rounded-md">
-                          {u.username}
-                        </span>
-                      </td>
+                        <td className="px-5 py-3.5">
+                          <span className="text-xs font-mono text-muted-foreground/60 bg-muted/30 px-2 py-0.5 rounded-md">
+                            {u.username}
+                          </span>
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        <RoleBadge role={u.role} />
-                      </td>
+                        <td className="px-5 py-3.5">
+                          <RoleBadge role={u.role} />
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        <StatusBadge isActive={u.isActive} />
-                      </td>
+                        <td className="px-5 py-3.5">
+                          <StatusBadge isActive={u.isActive} />
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        <span className="text-[11px] text-muted-foreground/40">
-                          {formatDate(u.createdAt)}
-                        </span>
-                      </td>
+                        <td className="px-5 py-3.5">
+                          <span className="text-[11px] text-muted-foreground/40">
+                            {formatDate(u.createdAt)}
+                          </span>
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        {renderUserActions(u)}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-5 py-3.5">
+                          {renderUserActions(u)}
+                        </td>
+                      </tr>
+                    ))}
             </tbody>
           </table>
         </div>
@@ -1008,11 +1008,11 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
               ? "Loading users..."
               : fetchError
                 ? "Could not load users."
-              : pagination.total === 0
-                ? hasFilters
-                  ? "No results match the selected search and filters."
-                  : "No users available."
-                : `Showing ${startItem}-${endItem} of ${pagination.total} users`}
+                : pagination.total === 0
+                  ? hasFilters
+                    ? "No results match the selected search and filters."
+                    : "No users available."
+                  : `Showing ${startItem}-${endItem} of ${pagination.total} users`}
           </p>
 
           <div className="flex flex-wrap items-center gap-1.5">

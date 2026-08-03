@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { initializeSocket, getSocket } from '@/lib/socket.client';
@@ -11,9 +10,6 @@ import type { ActivityEvent } from './useActivityFeed';
 export function useTeamPulseSocket() {
     const { getToken, isSignedIn } = useAuth();
     const queryClient = useQueryClient();
-    const router = useRouter();
-    const routerRef = useRef(router);
-    useEffect(() => { routerRef.current = router; }, [router]);
 
     useEffect(() => {
         if (!isSignedIn) return;
@@ -49,16 +45,6 @@ export function useTeamPulseSocket() {
 
             socket.on('board:reaction_removed', (data: { noteId: string }) => {
                 queryClient.invalidateQueries({ queryKey: ['board-note-reactions', data.noteId] });
-            });
-
-            socket.on('ping:received', (data: { fromUserId?: string; fromUserName: string; fromUserAvatar?: string; message?: string }) => {
-                toast(`⚡ ${data.fromUserName} pinged you!`, {
-                    description: data.message || 'They want your attention — check in when you can.',
-                    duration: 9000,
-                    action: data.fromUserId
-                        ? { label: 'Reply', onClick: () => routerRef.current.push(`/crm/supra-space?userId=${data.fromUserId}`) }
-                        : { label: 'OK', onClick: () => {} },
-                });
             });
 
             socket.on('absence:approved', () => {
@@ -101,7 +87,6 @@ export function useTeamPulseSocket() {
                 socket.off('board:acked');
                 socket.off('board:reaction_added');
                 socket.off('board:reaction_removed');
-                socket.off('ping:received');
                 socket.off('absence:approved');
                 socket.off('absence:rejected');
                 socket.off('absence:status_changed');

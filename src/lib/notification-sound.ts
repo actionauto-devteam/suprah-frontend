@@ -54,8 +54,20 @@ export function unlockAudio(): void {
     .catch(() => {});
 }
 
+// A burst of many messages/alerts landing within the same tick (e.g. several
+// employees tripping a shift-alert scheduler at once) used to play this once
+// per message back-to-back, reading as "spam" even after the sender side is
+// batched — this cooldown collapses any such burst down to a single audible
+// ding, without affecting the normal one-message-at-a-time case.
+const MESSAGE_SOUND_COOLDOWN_MS = 1200;
+let _lastMessageSoundAt = 0;
+
 export function playMessageSound(): void {
   if (!isSoundEnabled() || typeof window === 'undefined') return;
+
+  const now = Date.now();
+  if (now - _lastMessageSoundAt < MESSAGE_SOUND_COOLDOWN_MS) return;
+  _lastMessageSoundAt = now;
 
   const ctx = getCtx();
   if (ctx && _notifBuf && ctx.state === 'running') {

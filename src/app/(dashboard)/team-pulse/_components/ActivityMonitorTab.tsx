@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, CircleDot, User2, Search, Wifi,
-  WifiOff, Clock, Flame, BellOff, Minus,
+  WifiOff, Clock, Flame, BellOff, Bell, Minus,
   Activity, Users, TrendingUp, Map as MapIcon,
   MapPin, MapPinOff, AlertTriangle, ShieldCheck, Car, CarFront, TriangleAlert,
   Navigation, Pause, BatteryLow, Building2, Coffee, Radio, Play, X, Anchor, ChevronDown,
@@ -36,6 +37,9 @@ import { useLocatorSocket } from "@/hooks/useLocatorSocket";
 import { haversineMi, formatDistanceMi } from "@/lib/geo";
 import { DEPARTMENTS, isMobileMonitoringDept } from "@/lib/departments";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useNotifications } from "@/context/NotificationContext";
+import { isLocatorNotification } from "@/components/notifications/notification-utils";
 
 interface Props {
   members: TeamMember[];
@@ -413,6 +417,35 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
 
   const { data: activeLocations = [] } = useActiveEmployeeLocations(true);
   const { data: places = [] } = usePlaces();
+  // Admin-facing "who's outside their office right now" — previously only visible buried in
+  // the activity feed's geofence_exit entries. Anyone actively sharing but not currently
+  // inside any known Place radius; not restricted to a specific department.
+  const outsideOffice = React.useMemo(
+    () => activeLocations.filter((l) => l.sharingState === "sharing" && !l.currentPlaceId),
+    [activeLocations],
+  );
+
+  const router = useRouter();
+  // Dedicated Locator/TimeProof notification feed — separates the alerts admins
+  // specifically asked to monitor here (geofence, shift alerts, location
+  // requests) from the general bell, which mixes in everything else in the app.
+  const { notifications: allNotifications, markAsRead } = useNotifications();
+  // Full matching set drives the unread badge; only the popover LIST is
+  // capped (and scrolls) so the count never silently under-reports once
+  // there are more than a handful of Locator notifications.
+  const locatorNotifications = React.useMemo(
+    () => allNotifications.filter(isLocatorNotification),
+    [allNotifications],
+  );
+  const locatorUnreadCount = React.useMemo(
+    () => locatorNotifications.filter((n) => !n.isRead).length,
+    [locatorNotifications],
+  );
+  const LOCATOR_PANEL_LIMIT = 30;
+  const locatorPanelNotifications = React.useMemo(
+    () => locatorNotifications.slice(0, LOCATOR_PANEL_LIMIT),
+    [locatorNotifications],
+  );
   const locationByUserId = React.useMemo(() => new Map(activeLocations.map((l) => [l.userId, l])), [activeLocations]);
   const locationByEmail = React.useMemo(
     () => new Map(activeLocations.filter((l) => l.email).map((l) => [l.email!.toLowerCase(), l])),
@@ -578,7 +611,72 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
 
       <div className="space-y-3">
         <SectionHeading icon={MapIcon} label="Live Map" accent
-          right={<span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-400"><Radio className="size-3" /> Live</span>}
+          right={
+            <div className="flex items-center gap-2">
+              {isAdmin && locatorNotifications.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="relative flex items-center gap-1.5 rounded-full border border-border/40 bg-card px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 hover:bg-muted/30 transition-colors">
+                      <Bell className="size-3" />
+                      Locator
+                      {locatorUnreadCount > 0 && (
+                        <span className="flex items-center justify-center min-w-3.5 h-3.5 px-1 rounded-full bg-blue-600 text-white text-[8px] font-black tabular-nums">
+                          {locatorUnreadCount > 99 ? "99+" : locatorUnreadCount}
+                        </span>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 p-0">
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-border/30">
+                      <span className="text-[11px] font-bold">
+                        Locator Notifications
+                        <span className="ml-1.5 text-muted-foreground/40 font-semibold">{locatorNotifications.length}</span>
+                      </span>
+                      {locatorUnreadCount > 0 && (
+                        <button
+                          onClick={() => locatorNotifications.forEach((n) => { if (!n.isRead) markAsRead(n._id); })}
+                          className="text-[9px] font-bold text-primary hover:underline"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                    </div>
+                    <div className="divide-y divide-border/20 max-h-80 overflow-y-auto">
+                      {locatorPanelNotifications.map((n) => (
+                        <button
+                          key={n._id}
+                          onClick={() => {
+                            if (!n.isRead) markAsRead(n._id);
+                            const route = n.metadata?.route as string | undefined;
+                            if (route) router.push(route);
+                          }}
+                          className={cn(
+                            "w-full flex items-start gap-2 px-3.5 py-2.5 text-left hover:bg-muted/20 transition-colors",
+                            !n.isRead && "bg-blue-500/4",
+                          )}
+                        >
+                          {!n.isRead && <span className="mt-1.5 size-1.5 rounded-full bg-blue-500 shrink-0" />}
+                          <div className={cn("min-w-0 flex-1", n.isRead && "pl-3.5")}>
+                            <p className="text-[11px] font-bold truncate">{n.title}</p>
+                            <p className="text-[10px] text-muted-foreground/60 line-clamp-2">{n.message}</p>
+                            <p className="text-[9px] text-muted-foreground/40 mt-0.5">{timeAgo(n.createdAt)}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    {locatorNotifications.length > locatorPanelNotifications.length && (
+                      <div className="px-3.5 py-2 border-t border-border/30 text-center">
+                        <span className="text-[9px] font-semibold text-muted-foreground/50">
+                          +{locatorNotifications.length - locatorPanelNotifications.length} older notification{locatorNotifications.length - locatorPanelNotifications.length === 1 ? "" : "s"} not shown
+                        </span>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
+              <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-400"><Radio className="size-3" /> Live</span>
+            </div>
+          }
         />
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4 items-stretch">
@@ -624,6 +722,63 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
         </div>
       </div>
 
+      {isAdmin && (
+        <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
+          <button
+            onClick={() => setPlacesOpen((v) => !v)}
+            className="w-full flex items-center gap-2 px-3.5 py-2.5"
+          >
+            <div className={cn(
+              "flex items-center justify-center size-6 rounded-lg shrink-0",
+              outsideOffice.length > 0 ? "bg-amber-500/15" : "bg-muted/60",
+            )}>
+              <MapPin className={cn("size-3.5", outsideOffice.length > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/60")} />
+            </div>
+            <span className="text-[11px] font-bold">Company Places</span>
+            <span className="text-[10px] text-muted-foreground/40 tabular-nums">{places.length}</span>
+            {outsideOffice.length > 0 && (
+              <span className="flex items-center gap-1 text-[9px] font-black tabular-nums px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <MapPinOff className="size-2.5" /> {outsideOffice.length} outside
+              </span>
+            )}
+            <ChevronDown className={cn("size-3.5 text-muted-foreground/50 ml-auto transition-transform", placesOpen && "rotate-180")} />
+          </button>
+          {placesOpen && (
+            <div className="px-3.5 pb-3.5 pt-1 border-t border-border/30 space-y-3">
+              {outsideOffice.length > 0 && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2 space-y-1">
+                  <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 px-1">
+                    <MapPinOff className="size-3" /> Outside a known office right now
+                  </p>
+                  {outsideOffice.map((loc) => (
+                    <button
+                      key={loc.userId}
+                      onClick={() => handleSelect(loc.userId)}
+                      className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/30 transition-colors text-left"
+                    >
+                      <div className="size-6 rounded-full bg-muted/60 shrink-0 overflow-hidden flex items-center justify-center text-[9px] font-black text-muted-foreground/60">
+                        {loc.userAvatar ? <img src={loc.userAvatar} alt={loc.userName} className="size-full object-cover" /> : loc.userName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span className="text-[11px] font-bold truncate">{loc.userName}</span>
+                      <DepartmentBadge department={loc.department} />
+                      <span className="ml-auto text-[9px] text-muted-foreground/40 shrink-0">{timeAgo(loc.lastSeenAt)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <PlacesAdminPanel
+                pickMode={placePickMode}
+                onStartPick={() => setPlacePickMode(true)}
+                onCancelPick={() => setPlacePickMode(false)}
+                pickedCoords={pickedCoords}
+                onPickConsumed={() => setPickedCoords(null)}
+                onDraftChange={setDraftPlace}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5 lg:hidden">
         {([
           { key: "roster" as const, label: "Live Roster", icon: Users },
@@ -644,13 +799,13 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4">
-        <div className={cn("space-y-3", mobilePanel === "roster" ? "block" : "hidden", "lg:block")}>
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4 lg:items-stretch">
+        <div className={cn("flex-col gap-3", LIST_HEIGHT, mobilePanel === "roster" ? "flex" : "hidden", "lg:flex")}>
           <SectionHeading icon={Users} label="Live Roster"
             right={<span className="text-[10px] text-muted-foreground/40 tabular-nums">{rosterPeople.length} shown</span>}
           />
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="shrink-0 flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/40" />
               <Input
@@ -675,7 +830,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             )}
           </div>
 
-          <div className="flex gap-1 flex-wrap">
+          <div className="shrink-0 flex gap-1 flex-wrap">
             {(Object.keys(FILTER_LABELS) as RosterFilter[]).map((f) => (
               <button
                 key={f}
@@ -692,7 +847,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             ))}
           </div>
 
-          <div className={cn("space-y-2 pr-0.5 overflow-y-auto", LIST_HEIGHT)}>
+          <div className="flex-1 min-h-0 space-y-2 pr-0.5 overflow-y-auto">
             {rosterPeople.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
                 <User2 className="size-8" />
@@ -743,12 +898,12 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
           </div>
         </div>
 
-        <div className={cn("space-y-3", mobilePanel === "stream" ? "block" : "hidden", "lg:block")}>
+        <div className={cn("flex-col gap-3", LIST_HEIGHT, mobilePanel === "stream" ? "flex" : "hidden", "lg:flex")}>
           <SectionHeading icon={TrendingUp} label="Activity Stream"
             right={<span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Live</span></span>}
           />
 
-          <div className="flex items-center gap-1 flex-wrap">
+          <div className="shrink-0 flex items-center gap-1 flex-wrap">
             {(Object.keys(STREAM_FILTER_LABELS) as StreamFilter[]).map((f) => (
               <button
                 key={f}
@@ -774,7 +929,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             )}
           </div>
 
-          <div className={cn("rounded-2xl border border-border/40 bg-card overflow-hidden flex flex-col", LIST_HEIGHT)}>
+          <div className="flex-1 min-h-0 rounded-2xl border border-border/40 bg-card overflow-hidden flex flex-col">
             {eventsLoading ? (
               <div className="space-y-0 divide-y divide-border/30 px-3">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -831,34 +986,6 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
 
       <div className="space-y-3">
         <SectionHeading icon={Car} label="Operations" />
-
-        {isAdmin && (
-          <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
-            <button
-              onClick={() => setPlacesOpen((v) => !v)}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5"
-            >
-              <div className="flex items-center justify-center size-6 rounded-lg bg-muted/60 shrink-0">
-                <MapPin className="size-3.5 text-muted-foreground/60" />
-              </div>
-              <span className="text-[11px] font-bold">Company Places</span>
-              <span className="text-[10px] text-muted-foreground/40 tabular-nums">{places.length}</span>
-              <ChevronDown className={cn("size-3.5 text-muted-foreground/50 ml-auto transition-transform", placesOpen && "rotate-180")} />
-            </button>
-            {placesOpen && (
-              <div className="px-3.5 pb-3.5 pt-1 border-t border-border/30">
-                <PlacesAdminPanel
-                  pickMode={placePickMode}
-                  onStartPick={() => setPlacePickMode(true)}
-                  onCancelPick={() => setPlacePickMode(false)}
-                  pickedCoords={pickedCoords}
-                  onPickConsumed={() => setPickedCoords(null)}
-                  onDraftChange={setDraftPlace}
-                />
-              </div>
-            )}
-          </div>
-        )}
 
         <div className="space-y-2.5">
           <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">

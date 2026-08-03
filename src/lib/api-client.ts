@@ -19,6 +19,44 @@ function processQueue(error: any, token: string | null = null) {
   failedQueue = [];
 }
 
+// ── Cross-tab auth coordination ───────────────────────────────────────────
+// The access token lives only in window.__AUTH_TOKEN__ (in-memory), so each
+// tab used to refresh independently. With refresh-token rotation on the
+// backend, tabs racing each other's refreshes could invalidate one another.
+// The backend now has a reuse grace window that makes the race harmless,
+// and this channel reduces the race happening at all: whichever tab
+// refreshes first broadcasts the new token so the others adopt it instead
+// of firing their own refresh.
+const authChannel: BroadcastChannel | null =
+  typeof window !== "undefined" && "BroadcastChannel" in window
+    ? new BroadcastChannel("suprah-auth")
+    : null;
+
+authChannel?.addEventListener("message", (event: MessageEvent) => {
+  if (event.data?.type === "token" && typeof window !== "undefined") {
+    (window as any).__AUTH_TOKEN__ = event.data.token;
+  }
+  if (event.data?.type === "logout" && typeof window !== "undefined") {
+    (window as any).__AUTH_TOKEN__ = null;
+  }
+});
+
+function broadcastToken(token: string) {
+  try {
+    authChannel?.postMessage({ type: "token", token });
+  } catch {
+    // BroadcastChannel failures must never break the auth flow.
+  }
+}
+
+function broadcastLogout() {
+  try {
+    authChannel?.postMessage({ type: "logout" });
+  } catch {
+    // Ignore.
+  }
+}
+
 let lastDegradedDispatch = 0;
 
 function notifyServiceDegraded(message?: string) {
@@ -122,6 +160,7 @@ class ApiClient {
 
           if (originalRequest._retry) {
             (window as any).__AUTH_TOKEN__ = null;
+            broadcastLogout();
             if (this.onAuthFailure) {
               this.onAuthFailure();
             }
@@ -157,6 +196,7 @@ class ApiClient {
             if (!newToken) throw new Error("No token in refresh response");
 
             (window as any).__AUTH_TOKEN__ = newToken;
+            broadcastToken(newToken);
             processQueue(null, newToken);
 
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -165,7 +205,11 @@ class ApiClient {
             processQueue(refreshError, null);
             const refreshStatus = (refreshError as any)?.response?.status;
             if (refreshStatus === 401 || refreshStatus === 403) {
+              // Definitive rejection of the refresh token by the server.
+              // With the backend reuse grace window in place, this now
+              // only fires for genuinely expired/revoked sessions.
               (window as any).__AUTH_TOKEN__ = null;
+              broadcastLogout();
               console.error(
                 "[apiClient] Refresh token rejected. User needs to re-login."
               );
@@ -173,6 +217,8 @@ class ApiClient {
                 this.onAuthFailure();
               }
             } else {
+              // Network error / 429 / 5xx — NOT an auth failure.
+              // Keep the session; the next 401 will retry the refresh.
               console.error(
                 "[apiClient] Token refresh unreachable. Keeping session for retry."
               );
@@ -498,10 +544,6 @@ class ApiClient {
       ...config,
       headers: { ...(config?.headers || {}), 'Content-Type': 'multipart/form-data' },
     });
-  }
-
-  async pingMember(userId: string, message: string | undefined, config?: AxiosRequestConfig) {
-    return this.post(`/api/team-pulse/ping/${userId}`, { message }, config);
   }
 
   async getPendingAbsences(config?: AxiosRequestConfig) {

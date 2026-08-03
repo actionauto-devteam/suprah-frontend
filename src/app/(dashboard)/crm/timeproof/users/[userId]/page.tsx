@@ -18,6 +18,9 @@ import {
   RefreshCw,
   Scissors,
   Send,
+  Activity,
+  Pencil,
+  History,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -42,6 +45,23 @@ interface HoursSummary {
   decimal: number
 }
 
+interface HourlyRateHistoryEntry {
+  previousRate: number | null
+  newRate: number
+  changedByAdminName: string
+  createdAt: string
+}
+
+interface IdleDiagnosticEntry {
+  at: string
+  event: "idle_detected" | "idle_periodic_check" | string
+  idleSeconds: number | null
+  idleSecondsHistory: number[]
+  idleDetectionExempt: boolean | null
+  platform: string | null
+  wasTracking: boolean | null
+}
+
 interface TimeprofData {
   user: {
     _id: string
@@ -50,6 +70,7 @@ interface TimeprofData {
     avatar?: string
     role: string
     department?: string
+    hourlyRate?: number | null
   }
   calendar: Record<string, DayData>
   summary: {
@@ -100,10 +121,17 @@ export default function AdminUserTimeprofPage() {
   const [payoutPeriod, setPayoutPeriod] = React.useState<1 | 2>(() =>
     now.getUTCDate() <= 15 ? 1 : 2
   )
-  const [hourlyRate, setHourlyRate] = React.useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem(`tp_hourly_rate_${userId}`) ?? ""
-    return ""
-  })
+  // Shared across every admin's view now — see CrmUser.hourlyRate on the
+  // backend. Previously each admin's browser kept its own localStorage copy,
+  // so different admins on different devices could see different (or blank)
+  // values for the same employee with no way to tell which was "real".
+  const [hourlyRate, setHourlyRate] = React.useState("")
+  const [editingRate, setEditingRate] = React.useState(false)
+  const [savingRate, setSavingRate] = React.useState(false)
+  const [rateError, setRateError] = React.useState("")
+  const [showRateHistory, setShowRateHistory] = React.useState(false)
+  const [rateHistory, setRateHistory] = React.useState<HourlyRateHistoryEntry[]>([])
+  const [rateHistoryLoading, setRateHistoryLoading] = React.useState(false)
   const [showPhp, setShowPhp] = React.useState(false)
   const [phpRate, setPhpRate] = React.useState<number | null>(null)
   const [fetchingPhp, setFetchingPhp] = React.useState(false)
@@ -141,6 +169,30 @@ export default function AdminUserTimeprofPage() {
       .finally(() => { if (!cancelled) setIdleLogLoading(false) })
     return () => { cancelled = true }
   }, [showIdleLogForm, idleLogStart, idleLogEnd, userId])
+
+  /* ── Idle Detection Diagnostics — raw OS idle-seconds readings behind each
+     flagged idle event, straight from the tray-app. Lets a "but I wasn't
+     idle!" dispute be settled by checking what the OS itself measured,
+     instead of taking either side's word for it. ── */
+  const [showIdleDiagnostics, setShowIdleDiagnostics] = React.useState(false)
+  const [diagnosticsDate, setDiagnosticsDate] = React.useState(() => toDateStr(new Date()))
+  const [diagnosticsEntries, setDiagnosticsEntries] = React.useState<IdleDiagnosticEntry[]>([])
+  const [diagnosticsLoading, setDiagnosticsLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!showIdleDiagnostics) return
+    let cancelled = false
+    setDiagnosticsLoading(true)
+    const token = localStorage.getItem("crm_token")
+    apiClient
+      .get(`/api/crm/timeproof/user/${userId}/idle-diagnostics?date=${diagnosticsDate}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => { if (!cancelled) setDiagnosticsEntries(res.data?.data?.entries || []) })
+      .catch(() => { if (!cancelled) setDiagnosticsEntries([]) })
+      .finally(() => { if (!cancelled) setDiagnosticsLoading(false) })
+    return () => { cancelled = true }
+  }, [showIdleDiagnostics, diagnosticsDate, userId])
 
   /* ── Pay state ── */
   const [isPaying, setIsPaying] = React.useState(false)
@@ -241,9 +293,52 @@ export default function AdminUserTimeprofPage() {
   const calcMonthShort = calcMonthDate.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
   const calcMonthLong = calcMonthDate.toLocaleString("en-US", { month: "long", timeZone: "UTC" })
 
+  // Sync the input from the backend-persisted value whenever fresh data
+  // loads (initial load, or right after another admin's change is fetched)
+  // — but only while NOT actively mid-edit, so an admin's own in-progress
+  // typing here is never clobbered by a background refresh.
   React.useEffect(() => {
-    localStorage.setItem(`tp_hourly_rate_${userId}`, hourlyRate)
-  }, [hourlyRate, userId])
+    if (editingRate) return
+    setHourlyRate(data?.user.hourlyRate != null ? String(data.user.hourlyRate) : "")
+  }, [data?.user.hourlyRate, editingRate])
+
+  const saveHourlyRate = React.useCallback(async () => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    const parsed = parseFloat(hourlyRate)
+    if (isNaN(parsed) || parsed < 0) {
+      setRateError("Enter a valid non-negative rate")
+      return
+    }
+    setSavingRate(true)
+    setRateError("")
+    try {
+      await apiClient.patch(`/api/crm/timeproof/user/${userId}/hourly-rate`, { rate: parsed }, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setData((prev) => prev ? { ...prev, user: { ...prev.user, hourlyRate: parsed } } : prev)
+      setEditingRate(false)
+      if (showRateHistory) fetchRateHistory()
+    } catch (e: any) {
+      setRateError(e?.response?.data?.message || "Failed to save rate")
+    } finally {
+      setSavingRate(false)
+    }
+  }, [hourlyRate, userId, showRateHistory])
+
+  const fetchRateHistory = React.useCallback(async () => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setRateHistoryLoading(true)
+    try {
+      const res = await apiClient.get(`/api/crm/timeproof/user/${userId}/hourly-rate-history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setRateHistory(res.data?.data?.history || [])
+    } catch { } finally {
+      setRateHistoryLoading(false)
+    }
+  }, [userId])
 
   React.useEffect(() => {
     if (!data?.isLive) return
@@ -506,14 +601,17 @@ export default function AdminUserTimeprofPage() {
 
   /* ── Page ── */
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background timeproof-scope">
 
       {/* ── Sticky Header ── */}
-      <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
+      <div
+        className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.push("/crm/timeproof/users")}
-            className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
+            className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -554,8 +652,8 @@ export default function AdminUserTimeprofPage() {
             <span className="text-sm font-black tracking-tight">Timeproof</span>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
-            <LiveClock />
+          <div className="ml-auto shrink-0 flex items-center gap-2">
+            <div className="hidden xs:block"><LiveClock /></div>
             <button
               onClick={copyProof}
               disabled={!data}
@@ -709,24 +807,99 @@ export default function AdminUserTimeprofPage() {
                 </div>
               </div>
 
-              {/* Hourly rate input */}
+              {/* Hourly rate — backend-persisted (shared across every admin), editable, with an audit trail */}
               <div className="space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">
-                  {data.user.fullName.split(" ")[0]}&apos;s Hourly Rate
-                </p>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={hourlyRate}
-                    onChange={(e) => setHourlyRate(e.target.value)}
-                    className="w-full h-9 pl-7 pr-12 rounded-xl border border-border/40 bg-muted/10 text-sm font-bold font-mono focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/5 transition-all"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">/ hr</span>
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">
+                    {data.user.fullName.split(" ")[0]}&apos;s Hourly Rate
+                  </p>
+                  {isAdminOrManager && !editingRate && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setShowRateHistory((v) => !v); if (!showRateHistory) fetchRateHistory() }}
+                        title="Rate change history"
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+                      >
+                        <History className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => { setEditingRate(true); setRateError("") }}
+                        title="Edit rate"
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {editingRate ? (
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        autoFocus
+                        value={hourlyRate}
+                        onChange={(e) => setHourlyRate(e.target.value)}
+                        className="w-full h-9 pl-7 pr-12 rounded-xl border border-emerald-500/40 bg-emerald-500/5 text-sm font-bold font-mono focus:outline-none transition-all"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">/ hr</span>
+                    </div>
+                    {rateError && <p className="text-[10px] text-rose-500">{rateError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveHourlyRate}
+                        disabled={savingRate}
+                        className="flex-1 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {savingRate ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingRate(false)
+                          setRateError("")
+                          setHourlyRate(data.user.hourlyRate != null ? String(data.user.hourlyRate) : "")
+                        }}
+                        disabled={savingRate}
+                        className="h-8 px-3 rounded-lg border border-border/40 text-[11px] font-semibold text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-9 px-3 rounded-xl border border-border/40 bg-muted/10 flex items-center text-sm font-bold font-mono">
+                    {data.user.hourlyRate != null ? `$${data.user.hourlyRate.toFixed(2)} / hr` : (
+                      <span className="text-muted-foreground/35 font-medium">Not set yet</span>
+                    )}
+                  </div>
+                )}
+
+                {showRateHistory && (
+                  <div className="mt-1.5 rounded-xl border border-border/30 bg-muted/10 p-2.5 space-y-1.5 max-h-40 overflow-y-auto">
+                    {rateHistoryLoading ? (
+                      <p className="text-[10px] text-muted-foreground/40 text-center py-1">Loading…</p>
+                    ) : rateHistory.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground/40 text-center py-1">No changes recorded yet</p>
+                    ) : (
+                      rateHistory.map((h, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                          <span className="text-muted-foreground/60">
+                            {h.previousRate != null ? `$${h.previousRate.toFixed(2)}` : "unset"} → <strong className="text-foreground/80">${h.newRate.toFixed(2)}</strong>
+                          </span>
+                          <span className="text-muted-foreground/40 text-right shrink-0">
+                            {h.changedByAdminName} · {new Date(h.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Result */}
@@ -842,25 +1015,18 @@ export default function AdminUserTimeprofPage() {
                   ))}
 
                   { }
-                  {isPayDayReached ? (
-                    <button
-                      onClick={printPayslip}
-                      disabled={rateNum <= 0}
-                      className="flex-1 h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Payslip (PDF)</span>
-                      <span className="sm:hidden">Payslip</span>
-                    </button>
-                  ) : (
-                    <div className="flex-1 h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
-                      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span className="hidden sm:inline">Payslip on {payDayLabel}</span>
-                      <span className="sm:hidden">Locked</span>
-                    </div>
-                  )}
+                  {/* Admin view — available anytime, not gated on payday like the
+                      employee's own self-service page, so a mistake can be caught
+                      and corrected before payroll actually runs. */}
+                  <button
+                    onClick={printPayslip}
+                    disabled={rateNum <= 0}
+                    className="flex-1 h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Payslip (PDF)</span>
+                    <span className="sm:hidden">Payslip</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1096,14 +1262,17 @@ export default function AdminUserTimeprofPage() {
                       />
                     </div>
                   </div>
-                  <div className="h-72 rounded-lg overflow-hidden border border-border/40 bg-white relative">
+                  <div className="h-72 rounded-lg overflow-hidden border border-border/40 bg-muted relative">
                     {idleLogLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-xs text-muted-foreground/50">Loading…</div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted">
+                        <div className="h-5 w-5 rounded-full border-2 border-border border-t-emerald-500 animate-spin" />
+                        <span className="text-xs text-muted-foreground/50">Loading…</span>
+                      </div>
                     )}
                     {idleLogStart <= idleLogEnd ? (
-                      <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full" />
+                      <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full bg-white" />
                     ) : (
-                      <div className="h-full flex items-center justify-center text-xs text-muted-foreground/50">Date Start must be before Date End</div>
+                      <div className="h-full flex items-center justify-center text-xs text-muted-foreground/50 bg-muted">Date Start must be before Date End</div>
                     )}
                   </div>
                   <p className="text-[10px] text-muted-foreground/40">Preview updates live as you change the dates — confirm it looks right before printing.</p>
@@ -1114,6 +1283,91 @@ export default function AdminUserTimeprofPage() {
                   >
                     <Download className="h-3.5 w-3.5" /> Confirm — Print / PDF Idle Log
                   </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Idle Detection Diagnostics: raw OS idle-seconds readings ── */}
+            <div className="rounded-2xl border border-border/40 bg-card p-4 space-y-3">
+              <button
+                onClick={() => setShowIdleDiagnostics((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Activity className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  <span className="text-[11px] font-black tracking-tight">Idle Detection Diagnostics</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground/40">{showIdleDiagnostics ? "Hide" : "Check raw idle data"}</span>
+              </button>
+
+              {showIdleDiagnostics && (
+                <div className="space-y-2.5 pt-1">
+                  <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
+                    The exact seconds-since-last-input the tray-app's computer reported at each moment it flagged this user idle — straight from the operating system, not derived or estimated. Use this to settle "but I wasn&apos;t idle!" disputes with the actual reading instead of guessing.
+                  </p>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={diagnosticsDate}
+                      onChange={(e) => setDiagnosticsDate(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                    />
+                  </div>
+
+                  {diagnosticsLoading ? (
+                    <div className="h-24 flex items-center justify-center gap-2">
+                      <div className="h-5 w-5 rounded-full border-2 border-border border-t-emerald-500 animate-spin" />
+                      <span className="text-xs text-muted-foreground/50">Loading…</span>
+                    </div>
+                  ) : diagnosticsEntries.length === 0 ? (
+                    <div className="h-16 flex items-center justify-center text-xs text-muted-foreground/50">
+                      No idle data at all for this date — the tray-app&apos;s idle-check loop never reported in, which is itself worth investigating (not the same as &quot;genuinely never idle&quot;).
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {diagnosticsEntries.map((entry, i) => {
+                        const idleMin = entry.idleSeconds !== null ? Math.floor(entry.idleSeconds / 60) : null
+                        const idleSec = entry.idleSeconds !== null ? entry.idleSeconds % 60 : null
+                        // A clean, steadily-rising history reads as genuine gradual
+                        // inactivity; a sudden jump from a low number suggests a
+                        // sleep/wake or clock event instead — flagged so an admin
+                        // doesn't have to eyeball the raw array to notice it.
+                        const history = entry.idleSecondsHistory || []
+                        const suddenJump = history.length >= 2 && (history[history.length - 1] - history[history.length - 2]) > 120
+                        const isPeriodic = entry.event === "idle_periodic_check"
+                        return (
+                          <div key={i} className={`rounded-xl border p-3 space-y-1.5 ${isPeriodic ? "border-border/30 bg-muted/10" : "border-border/40 bg-muted/20"}`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-bold">{new Date(entry.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isPeriodic ? "bg-muted text-muted-foreground/60" : "bg-rose-500/10 text-rose-500"}`}>
+                                  {isPeriodic ? "Periodic check" : "Flagged idle"}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground/50 font-mono">{entry.platform || "—"}</span>
+                            </div>
+                            {entry.idleDetectionExempt && (
+                              <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">⚠ idleDetectionExempt was TRUE at this check — idle detection is force-disabled for this account</p>
+                            )}
+                            <p className="text-[11px] text-muted-foreground/70">
+                              OS reported <span className="font-bold text-foreground">{idleMin !== null ? `${idleMin}m ${idleSec}s` : "—"}</span> since last input
+                            </p>
+                            {history.length > 0 && (
+                              <p className="text-[10px] font-mono text-muted-foreground/50">
+                                Trend (~30s apart): {history.join("s → ")}s
+                              </p>
+                            )}
+                            {suddenJump && (
+                              <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                ⚠ Sudden jump — may indicate a sleep/wake or clock event rather than gradual inactivity
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

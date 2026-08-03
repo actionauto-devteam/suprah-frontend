@@ -83,6 +83,7 @@ interface MessengerCtxValue {
   closeChatPopup: (convId: string) => void;
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
+  markAllAsRead: () => void;
   refreshConversations: () => void;
   refreshSpaces: () => void;
 }
@@ -140,6 +141,27 @@ function shouldNotify(pref: NotifPref, isMentioned: boolean): boolean {
 
 function defaultNotifPref(): NotifPref {
   return { type: 'all', muted: false };
+}
+
+// Strips chat markdown syntax so raw **bold**/`code`/{color:#...} tags never
+// leak into OS/browser push notification text (mirrors MessengerDropdown's
+// cleanPreviewContent — kept local since this file has no shared chat-text util).
+function stripChatFormatting(content?: string | null): string {
+  if (!content) return '';
+  return content
+    .replace(/\r\n?/g, '\n')
+    .replace(/ /g, ' ')
+    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function authConfig(token: string, skipAuthRefresh = false): SupraSpaceRequestConfig {
@@ -363,7 +385,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
             const isGroup = conv?.type === 'group';
             const nextUnreadCount = (conv?.unreadCount || 0) + 1;
             const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
-            const preview = message.content?.slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
+            const preview = stripChatFormatting(message.content).slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
             const body = nextUnreadCount >= 2 ? `${nextUnreadCount} new messages` : isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
             showNotificationViaSW(title, {
               body,
@@ -414,6 +436,24 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       setSpaces((prev) => prev.filter(sp => sp._id !== spaceId));
       setConversations((prev) =>
         prev.map((c) => c.spaceId === spaceId ? { ...c, spaceId: null } : c)
+      );
+    });
+
+    // All conversations marked read (bulk) → zero every unread badge locally
+    s.on('conversations:all-read', ({ conversationIds }: { conversationIds: string[] }) => {
+      if (!crmUserId) return;
+      const idSet = new Set(conversationIds);
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (!idSet.has(conv._id)) return conv;
+          return {
+            ...conv,
+            unreadCount: 0,
+            lastMessage: conv.lastMessage
+              ? { ...conv.lastMessage, readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])] }
+              : conv.lastMessage,
+          };
+        })
       );
     });
 
@@ -510,6 +550,21 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     [socket, crmUserId]
   );
 
+  // Emit mark:all:read and optimistically clear every conversation's unread state
+  const markAllAsRead = React.useCallback(() => {
+    socket?.emit('mark:all:read');
+    if (!crmUserId) return;
+    setConversations((prev) =>
+      prev.map((conv) => ({
+        ...conv,
+        unreadCount: 0,
+        lastMessage: conv.lastMessage
+          ? { ...conv.lastMessage, readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])] }
+          : conv.lastMessage,
+      }))
+    );
+  }, [socket, crmUserId]);
+
   return (
     <MessengerContext.Provider
       value={{
@@ -532,6 +587,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         closeChatPopup,
         toggleMinimize,
         markAsRead,
+        markAllAsRead,
         refreshConversations: fetchConversations,
         refreshSpaces: fetchSpaces,
       }}

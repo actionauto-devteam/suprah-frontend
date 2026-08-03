@@ -330,7 +330,7 @@ function InvoiceBuilder({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ scrollbarWidth: "thin" }}>
           {/* Line items */}
           <div className="space-y-2">
-            <div className="hidden sm:grid grid-cols-[1fr_56px_88px_28px] gap-2 px-0.5">
+            <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_28px] gap-2 px-0.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">Item</span>
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono text-center">Qty</span>
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono text-right">Unit</span>
@@ -338,7 +338,7 @@ function InvoiceBuilder({
             </div>
 
             {lines.map((l, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border/40 p-2 sm:border-0 sm:p-0 sm:grid sm:grid-cols-[1fr_56px_88px_28px] sm:items-center sm:gap-2">
+              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border/40 p-2 sm:border-0 sm:p-0 sm:grid sm:grid-cols-[2fr_1fr_1fr_28px] sm:items-center sm:gap-2">
                 <div className="flex flex-col gap-1">
                   <Input
                     value={l.label}
@@ -367,7 +367,7 @@ function InvoiceBuilder({
                     min={0}
                     value={l.quantity}
                     onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })}
-                    className="h-9 text-xs rounded-lg text-center w-20 sm:w-auto"
+                    className="h-9 text-xs rounded-lg text-center flex-1 sm:w-auto"
                     placeholder="Qty"
                   />
                   <Input

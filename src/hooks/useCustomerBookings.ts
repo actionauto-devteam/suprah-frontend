@@ -245,7 +245,7 @@ export const useCustomerBookings = () => {
       console.log('Fetching customer history with params:', params.toString())
       
       const response = await apiClient.get(
-        `/api/appointments/customer-history?${params.toString()}`,
+        `/api/appointments/customer-bookings/history?${params.toString()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       

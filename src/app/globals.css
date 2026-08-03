@@ -165,6 +165,23 @@ body.app-fullscreen .main-content {
   --shadow-2xl: 0px 1px 2px 0px oklch(0 0 0 / 0.03);
 }
 
+/* Scoped contrast fix for TimeProof's small/secondary text in BOTH themes —
+   text-muted-foreground/25 through /40 (used pervasively for the 9-10px
+   labels throughout TimeProof) reads fine at full opacity, but blending a
+   mid-gray toward transparent at low opacity washes out badly at either
+   extreme: it disappears into the near-black dark background, and just as
+   badly fades into near-white on the light background. Darkening it for
+   light mode and lightening it for dark mode gives the same low-opacity
+   utility classes real contrast either way. Scoped to .timeproof-scope
+   rather than touching --muted-foreground globally so the rest of the
+   app's existing light/dark contrast elsewhere is untouched. */
+.timeproof-scope {
+  --muted-foreground: oklch(0.35 0.03 268.53);
+}
+.dark .timeproof-scope {
+  --muted-foreground: oklch(0.78 0.03 269.46);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -1534,4 +1551,67 @@ body.theme-switching *::after {
 
 .scrollbar-hover:hover::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.team-pulse-leaflet-map {
+  position: relative;
+  isolation: isolate;
+  contain: layout paint;
+  background: #e5e7eb;
+}
+/* TeamPulse Leaflet theme-aware rendering stabilization
+   Add this once near the end of src/app/globals.css. */
+
+.team-pulse-map-shell,
+.team-pulse-leaflet-map,
+.team-pulse-leaflet-map .leaflet-container,
+.team-pulse-leaflet-map .leaflet-map-pane,
+.team-pulse-leaflet-map .leaflet-tile-pane {
+  background-color: #eef0f2;
+}
+
+.dark .team-pulse-map-shell,
+.dark .team-pulse-leaflet-map,
+.dark .team-pulse-leaflet-map .leaflet-container,
+.dark .team-pulse-leaflet-map .leaflet-map-pane,
+.dark .team-pulse-leaflet-map .leaflet-tile-pane {
+  background-color: #17191c;
+}
+
+.team-pulse-leaflet-map {
+  position: relative;
+  isolation: isolate;
+  contain: layout paint;
+}
+
+/* Keep the tile pane on a stable compositor layer. */
+.team-pulse-leaflet-map .leaflet-tile-pane {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.team-pulse-leaflet-map .leaflet-tile {
+  backface-visibility: hidden;
+  image-rendering: auto;
+  transition: none !important;
+}
+
+/* Prevent global responsive-image rules from resizing map tiles. */
+.team-pulse-leaflet-map img.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+/* A failed tile should blend into the current map theme instead of showing white. */
+.team-pulse-leaflet-map .leaflet-tile-container {
+  background-color: transparent;
+}
+
+.locator-map-moving .locator-marker-icon * {
+    animation: none !important;
+    transition: none !important;
+}
+
+.locator-map-moving .locator-popup {
+    visibility: hidden;
 }

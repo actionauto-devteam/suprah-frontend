@@ -161,6 +161,11 @@ export function TeamBoard({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data: boardNotes = [], isLoading: boardLoading } = useBoardNotes();
+  const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
+  React.useEffect(() => {
+    if (!boardLoading) setHasLoadedOnce(true);
+  }, [boardLoading]);
+  const showBoardSkeleton = boardLoading && !hasLoadedOnce;
   const [localOrder, setLocalOrder] = React.useState<string[]>([]);
   const createNote = useCreateBoardNote();
   const updateNote = useUpdateBoardNote();
@@ -324,7 +329,7 @@ export function TeamBoard({
       )}
 
       {/* THE CORK BOARD */}
-      {boardLoading ? (
+      {showBoardSkeleton ? (
         <div className="relative overflow-hidden rounded-xl p-3.5 sm:p-6 md:p-7 min-h-80" style={{ ...CORK_STYLE, ...FRAME_STYLE }}>
           <div className="absolute inset-0 dark:bg-black/50 rounded-lg" />
           <div className="relative columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-5">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 
@@ -8,7 +8,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
@@ -23,7 +23,10 @@ import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 // behind it is a module-level singleton, so there is no provider to add.
 import { Pulse360Popup } from "@/components/crm/pulse360/Pulse360Popup";
 import { Pulse360Bell } from "@/components/crm/pulse360/Pulse360Bell";
-
+// Suprah YapLine — global floating PTT dock. Mounted once here (like
+// Pulse360Popup) so incoming voice broadcasts are received on EVERY route.
+// Module-level singleton store — no provider needed.
+import { YapLineDock } from "@/components/yapline/YapLineDock";
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -50,6 +53,7 @@ import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
+import { apiClient } from "@/lib/api-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,6 +113,34 @@ function DashboardLayoutContent({
     router.prefetch("/profile");
     router.prefetch("/settings");
   }, [router]);
+
+  // Proactively renews the CRM JWT (12h expiry — see crmAuth.middleware.ts)
+  // before it can expire. The tray-app already does this for its own,
+  // separate token copy every 10h, but the BROWSER's copy in localStorage
+  // was never refreshed anywhere — a tab left open past 12h (completely
+  // normal for a TimeProof Clock page kept open all shift) silently started
+  // getting 401s on every poll, with all those calls caught and swallowed,
+  // so the displayed Work Time/screenshots/etc. just froze at whatever they
+  // last were — while the tray's own, still-valid session kept the real
+  // TimeLog data correct underneath. Mirrors the tray's own 10h cadence.
+  React.useEffect(() => {
+    if (!isCrmRoute) return;
+    const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 60 * 1000; // 10 hours
+    const refresh = async () => {
+      const t = localStorage.getItem("crm_token");
+      if (!t) return;
+      try {
+        const res = await apiClient.post("/api/crm/token-refresh", {}, { headers: { Authorization: `Bearer ${t}` } });
+        const newToken = res.data?.data?.token;
+        if (newToken) localStorage.setItem("crm_token", newToken);
+      } catch {
+        // Best-effort — if this fails, the existing token just carries on
+        // until it actually expires, same as before this fix existed.
+      }
+    };
+    const id = setInterval(refresh, TOKEN_REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isCrmRoute]);
 
   React.useEffect(() => {
     if (isLoaded) {
@@ -183,13 +215,16 @@ function DashboardLayoutContent({
   }
 
   return (
-    <SidebarProvider className={cn(isCrmRoute && "h-dvh overflow-hidden")}>
+    <SidebarProvider className="h-dvh overflow-hidden">
       <AppSidebar />
-      <SidebarInset className={cn(isCrmRoute && "min-h-0 overflow-hidden")}>
+      {/* min-w-0 + w-full: lets this flex child shrink below its content's
+          intrinsic width instead of forcing the whole page wider than the
+          viewport (the classic flex-child overflow bug). */}
+      <SidebarInset className="min-w-0 w-full min-h-0 overflow-hidden">
         {showCrmHeader && <CrmHeader showMessenger={showCrmMessenger} />}
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
+            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1 min-w-0">
               <div className="flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
                 <SidebarTrigger className="-ml-1" />
                 <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
@@ -223,13 +258,6 @@ function DashboardLayoutContent({
 
               <div className="flex items-center gap-1 sm:gap-3">
                 <MountainTimeClock compact />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 rounded-full"
-                >
-                  <Plus className="size-5" />
-                </Button>
 
                 <ThemeModeToggle compact />
 
@@ -291,16 +319,22 @@ function DashboardLayoutContent({
         )}
         <main
           className={cn(
-            "relative bg-background md:pb-0",
+            // min-w-0 + overflow-x-hidden keep wide children (grids, charts)
+            // contained to the content column instead of pushing the page
+            // horizontally.
+            "relative bg-background md:pb-0 min-w-0 overflow-x-hidden",
             leadConvoActive ? "pb-0" : "pb-24",
-            isCrmRoute
-              ? "flex-1 min-h-0 overflow-y-auto " +
-                "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
-                "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 " +
-                "[&::-webkit-scrollbar-track]:bg-transparent " +
-                "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 " +
-                "[&::-webkit-scrollbar-thumb:hover]:bg-border"
-              : "flex-1 overflow-hidden"
+            // Same fixed-viewport-shell + internally-scrolling-main treatment for every
+            // route, not just /crm/* — this was previously CRM-only, which left every
+            // other page (Team Pulse/Locator, Reports, etc.) with an unbounded page that
+            // either overflowed or, worse, had overflow-hidden with no scroll at all,
+            // making tall content unreachable.
+            "flex-1 min-h-0 overflow-y-auto " +
+            "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
+            "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 " +
+            "[&::-webkit-scrollbar-track]:bg-transparent " +
+            "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 " +
+            "[&::-webkit-scrollbar-thumb:hover]:bg-border"
           )}
         >
           {isStandaloneCrmShell && (
@@ -319,8 +353,14 @@ function DashboardLayoutContent({
         <DebugConsole />
       </React.Suspense>
 
-      { /* Suprah Pulse360 — renders above everything, on every route. */ }
+      { /* Suprah Pulse360 — renders above everything, on every route. */}
       <Pulse360Popup />
+
+      { /* Suprah YapLine — always-on PTT dock, every route. Incoming voice
+           broadcasts, the LIVE join pills, and the mini-player all survive
+           navigation because this single mount keeps the store's socket and
+           WebRTC peers alive across the whole dashboard shell. */}
+      <YapLineDock />
 
       {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
 
@@ -359,16 +399,16 @@ export default function DashboardLayout({
   );
 
   return (
-  <ProfileProvider>
-    <ProfileToastProvider>
-      <NotificationProvider>
-        {isCrmRoute ? (
-          <CrmNotificationProvider>{content}</CrmNotificationProvider>
-        ) : (
-          content
-        )}
-      </NotificationProvider>
-    </ProfileToastProvider>
-  </ProfileProvider>
-);
+    <ProfileProvider>
+      <ProfileToastProvider>
+        <NotificationProvider>
+          {isCrmRoute ? (
+            <CrmNotificationProvider>{content}</CrmNotificationProvider>
+          ) : (
+            content
+          )}
+        </NotificationProvider>
+      </ProfileToastProvider>
+    </ProfileProvider>
+  );
 }

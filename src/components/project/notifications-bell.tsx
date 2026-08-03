@@ -15,6 +15,7 @@
  */
 
 import * as React from "react";
+import type { Socket } from "socket.io-client";
 import {
   AtSign,
   Bell,
@@ -35,13 +36,13 @@ import { TaskDetailDialog } from "@/components/project/task-detail-dialog";
 type Notification = {
   _id: string;
   type:
-    | "task_assigned"
-    | "task_comment"
-    | "task_status"
-    | "task_updated"
-    | "group_added"
-    | "task_mention"
-    | "task_deadline";
+  | "task_assigned"
+  | "task_comment"
+  | "task_status"
+  | "task_updated"
+  | "group_added"
+  | "task_mention"
+  | "task_deadline";
   title: string;
   message: string;
   taskId?: string | null;
@@ -83,7 +84,7 @@ function relTime(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function NotificationsBell({ meId }: { meId: string }) {
+export function NotificationsBell({ meId, socket }: { meId: string; socket?: Socket | null }) {
   const { unreadCount, refresh } = useProjectNotifications();
   const [open, setOpen] = React.useState(false);
   const [items, setItems] = React.useState<Notification[]>([]);
@@ -108,6 +109,16 @@ export function NotificationsBell({ meId }: { meId: string }) {
   React.useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  // Live: a new notification while the panel is open drops straight into the list.
+  React.useEffect(() => {
+    if (!socket) return;
+    const onNotification = (n: Notification) => setItems((prev) => [n, ...prev]);
+    socket.on("pm:notification", onNotification);
+    return () => {
+      socket.off("pm:notification", onNotification);
+    };
+  }, [socket]);
 
   // Close on outside click.
   React.useEffect(() => {
@@ -173,7 +184,7 @@ export function NotificationsBell({ meId }: { meId: string }) {
             </button>
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto [scrollbar-width:thin]">
+          <div className="max-h-105 overflow-y-auto [scrollbar-width:thin]">
             {loading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
@@ -191,7 +202,7 @@ export function NotificationsBell({ meId }: { meId: string }) {
                     onClick={() => openItem(n)}
                     className={cn(
                       "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30",
-                      !n.readAt && "bg-emerald-500/[0.05]",
+                      !n.readAt && "bg-emerald-500/5",
                     )}
                   >
                     <span
@@ -228,6 +239,7 @@ export function NotificationsBell({ meId }: { meId: string }) {
       <TaskDetailDialog
         taskId={openTask?.taskId ?? null}
         meId={meId}
+        socket={socket}
         highlightCommentId={openTask?.commentId ?? null}
         onClose={() => setOpenTask(null)}
         onChanged={refresh}

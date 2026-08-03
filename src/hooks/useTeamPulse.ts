@@ -497,20 +497,6 @@ export function useUploadAbsenceProof() {
     });
 }
 
-// ── Ping ──────────────────────────────────────────────────────────────────────
-
-export function usePingMember() {
-    const getHeaders = useAuthHeaders();
-
-    return useMutation({
-        mutationFn: async ({ userId, message }: { userId: string; message?: string }) => {
-            const headers = await getHeaders();
-            const response = await apiClient.pingMember(userId, message, headers);
-            return response.data?.data || response.data;
-        },
-    });
-}
-
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 
 export function useTeamLeaderboard(period: 'today' | 'week' | 'month') {

@@ -75,14 +75,13 @@ export function LocatorMap({
             // usage — and our own control overlays below — inside this box, so nothing in here
             // can ever visually fight a portaled dropdown/tooltip/popover rendered elsewhere on
             // the page, in either direction.
-            "relative isolate overflow-hidden touch-none",
+            "team-pulse-map-shell relative isolate overflow-hidden touch-none",
             isMaximized ? "h-dvh" : "h-[65vh] min-h-90 max-h-120 sm:h-135 lg:h-175 lg:max-h-none",
           )}
-          style={{ background: "#e5e7eb" }}
         >
           <div
             ref={mapRef}
-            className={cn("h-full w-full", pickModeActive && "cursor-crosshair")}
+            className={cn("team-pulse-leaflet-map h-full w-full", pickModeActive && "cursor-crosshair")}
             style={{ width: "100%", height: "100%" }}
           />
 

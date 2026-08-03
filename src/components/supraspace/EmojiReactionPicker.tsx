@@ -173,15 +173,15 @@ export function MobileEmojiReactionSheet({
   const sections = searchResults
     ? [{ label: `Results for "${search}"`, emojis: searchResults }]
     : [
-        { label: 'Your reactions', emojis: quickReactions.length ? quickReactions : recent.slice(0, 6) },
-        { label: 'Recent', emojis: recent },
-        { label: 'Facebook Reactions', emojis: facebookReactions },
-        { label: 'Smileys & people', emojis: firstSmileys },
-      ];
+      { label: 'Your reactions', emojis: quickReactions.length ? quickReactions : recent.slice(0, 6) },
+      { label: 'Recent', emojis: recent },
+      { label: 'Facebook Reactions', emojis: facebookReactions },
+      { label: 'Smileys & people', emojis: firstSmileys },
+    ];
 
   return createPortal(
     <div
-      className="absolute inset-0 z-[65] md:hidden"
+      className="absolute inset-0 z-65 md:hidden"
       onTouchMove={(e) => e.preventDefault()}
       onWheel={(e) => e.preventDefault()}
       onClick={onClose}

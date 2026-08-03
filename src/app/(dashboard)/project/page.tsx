@@ -59,6 +59,11 @@ import {
   type ProjectTaskStatus,
 } from "@/components/project/task-status-badge";
 import {
+  PriorityIcon,
+  PrioritySelect,
+  type ProjectTaskPriority,
+} from "@/components/project/task-priority-badge";
+import {
   TaskDetailDialog,
   ConfirmDialog,
   AssigneeMultiSelect,
@@ -73,7 +78,12 @@ import {
 import { MyTasksPanel } from "@/components/project/my-tasks-panel";
 import { MentionsPanel } from "@/components/project/mentions-panel";
 import { NotificationsBell } from "@/components/project/notifications-bell";
-import { useProjectNotifications } from "@/context/ProjectNotificationContext";
+import {
+  ProjectNotificationProvider,
+  useProjectNotifications,
+} from "@/context/ProjectNotificationContext";
+import { useProjectSocket } from "@/hooks/useProjectSocket";
+import type { Socket } from "socket.io-client";
 
 /* ── Types (mirror backend lean shapes) ────────────────────────────────── */
 
@@ -95,6 +105,7 @@ type TaskSummary = {
   sectionId: string;
   title: string;
   status: ProjectTaskStatus;
+  priority?: ProjectTaskPriority | null;
   assigneeIds?: string[];
   createdBy: string;
   startDate?: string | null;
@@ -120,6 +131,15 @@ const TABS: Array<{ id: PageTab; label: string; icon: React.ElementType }> = [
 ];
 
 export default function ProjectManagementPage() {
+  const socket = useProjectSocket();
+  return (
+    <ProjectNotificationProvider socket={socket}>
+      <ProjectManagementPageInner socket={socket} />
+    </ProjectNotificationProvider>
+  );
+}
+
+function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   const { refresh: refreshBadge, markAllRead } = useProjectNotifications();
 
   const [tab, setTab] = React.useState<PageTab>("workspace");
@@ -164,6 +184,20 @@ export default function ProjectManagementPage() {
   React.useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  // Live: a group I'm in was created/renamed/deleted (membership changes too).
+  React.useEffect(() => {
+    if (!socket) return;
+    const onGroupChange = () => loadGroups();
+    socket.on("pm:group:new", onGroupChange);
+    socket.on("pm:group:updated", onGroupChange);
+    socket.on("pm:group:deleted", onGroupChange);
+    return () => {
+      socket.off("pm:group:new", onGroupChange);
+      socket.off("pm:group:updated", onGroupChange);
+      socket.off("pm:group:deleted", onGroupChange);
+    };
+  }, [socket, loadGroups]);
 
   const confirmDeleteGroup = async () => {
     if (!groupToDelete) return;
@@ -217,7 +251,7 @@ export default function ProjectManagementPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <NotificationsBell meId={meId} />
+          <NotificationsBell meId={meId} socket={socket} />
           {tab === "workspace" && (
             <Button
               onClick={() => {
@@ -242,13 +276,13 @@ export default function ProjectManagementPage() {
       {/* ── Tab bodies ── */}
       {tab === "mine" && (
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-          <MyTasksPanel view="active" meId={meId} />
+          <MyTasksPanel view="active" meId={meId} socket={socket} />
         </div>
       )}
 
       {tab === "done" && (
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-          <MyTasksPanel view="completed" meId={meId} />
+          <MyTasksPanel view="completed" meId={meId} socket={socket} />
         </div>
       )}
 
@@ -340,7 +374,7 @@ export default function ProjectManagementPage() {
           {/* ── Workspace ── */}
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
             {selectedGroupId ? (
-              <GroupWorkspace key={selectedGroupId} groupId={selectedGroupId} meId={meId} />
+              <GroupWorkspace key={selectedGroupId} groupId={selectedGroupId} meId={meId} socket={socket} />
             ) : (
               !groupsLoading && (
                 <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center">
@@ -490,8 +524,8 @@ function GroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
-        <DialogHeader className="space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
+        <DialogHeader className="shrink-0 space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
           <DialogTitle className="text-sm font-bold">
             {isEdit ? "Edit Project Group" : "New Project Group"}
           </DialogTitle>
@@ -502,7 +536,7 @@ function GroupDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Group name</Label>
             <Input
@@ -640,7 +674,15 @@ function GroupDialog({
 /*  GROUP WORKSPACE — sections → folders → tasks                           */
 /* ══════════════════════════════════════════════════════════════════════ */
 
-function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
+function GroupWorkspace({
+  groupId,
+  meId,
+  socket,
+}: {
+  groupId: string;
+  meId: string;
+  socket: Socket | null;
+}) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [group, setGroup] = React.useState<Group | null>(null);
@@ -686,13 +728,29 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
     loadTree();
   }, [loadTree]);
 
-  // Keep the tree fresh when the tab regains focus (cheap real-time fallback;
-  // pm:* socket events can call loadTree() directly once wired).
+  // Keep the tree fresh when the tab regains focus (cheap fallback for
+  // whatever the socket misses, e.g. a dropped connection).
   React.useEffect(() => {
     const onFocus = () => loadTree();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [loadTree]);
+
+  // Live: any task/section/folder change inside THIS group refreshes the tree.
+  React.useEffect(() => {
+    if (!socket) return;
+    const onChange = (payload: { groupId?: string }) => {
+      if (payload?.groupId === groupId) loadTree();
+    };
+    const events = [
+      "pm:task:new", "pm:task:updated", "pm:task:status", "pm:task:deleted",
+      "pm:comment:new", "pm:comment:deleted",
+      "pm:section:new", "pm:section:updated", "pm:section:deleted",
+      "pm:folder:new", "pm:folder:updated", "pm:folder:deleted",
+    ];
+    events.forEach((e) => socket.on(e, onChange));
+    return () => events.forEach((e) => socket.off(e, onChange));
+  }, [socket, groupId, loadTree]);
 
   const membersById = React.useMemo(
     () => new Map(members.map((m) => [m._id, m])),
@@ -956,6 +1014,9 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
                                     )}
                                   >
                                     <TaskStatusBadge status={task.status} />
+                                    {(task.priority === "urgent" || task.priority === "high") && (
+                                      <PriorityIcon priority={task.priority} className="h-3.5 w-3.5 shrink-0" />
+                                    )}
                                     {task.unseenForMe && (
                                       <span
                                         title="New activity since you last opened this task"
@@ -1116,6 +1177,7 @@ function GroupWorkspace({ groupId, meId }: { groupId: string; meId: string }) {
       <TaskDetailDialog
         taskId={openTaskId}
         meId={meId}
+        socket={socket}
         onClose={() => setOpenTaskId(null)}
         onChanged={loadTree}
         onDeleted={loadTree}
@@ -1221,6 +1283,52 @@ function NameDialog({
 /*  CREATE TASK DIALOG                                                     */
 /* ══════════════════════════════════════════════════════════════════════ */
 
+const CREATE_TASK_MAX_FILES = 10;
+const CREATE_TASK_MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+/** Thumbnail for a not-yet-uploaded File — image preview or a filename chip. */
+function PendingFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const isImage = file.type.startsWith("image/");
+  const [url, setUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isImage) return;
+    const objUrl = URL.createObjectURL(file);
+    setUrl(objUrl);
+    return () => URL.revokeObjectURL(objUrl);
+  }, [file, isImage]);
+
+  if (isImage) {
+    return (
+      <div className="group/pf relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+        {url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={file.name} className="h-full w-full object-cover" />
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove"
+          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground/70 opacity-0 shadow-sm transition-opacity hover:border-rose-500/50 hover:text-rose-500 group-hover/pf:opacity-100"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-center gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5 text-[11px]">
+      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+      <span className="shrink-0 text-muted-foreground/50">{fmtSize(file.size)}</span>
+      <button onClick={onRemove} title="Remove" className="shrink-0 text-muted-foreground/50 hover:text-rose-500">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function CreateTaskDialog({
   folder,
   members,
@@ -1235,19 +1343,35 @@ function CreateTaskDialog({
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [assignees, setAssignees] = React.useState<Member[]>([]);
+  const [priority, setPriority] = React.useState<ProjectTaskPriority | null>("normal");
   const [startDate, setStartDate] = React.useState("");
   const [deadline, setDeadline] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
+  const [fileNote, setFileNote] = React.useState("");
+  const [dragOver, setDragOver] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!folder) {
-      setTitle(""); setDescription(""); setAssignees([]);
-      setStartDate(""); setDeadline(""); setFiles([]); setError("");
+      setTitle(""); setDescription(""); setAssignees([]); setPriority("normal");
+      setStartDate(""); setDeadline(""); setFiles([]); setFileNote(""); setError("");
     }
   }, [folder]);
+
+  const addFiles = (list: FileList | File[] | null) => {
+    const picked = list ? Array.from(list) : [];
+    if (picked.length === 0) return;
+    const tooBig = picked.filter((f) => f.size > CREATE_TASK_MAX_FILE_BYTES);
+    const ok = picked.filter((f) => f.size <= CREATE_TASK_MAX_FILE_BYTES);
+    setFiles((prev) => [...prev, ...ok].slice(0, CREATE_TASK_MAX_FILES));
+    setFileNote(
+      tooBig.length > 0
+        ? `${tooBig.map((f) => f.name).join(", ")} ${tooBig.length > 1 ? "are" : "is"} over 25 MB and ${tooBig.length > 1 ? "were" : "was"} skipped.`
+        : "",
+    );
+  };
 
   const submit = async () => {
     setError("");
@@ -1260,6 +1384,7 @@ function CreateTaskDialog({
       const form = new FormData();
       form.append("title", title.trim());
       if (description.trim()) form.append("description", description.trim());
+      form.append("priority", priority ?? "");
       // Repeated multipart fields — the backend normalizes string | string[].
       assignees.forEach((m) => form.append("assigneeIds", m._id));
       if (startDate) form.append("startDate", startDate);
@@ -1279,15 +1404,27 @@ function CreateTaskDialog({
 
   return (
     <Dialog open={!!folder} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
-        <DialogHeader className="space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
-          <DialogTitle className="text-sm font-bold">New Task</DialogTitle>
-          <DialogDescription className="text-[11px] text-muted-foreground/60">
-            {folder ? `In folder "${folder.name}"` : ""}
-          </DialogDescription>
+      <DialogContent className="relative flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/60 to-transparent" />
+
+        <DialogHeader className="shrink-0 space-y-0 border-b border-border/40 px-6 pb-4 pt-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-1 ring-inset ring-white/20">
+              <Plus className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 text-left">
+              <DialogTitle className="text-sm font-bold">New Task</DialogTitle>
+              <DialogDescription asChild>
+                <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground/60">
+                  <Folder className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{folder ? folder.name : ""}</span>
+                </div>
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Title</Label>
             <Input
@@ -1295,7 +1432,8 @@ function CreateTaskDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
               disabled={saving}
-              className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
+              autoFocus
+              className="h-11 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
             />
           </div>
 
@@ -1311,8 +1449,11 @@ function CreateTaskDialog({
             />
           </div>
 
+          <div className="h-px bg-border/40" />
+
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground/75">
+            <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+              <Users className="h-3.5 w-3.5 text-muted-foreground/50" />
               Assignees <span className="text-muted-foreground/50">(select one or more)</span>
             </Label>
             <AssigneeMultiSelect
@@ -1323,9 +1464,16 @@ function CreateTaskDialog({
             />
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-foreground/75">Priority</Label>
+            <PrioritySelect priority={priority} onChange={setPriority} />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/75">Start date</Label>
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Start date
+              </Label>
               <Input
                 type="date"
                 value={startDate}
@@ -1335,7 +1483,9 @@ function CreateTaskDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/75">Deadline</Label>
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" /> Deadline
+              </Label>
               <Input
                 type="date"
                 value={deadline}
@@ -1346,44 +1496,69 @@ function CreateTaskDialog({
             </div>
           </div>
 
+          <div className="h-px bg-border/40" />
+
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground/75">Attachments</Label>
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-foreground/75">
+                <Paperclip className="h-3.5 w-3.5 text-muted-foreground/50" /> Attachments
+              </Label>
+              {files.length > 0 && (
+                <span className="text-[10px] font-semibold text-muted-foreground/50">
+                  {files.length}/{CREATE_TASK_MAX_FILES}
+                </span>
+              )}
+            </div>
             <input
               ref={fileInputRef}
               type="file"
               multiple
               className="hidden"
               onChange={(e) => {
-                const picked = Array.from(e.target.files || []);
-                setFiles((prev) => [...prev, ...picked].slice(0, 10));
+                addFiles(e.target.files);
                 e.target.value = "";
               }}
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 py-3 text-xs text-muted-foreground/70 transition-colors hover:border-emerald-500/40 hover:text-emerald-600"
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => !saving && fileInputRef.current?.click()}
+              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (!saving) setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                if (!saving) addFiles(e.dataTransfer.files);
+              }}
+              className={cn(
+                "flex w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed py-4 text-center transition-colors",
+                saving && "pointer-events-none opacity-60",
+                dragOver
+                  ? "border-emerald-500/60 bg-emerald-500/5"
+                  : "border-border/60 hover:border-emerald-500/40 hover:bg-muted/20",
+              )}
             >
-              <Paperclip className="h-3.5 w-3.5" /> Attach files (max 10, 25 MB each)
-            </button>
+              <Paperclip className={cn("h-4 w-4", dragOver ? "text-emerald-500" : "text-muted-foreground/50")} />
+              <p className="text-xs font-medium text-muted-foreground/70">
+                <span className="text-emerald-600">Click to upload</span> or drag & drop
+              </p>
+              <p className="text-[10px] text-muted-foreground/45">
+                Up to {CREATE_TASK_MAX_FILES} files, 25 MB each · images, docs, videos
+              </p>
+            </div>
+            {fileNote && <p className="text-[10px] text-amber-600">{fileNote}</p>}
             {files.length > 0 && (
-              <div className="space-y-1 pt-1">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {files.map((f, i) => (
-                  <div
-                    key={`${f.name}-${i}`}
-                    className="flex items-center gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5 text-[11px]"
-                  >
-                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                    <span className="text-muted-foreground/50">{fmtSize(f.size)}</span>
-                    <button
-                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="text-muted-foreground/50 hover:text-rose-500"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  <PendingFilePreview
+                    key={`${f.name}-${f.size}-${i}`}
+                    file={f}
+                    onRemove={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                  />
                 ))}
               </div>
             )}

@@ -233,7 +233,7 @@ export default function ReportsPage() {
     "load" | "quote" | null
   >(null);
   const [crmPreview, setCrmPreview] =
-  React.useState<CRMReportType | null>(null);
+    React.useState<CRMReportType | null>(null);
 
   const fetchData = React.useCallback(async () => {
     setIsRefreshing(true);
@@ -396,7 +396,7 @@ export default function ReportsPage() {
       const previousLeads = allLeads.filter((lead) =>
         isLeadInPeriod(lead, previousMonth, previousYear),
       );
-      
+
       setReportData({
         loads,
         payments,
@@ -950,22 +950,20 @@ export default function ReportsPage() {
     <div className="min-h-screen min-w-0 bg-background text-foreground pb-[calc(5.5rem+env(safe-area-inset-bottom))] 2xl:pb-5">
       <div
         aria-label="Report period controls"
-        className={`fixed right-2 top-[calc(4.5rem+env(safe-area-inset-top))] z-[60] flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 transition-all duration-200 min-[430px]:right-3 sm:right-4 lg:right-4 lg:top-[calc(4rem+env(safe-area-inset-top))] xl:right-6 ${
-          isPeriodControlOpen
-            ? "opacity-100"
-            : "opacity-80 hover:opacity-100"
-        }`}
+        className={`fixed right-2 top-[calc(4.5rem+env(safe-area-inset-top))] z-60 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 transition-all duration-200 min-[430px]:right-3 sm:right-4 lg:right-4 lg:top-[calc(4rem+env(safe-area-inset-top))] xl:right-6 ${isPeriodControlOpen
+          ? "opacity-100"
+          : "opacity-80 hover:opacity-100"
+          }`}
       >
         <button
           type="button"
           onClick={() =>
             setIsPeriodControlExpanded((value) => !value)
           }
-          className={`inline-flex items-center justify-center rounded-xl border bg-background/95 text-foreground shadow-lg backdrop-blur-xl transition-all duration-200 hover:border-primary/45 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
-            isPeriodControlOpen
-              ? "h-10 gap-2 border-primary/30 px-3"
-              : "size-11 border-primary/20 px-0"
-          }`}
+          className={`inline-flex items-center justify-center rounded-xl border bg-background/95 text-foreground shadow-lg backdrop-blur-xl transition-all duration-200 hover:border-primary/45 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${isPeriodControlOpen
+            ? "h-10 gap-2 border-primary/30 px-3"
+            : "size-11 border-primary/20 px-0"
+            }`}
           aria-expanded={isPeriodControlOpen}
           aria-controls="report-period-panel"
           aria-label={
@@ -980,12 +978,11 @@ export default function ReportsPage() {
           }
         >
           <span
-            className={`flex items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-200 ${
-              isPeriodControlOpen ? "size-7" : "size-8"
-            }`}
+            className={`flex items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-200 ${isPeriodControlOpen ? "size-7" : "size-8"
+              }`}
           >
             <Calendar
-              className={isPeriodControlOpen ? "size-4" : "size-[18px]"}
+              className={isPeriodControlOpen ? "size-4" : "size-4.5"}
               aria-hidden="true"
             />
           </span>
@@ -1013,7 +1010,7 @@ export default function ReportsPage() {
             >
               <SelectTrigger
                 size="sm"
-                className="h-10 w-auto min-w-[7.5rem] max-w-[11rem] items-center rounded-xl border border-border bg-muted/50 px-3 text-left text-xs font-semibold leading-none shadow-none [&>span]:flex [&>span]:h-full [&>span]:items-center [&>span]:whitespace-nowrap focus:ring-0 min-[430px]:text-sm"
+                className="h-10 w-auto min-w-30 max-w-44 items-center rounded-xl border border-border bg-muted/50 px-3 text-left text-xs font-semibold leading-none shadow-none [&>span]:flex [&>span]:h-full [&>span]:items-center [&>span]:whitespace-nowrap focus:ring-0 min-[430px]:text-sm"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -1038,7 +1035,7 @@ export default function ReportsPage() {
             >
               <SelectTrigger
                 size="sm"
-                className="h-10 w-auto min-w-[5.5rem] items-center rounded-xl border border-border bg-muted/50 px-3 text-left text-xs font-semibold leading-none shadow-none [&>span]:flex [&>span]:h-full [&>span]:items-center [&>span]:whitespace-nowrap focus:ring-0 min-[430px]:text-sm"
+                className="h-10 w-auto min-w-22 items-center rounded-xl border border-border bg-muted/50 px-3 text-left text-xs font-semibold leading-none shadow-none [&>span]:flex [&>span]:h-full [&>span]:items-center [&>span]:whitespace-nowrap focus:ring-0 min-[430px]:text-sm"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -1062,7 +1059,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-14 backdrop-blur-xl lg:pt-0">
-        <div className="mx-auto w-full max-w-[1880px] px-3 py-2.5 sm:px-4 sm:py-3 lg:pr-20 xl:px-5 xl:pr-24">
+        <div className="mx-auto w-full max-w-470 px-3 py-2.5 sm:px-4 sm:py-3 lg:pr-20 xl:px-5 xl:pr-24">
           <div className="flex min-w-0 items-center">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
@@ -1088,7 +1085,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1880px] min-w-0 space-y-4 px-3 py-3 sm:px-4 sm:py-4 xl:px-5">
+      <div className="mx-auto w-full max-w-470 min-w-0 space-y-4 px-3 py-3 sm:px-4 sm:py-4 xl:px-5">
         <section aria-label="Reporting overview" className="min-w-0 space-y-3.5">
           <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -1101,7 +1098,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13.5rem),1fr))]">
+          <div className="grid min-w-0 items-stretch gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,13.5rem),1fr))]">
             <StatBox
               label="Revenue Collected"
               value={formatCurrency(revenueTotal)}
@@ -1199,7 +1196,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="grid min-w-0 items-stretch gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
+            <div className="grid min-w-0 items-stretch gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
               {(activeTab === "ALL" || activeTab === "Transportation") && (
                 <>
                   <ReportCard
@@ -1296,15 +1293,13 @@ export default function ReportsPage() {
                   stats={[
                     {
                       icon: <Users className="size-3" />,
-                      label: `${leadStats.total} lead${
-                        leadStats.total === 1 ? "" : "s"
-                      }`,
+                      label: `${leadStats.total} lead${leadStats.total === 1 ? "" : "s"
+                        }`,
                     },
                     {
                       icon: <Calendar className="size-3" />,
-                      label: `${leadStats.appointment} appointment${
-                        leadStats.appointment === 1 ? "" : "s"
-                      }`,
+                      label: `${leadStats.appointment} appointment${leadStats.appointment === 1 ? "" : "s"
+                        }`,
                     },
                   ]}
                   highlights={[
@@ -1348,15 +1343,13 @@ export default function ReportsPage() {
                   stats={[
                     {
                       icon: <Users className="size-3" />,
-                      label: `${leadSourceStats.total} lead${
-                        leadSourceStats.total === 1 ? "" : "s"
-                      }`,
+                      label: `${leadSourceStats.total} lead${leadSourceStats.total === 1 ? "" : "s"
+                        }`,
                     },
                     {
                       icon: <Database className="size-3" />,
-                      label: `${leadSourceStats.uniqueSources} source${
-                        leadSourceStats.uniqueSources === 1 ? "" : "s"
-                      }`,
+                      label: `${leadSourceStats.uniqueSources} source${leadSourceStats.uniqueSources === 1 ? "" : "s"
+                        }`,
                     },
                   ]}
                   highlights={[
@@ -1475,7 +1468,7 @@ export default function ReportsPage() {
                 <button onClick={() => setShowTransportationAnalytics((value) => !value)} className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/35 sm:px-5 sm:py-4">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-foreground sm:text-base">Transportation Analytics</p>
-                    <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    <p className="mt-1 wrap-break-word text-xs leading-relaxed text-muted-foreground sm:text-sm">
                       {filteredLoads.length} loads · {filteredQuotes.length} quotes · {deliveredLoads} delivered · {Math.round(deliveryRate)}% delivery rate
                     </p>
                   </div>
@@ -1490,7 +1483,7 @@ export default function ReportsPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground sm:text-base">Operational Analytics</p>
                   <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                    {formatCurrency(revenueTotal)} collected · {formatCurrency(netRevenue)} after driver costs · {succeededPayments} successful · {pendingPayments} pending
+                    {formatCurrency(revenueTotal)} gross collected · {formatCurrency(netRevenue)} net after driver costs · {succeededPayments} successful · {pendingPayments} pending
                   </p>
                 </div>
                 {showOperationalAnalytics ? <ChevronUp className="size-5 text-primary" /> : <ChevronDown className="size-5 text-muted-foreground" />}
@@ -1504,19 +1497,19 @@ export default function ReportsPage() {
       {selected.size > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 pb-[calc(.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl backdrop-blur-xl 2xl:hidden">
           <div className="mx-auto flex max-w-lg items-center gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-bold text-foreground">{selected.size} report{selected.size === 1 ? "" : "s"} selected</p><p className="truncate text-xs text-muted-foreground">
-                  {isMultiSelectMode
-                    ? selected.size > 0
-                      ? "Export only the selected reports"
-                      : "Tap report cards to select them"
-                    : "Ready to generate and save"}
-                </p></div><ReportExportMenu
-  label="Export"
-  selectedCount={selected.size}
-  size="default"
-  menuAlign="right"
-  onDownload={(format) => bulkDownload(format)}
-  isDownloading={!!downloading}
-/></div>
+            {isMultiSelectMode
+              ? selected.size > 0
+                ? "Export only the selected reports"
+                : "Tap report cards to select them"
+              : "Ready to generate and save"}
+          </p></div><ReportExportMenu
+              label="Export"
+              selectedCount={selected.size}
+              size="default"
+              menuAlign="right"
+              onDownload={(format) => bulkDownload(format)}
+              isDownloading={!!downloading}
+            /></div>
         </div>
       )}
 
@@ -1649,15 +1642,14 @@ function StatBox({
 
   return (
     <div
-      className={`group relative grid min-h-[168px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-xl border bg-card p-4 pt-5 shadow-sm transition-colors hover:border-primary/30 ${
-        emphasis
-          ? "border-primary/25 bg-linear-to-br from-primary/[0.05] via-card to-card"
-          : "border-border/80"
-      }`}
+      className={`group relative grid min-h-42 min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-xl border bg-card p-4 pt-5 shadow-sm transition-colors hover:border-primary/30 ${emphasis
+        ? "border-primary/25 bg-linear-to-br from-primary/5 via-card to-card"
+        : "border-border/80"
+        }`}
     >
       <div
         aria-hidden="true"
-        className={`absolute inset-x-0 top-0 h-[3px] rounded-t-xl ${accentClass}`}
+        className={`absolute inset-x-0 top-0 h-0.75 rounded-t-xl ${accentClass}`}
       />
 
       <div className="flex min-w-0 items-start gap-3">
@@ -1668,10 +1660,10 @@ function StatBox({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-1.5">
             <div className="min-w-0">
-              <p className="min-h-[1rem] break-words text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <p className="min-h-4 wrap-break-word text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {label}
               </p>
-              <p className="mt-2 min-h-[2rem] break-words text-2xl font-bold leading-none tracking-tight text-foreground sm:text-[1.9rem]">
+              <p className="mt-2 min-h-8 wrap-break-word text-2xl font-bold leading-none tracking-tight text-foreground sm:text-[1.9rem]">
                 {value}
               </p>
             </div>
@@ -1682,21 +1674,20 @@ function StatBox({
             )}
           </div>
 
-          <p className="mt-2 min-h-[2.25rem] break-words text-xs leading-relaxed text-muted-foreground" title={sub}>
+          <p className="mt-2 min-h-9 wrap-break-word text-xs leading-relaxed text-muted-foreground" title={sub}>
             {sub}
           </p>
 
           <div
-            className={`flex min-w-0 items-start gap-1.5 pt-3 text-[11px] font-semibold ${
-              isPositive
-                ? "text-emerald-600 dark:text-emerald-400"
-                : isNegative
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-muted-foreground"
-            }`}
+            className={`flex min-w-0 items-start gap-1.5 pt-3 text-[11px] font-semibold ${isPositive
+              ? "text-emerald-600 dark:text-emerald-400"
+              : isNegative
+                ? "text-red-600 dark:text-red-400"
+                : "text-muted-foreground"
+              }`}
           >
             <TrendIcon className="mt-0.5 size-3.5 shrink-0" />
-            <span className="min-w-0 break-words leading-snug">{trend.label}</span>
+            <span className="min-w-0 wrap-break-word leading-snug">{trend.label}</span>
           </div>
         </div>
       </div>

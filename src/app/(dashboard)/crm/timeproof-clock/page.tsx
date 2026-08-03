@@ -38,6 +38,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import type { AxiosRequestConfig } from "axios"
 import { apiClient } from "@/lib/api-client"
 import { initializeSocket } from "@/lib/socket.client"
 import { playOverBreakAlarm, stopOverBreakAlarm } from "@/lib/notification-sound"
@@ -45,7 +46,7 @@ import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isMobileMonitoringDept } from "@/lib/departments"
+import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departments"
 import { useLocationSharing } from "@/hooks/useLocationSharing"
 import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
 import {
@@ -54,6 +55,22 @@ import {
   generateIdleLogHtml, type IdlePeriod,
 } from "@/components/crm/timeproof/shared"
 import { PulseHealthCard } from "@/components/crm/timeproof/PulseHealthCard"
+
+type RequestConfigWithSkipRefresh = AxiosRequestConfig & { _skipAuthRefresh?: boolean }
+
+function getWindowAuthToken(): string {
+  return typeof window !== "undefined"
+    ? (window as unknown as { __AUTH_TOKEN__?: string }).__AUTH_TOKEN__ || ""
+    : ""
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = error as { response?: { data?: { message?: string } } }
+    return response.response?.data?.message || fallback
+  }
+  return error instanceof Error ? error.message || fallback : fallback
+}
 
 interface CrmUserData {
   _id: string
@@ -157,7 +174,7 @@ function locatorStateMeta(state: LocatorSharingState, error: string | null, awai
   }
   if (error) return { label: "Needs attention", detail: error, ...LOCATOR_STATE_COLORS.declined_permission }
   const meta = sharingMeta(state)
-  const detail = state === "sharing" ? "Sharing to Team Pulse Beacon"
+  const detail = state === "sharing" ? "Sharing to Team Pulse Locator"
     : state === "off_duty" ? "Starts automatically on shift"
       : meta.description
   return { label: meta.label, detail, ...LOCATOR_STATE_COLORS[state] }
@@ -278,18 +295,18 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
   const accent: GaugeAccent = isOnBreak ? (breakExceeded ? "red" : "amber") : isActive ? "emerald" : "zinc"
   const centerColor = isOnBreak
     ? breakExceeded ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400"
-    : isActive ? "text-zinc-900 dark:text-white" : "text-zinc-400 dark:text-zinc-600"
+    : isActive ? "text-zinc-900 dark:text-white" : "text-zinc-500 dark:text-zinc-400"
   const stateLabel = isOnBreak ? (breakExceeded ? "Break over" : "On break")
     : isActive ? "Tracking" : isOnShift ? "Paused" : "Off clock"
 
   return (
     <div className="flex w-full flex-col items-center gap-4 py-2">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className={cn("text-[9px] font-black uppercase tracking-[0.25em]",
+        <span className={cn("text-[11px] font-black uppercase tracking-[0.25em]",
           accent === "amber" ? "text-amber-500 dark:text-amber-400"
             : accent === "red" ? "text-red-500 dark:text-red-400"
               : accent === "emerald" ? "text-emerald-500 dark:text-emerald-400"
-                : "text-zinc-400 dark:text-zinc-600")}>
+                : "text-zinc-500 dark:text-zinc-400")}>
           {stateLabel}
         </span>
         <div className="flex items-end gap-0.5 font-mono font-black leading-none tracking-tighter">
@@ -303,14 +320,14 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
             </React.Fragment>
           ))}
         </div>
-        <span className="font-mono text-[10px] font-bold tabular-nums text-zinc-400 dark:text-zinc-600">
+        <span className="font-mono text-[12px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400">
           {pad(shift.h)}h {pad(shift.m)}m <span className="opacity-50">/ 8h</span>
         </span>
       </div>
       {breakExceeded && (
         <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Break limit exceeded</p>
-          <p className="mt-0.5 text-[9px] text-red-400/60">Over 1h 5m — please resume your shift</p>
+          <p className="text-[12px] font-bold uppercase tracking-wider text-red-400">Break limit exceeded</p>
+          <p className="mt-0.5 text-[11px] text-red-400/60">Over 1h 5m — please resume your shift</p>
         </div>
       )}
     </div>
@@ -334,6 +351,19 @@ export default function TimeprofClockPage() {
   const [showTrayModal, setShowTrayModal] = React.useState(false)
   const [trayChecking, setTrayChecking] = React.useState(false)
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false)
+  // Authoritative, single-source on-break flag for gating the End Shift
+  // button — deliberately separate from `isOnBreak` below, which is also
+  // written by socket events AND a log-derived useEffect (computed from
+  // todayLogs). Those extra writers made `isOnBreak` race-prone: if that
+  // effect's log snapshot showed an unpaired break-in from data that didn't
+  // yet reflect a break-out, it could set `isOnBreak=true` even while this
+  // same poll's `s.isOnBreak=false` was correctly keeping the timer ticking
+  // — silently disabling End Shift with no modal, no error, nothing (seen in
+  // production: a user reported that clicking End Shift with hours already
+  // over 8h did nothing and the timer kept running). This flag never gets
+  // written by anything except this one poll, so it can't be stale/desynced
+  // by another writer racing it.
+  const [serverIsOnBreak, setServerIsOnBreak] = React.useState(false)
   const [serverIsShiftFromToday, setServerIsShiftFromToday] = React.useState(false)
   const [locallyResumedShift, setLocallyResumedShift] = React.useState(
     () => typeof window !== "undefined" && sessionStorage.getItem("crm_resumed_shift") === "true"
@@ -525,6 +555,16 @@ export default function TimeprofClockPage() {
   }, [refreshShiftState, refreshLocatorStatus])
 
   const fetchActivityState = React.useCallback(async () => {
+    // Stamped BEFORE the request goes out, not after the response lands —
+    // wallClockRenderedSeconds below is only accurate as of roughly this
+    // moment (when the server read it), not whenever the round-trip happens
+    // to finish. Anchoring wallClockBaseAt to the response-received time
+    // instead double-counts nothing but silently DROPS however long the
+    // round-trip took: a slow response (network hiccup, server load) would
+    // otherwise make the displayed timer visibly jump backward every time it
+    // lands, then climb again until the next poll — reported as the timer
+    // "looping" every ~10s.
+    const requestSentAt = Date.now()
     let res
     if (authModeRef.current === 'main') {
       try { res = await apiClient.get("/api/timeclock/shift-state") } catch { return }
@@ -537,6 +577,7 @@ export default function TimeprofClockPage() {
       const s = res.data?.data
       if (s) {
         setServerIsOnShift(!!s.isOnShift)
+        setServerIsOnBreak(!!s.isOnBreak)
         setServerIsShiftFromToday(!!s.isShiftFromToday)
         setServerShiftStartedAt(s.shiftStartedAt ?? null)
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000)
@@ -546,7 +587,7 @@ export default function TimeprofClockPage() {
         // actively on shift and not on break, so the client-side tick (see
         // ActivityTimer) only runs when it should.
         setWallClockBaseMs((s.wallClockRenderedSeconds ?? 0) * 1000)
-        setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? Date.now() : null)
+        setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? requestSentAt : null)
         const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000
         const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0
         const shiftStartedRecently = shiftStartedMs > 0 && (Date.now() - shiftStartedMs) < SHIFT_AUTO_RESUME_MS
@@ -587,7 +628,7 @@ export default function TimeprofClockPage() {
   React.useEffect(() => {
     if (!token) return
     const socketJwt = authModeRef.current === 'main'
-      ? (typeof window !== 'undefined' ? (window as any).__AUTH_TOKEN__ : '') || ''
+      ? getWindowAuthToken() || ''
       : token
     const sock = initializeSocket(socketJwt)
     const syncTimeIn = () => {
@@ -631,7 +672,7 @@ export default function TimeprofClockPage() {
   React.useEffect(() => {
     const check = async () => {
       const crmT = localStorage.getItem("crm_token")
-      const mainToken = typeof window !== 'undefined' ? (window as any).__AUTH_TOKEN__ : null
+      const mainToken = getWindowAuthToken() || null
 
       if (mainToken) {
         try {
@@ -688,17 +729,31 @@ export default function TimeprofClockPage() {
     check()
   }, [router])
 
-  React.useEffect(() => {
+  // Powers the "Today" card, monthly calendar, and streak — separate from
+  // (and previously never re-synced with) the shift-state poll that drives
+  // the Time Clock widget above it. Fetched once on mount only used to leave
+  // this permanently stale for the rest of a long-lived tab: a user who
+  // clocked in, worked all day, and clocked out without ever reloading the
+  // page would see "Today" frozen at whatever partial total existed at page
+  // load, still labeled "Live session" long after actually clocking out,
+  // while the Time Clock widget right next to it correctly showed "Shift
+  // Complete" with the real final total — two contradictory numbers for the
+  // same day on the same screen.
+  const fetchTpData = React.useCallback(() => {
     if (!token) return
     setTpLoading(true)
     const endpoint = authModeRef.current === 'main' ? "/api/timeclock/my?range=365" : "/api/crm/timeproof/my?range=365"
     const options = authModeRef.current === 'main' ? {} : { headers: { Authorization: `Bearer ${localStorage.getItem("crm_token")}` } }
-    apiClient
+    return apiClient
       .get(endpoint, options)
       .then((res) => setTpData(res.data?.data))
-      .catch((e: any) => setTpError(e?.response?.data?.message || "Failed to load timeproof data."))
+      .catch((e: unknown) => setTpError(getErrorMessage(e, "Failed to load timeproof data.")))
       .finally(() => setTpLoading(false))
   }, [token])
+
+  React.useEffect(() => {
+    fetchTpData()
+  }, [fetchTpData])
 
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
     // Skip the GPS-permission gate entirely for a department exempted via
@@ -710,6 +765,16 @@ export default function TimeprofClockPage() {
       const locationOk = await requestLocationForShiftStart()
       if (!locationOk) return
     }
+    // Freeze the running clock the instant the user confirms — waiting for the
+    // network round-trip before flipping isActive/wallClockBaseAt let the timer
+    // visibly keep ticking for a couple more seconds after the shift had
+    // already ended from the user's perspective. The subsequent response (and
+    // the 2.5s resync below) still overwrite this with the server's own log.
+    if (type === "time-out") {
+      setTodayLogs((prev) => [...(prev || []), { _id: `optimistic-${Date.now()}`, type: "time-out", timestamp: new Date().toISOString() }])
+      setWallClockBaseAt(null)
+      setActivityStartAt(null)
+    }
     setIsClocking(true)
     setClockMsg("")
     const isMain = authModeRef.current === 'main'
@@ -717,8 +782,8 @@ export default function TimeprofClockPage() {
     if (!isMain && !freshToken) { router.replace("/crm"); return }
     const clockEndpoint = isMain ? "/api/timeclock/clock" : "/api/crm/time-clock"
     const clockOptions = isMain
-      ? { _skipAuthRefresh: true } as any
-      : { headers: { Authorization: `Bearer ${freshToken}` }, _skipAuthRefresh: true } as any
+      ? { _skipAuthRefresh: true } as RequestConfigWithSkipRefresh
+      : { headers: { Authorization: `Bearer ${freshToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh
     try {
       const res = await apiClient.post(clockEndpoint, { type, ...(note && { note }) }, clockOptions)
       const data = res.data?.data || res.data
@@ -731,7 +796,7 @@ export default function TimeprofClockPage() {
         sessionStorage.removeItem("crm_resumed_shift")
       }
       setClockMsg(`${type === "time-in" ? "Clocked in" : "Clocked out"} at ${fmt(new Date())}`)
-      setTimeout(() => fetchActivityState(), 2500)
+      setTimeout(() => { fetchActivityState(); fetchTpData() }, 2500)
     } catch (err: unknown) {
       const apiError = err as ApiError
       const msg = apiError.response?.data?.message || "Failed"
@@ -776,6 +841,26 @@ export default function TimeprofClockPage() {
     }
   }
 
+  // Re-fires the custom-protocol handshake (the one path that reaches the
+  // tray even when the browser blocks the loopback auto-connect fetch — see
+  // isTrayOnline's comment) and polls for it coming online, instead of a
+  // single check after a fixed delay. A single 3s check was sometimes too
+  // early: verifying the token, starting the tray's services, and its first
+  // heartbeat reaching the backend is more than one network round trip, and
+  // a plain re-check (no protocol re-trigger) never gives a tray whose
+  // silent background auto-connect got blocked any other way to connect —
+  // clicking it repeatedly just re-read the same stale "offline" status.
+  const POLL_INTERVAL_MS = 1500
+  const POLL_MAX_ATTEMPTS = 8 // ~12s total
+  const attemptTrayReconnect = async (): Promise<boolean> => {
+    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
+    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+      if (await isTrayOnline()) return true
+    }
+    return false
+  }
+
   const checkTrayAndStartShift = React.useCallback(async () => {
     const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
@@ -784,7 +869,17 @@ export default function TimeprofClockPage() {
       const t = localStorage.getItem("crm_token")
       return isMain ? {} : (t ? { headers: { Authorization: `Bearer ${t}` } } : {})
     }
-    if (isMobile || isLotTech || isMain) {
+    // Deliberately NOT `isMobile` (viewport width < 768px) — that hook exists
+    // for responsive layout and is true for ANY narrow/non-maximized desktop
+    // browser window, incognito or not. Using it here meant a desktop admin
+    // testing in a small window would silently skip the tray-app requirement
+    // entirely and start tracking with zero tray coverage (no idle detection,
+    // no screenshots) — confirmed in production: uninstalling the tray
+    // entirely and starting a shift from a narrow window let it through with
+    // no tray check at all. getDeviceHint() checks the actual OS/user-agent,
+    // which a resized desktop window can't fake.
+    const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
+    if (isGenuineMobileDevice || isLotTech || isMain) {
       try {
         if (token) {
           const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
@@ -822,7 +917,7 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [isMobile, user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
@@ -864,14 +959,35 @@ export default function TimeprofClockPage() {
         setActivityStartAt(null)
         refreshShiftState()
         setClockMsg(`Break started at ${fmt(new Date())}`)
-      } catch (err: any) {
-        const message = err?.response?.data?.message || ""
+      } catch (err: unknown) {
+        const message = getErrorMessage(err, "")
         if (message.includes("already used your 1-hour break")) {
           setShowBreakCapModal(true)
         }
         refreshShiftState()
       }
     } else {
+      // Resuming from break re-enters active tracking the exact same way
+      // Start Shift does, so it needs the same tray-app verification — an
+      // employee described exploiting the fact that it didn't: start the
+      // shift normally (one legitimate screenshot goes through), click
+      // Break, quit the tray app entirely, then click Resume here — which
+      // previously just posted break-out with zero tray check, silently
+      // resuming "active" wall-clock tracking with no screenshots/idle
+      // detection for as long as they liked before relaunching the tray.
+      const isLotTech = isMobileMonitoringDept(user?.department)
+      const isMain = authModeRef.current === 'main'
+      const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
+      if (!(isGenuineMobileDevice || isLotTech || isMain)) {
+        setTrayChecking(true)
+        const online = await isTrayOnline().finally(() => setTrayChecking(false))
+        if (!online) {
+          setShowTrayModal(true)
+          return
+        }
+      }
+
+      const previousBreakStartAt = currentBreakStartAt
       setIsOnBreak(false)
       setCurrentBreakStartAt(null)
       setActivityStartAt(Date.now())
@@ -879,11 +995,44 @@ export default function TimeprofClockPage() {
         const res = await apiClient.post(breakEndpoint, { type: "break-out" }, breakHeaders)
         const d = res.data?.data || res.data
         if (d?.todayLogs) setTodayLogs(d.todayLogs)
-      } catch { }
+        setClockMsg(`Break ended at ${fmt(new Date())}`)
+      } catch (err: any) {
+        // The optimistic flip above assumed this would succeed. Leaving it
+        // as-is on failure would silently desync from the server: the
+        // employee sees a normal ticking timer with no idea they're still
+        // "on break" server-side (a dangling break-in with no matching
+        // break-out), right up until they try to End Shift much later and
+        // get rejected with a break-related error that makes no sense to
+        // them since they never knowingly stayed on break.
+        setIsOnBreak(true)
+        setCurrentBreakStartAt(previousBreakStartAt)
+        setActivityStartAt(null)
+        setClockMsg(err?.response?.data?.message || "Failed to end break — please try again")
+      }
       refreshShiftState()
       setTimeout(() => fetchActivityState(), 2500)
-      setClockMsg(`Break ended at ${fmt(new Date())}`)
     }
+  }
+
+  // "Shift Open — Tap Resume" state: backend shows isOnShift=true but local
+  // tracking isn't running (fresh page load, tray restart mid-shift, coming
+  // back from idle, etc.). Same tray-app verification as Start Shift and
+  // ending a break — this is another way active wall-clock tracking could
+  // resume with zero tray coverage if the tray isn't actually running.
+  const handleResumePausedShift = async () => {
+    const isLotTech = isMobileMonitoringDept(user?.department)
+    const isMain = authModeRef.current === 'main'
+    const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
+    if (!(isGenuineMobileDevice || isLotTech || isMain)) {
+      setTrayChecking(true)
+      const online = await isTrayOnline().finally(() => setTrayChecking(false))
+      if (!online) {
+        setShowTrayModal(true)
+        return
+      }
+    }
+    setActivityStartAt(Date.now())
+    handleClock("time-in")
   }
 
   const sortedLogs = React.useMemo(
@@ -1169,7 +1318,7 @@ export default function TimeprofClockPage() {
             </div>
             <div className="absolute inset-0 rounded-2xl ring-2 ring-emerald-500/20 ring-offset-2 ring-offset-background animate-ping" />
           </div>
-          <p className="text-[11px] text-muted-foreground/40 tracking-[0.2em] uppercase font-semibold">Loading…</p>
+          <p className="text-[13px] text-muted-foreground/75 tracking-[0.2em] uppercase font-semibold">Loading…</p>
         </div>
       </div>
     )
@@ -1178,43 +1327,46 @@ export default function TimeprofClockPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background timeproof-scope">
 
-      <div className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-emerald-600/10 flex items-center justify-center">
+      <div
+        className="sticky top-0 z-20 border-b border-border/40 bg-background/85 backdrop-blur-md"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="w-full px-4 sm:px-6 h-14 flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 shrink-0 rounded-lg bg-emerald-600/10 flex items-center justify-center">
               <Clock className="h-3.5 w-3.5 text-emerald-600" />
             </div>
-            <span className="text-sm font-black tracking-tight">Timeproof Clock</span>
+            <span className="text-sm font-black tracking-tight truncate">Timeproof Clock</span>
             {(tpData?.isLive || isActive) && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <Radio className="h-2.5 w-2.5 animate-pulse" />
-                Live
+                <span className="hidden xs:inline">Live</span>
               </span>
             )}
           </div>
           {tpData && (
-            <p className="hidden sm:block text-[11px] text-muted-foreground/40 font-semibold ml-1 truncate">
+            <p className="hidden md:block text-[11px] text-muted-foreground/40 font-semibold ml-1 truncate min-w-0">
               — {tpData.user.fullName.toUpperCase()}
             </p>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto shrink-0 flex items-center gap-1.5 sm:gap-2">
             {(user.role === "admin" || user.role === "manager") && (
               <button
                 onClick={() => router.push("/crm/timeproof/users")}
-                className="h-9 px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"
+                className="h-9 px-2.5 sm:px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"
               >
                 <Users className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">View Users</span>
               </button>
             )}
-            <button onClick={exportCSV} title="Export CSV" className="h-9 w-9 rounded-xl border border-border/40 flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground">
+            <button onClick={exportCSV} title="Export CSV" className="h-9 w-9 shrink-0 rounded-xl border border-border/40 flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground">
               <Download className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={copyProof}
-              className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700" : "border-border/40 hover:bg-muted/30 text-muted-foreground"}`}
+              className={`h-9 px-2.5 sm:px-3 rounded-xl border flex items-center gap-1.5 text-[11px] font-bold transition-all ${copied ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700" : "border-border/40 hover:bg-muted/30 text-muted-foreground"}`}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">{copied ? "Copied!" : "Copy Proof"}</span>
@@ -1224,15 +1376,15 @@ export default function TimeprofClockPage() {
       </div>
 
       <div className="w-full px-4 sm:px-6 py-5">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_3fr] gap-4">
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
 
             <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 shadow-sm backdrop-blur-xl dark:border-white/6 dark:bg-zinc-900/40">
               <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500">Time Clock</span>
+                  <Clock className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
+                  <span className="text-[12px] font-black uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Time Clock</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className={cn("h-2 w-2 rounded-full transition-colors duration-500",
@@ -1240,9 +1392,9 @@ export default function TimeprofClockPage() {
                       : isActive ? "animate-pulse bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] motion-reduce:animate-none"
                         : isComplete ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
                           : "bg-zinc-300 dark:bg-zinc-700")} />
-                  <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors duration-500",
+                  <span className={cn("text-[12px] font-bold uppercase tracking-wider transition-colors duration-500",
                     isOnBreak ? "text-amber-500" : isActive ? "text-emerald-500 dark:text-emerald-400"
-                      : isComplete ? "text-emerald-500" : "text-zinc-400 dark:text-zinc-600")}>
+                      : isComplete ? "text-emerald-500" : "text-zinc-500 dark:text-zinc-400")}>
                     {isOnBreak ? "On Break" : isActive ? "On Shift" : isComplete ? "Completed" : "Off Clock"}
                   </span>
                 </div>
@@ -1265,7 +1417,7 @@ export default function TimeprofClockPage() {
                       <div className="flex flex-col items-center gap-1.5 text-center">
                         <CheckCircle2 className="h-8 w-8 text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
                         <p className="font-mono text-2xl font-black tracking-tighter text-zinc-900 dark:text-white sm:text-3xl">{finalHours}</p>
-                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">Shift Complete</p>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Shift Complete</p>
                       </div>
                     </ShiftGauge>
                   )}
@@ -1284,7 +1436,7 @@ export default function TimeprofClockPage() {
                     { label: "Time Out", value: timeOut ? fmt(new Date(timeOut.timestamp)) : "——" },
                   ].map((item) => (
                     <div key={item.label} className="rounded-xl border border-zinc-200/70 bg-white/60 px-3 py-2.5 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/50">
-                      <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">{item.label}</p>
+                      <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">{item.label}</p>
                       <p className="font-mono text-xl font-black leading-none tabular-nums text-zinc-900 dark:text-white">{item.value}</p>
                     </div>
                   ))}
@@ -1293,8 +1445,8 @@ export default function TimeprofClockPage() {
                 {!isActive && (
                   (isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main') ? (
                     <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
-                      <MonitorDot className="h-4 w-4 text-zinc-500 shrink-0" />
-                      <p className="text-[11px] text-zinc-500 font-bold text-center">Shift tracking requires the desktop app</p>
+                      <MonitorDot className="h-4 w-4 text-zinc-400 shrink-0" />
+                      <p className="text-[13px] text-zinc-400 font-bold text-center">Shift tracking requires the desktop app</p>
                     </div>
                   ) : (
                     <Button
@@ -1312,12 +1464,12 @@ export default function TimeprofClockPage() {
                   return (
                     <div className="grid grid-cols-2 gap-2">
                       {showMobileEndShiftHint && (
-                        <p className="col-span-2 -mt-1 mb-1 text-center text-[10px] text-zinc-500">
+                        <p className="col-span-2 -mt-1 mb-1 text-center text-[12px] text-zinc-400">
                           Forgot to clock out on your computer? You can safely end this shift from your phone — it will stop the desktop app too.
                         </p>
                       )}
                       {isPausedOnShift ? (
-                        <Button onClick={() => { setActivityStartAt(Date.now()); handleClock("time-in") }} disabled={isClocking}
+                        <Button onClick={handleResumePausedShift} disabled={isClocking || trayChecking}
                           className="h-11 gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400">
                           <Play className="h-4 w-4" /> Resume Shift
                         </Button>
@@ -1329,14 +1481,14 @@ export default function TimeprofClockPage() {
                           {isOnBreak ? <><Play className="h-4 w-4" /> Resume</> : <><Coffee className="h-4 w-4" /> Break</>}
                         </Button>
                       )}
-                      <Button onClick={handleEndShiftClick} disabled={isClocking || isOnBreak}
+                      <Button onClick={handleEndShiftClick} disabled={isClocking || serverIsOnBreak}
                         className="h-11 gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-500 hover:border-red-300 hover:bg-red-100 disabled:opacity-30 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
                         {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> End Shift</>}
                       </Button>
                     </div>
                   )
                 })()}
-                {clockMsg && <p className="mt-2 text-center font-mono text-[11px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
+                {clockMsg && <p className="mt-2 text-center font-mono text-[13px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
               </div>
             </div>
 
@@ -1351,24 +1503,24 @@ export default function TimeprofClockPage() {
                           : locatorState === "sharing" ? <Radio className="h-4 w-4 text-emerald-500" /> : <MapPin className="h-4 w-4 text-emerald-500" />}
                       </div>
                       <div className="min-w-0 text-left">
-                        <p className="text-[12px] font-black tracking-tight text-foreground">Share Location</p>
-                        <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/50">{meta.detail}</p>
+                        <p className="text-sm font-black tracking-tight text-foreground">Share Location</p>
+                        <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground/80">{meta.detail}</p>
                         {locatorLastPingAt && (
-                          <p className="mt-1 font-mono text-[9px] text-muted-foreground/40">
+                          <p className="mt-1 font-mono text-[11px] text-muted-foreground/75">
                             Last ping {fmt(new Date(locatorLastPingAt))}
                           </p>
                         )}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
+                      <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, (locatorState === "sharing" || locatorAwaitingFirstFix) && "animate-pulse motion-reduce:animate-none")} />
                         {meta.label}
                       </span>
                       <Button
                         size="sm" variant="outline"
                         onClick={() => router.push("/team-pulse?tab=activity")}
-                        className="h-7 gap-1.5 rounded-full border-border/50 px-2.5 text-[10px] font-bold"
+                        className="h-7 gap-1.5 rounded-full border-border/50 px-2.5 text-[12px] font-bold"
                       >
                         <Eye className="h-3 w-3" /> View
                       </Button>
@@ -1378,27 +1530,39 @@ export default function TimeprofClockPage() {
                   {isActive && !isOnBreak && (
                     <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
                       {locatorStatus?.consentGranted ? (
-                        <>
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-bold text-foreground">Sharing during your active shift</p>
-                            <p className="mt-0.5 text-[9px] text-muted-foreground/50">Required to clock in. You can pause it now — admins will be notified — and turn it back on any time.</p>
-                          </div>
-                          <Button
-                            size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
-                            className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
-                          >
-                            <Power className="h-3 w-3" /> Stop Sharing
-                          </Button>
-                        </>
+                        isMandatoryLocationDept(user?.department) ? (
+                          <>
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-bold text-foreground">Sharing during your active shift</p>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground/80">Lot Tech accounts can&apos;t turn off location while clocked in. End your shift to stop sharing.</p>
+                            </div>
+                            <span className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border/40 bg-muted/20 px-2.5 text-[12px] font-bold text-muted-foreground/85">
+                              <Lock className="h-3 w-3" /> Locked
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-bold text-foreground">Sharing during your active shift</p>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground/80">Required to clock in. You can pause it now — admins will be notified — and turn it back on any time.</p>
+                            </div>
+                            <Button
+                              size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
+                              className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[12px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
+                            >
+                              <Power className="h-3 w-3" /> Stop Sharing
+                            </Button>
+                          </>
+                        )
                       ) : (
                         <>
                           <div className="min-w-0">
-                            <p className="text-[11px] font-bold text-red-500">Location sharing is off</p>
-                            <p className="mt-0.5 text-[9px] text-muted-foreground/50">Admins have been notified. Turn it back on any time.</p>
+                            <p className="text-[13px] font-bold text-red-500">Location sharing is off</p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground/80">Admins have been notified. Turn it back on any time.</p>
                           </div>
                           <Button
                             size="sm" onClick={handleResumeSharingNow} disabled={resumeSharingSaving}
-                            className="h-7 gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 px-2.5 text-[10px] font-bold text-white shrink-0"
+                            className="h-7 gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 px-2.5 text-[12px] font-bold text-white shrink-0"
                           >
                             {resumeSharingSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Play className="h-3 w-3" /> Turn Back On</>}
                           </Button>
@@ -1416,13 +1580,13 @@ export default function TimeprofClockPage() {
             <PulseHealthCard />
 
             {!isMobile && (
-              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
+              <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4 flex-1 flex flex-col">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-black tracking-tight">Desktop Tray App</p>
-                    <p className="text-[10px] text-muted-foreground/40 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
+                    <p className="text-sm font-black tracking-tight">Desktop Tray App</p>
+                    <p className="text-[12px] text-muted-foreground/75 mt-0.5">Required for shift tracking, screenshots &amp; activity monitoring</p>
                   </div>
-                  <MonitorDot className="h-4 w-4 text-muted-foreground/20" />
+                  <MonitorDot className="h-4 w-4 text-muted-foreground/70" />
                 </div>
 
                 <div className="rounded-xl bg-muted/10 border border-border/20 px-4 py-3 space-y-2">
@@ -1432,8 +1596,8 @@ export default function TimeprofClockPage() {
                     "Return here and click Start Shift",
                   ].map((step, i) => (
                     <div key={i} className="flex items-start gap-2.5">
-                      <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                      <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{step}</p>
+                      <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[11px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                      <p className="text-[13px] text-muted-foreground/85 leading-relaxed">{step}</p>
                     </div>
                   ))}
                 </div>
@@ -1445,15 +1609,15 @@ export default function TimeprofClockPage() {
                         <MonitorDot className="h-3.5 w-3.5 text-blue-400" />
                       </div>
                       <div>
-                        <p className="text-[11px] font-bold">Windows</p>
-                        <p className="text-[9px] text-muted-foreground/40">x64 · NSIS installer</p>
+                        <p className="text-[13px] font-bold">Windows</p>
+                        <p className="text-[11px] text-muted-foreground/75">x64 · NSIS installer</p>
                       </div>
                     </div>
                     <a
                       href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL ?? "#"}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
+                      className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold transition-colors"
                     >
                       <Download className="h-3 w-3" /> Download (.exe)
                     </a>
@@ -1462,18 +1626,18 @@ export default function TimeprofClockPage() {
                   <div className="rounded-xl border border-border/30 p-3 space-y-3">
                     <div className="flex items-center gap-2">
                       <div className="h-7 w-7 rounded-lg bg-zinc-500/10 border border-zinc-500/20 flex items-center justify-center">
-                        <MonitorDot className="h-3.5 w-3.5 text-zinc-400" />
+                        <MonitorDot className="h-3.5 w-3.5 text-zinc-300" />
                       </div>
                       <div>
-                        <p className="text-[11px] font-bold">macOS</p>
-                        <p className="text-[9px] text-muted-foreground/40">Intel &amp; Apple Silicon</p>
+                        <p className="text-[13px] font-bold">macOS</p>
+                        <p className="text-[11px] text-muted-foreground/75">Intel &amp; Apple Silicon</p>
                       </div>
                     </div>
                     <a
                       href={process.env.NEXT_PUBLIC_TRAY_DOWNLOAD_URL_MAC ?? "#"}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[10px] font-bold transition-colors"
+                      className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-[12px] font-bold transition-colors"
                     >
                       <Download className="h-3 w-3" /> Download (.dmg)
                     </a>
@@ -1484,7 +1648,7 @@ export default function TimeprofClockPage() {
                   href="/guide"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 h-10 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px] font-bold transition-colors"
+                  className="flex items-center justify-center gap-2 h-10 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[13px] font-bold transition-colors"
                 >
                   <BookOpen className="h-3.5 w-3.5" />
                   View Instructions — How to Download &amp; Use
@@ -1496,7 +1660,7 @@ export default function TimeprofClockPage() {
           <div className="space-y-4">
 
             {tpError && (
-              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-600">{tpError}</div>
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm text-rose-600">{tpError}</div>
             )}
 
             {tpData && (
@@ -1522,23 +1686,23 @@ export default function TimeprofClockPage() {
                       <button onClick={nextMonth} className="h-9 w-9 rounded-lg border border-border/40 flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground">
                         <ChevronRight className="h-4 w-4" />
                       </button>
-                      <button onClick={goToday} disabled={isCurrentMonth} className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
+                      <button onClick={goToday} disabled={isCurrentMonth} className="h-9 px-3 rounded-lg border border-border/40 text-[13px] font-semibold hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-default text-muted-foreground">
                         Today
                       </button>
                       <button onClick={() => setShowIdleLogModal(true)} title="Export Idle Log"
-                        className="h-9 px-3 rounded-lg border border-border/40 text-[11px] font-semibold hover:bg-muted/50 transition-colors text-muted-foreground flex items-center gap-1.5">
+                        className="h-9 px-3 rounded-lg border border-border/40 text-[13px] font-semibold hover:bg-muted/50 transition-colors text-muted-foreground flex items-center gap-1.5">
                         <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Idle Log</span>
                       </button>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-2.5 border-b border-border/20 bg-muted/10">
-                    <span className="text-[10px] text-muted-foreground/50">Total: <strong className="text-foreground/70 font-mono">{fmtHHMM(monthSummary.seconds)}</strong></span>
-                    <span className="text-[10px] text-muted-foreground/50">Active days: <strong className="text-foreground/70">{monthSummary.days}</strong></span>
+                    <span className="text-[12px] text-muted-foreground/80">Total: <strong className="text-foreground/70 font-mono">{fmtHHMM(monthSummary.seconds)}</strong></span>
+                    <span className="text-[12px] text-muted-foreground/80">Active days: <strong className="text-foreground/70">{monthSummary.days}</strong></span>
                     <div className="ml-auto hidden sm:flex items-center gap-3 flex-wrap">
                       {[{ label: "< 2h", cls: "bg-rose-500" }, { label: "2–4h", cls: "bg-sky-700" }, { label: "4–6h", cls: "bg-sky-600" }, { label: "6–9h", cls: "bg-emerald-600" }, { label: "9h+", cls: "bg-emerald-500" }].map((c) => (
                         <span key={c.label} className="flex items-center gap-1">
                           <span className={`h-2.5 w-5 rounded-[3px] ${c.cls}`} />
-                          <span className="text-[8px] text-muted-foreground/35">{c.label}</span>
+                          <span className="text-[11px] text-muted-foreground/75">{c.label}</span>
                         </span>
                       ))}
                     </div>
@@ -1562,30 +1726,30 @@ export default function TimeprofClockPage() {
                   <div className="rounded-2xl border border-border/40 bg-card p-5">
                     <div className="flex items-center justify-between mb-5">
                       <div>
-                        <p className="text-xs font-black tracking-tight">Payout Calculator</p>
-                        <p className="text-[10px] text-muted-foreground/40 mt-0.5">Estimate your earnings for a cut-off period</p>
+                        <p className="text-sm font-black tracking-tight">Payout Calculator</p>
+                        <p className="text-[12px] text-muted-foreground/75 mt-0.5">Estimate your earnings for a cut-off period</p>
                       </div>
-                      <DollarSign className="h-4 w-4 text-muted-foreground/20" />
+                      <DollarSign className="h-4 w-4 text-muted-foreground/70" />
                     </div>
                     <div className="flex flex-col items-center gap-3 py-5">
                       <div className="h-14 w-14 rounded-2xl bg-muted/30 border border-border/30 flex items-center justify-center">
-                        <Lock className="h-6 w-6 text-muted-foreground/40" />
+                        <Lock className="h-6 w-6 text-muted-foreground/75" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm font-bold text-muted-foreground/60">Calculator Locked</p>
-                        <p className="text-[11px] text-muted-foreground/40 mt-1">Available starting {payoutWindow.nextUnlockLabel}</p>
-                        {payoutWindow.daysUntil > 0 && <p className="text-[10px] text-muted-foreground/30 mt-0.5">{payoutWindow.daysUntil} day{payoutWindow.daysUntil !== 1 ? "s" : ""} from now</p>}
+                        <p className="text-sm font-bold text-muted-foreground/85">Calculator Locked</p>
+                        <p className="text-[13px] text-muted-foreground/75 mt-1">Available starting {payoutWindow.nextUnlockLabel}</p>
+                        {payoutWindow.daysUntil > 0 && <p className="text-[12px] text-muted-foreground/75 mt-0.5">{payoutWindow.daysUntil} day{payoutWindow.daysUntil !== 1 ? "s" : ""} from now</p>}
                       </div>
                       <div className="w-full rounded-xl bg-muted/10 border border-border/20 px-4 py-3 mt-1 space-y-2">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/30 text-center">Pay Schedule</p>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/75 text-center">Pay Schedule</p>
                         <div className="grid grid-cols-2 gap-3 text-center">
                           <div className="rounded-lg bg-muted/10 px-2 py-2">
-                            <p className="text-[10px] font-bold text-muted-foreground/50">1st – 15th</p>
-                            <p className="text-[9px] text-muted-foreground/30 mt-0.5">Payday: 21st</p>
+                            <p className="text-[12px] font-bold text-muted-foreground/80">1st – 15th</p>
+                            <p className="text-[11px] text-muted-foreground/75 mt-0.5">Payday: 21st</p>
                           </div>
                           <div className="rounded-lg bg-muted/10 px-2 py-2">
-                            <p className="text-[10px] font-bold text-muted-foreground/50">16th – end</p>
-                            <p className="text-[9px] text-muted-foreground/30 mt-0.5">Payday: 6th (next mo.)</p>
+                            <p className="text-[12px] font-bold text-muted-foreground/80">16th – end</p>
+                            <p className="text-[11px] text-muted-foreground/75 mt-0.5">Payday: 6th (next mo.)</p>
                           </div>
                         </div>
                       </div>
@@ -1595,19 +1759,19 @@ export default function TimeprofClockPage() {
                   <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-black tracking-tight">Payout Calculator</p>
-                        <p className="text-[10px] text-muted-foreground/40 mt-0.5">Estimate your earnings for a cut-off period</p>
+                        <p className="text-sm font-black tracking-tight">Payout Calculator</p>
+                        <p className="text-[12px] text-muted-foreground/75 mt-0.5">Estimate your earnings for a cut-off period</p>
                       </div>
-                      <DollarSign className="h-4 w-4 text-muted-foreground/20" />
+                      <DollarSign className="h-4 w-4 text-muted-foreground/70" />
                     </div>
                     <div className="space-y-1.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Period</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/75">Period</p>
                       <div className="flex gap-2">
                         {([1, 2] as const).map((p) => {
                           const label = p === 1 ? `${calcMonthShort} 1–15` : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
                           return (
                             <button key={p} onClick={() => setPayoutPeriod(p)}
-                              className={`flex-1 h-9 rounded-xl border text-[11px] font-bold transition-all ${payoutPeriod === p ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300" : "border-border/40 text-muted-foreground hover:bg-muted/30"}`}>
+                              className={`flex-1 h-9 rounded-xl border text-[13px] font-bold transition-all ${payoutPeriod === p ? "border-emerald-500/50 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300" : "border-border/40 text-muted-foreground hover:bg-muted/30"}`}>
                               {label}
                             </button>
                           )
@@ -1615,36 +1779,36 @@ export default function TimeprofClockPage() {
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35">Your Hourly Rate</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/75">Your Hourly Rate</p>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground/50">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-muted-foreground/80">$</span>
                         <input type="number" min="0" step="0.01" placeholder="0.00" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)}
                           className="w-full h-9 pl-7 pr-12 rounded-xl border border-border/40 bg-muted/10 text-sm font-bold font-mono focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/5 transition-all" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/35">/ hr</span>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground/75">/ hr</span>
                       </div>
                     </div>
                     <div className="pt-1 border-t border-border/20 space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <span className="text-[11px] text-muted-foreground/50">Hours rendered ({calcPeriodLabel})</span>
-                          {calcRemainderMins > 0 && <p className="text-[9px] text-muted-foreground/35 mt-0.5">{calcRemainderMins}m not counted — whole hours only</p>}
+                          <span className="text-[13px] text-muted-foreground/80">Hours rendered ({calcPeriodLabel})</span>
+                          {calcRemainderMins > 0 && <p className="text-[11px] text-muted-foreground/75 mt-0.5">{calcRemainderMins}m not counted — whole hours only</p>}
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-[11px] font-bold font-mono text-foreground/80">{fmtHHMM(calcSeconds)}</span>
-                          <p className="text-[9px] font-bold font-mono text-muted-foreground/40">{calcWholeHours}h billed</p>
+                          <span className="text-[13px] font-bold font-mono text-foreground/80">{fmtHHMM(calcSeconds)}</span>
+                          <p className="text-[11px] font-bold font-mono text-muted-foreground/75">{calcWholeHours}h billed</p>
                         </div>
                       </div>
                       <div className="rounded-xl bg-muted/15 border border-border/20 px-4 py-3 space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Estimated Payout</p>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/75">Estimated Payout</p>
                           <div className="flex items-center gap-1">
                             <button onClick={togglePhp} disabled={fetchingPhp}
-                              className={`h-9 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border ${showPhp ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400" : "border-border/30 text-muted-foreground/40 hover:border-border/60"}`}>
+                              className={`h-9 px-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all border ${showPhp ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400" : "border-border/30 text-muted-foreground/75 hover:border-border/60"}`}>
                               {fetchingPhp ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : showPhp ? "PHP ✓" : "PHP"}
                             </button>
                             {showPhp && phpRate && (
                               <button onClick={fetchPhpRate} disabled={fetchingPhp} title="Refresh rate"
-                                className="h-9 w-9 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                                className="h-9 w-9 rounded-lg border border-border/30 flex items-center justify-center text-muted-foreground/75 hover:text-muted-foreground transition-colors">
                                 <RefreshCw className={`h-2.5 w-2.5 ${fetchingPhp ? "animate-spin" : ""}`} />
                               </button>
                             )}
@@ -1653,36 +1817,36 @@ export default function TimeprofClockPage() {
                         {rateNum > 0 ? (
                           <div className="space-y-1">
                             <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
-                              ${payoutUSD.toFixed(2)}<span className="text-xs font-bold text-muted-foreground/40 ml-1">USD</span>
+                              ${payoutUSD.toFixed(2)}<span className="text-sm font-bold text-muted-foreground/75 ml-1">USD</span>
                             </p>
                             {showPhp && payoutPHP !== null && (
                               <p className="text-base font-bold text-sky-700 dark:text-sky-400">
                                 ₱{payoutPHP.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                <span className="text-[9px] font-semibold text-muted-foreground/35 ml-1.5">1 USD = ₱{phpRate?.toFixed(2)}</span>
+                                <span className="text-[11px] font-semibold text-muted-foreground/75 ml-1.5">1 USD = ₱{phpRate?.toFixed(2)}</span>
                               </p>
                             )}
                           </div>
                         ) : (
-                          <p className="text-sm text-muted-foreground/30 font-medium">Enter your hourly rate above</p>
+                          <p className="text-sm text-muted-foreground/75 font-medium">Enter your hourly rate above</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15">
                         <Scissors className="h-3 w-3 text-amber-500 shrink-0" />
-                        <span className="text-[10px] text-muted-foreground/50 flex-1">{payoutPeriod === 1 ? "1st–15th" : `16th–${cutoffSummary.lastDay}th`} cut-off</span>
-                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">Released {calcPayoutDate}</span>
+                        <span className="text-[12px] text-muted-foreground/80 flex-1">{payoutPeriod === 1 ? "1st–15th" : `16th–${cutoffSummary.lastDay}th`} cut-off</span>
+                        <span className="text-[12px] font-bold text-amber-600 dark:text-amber-400">Released {calcPayoutDate}</span>
                       </div>
                       {isPayDayReached ? (
                         <button onClick={printPayslip} disabled={rateNum <= 0}
-                          className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                          className="w-full h-10 rounded-xl border border-emerald-500/40 bg-emerald-600/10 hover:bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[13px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                           <Download className="h-3.5 w-3.5" /> Download Payslip (PDF)
                         </button>
                       ) : (
-                        <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40 cursor-not-allowed select-none">
+                        <div className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 flex items-center justify-center gap-2 text-[13px] text-muted-foreground/75 cursor-not-allowed select-none">
                           <Lock className="h-3.5 w-3.5" /> Payslip available on {payDayLabel}
                         </div>
                       )}
                       <button onClick={() => setShowTimecardModal(true)}
-                        className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 hover:bg-muted/20 text-foreground/70 text-[11px] font-bold flex items-center justify-center gap-2 transition-all">
+                        className="w-full h-10 rounded-xl border border-border/30 bg-muted/10 hover:bg-muted/20 text-foreground/70 text-[13px] font-bold flex items-center justify-center gap-2 transition-all">
                         <Download className="h-3.5 w-3.5" /> Download Timecard (any date range)
                       </button>
                     </div>
@@ -1702,25 +1866,25 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEarlyEndModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-y-auto max-h-[90vh] overscroll-contain" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setShowEarlyEndModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-3 flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
               <div>
-                <p className="text-xs font-black text-amber-300 uppercase tracking-wider">Minimum shift not yet completed</p>
-                <p className="text-[11px] text-amber-400/60 mt-0.5">You need to render <span className="font-bold text-amber-400">8 hours</span> per shift.</p>
+                <p className="text-sm font-black text-amber-300 uppercase tracking-wider">Minimum shift not yet completed</p>
+                <p className="text-[13px] text-amber-400/60 mt-0.5">You need to render <span className="font-bold text-amber-400">8 hours</span> per shift.</p>
               </div>
             </div>
             <div className="px-5 py-4 space-y-4">
               <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-4 py-3 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Time Worked</span>
+                <span className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Time Worked</span>
                 <span className="font-mono text-sm font-black text-zinc-200">
                   {(() => { const ms = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return `${h}h ${m}m` })()}
                 </span>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Reason for early end <span className="text-red-400">*</span></label>
+                <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Reason for early end <span className="text-red-400">*</span></label>
                 <select value={earlyEndReason} onChange={(e) => setEarlyEndReason(e.target.value)}
                   className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-amber-500/50 transition-colors">
                   <option value="">Select a reason…</option>
@@ -1734,7 +1898,7 @@ export default function TimeprofClockPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Additional details (optional)</label>
+                <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Additional details (optional)</label>
                 <textarea value={earlyEndDetails} onChange={(e) => setEarlyEndDetails(e.target.value)} placeholder="Add more context here…" rows={3}
                   className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-amber-500/50 transition-colors resize-none" />
               </div>
@@ -1744,7 +1908,7 @@ export default function TimeprofClockPage() {
                   {earlyEndSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> Submit &amp; End Shift</>}
                 </button>
                 <button onClick={() => setShowEarlyEndModal(false)}
-                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors">
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors">
                   <Play className="h-3.5 w-3.5" /> Resume Shift
                 </button>
               </div>
@@ -1757,7 +1921,7 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmEndModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowConfirmEndModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setShowConfirmEndModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-5 space-y-4">
@@ -1767,7 +1931,7 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">End your shift?</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">You have worked{" "}
+                  <p className="text-sm text-zinc-300 mt-1 leading-relaxed">You have worked{" "}
                     <span className="text-white font-semibold">
                       {(() => { const ms = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return `${h}h ${m}m` })()}
                     </span>{" "}today. Are you sure you want to clock out?
@@ -1780,7 +1944,7 @@ export default function TimeprofClockPage() {
                   {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> Yes, End Shift</>}
                 </button>
                 <button onClick={() => setShowConfirmEndModal(false)}
-                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors">
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors">
                   <Play className="h-3.5 w-3.5" /> Resume Shift
                 </button>
               </div>
@@ -1793,7 +1957,7 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBreakCapModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowBreakCapModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setShowBreakCapModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-5 space-y-4">
@@ -1803,7 +1967,7 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">Break Already Used</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  <p className="text-sm text-zinc-300 mt-1 leading-relaxed">
                     You&apos;ve already used your 1-hour break for this shift. You can&apos;t start another break until your next shift.
                   </p>
                 </div>
@@ -1821,7 +1985,7 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResumeModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setResumeModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setResumeModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-5 space-y-4">
@@ -1831,7 +1995,7 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">Resume Your Shift?</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">You have an unfinished shift from today that started at{" "}
+                  <p className="text-sm text-zinc-300 mt-1 leading-relaxed">You have an unfinished shift from today that started at{" "}
                     <span className="text-white font-semibold">{resumeOriginalClockIn ? fmt(new Date(resumeOriginalClockIn)) : "—"}</span>. Would you like to continue from where you left off?
                   </p>
                 </div>
@@ -1842,7 +2006,7 @@ export default function TimeprofClockPage() {
                   <Play className="h-4 w-4" /> Yes, Resume Shift
                 </button>
                 <button onClick={() => { setResumeModal(false); setResumeOriginalClockIn(null); handleClock("time-in") }}
-                  className="flex w-full items-center justify-center h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors">
+                  className="flex w-full items-center justify-center h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors">
                   No, Start a New Shift
                 </button>
               </div>
@@ -1855,28 +2019,28 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTimecardModal(false)} />
           <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowTimecardModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors z-10">
+            <button onClick={() => setShowTimecardModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors z-10">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
               <div>
                 <p className="text-base font-black text-white">Download Timecard</p>
-                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">Preview updates live — confirm it looks right before printing/downloading.</p>
+                <p className="text-sm text-zinc-300 mt-1 leading-relaxed">Preview updates live — confirm it looks right before printing/downloading.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date Start</label>
+                  <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Date Start</label>
                   <input type="date" value={timecardStart} onChange={(e) => setTimecardStart(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date End</label>
+                  <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Date End</label>
                   <input type="date" value={timecardEnd} onChange={(e) => setTimecardEnd(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
                 </div>
               </div>
               {rateNum <= 0 && (
-                <p className="text-[10px] text-amber-400/80">Enter your hourly rate above to include Total Income — otherwise it will show as $0.00.</p>
+                <p className="text-[12px] text-amber-400/80">Enter your hourly rate above to include Total Income — otherwise it will show as $0.00.</p>
               )}
             </div>
             <div className="px-6 flex-1 min-h-0 overflow-hidden">
@@ -1884,7 +2048,7 @@ export default function TimeprofClockPage() {
                 {timecardStart <= timecardEnd ? (
                   <iframe ref={timecardPreviewRef} srcDoc={timecardPreviewHtml} title="Timecard preview" className="w-full h-full" />
                 ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-zinc-500">Date Start must be before Date End</div>
+                  <div className="h-full flex items-center justify-center text-sm text-zinc-400">Date Start must be before Date End</div>
                 )}
               </div>
             </div>
@@ -1902,36 +2066,39 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowIdleLogModal(false)} />
           <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowIdleLogModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors z-10">
+            <button onClick={() => setShowIdleLogModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors z-10">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
               <div>
                 <p className="text-base font-black text-white">Export Idle Log</p>
-                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">Read-only record of when you went idle (tray-detected inactivity) — not editable. Preview updates live.</p>
+                <p className="text-sm text-zinc-300 mt-1 leading-relaxed">Read-only record of when you went idle (tray-detected inactivity) — not editable. Preview updates live.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date Start</label>
+                  <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Date Start</label>
                   <input type="date" value={idleLogStart} onChange={(e) => setIdleLogStart(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Date End</label>
+                  <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Date End</label>
                   <input type="date" value={idleLogEnd} onChange={(e) => setIdleLogEnd(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-emerald-500/50 transition-colors" />
                 </div>
               </div>
             </div>
             <div className="px-6 flex-1 min-h-0 overflow-hidden">
-              <div className="h-[45vh] rounded-xl overflow-hidden border border-zinc-700/60 bg-white relative">
+              <div className="h-[45vh] rounded-xl overflow-hidden border border-zinc-700/60 bg-zinc-950 relative">
                 {idleLogLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-xs text-zinc-500">Loading…</div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-950">
+                    <div className="h-6 w-6 rounded-full border-2 border-zinc-700 border-t-emerald-500 animate-spin" />
+                    <span className="text-sm text-zinc-400">Loading…</span>
+                  </div>
                 )}
                 {idleLogStart <= idleLogEnd ? (
-                  <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full" />
+                  <iframe ref={idleLogPreviewRef} srcDoc={idleLogPreviewHtml} title="Idle log preview" className="w-full h-full bg-white" />
                 ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-zinc-500">Date Start must be before Date End</div>
+                  <div className="h-full flex items-center justify-center text-sm text-zinc-400 bg-zinc-950">Date Start must be before Date End</div>
                 )}
               </div>
             </div>
@@ -1949,7 +2116,7 @@ export default function TimeprofClockPage() {
         <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTrayModal(false)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-y-auto max-h-[88vh] overscroll-contain" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowTrayModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setShowTrayModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-5 space-y-5">
@@ -1959,14 +2126,14 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">Tray App Required</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Action Auto CRM Tray App</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah AI - Timeproof Clock</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
                 </div>
               </div>
               <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 px-4 py-3 space-y-2">
                 {["Download and install the tray app below", "Launch it — it will appear in your system tray", "Come back here and click Start Shift"].map((step, i) => (
                   <div key={i} className="flex items-start gap-2.5">
-                    <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[9px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">{step}</p>
+                    <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[11px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                    <p className="text-[13px] text-zinc-300 leading-relaxed">{step}</p>
                   </div>
                 ))}
               </div>
@@ -1976,36 +2143,32 @@ export default function TimeprofClockPage() {
                   <Download className="h-4 w-4" /> Download Tray App ({isMacDesktop() ? ".dmg" : ".exe"})
                 </a>
                 <button onClick={async () => {
-                  // Custom protocol navigation, NOT a fetch — this is the one path
-                  // that actually reaches the tray even when the browser blocks
-                  // direct loopback fetches (Private Network Access).
-                  try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
-                  await new Promise((r) => setTimeout(r, 3000))
                   setTrayChecking(true)
                   try {
-                    const online = await isTrayOnline()
+                    const online = await attemptTrayReconnect()
                     if (online) { setShowTrayModal(false); handleClock("time-in") }
+                    else toast.error("Still couldn't reach the tray app. Make sure it's running, then try again.")
                   } catch { } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}
-                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50">
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors disabled:opacity-50">
                   <MonitorDot className="h-3.5 w-3.5" /> Already Installed — Open It
                 </button>
                 <button onClick={async () => {
                   setTrayChecking(true)
                   try {
-                    const online = await isTrayOnline()
+                    const online = await attemptTrayReconnect()
                     if (online) { setShowTrayModal(false); handleClock("time-in") }
                     else toast.error("Tray app not detected. Make sure it is running.")
                   } catch { toast.error("Tray app not detected. Make sure it is running.") } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}
-                  className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors disabled:opacity-50">
+                  className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-400 hover:text-zinc-300 text-sm font-semibold transition-colors disabled:opacity-50">
                   {trayChecking ? <><Loader2 className="h-3 w-3 animate-spin" /> Checking…</> : <><RefreshCw className="h-3 w-3" /> Check Again</>}
                 </button>
                 <a
                   href="/guide"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-500 hover:text-zinc-300 text-xs font-semibold transition-colors"
+                  className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-400 hover:text-zinc-300 text-sm font-semibold transition-colors"
                 >
                   <BookOpen className="h-3 w-3" /> View Instructions — How to Download &amp; Use
                 </a>
@@ -2020,7 +2183,7 @@ export default function TimeprofClockPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Stop sharing your location?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your shift stays active — this only pauses location sharing. Admins will be notified that it's off, and you can turn it back on any time from this page.
+              Your shift stays active — this only pauses location sharing. Admins will be notified that it&apos;s off, and you can turn it back on any time from this page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

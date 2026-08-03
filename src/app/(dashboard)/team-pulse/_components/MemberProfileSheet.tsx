@@ -16,43 +16,20 @@ import {
   Phone,
   Shield,
   User,
-  Zap,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { deptLabel } from "@/lib/departments";
 import type { OnlineStatus } from "@/hooks/useTeamPulse";
-import { useTeamMemberProfile, usePingMember } from "@/hooks/useTeamPulse";
+import { useTeamMemberProfile } from "@/hooks/useTeamPulse";
 import { useOpenDm } from "@/hooks/useOpenDm";
 import { S, ROLE_STYLE, ROLE_LABEL } from "./team-pulse-constants";
 import { StatusDot, PresenceAvatarDot } from "./StatusDot";
-
-const PING_MAX = 3;
-const PING_WINDOW_MS = 3600_000;
-
-function getPingTimes(memberId: string): number[] {
-  try {
-    const raw = localStorage.getItem(`ping_ts_${memberId}`);
-    if (!raw) return [];
-    const times: number[] = JSON.parse(raw);
-    return times.filter((t) => Date.now() - t < PING_WINDOW_MS);
-  } catch {
-    return [];
-  }
-}
-
-function recordPing(memberId: string) {
-  const times = getPingTimes(memberId);
-  times.push(Date.now());
-  localStorage.setItem(`ping_ts_${memberId}`, JSON.stringify(times));
-}
 
 function MemberFullProfileDialog({
   profile,
@@ -216,58 +193,15 @@ export function MemberProfileSheet({
   const { data: profile, isLoading } = useTeamMemberProfile(memberId);
   const status = (profile?.onlineStatus ?? "offline") as OnlineStatus;
   const { openDm, loading: dmLoading } = useOpenDm();
-  const pingMember = usePingMember();
 
-  const [pingOpen, setPingOpen] = React.useState(false);
-  const [pingMsg, setPingMsg] = React.useState("");
-  const [pingTimes, setPingTimes] = React.useState<number[]>([]);
-  const [cooldownLabel, setCooldownLabel] = React.useState<string | null>(null);
   const [fullProfileOpen, setFullProfileOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!memberId) return;
-    const times = getPingTimes(memberId);
-    setPingTimes(times);
-  }, [memberId]);
-
-  React.useEffect(() => {
-    if (pingTimes.length < PING_MAX) { setCooldownLabel(null); return; }
-    const oldest = Math.min(...pingTimes);
-    const resetAt = oldest + PING_WINDOW_MS;
-    const tick = () => {
-      const remaining = resetAt - Date.now();
-      if (remaining <= 0) { setCooldownLabel(null); return; }
-      const m = Math.floor(remaining / 60_000);
-      const s = Math.floor((remaining % 60_000) / 1_000);
-      setCooldownLabel(m > 0 ? `${m}m` : `${s}s`);
-    };
-    tick();
-    const id = setInterval(tick, 1_000);
-    return () => clearInterval(id);
-  }, [pingTimes]);
-
   const isMe = memberId === myUserId;
-  const canPing = !isMe && pingTimes.length < PING_MAX && !cooldownLabel;
-
-  async function handlePing() {
-    if (!memberId || !canPing) return;
-    try {
-      await pingMember.mutateAsync({ userId: memberId, message: pingMsg.trim() || undefined });
-      recordPing(memberId);
-      const newTimes = getPingTimes(memberId);
-      setPingTimes(newTimes);
-      setPingOpen(false);
-      setPingMsg("");
-      toast.success(`Pinged ${profile?.name ?? "member"}!`);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? "Could not send ping");
-    }
-  }
 
   return (
     <>
     <MemberFullProfileDialog profile={profile} open={fullProfileOpen} onClose={() => setFullProfileOpen(false)} />
-    <Sheet open={!!memberId} onOpenChange={(o) => { if (!o) { onClose(); setPingOpen(false); setFullProfileOpen(false); } }}>
+    <Sheet open={!!memberId} onOpenChange={(o) => { if (!o) { onClose(); setFullProfileOpen(false); } }}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
         <div className={cn("relative overflow-hidden bg-linear-to-br from-primary/15 via-primary/8 to-transparent border-b border-border/30 px-5 sm:px-6 pt-5 pb-4", !profile && "hidden")}>
           <SheetHeader className="sr-only">
@@ -384,32 +318,6 @@ export function MemberProfileSheet({
               </p>
             )}
 
-            {!isMe && pingOpen && (
-              <div className="rounded-xl border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 p-3.5 space-y-2.5">
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700/70 dark:text-amber-400/70">Add a message (optional)</p>
-                <Textarea
-                  value={pingMsg}
-                  onChange={(e) => setPingMsg(e.target.value.slice(0, 120))}
-                  placeholder={`Hey ${profile.name?.split(" ")[0]}, checking in!`}
-                  className="text-xs h-16 resize-none bg-background border-border/50"
-                />
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => { setPingOpen(false); setPingMsg(""); }}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1 h-8 text-xs gap-1.5 bg-amber-500 hover:bg-amber-600 text-white border-0"
-                    onClick={handlePing}
-                    disabled={pingMember.isPending}
-                  >
-                    <Zap className="size-3" />
-                    {pingMember.isPending ? "Pinging…" : "Send Ping"}
-                  </Button>
-                </div>
-              </div>
-            )}
-
             <div className="flex gap-2 pt-1">
               <Button
                 className="flex-1 gap-2"
@@ -421,46 +329,20 @@ export function MemberProfileSheet({
                 Full Profile
               </Button>
               {!isMe && (
-                <>
-                  <Button
-                    className="flex-1 gap-2"
-                    onClick={() => { onClose(); openDm(memberId!); }}
-                    disabled={dmLoading}
-                  >
-                    {dmLoading ? (
-                      <span className="size-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-                    ) : (
-                      <MessageCircle className="size-4" />
-                    )}
-                    {dmLoading ? "Opening…" : "Message"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={cn(
-                      "shrink-0 size-10 border transition-all",
-                      canPing
-                        ? "border-amber-300/60 text-amber-600 hover:bg-amber-50 hover:border-amber-400 dark:border-amber-700/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
-                        : "border-border/30 text-muted-foreground/30 cursor-not-allowed",
-                    )}
-                    onClick={() => canPing && setPingOpen((v) => !v)}
-                    title={cooldownLabel ? `Cooldown: ${cooldownLabel}` : "Ping"}
-                    disabled={!canPing}
-                  >
-                    {cooldownLabel ? (
-                      <span className="text-[9px] font-black tabular-nums">{cooldownLabel}</span>
-                    ) : (
-                      <Zap className="size-4" />
-                    )}
-                  </Button>
-                </>
+                <Button
+                  className="flex-1 gap-2"
+                  onClick={() => { onClose(); openDm(memberId!); }}
+                  disabled={dmLoading}
+                >
+                  {dmLoading ? (
+                    <span className="size-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                  ) : (
+                    <MessageCircle className="size-4" />
+                  )}
+                  {dmLoading ? "Opening…" : "Message"}
+                </Button>
               )}
             </div>
-            {!isMe && pingTimes.length > 0 && (
-              <p className="text-[10px] text-muted-foreground/40 text-center -mt-1">
-                {PING_MAX - pingTimes.length} ping{PING_MAX - pingTimes.length !== 1 ? "s" : ""} left this hour
-              </p>
-            )}
           </div>
         )}
       </SheetContent>

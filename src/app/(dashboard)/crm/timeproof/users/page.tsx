@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Search,
   X,
+  Wallet,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -148,9 +149,9 @@ const fmtLastSeen = (lastSeenAt: string | null) => {
 }
 
 const roleBadgeClass = (role: string) => {
-  if (role === "admin") return "bg-purple-500/10 text-purple-400 border-purple-500/20"
-  if (role === "manager") return "bg-blue-500/10 text-blue-400 border-blue-500/20"
-  return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+  if (role === "admin") return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+  if (role === "manager") return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+  return "bg-muted text-muted-foreground border-border"
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -161,7 +162,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
   // A clocked-in user shows their shift status even when the tray is offline.
   if (user.isLive && user.isBreakExceeded) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 animate-pulse">
         <Coffee className="h-2.5 w-2.5" />
         Over Break
       </span>
@@ -169,7 +170,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
   }
   if (user.isLive && user.isOnBreak) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
         <Coffee className="h-2.5 w-2.5" />
         On Break
       </span>
@@ -177,7 +178,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
   }
   if (user.isLive && user.isIdle) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-700/50 text-zinc-400 border border-zinc-600/30">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/40">
         <Clock className="h-2.5 w-2.5" />
         Idle
       </span>
@@ -185,7 +186,7 @@ function StatusBadge({ user }: { user: MergedUser }) {
   }
   if (user.isLive) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
         <span className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400", user.isOnline && "animate-pulse")} />
         On Shift
       </span>
@@ -193,14 +194,14 @@ function StatusBadge({ user }: { user: MergedUser }) {
   }
   if (user.isOnline) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700/50">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/50">
         <Wifi className="h-2.5 w-2.5" />
         Online
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700/50">
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/50">
       <WifiOff className="h-2.5 w-2.5" />
       Offline
     </span>
@@ -222,7 +223,7 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
     <div
       onClick={onClick}
       className={cn(
-        "relative rounded-2xl border bg-zinc-900/60 p-4 flex flex-col gap-3 transition-all duration-300 cursor-pointer hover:bg-zinc-800/60 hover:scale-[1.01] active:scale-[0.99]",
+        "relative rounded-2xl border bg-card p-4 flex flex-col gap-3 transition-all duration-300 cursor-pointer hover:bg-muted/40 hover:scale-[1.01] active:scale-[0.99]",
         user.isLive && user.isBreakExceeded
           ? "border-red-500/30 shadow-sm shadow-red-500/5 hover:border-red-500/50"
           : user.isLive && user.isOnBreak
@@ -230,36 +231,36 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
           : user.isLive && !user.isIdle
           ? "border-emerald-500/25 shadow-sm shadow-emerald-500/5 hover:border-emerald-500/45"
           : user.isLive && user.isIdle
-          ? "border-zinc-700/40 hover:border-zinc-600/60"
+          ? "border-border/50 hover:border-border"
           : user.isOnline
-          ? "border-zinc-700/40 hover:border-zinc-600/60"
-          : "border-zinc-800/40 opacity-60 hover:opacity-80"
+          ? "border-border/50 hover:border-border"
+          : "border-border/40 opacity-60 hover:opacity-80"
       )}
     >
       {/* Header */}
       <div className="flex items-start gap-3">
         <div className="relative">
-          <Avatar className="h-10 w-10 border border-zinc-700/50">
+          <Avatar className="h-10 w-10 border border-border/50">
             {user.avatar && (
               <AvatarImage src={resolveImageUrl(user.avatar)} alt={user.fullName} />
             )}
-            <AvatarFallback className="bg-zinc-800 text-zinc-300 text-xs font-bold">
+            <AvatarFallback className="bg-muted text-foreground/80 text-xs font-bold">
               {initials}
             </AvatarFallback>
           </Avatar>
           <span
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-900",
-              user.isOnline ? "bg-emerald-400" : "bg-zinc-600"
+              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+              user.isOnline ? "bg-emerald-400" : "bg-muted-foreground/40"
             )}
           />
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-zinc-100 truncate leading-tight">
+          <p className="text-sm font-bold text-foreground truncate leading-tight">
             {user.fullName}
           </p>
-          <p className="text-[10px] text-zinc-500 font-mono">{user.username}</p>
+          <p className="text-[10px] text-muted-foreground font-mono">{user.username}</p>
         </div>
 
         <span className={cn("text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md border", roleBadgeClass(user.role))}>
@@ -271,7 +272,7 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge user={user} />
         {user.platform && user.isOnline && (
-          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-zinc-600 uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
             {user.platform === "darwin"
               ? <Apple className="h-2.5 w-2.5" />
               : <Monitor className="h-2.5 w-2.5" />}
@@ -282,21 +283,21 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
 
       {/* Shift times */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-3 py-2">
-          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">Time In</p>
-          <p className="font-mono text-sm font-bold tabular-nums text-emerald-400">
+        <div className="rounded-xl bg-muted/30 border border-border/40 px-3 py-2">
+          <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Time In</p>
+          <p className="font-mono text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
             {fmtTimeMDT(user.shiftStartedAt)}
           </p>
         </div>
-        <div className="rounded-xl bg-zinc-800/50 border border-zinc-700/30 px-3 py-2">
-          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">Time Out</p>
+        <div className="rounded-xl bg-muted/30 border border-border/40 px-3 py-2">
+          <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Time Out</p>
           {user.isLive ? (
-            <p className="flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums text-zinc-600">
+            <p className="flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               Active
             </p>
           ) : (
-            <p className="font-mono text-sm font-bold tabular-nums text-zinc-300">
+            <p className="font-mono text-sm font-bold tabular-nums text-foreground/80">
               {fmtTimeMDT(user.shiftEndedAt)}
             </p>
           )}
@@ -305,7 +306,7 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
 
       {/* Last seen (offline only) */}
       {!user.isOnline && user.lastSeenAt && (
-        <p className="text-[10px] text-zinc-600">
+        <p className="text-[10px] text-muted-foreground">
           Last seen {fmtLastSeen(user.lastSeenAt)}
         </p>
       )}
@@ -471,85 +472,109 @@ export default function AdminShiftBoardPage() {
   const overBreakCount = filteredUsers.filter((u) => u.isLive && u.isBreakExceeded).length
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-background timeproof-scope">
 
-      {/* ── Sticky Header ── */}
-      <div className="sticky top-0 z-20 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button
-            onClick={() => router.push("/crm/timeproof-clock")}
-            className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-zinc-800/60 transition-colors text-zinc-500"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+      {/* ── Sticky Header ──
+          Two rows on every screen size, not just mobile: row 1 is identity +
+          the one always-essential action (refresh); row 2 is search/filters/
+          nav and uses flex-wrap so a narrow phone screen wraps it onto extra
+          lines instead of forcing the whole bar into horizontal overflow
+          (the previous single h-14 row had no min-w-0/wrap anywhere, so the
+          title, live clock, search box, department select, and three buttons
+          all fought for space in one fixed-height line). */}
+      <div
+        className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-md"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="h-14 flex items-center gap-3">
+            <button
+              onClick={() => router.push("/crm/timeproof-clock")}
+              className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center hover:bg-muted/40 transition-colors text-muted-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
 
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-emerald-600/10 flex items-center justify-center">
-              <Shield className="h-3.5 w-3.5 text-emerald-500" />
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="h-7 w-7 shrink-0 rounded-lg bg-emerald-600/10 flex items-center justify-center">
+                <Shield className="h-3.5 w-3.5 text-emerald-500" />
+              </div>
+              <span className="text-sm font-black tracking-tight text-foreground truncate">Live Shift Board</span>
+              {overBreakCount > 0 && (
+                <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 animate-pulse">
+                  {overBreakCount} over break
+                </span>
+              )}
             </div>
-            <span className="text-sm font-black tracking-tight text-zinc-100">Live Shift Board</span>
-            {overBreakCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
-                {overBreakCount} over break
-              </span>
-            )}
+
+            <div className="shrink-0 flex items-center gap-2">
+              <LiveClock />
+              <button
+                onClick={fetchData}
+                className="h-9 w-9 rounded-xl border border-border flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground"
+                title="Refresh"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            <LiveClock />
+          {/* Row 2: search / filters / nav — wraps freely instead of overflowing */}
+          <div className="flex flex-wrap items-center gap-2 pb-3">
             {/* Search by name */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+            <div className="relative flex-1 min-w-[140px] sm:flex-none">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search name..."
-                className="h-9 pl-8 pr-7 w-36 sm:w-44 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-[11px] font-bold placeholder:text-zinc-600 placeholder:font-medium focus:outline-none focus:border-zinc-600"
+                className="h-9 pl-8 pr-7 w-full sm:w-44 rounded-xl border border-border bg-muted/30 text-foreground/80 text-[11px] font-bold placeholder:text-muted-foreground placeholder:font-medium focus:outline-none focus:border-ring/50"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center text-muted-foreground"
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>
               )}
             </div>
             {/* Department filter */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <select
                 value={selectedDept}
                 onChange={(e) => setSelectedDept(e.target.value)}
-                className="h-9 pl-3 pr-7 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-[11px] font-bold appearance-none focus:outline-none focus:border-zinc-600 cursor-pointer"
+                className="h-9 pl-3 pr-7 rounded-xl border border-border bg-muted/30 text-foreground/80 text-[11px] font-bold appearance-none focus:outline-none focus:border-ring/50 cursor-pointer"
               >
                 <option value="all">All Departments</option>
                 {DEPARTMENTS.map((d) => (
                   <option key={d} value={`dept:${d}`}>{d}</option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-600" />
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             </div>
-            {lastRefreshed && (
-              <span className="hidden sm:block text-[10px] text-zinc-600 font-mono">
-                Updated {fmtLastSeen(lastRefreshed.toISOString())}
-              </span>
-            )}
+            <button
+              onClick={() => router.push("/crm/timeproof/payroll-status")}
+              className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
+              title="Payroll Status"
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-bold uppercase tracking-wider">Payroll</span>
+            </button>
             <button
               onClick={() => router.push("/team-pulse?tab=calendar")}
-              className="h-9 px-3 rounded-xl border border-zinc-800 flex items-center gap-1.5 hover:bg-zinc-800/50 transition-colors text-zinc-400 hover:text-zinc-200"
+              className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
               title="View early-out / out-of-office calendar"
             >
               <CalendarDays className="h-3.5 w-3.5" />
               <span className="text-[11px] font-bold uppercase tracking-wider hidden sm:inline">Calendar</span>
             </button>
-            <button
-              onClick={fetchData}
-              className="h-9 w-9 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-zinc-800/50 transition-colors text-zinc-500"
-              title="Refresh"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
+            {lastRefreshed && (
+              <span className="hidden md:block text-[10px] text-muted-foreground font-mono ml-auto">
+                Updated {fmtLastSeen(lastRefreshed.toISOString())}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -559,16 +584,16 @@ export default function AdminShiftBoardPage() {
         {/* ── Summary chips ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Online", value: onlineCount, color: "text-emerald-400", icon: <Wifi className="h-3.5 w-3.5" /> },
+            { label: "Online", value: onlineCount, color: "text-emerald-600 dark:text-emerald-400", icon: <Wifi className="h-3.5 w-3.5" /> },
             { label: "On Shift", value: onShiftCount, color: "text-emerald-300", icon: <Zap className="h-3.5 w-3.5" /> },
-            { label: "On Break", value: onBreakCount, color: "text-amber-400", icon: <Coffee className="h-3.5 w-3.5" /> },
-            { label: "Idle", value: idleCount, color: "text-zinc-500", icon: <Clock className="h-3.5 w-3.5" /> },
+            { label: "On Break", value: onBreakCount, color: "text-amber-600 dark:text-amber-400", icon: <Coffee className="h-3.5 w-3.5" /> },
+            { label: "Idle", value: idleCount, color: "text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
           ].map((s) => (
-            <div key={s.label} className="rounded-2xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 flex items-center gap-3">
+            <div key={s.label} className="rounded-2xl border border-border/60 bg-card px-4 py-3 flex items-center gap-3">
               <span className={cn("opacity-70", s.color)}>{s.icon}</span>
               <div>
                 <p className={cn("text-xl font-black tabular-nums leading-none", s.color)}>{s.value}</p>
-                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mt-0.5">{s.label}</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">{s.label}</p>
               </div>
             </div>
           ))}
@@ -576,23 +601,38 @@ export default function AdminShiftBoardPage() {
 
         {/* ── Error ── */}
         {error && (
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 rounded-full border-2 border-emerald-500/30 border-t-emerald-500 animate-spin" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border border-border/40 bg-card p-4 flex flex-col gap-3 animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-muted" />
+                  <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
+                    <div className="h-3 w-3/4 rounded bg-muted" />
+                    <div className="h-2.5 w-1/2 rounded bg-muted/50" />
+                  </div>
+                </div>
+                <div className="h-4 w-20 rounded-full bg-muted/50" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-10 rounded-xl bg-muted/30" />
+                  <div className="h-10 rounded-xl bg-muted/30" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {/* ── Empty ── */}
         {!loading && filteredUsers.length === 0 && !error && (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Users className="h-10 w-10 text-zinc-700" />
-            <p className="text-sm text-zinc-500 font-semibold">
+            <Users className="h-10 w-10 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground font-semibold">
               {selectedDept === "all"
                 ? "No agents found"
                 : `No agents in "${selectedDept.startsWith("dept:") ? selectedDept.slice(5) : selectedDept}"`}

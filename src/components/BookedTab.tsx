@@ -551,7 +551,18 @@ export function BookedTab() {
     setStatusFilter("all");
     setSelectedDate(null);
   };
-  const showLoading = (!isAuthLoaded || isLoading) && bookings.length === 0;
+  const isFetchingInitial = (!isAuthLoaded || isLoading) && bookings.length === 0;
+  const [showLoading, setShowLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isFetchingInitial) {
+      setShowLoading(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowLoading(true), 200);
+    return () => clearTimeout(timer);
+  }, [isFetchingInitial]);
+
   const handleRetry = () => {
     if (!isAuthLoaded || !isSignedIn) return;
     lastFetchKeyRef.current = "";
@@ -680,7 +691,7 @@ export function BookedTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold">Customer Bookings</p>
-          {!showLoading && (
+          {!isFetchingInitial && (
             <Badge
               variant="secondary"
               className="h-5 rounded-full px-2 text-xs tabular-nums"
@@ -701,27 +712,29 @@ export function BookedTab() {
       </div>
 
       {/* ── Booking list ── */}
-      {showLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="relative flex gap-4 rounded-xl border bg-card p-4"
-            >
-              <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-muted animate-pulse" />
-              <div className="w-10 h-10 rounded-xl bg-muted animate-pulse shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-40 rounded bg-muted animate-pulse" />
-                <div className="h-3 w-56 rounded bg-muted animate-pulse" />
-                <div className="h-3 w-64 rounded bg-muted animate-pulse" />
+      {isFetchingInitial ? (
+        showLoading && (
+          <div className="space-y-3 animate-in fade-in duration-200">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="relative flex gap-4 rounded-xl border bg-card p-4"
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-muted animate-pulse" />
+                <div className="w-10 h-10 rounded-xl bg-muted animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-56 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-64 rounded bg-muted animate-pulse" />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       ) : filteredBookings.length === 0 ? (
         <EmptyState hasFilters={hasFilters} />
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 animate-in fade-in duration-200">
           {filteredBookings.map((booking: any) => (
             <BookingCard
               key={booking._id}

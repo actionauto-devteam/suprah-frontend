@@ -195,6 +195,67 @@ export const SS4_CSS = `
   .ss4-attachment-media { display: block; width: 100%; max-width: 100%; height: auto; object-fit: cover; }
   .ss4-attachment-video { display: block; width: 100%; max-width: 100%; height: auto; }
 
+  /* ── Rich-text message content (lists / quotes / code blocks) ──────── */
+  .ss4-list {
+    list-style: none;
+    margin: 2px 0;
+    padding: 0;
+  }
+  .ss4-list-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45em;
+    line-height: 1.45;
+  }
+  .ss4-list-marker {
+    flex-shrink: 0;
+    opacity: 0.75;
+    min-width: 1em;
+  }
+  .ss4-list-marker-num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .ss4-blockquote {
+    margin: 4px 0;
+    padding: 2px 0 2px 10px;
+    border-left: 3px solid var(--accent);
+    color: var(--text-secondary);
+    font-style: italic;
+    line-height: 1.45;
+  }
+  .ss4-bubble-own .ss4-blockquote {
+    border-left-color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.85);
+  }
+  .ss4-codeblock {
+    margin: 6px 0;
+    padding: 10px 12px;
+    background: rgba(128,128,128,0.12);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82em;
+    line-height: 1.5;
+    white-space: pre;
+  }
+  .ss4-bubble-own .ss4-codeblock {
+    background: rgba(0,0,0,0.18);
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  /* ── Search result / deep-link jump: brief highlight flash so the target
+     message is unmistakable in a long scrollback ─────────────────────── */
+  .ss4-msg-highlight {
+    animation: ss4-highlight-flash 2.2s ease-out;
+    border-radius: 12px;
+  }
+  @keyframes ss4-highlight-flash {
+    0%, 15% { background-color: rgba(16,185,129,0.28); }
+    100% { background-color: transparent; }
+  }
+
   /* ── Input area ─────────────────────────────────────── */
   .ss4-input-wrap {
     background: var(--input-bg);

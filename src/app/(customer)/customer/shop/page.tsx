@@ -690,9 +690,9 @@ function ShopVehiclesContent() {
             />
           </div>
         )}
-      </div>
+    </div>
 
-      {/* ─── Modals ───────────────────────────────────────────────── */}
+      {/* ─── Modals ───────────────────────────────────────────────── */ }
       <ShippingQuoteModal
         open={openModals.shipping}
         onOpenChange={setShippingOpen}
@@ -732,7 +732,7 @@ function ShopVehiclesContent() {
         onOpenChange={setIsTradeInOpen}
       />
 
-      {/* ─── Floating elements ───────────────────────────────────── */}
+  {/* ─── Floating elements ───────────────────────────────────── */ }
       <SavedVehiclesFloatingButton
         savedVehicles={savedVehiclesData as Vehicle[]}
         liftForTray={comparedVehicles.length > 0}
@@ -750,7 +750,7 @@ function ShopVehiclesContent() {
         onClear={() => setComparedVehicles([])}
         onCompare={() => router.push(`/customer/compare?ids=${comparedVehicles.map((v) => v.id).join(",")}`)}
       />
-    </div>
+    </div >
   );
 }
 

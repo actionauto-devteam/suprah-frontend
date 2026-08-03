@@ -555,7 +555,7 @@ export default function CrmAftermarketPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl p-4 md:p-6">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-center gap-2.5">
@@ -661,7 +661,7 @@ export default function CrmAftermarketPage() {
           )}
         </div>
       ) : view === "grid" ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {products.map((p) => (
             <ProductCard
               key={p._id}

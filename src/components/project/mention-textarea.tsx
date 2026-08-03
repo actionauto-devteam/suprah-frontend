@@ -41,6 +41,7 @@ export function MentionTextarea({
   onSubmit,
   placeholder,
   disabled,
+  bare,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -50,11 +51,21 @@ export function MentionTextarea({
   onSubmit: () => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Drops the textarea's own border/background — use when a parent container already supplies them. */
+  bare?: boolean;
 }) {
   const areaRef = React.useRef<HTMLTextAreaElement>(null);
   const [query, setQuery] = React.useState<string | null>(null);
   const [mentionStart, setMentionStart] = React.useState(0);
   const [highlighted, setHighlighted] = React.useState(0);
+
+  // Auto-grow with content instead of relying on internal scroll.
+  React.useLayoutEffect(() => {
+    const area = areaRef.current;
+    if (!area) return;
+    area.style.height = "auto";
+    area.style.height = `${area.scrollHeight}px`;
+  }, [value]);
 
   const options = React.useMemo(() => {
     if (query === null) return [];
@@ -187,7 +198,12 @@ export function MentionTextarea({
         placeholder={placeholder}
         rows={1}
         disabled={disabled}
-        className="max-h-28 min-h-10 w-full resize-none rounded-xl border border-border/70 bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+        className={cn(
+          "max-h-40 min-h-10 w-full resize-none bg-transparent text-sm placeholder:text-muted-foreground/40 focus:outline-none",
+          bare
+            ? "px-0 py-1.5"
+            : "rounded-xl border border-border/70 bg-background px-3 py-2.5 focus:ring-2 focus:ring-emerald-500/30",
+        )}
       />
     </div>
   );

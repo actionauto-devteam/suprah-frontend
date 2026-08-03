@@ -34,8 +34,8 @@ export function PulseHealthCard({ className }: { className?: string }) {
             <Gauge className="h-4 w-4 text-violet-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[12px] font-black tracking-tight">Pulse360</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground/50">
+            <p className="text-sm font-black tracking-tight">Pulse360</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground/80">
               {ready ? "Your score appears after the next evaluation" : "Reading your pulse…"}
             </p>
           </div>
@@ -58,8 +58,8 @@ export function PulseHealthCard({ className }: { className?: string }) {
             <Gauge className="h-4 w-4 text-violet-500" />
           </div>
           <div className="min-w-0 text-left">
-            <p className="text-[12px] font-black tracking-tight text-foreground">Pulse360</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground/50">
+            <p className="text-sm font-black tracking-tight text-foreground">Pulse360</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground/80">
               Work health across your assignments
             </p>
           </div>
@@ -67,7 +67,7 @@ export function PulseHealthCard({ className }: { className?: string }) {
 
         <span
           className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-widest",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-black uppercase tracking-widest",
             "border-border/40 bg-muted/20",
             stateMeta.text
           )}
@@ -96,7 +96,7 @@ export function PulseHealthCard({ className }: { className?: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn(
-                "rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest",
+                "rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-widest",
                 bandMeta.pill,
                 bandMeta.text
               )}
@@ -106,7 +106,7 @@ export function PulseHealthCard({ className }: { className?: string }) {
             {health.delta !== 0 && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 text-[10px] font-bold",
+                  "inline-flex items-center gap-1 text-[12px] font-bold",
                   health.delta > 0 ? "text-emerald-500" : "text-orange-500"
                 )}
               >
@@ -120,7 +120,7 @@ export function PulseHealthCard({ className }: { className?: string }) {
           <div className="grid grid-cols-3 gap-2">
             <div>
               <p className="font-mono text-sm font-black tabular-nums text-foreground">{health.stats.openTasks}</p>
-              <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/40">Open</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">Open</p>
             </div>
             <div>
               <p
@@ -131,13 +131,13 @@ export function PulseHealthCard({ className }: { className?: string }) {
               >
                 {health.stats.overdueTasks}
               </p>
-              <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/40">Overdue</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">Overdue</p>
             </div>
             <div>
               <p className="font-mono text-sm font-black tabular-nums text-emerald-500">
                 {health.stats.completedInWindow}
               </p>
-              <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/40">Done 14d</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">Done 14d</p>
             </div>
           </div>
         </div>
@@ -150,13 +150,13 @@ export function PulseHealthCard({ className }: { className?: string }) {
               className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", PRIORITY_META[topAlert.priority]?.text)}
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-bold text-foreground">{topAlert.title}</p>
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/60">
+              <p className="truncate text-[13px] font-bold text-foreground">{topAlert.title}</p>
+              <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground/85">
                 {topAlert.reason}
               </p>
             </div>
             {live.length > 1 && (
-              <span className="shrink-0 rounded-full border border-border/40 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground/50">
+              <span className="shrink-0 rounded-full border border-border/40 px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground/80">
                 +{live.length - 1}
               </span>
             )}
@@ -170,9 +170,9 @@ export function PulseHealthCard({ className }: { className?: string }) {
           className="flex w-full items-center gap-3 border-t border-border/30 bg-muted/10 px-5 py-3 text-left transition hover:bg-violet-500/5"
         >
           <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Do this next</p>
-            <p className="mt-0.5 truncate text-[11px] font-bold text-foreground">{topAction.title}</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground/50">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/75">Do this next</p>
+            <p className="mt-0.5 truncate text-[13px] font-bold text-foreground">{topAction.title}</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground/80">
               {formatDueLabel(topAction.hoursUntilDue)}
               {topAction.projectName ? ` · ${topAction.projectName}` : ""}
             </p>
@@ -182,7 +182,7 @@ export function PulseHealthCard({ className }: { className?: string }) {
       ) : (
         <div className="flex items-center gap-2.5 border-t border-border/30 bg-emerald-500/5 px-5 py-3">
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500/70" />
-          <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+          <p className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">
             Nothing outstanding on your assignments.
           </p>
         </div>
@@ -190,7 +190,7 @@ export function PulseHealthCard({ className }: { className?: string }) {
 
       <button
         onClick={() => router.push("/crm/pulse360")}
-        className="flex w-full items-center justify-center gap-1.5 border-t border-border/30 py-2.5 text-[10px] font-bold text-muted-foreground/60 transition hover:bg-muted/20 hover:text-foreground"
+        className="flex w-full items-center justify-center gap-1.5 border-t border-border/30 py-2.5 text-[12px] font-bold text-muted-foreground/85 transition hover:bg-muted/20 hover:text-foreground"
       >
         Open Pulse360
         <ArrowRight className="h-3 w-3" />
