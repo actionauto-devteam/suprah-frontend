@@ -4,22 +4,23 @@ export const SS4_CSS = `
     --bg-base:       #0e0f11;
     --bg-elevated:   #141618;
     --bg-overlay:    #1a1d21;
-    --bg-hover:      rgba(255,255,255,0.04);
-    --bg-active:     rgba(255,255,255,0.07);
-    --bg-subtle:     rgba(255,255,255,0.03);
+    --bg-hover:      rgba(255,255,255,0.065);
+    --bg-active:     rgba(255,255,255,0.11);
+    --bg-subtle:     rgba(255,255,255,0.05);
 
     --surface-1:     #1e2126;
     --surface-2:     #252a31;
     --surface-3:     #2d3340;
 
-    --border-1:      rgba(255,255,255,0.06);
-    --border-2:      rgba(255,255,255,0.10);
-    --border-3:      rgba(255,255,255,0.14);
+    --border-1:      rgba(255,255,255,0.11);
+    --border-2:      rgba(255,255,255,0.18);
+    --border-3:      rgba(255,255,255,0.28);
 
     --accent:        #10b981;
     --accent-muted:  rgba(16,185,129,0.15);
     --accent-hover:  #34d399;
     --accent-text:   #6ee7b7;
+    --conversation-active-bg: rgba(16,185,129,0.23);
 
     --positive:      #34c97d;
     --positive-muted:rgba(52,201,125,0.12);
@@ -27,10 +28,10 @@ export const SS4_CSS = `
     --danger:        #f05c5c;
     --danger-muted:  rgba(240,92,92,0.12);
 
-    --text-primary:  rgba(255,255,255,0.92);
-    --text-secondary:rgba(255,255,255,0.52);
-    --text-tertiary: rgba(255,255,255,0.28);
-    --text-disabled: rgba(255,255,255,0.16);
+    --text-primary:  #f8fafc;
+    --text-secondary:#cbd5e1;
+    --text-tertiary: #94a3b8;
+    --text-disabled: #7c899a;
 
     --bubble-own-bg: linear-gradient(145deg, #059669, #10b981);
     --bubble-own-shadow: 0 4px 20px rgba(16,185,129,0.25);
@@ -38,13 +39,13 @@ export const SS4_CSS = `
     --bubble-other-border: var(--border-2);
 
     --sidebar-bg:    #111316;
-    --sidebar-border:rgba(255,255,255,0.055);
+    --sidebar-border:rgba(255,255,255,0.12);
 
     --input-bg:      var(--surface-1);
     --input-border:  var(--border-2);
     --input-focus:   rgba(16,185,129,0.35);
 
-    --scrollbar:     rgba(255,255,255,0.07);
+    --scrollbar:     rgba(255,255,255,0.22);
     --shadow-sm:     0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
     --shadow-md:     0 4px 16px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.3);
     --shadow-lg:     0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4);
@@ -54,22 +55,23 @@ export const SS4_CSS = `
     --bg-base:       #f4f5f7;
     --bg-elevated:   #ffffff;
     --bg-overlay:    #f9fafb;
-    --bg-hover:      rgba(0,0,0,0.03);
-    --bg-active:     rgba(5,150,105,0.08);
-    --bg-subtle:     rgba(0,0,0,0.02);
+    --bg-hover:      rgba(15,23,42,0.055);
+    --bg-active:     rgba(5,150,105,0.13);
+    --bg-subtle:     rgba(15,23,42,0.04);
 
     --surface-1:     #ffffff;
     --surface-2:     #f4f5f7;
     --surface-3:     #eaecf0;
 
-    --border-1:      rgba(0,0,0,0.06);
-    --border-2:      rgba(0,0,0,0.09);
-    --border-3:      rgba(0,0,0,0.14);
+    --border-1:      rgba(15,23,42,0.12);
+    --border-2:      rgba(15,23,42,0.18);
+    --border-3:      rgba(15,23,42,0.28);
 
     --accent:        #059669;
     --accent-muted:  rgba(5,150,105,0.1);
     --accent-hover:  #047857;
-    --accent-text:   #059669;
+    --accent-text:   #047857;
+    --conversation-active-bg: rgba(5,150,105,0.15);
 
     --positive:      #22b060;
     --positive-muted:rgba(34,176,96,0.1);
@@ -77,24 +79,24 @@ export const SS4_CSS = `
     --danger:        #dc3545;
     --danger-muted:  rgba(220,53,69,0.08);
 
-    --text-primary:  rgba(0,0,0,0.87);
-    --text-secondary:rgba(0,0,0,0.50);
-    --text-tertiary: rgba(0,0,0,0.32);
-    --text-disabled: rgba(0,0,0,0.20);
+    --text-primary:  #111827;
+    --text-secondary:#374151;
+    --text-tertiary: #5f6875;
+    --text-disabled: #6b7280;
 
     --bubble-own-bg: linear-gradient(145deg, #059669, #10b981);
     --bubble-own-shadow: 0 3px 14px rgba(5,150,105,0.22);
     --bubble-other-bg: #ffffff;
-    --bubble-other-border: rgba(0,0,0,0.09);
+    --bubble-other-border: rgba(15,23,42,0.16);
 
     --sidebar-bg:    #ffffff;
-    --sidebar-border:rgba(0,0,0,0.08);
+    --sidebar-border:rgba(15,23,42,0.14);
 
     --input-bg:      #ffffff;
-    --input-border:  rgba(0,0,0,0.1);
+    --input-border:  rgba(15,23,42,0.18);
     --input-focus:   rgba(5,150,105,0.3);
 
-    --scrollbar:     rgba(0,0,0,0.1);
+    --scrollbar:     rgba(15,23,42,0.24);
     --shadow-sm:     0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
     --shadow-md:     0 4px 16px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.06);
     --shadow-lg:     0 20px 60px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.1);
@@ -107,6 +109,29 @@ export const SS4_CSS = `
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .ss4[data-theme="dark"] { color-scheme: dark; }
+  .ss4[data-theme="light"] { color-scheme: light; }
+
+  /* Shared readability and native-control contrast */
+  .ss4 input,
+  .ss4 textarea,
+  .ss4 select {
+    color: var(--text-primary);
+  }
+  .ss4 input::placeholder,
+  .ss4 textarea::placeholder {
+    color: var(--text-tertiary);
+    opacity: 1;
+  }
+  .ss4 select option {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  .ss4 button:disabled,
+  .ss4 [aria-disabled="true"] {
+    color: var(--text-disabled);
   }
   .ss4-display { font-family: 'Cabinet Grotesk', sans-serif; }
   .ss4-mono { font-family: 'Geist Mono', monospace; }
@@ -131,7 +156,7 @@ export const SS4_CSS = `
     position: relative;
   }
   .ss4-conv:hover { background: var(--bg-hover); }
-  .ss4-conv-active { background: rgba(16,185,129,0.18) !important; }
+  .ss4-conv-active { background: var(--conversation-active-bg, rgba(16,185,129,0.18)) !important; }
   .ss4-conv-name { color: var(--text-primary); }
   .ss4-conv-preview { color: var(--text-secondary); }
   .ss4-conv-active::before {
@@ -263,9 +288,69 @@ export const SS4_CSS = `
     border-radius: 14px;
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
+  /*
+   * Reply composer focus behavior:
+   * The outer composer always stays neutral. Only the actual subject or
+   * message field receives the emerald focus treatment.
+   */
+  .ss4-input-wrap,
+  .ss4-input-wrap:focus,
   .ss4-input-wrap:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--input-focus);
+    border-color: var(--input-border) !important;
+    box-shadow: none !important;
+  }
+
+  .suprah-composer-field {
+    transition:
+      background-color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .suprah-composer-subject:focus {
+    background: var(--bg-active);
+    box-shadow: inset 0 -2px 0 var(--accent);
+  }
+
+  .suprah-composer-message:focus {
+    background: var(--bg-active);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+
+  /*
+   * Prevent browser selection/tap artifacts on composer controls while
+   * keeping the actual subject and message fields selectable.
+   */
+  .suprah-reply-section,
+  .suprah-reply-section button,
+  .suprah-reply-section [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .suprah-reply-section button,
+  .suprah-reply-section [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .suprah-reply-section .suprah-composer-field {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /*
+   * Mouse clicks do not leave an unnecessary browser outline.
+   * Keyboard navigation keeps a visible accessible focus indicator.
+   */
+  .suprah-reply-section button:focus:not(:focus-visible),
+  .suprah-reply-section [role="button"]:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .suprah-reply-section button:focus-visible,
+  .suprah-reply-section [role="button"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   /* ── Send Button ────────────────────────────────────── */

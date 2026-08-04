@@ -1,23 +1,31 @@
 "use client";
 
 import * as React from "react";
+import { Save } from "lucide-react";
+import { ContactDetailsPanel } from "@/components/conversation-workspace/ContactDetailsPanel";
+import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
 import {
-  CalendarDays,
-  Calculator,
-  ChevronDown,
-  ChevronUp,
-  CircleDollarSign,
-  Clock3,
-  Mail,
-  MapPin,
-  Phone,
-  StickyNote,
-  Tag,
-  UserRound,
-  X,
-  PanelRightClose,
-} from "lucide-react";
-import { Avatar } from "./atomic/Avatar";
+  leadActivityItems,
+  leadDetailSections,
+  leadQuickActions,
+  leadToWorkspaceContact,
+} from "@/components/conversation-workspace/adapters/lead-inbox-adapter";
+
+interface LeadDetailsUpdate {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  tags?: string[];
+  source?: string;
+  opportunityValue?: number | null;
+  vehicle?: {
+    year?: string;
+    make?: string;
+    model?: string;
+  };
+}
 
 interface LeadDetailsPanelProps {
   lead: any;
@@ -28,62 +36,18 @@ interface LeadDetailsPanelProps {
   onRequestPayment: () => void;
   onCalculateQuote: () => void;
   onAddNote: (note: string) => void | Promise<void>;
+  onUpdateDetails: (changes: LeadDetailsUpdate) => void | Promise<void>;
 }
 
-type PanelTab = "details" | "activity";
-type ActivityFilter = "all" | "status" | "notes";
+const STATUS_OPTIONS = [
+  { value: "New", label: "New" },
+  { value: "Pending", label: "Pending" },
+  { value: "Contacted", label: "Contacted" },
+  { value: "Appointment Set", label: "Appointment Set" },
+];
 
-interface ActivityItem {
-  id: string;
-  type: "inquiry" | "status" | "note";
-  title: string;
-  description: string;
-  createdAt: string | Date | undefined;
-}
-
-const getLeadName = (lead: any) =>
-  [lead?.firstName, lead?.lastName].filter(Boolean).join(" ") ||
-  lead?.senderName ||
-  "Unknown Lead";
-
-const formatDate = (value: any) => {
-  if (!value) return "Not provided";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-};
-
-function DetailRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value?: React.ReactNode;
-}) {
-  return (
-    <div className="suprah-detail-row">
-      <div className="suprah-detail-row-icon">{icon}</div>
-
-      <div className="min-w-0">
-        <span>{label}</span>
-        <p className="wrap-break-word">{value || "Not provided"}</p>
-      </div>
-    </div>
-  );
-}
+const fieldClass =
+  "h-9 w-full min-w-0 rounded-md border bg-(--input-bg) px-2.5 text-xs outline-none focus:border-emerald-500/60";
 
 export function LeadDetailsPanel({
   lead,
@@ -94,656 +58,193 @@ export function LeadDetailsPanel({
   onRequestPayment,
   onCalculateQuote,
   onAddNote,
+  onUpdateDetails,
 }: LeadDetailsPanelProps) {
-  const [tab, setTab] = React.useState<PanelTab>("details");
-  const [activityFilter, setActivityFilter] =
-    React.useState<ActivityFilter>("all");
+  const [noteIntent, setNoteIntent] = React.useState(0);
+  const [editingContact, setEditingContact] = React.useState(false);
+  const [editingLead, setEditingLead] = React.useState(false);
+  const [savingContact, setSavingContact] = React.useState(false);
+  const [savingLead, setSavingLead] = React.useState(false);
 
-  const [contactOpen, setContactOpen] = React.useState(true);
-  const [leadOpen, setLeadOpen] = React.useState(true);
+  const initialContact = React.useMemo(
+    () => ({
+      firstName: lead?.firstName || "",
+      lastName: lead?.lastName || "",
+      email: resolveCustomerEmail(lead),
+      phone: lead?.phone || "",
+      address: lead?.address || "",
+      tags: (lead?.tags || lead?.labels || []).join(", "),
+    }),
+    [lead],
+  );
 
-  const [noteOpen, setNoteOpen] = React.useState(false);
-  const [note, setNote] = React.useState("");
-  const [noteError, setNoteError] = React.useState("");
-  const [isSavingNote, setIsSavingNote] = React.useState(false);
+  const initialLeadInfo = React.useMemo(
+    () => ({
+      source: lead?.source || sourceEmail || "",
+      opportunityValue:
+        lead?.opportunityValue === undefined || lead?.opportunityValue === null
+          ? ""
+          : String(lead.opportunityValue),
+      vehicleYear: lead?.vehicle?.year || "",
+      vehicleMake: lead?.vehicle?.make || "",
+      vehicleModel: lead?.vehicle?.model || "",
+    }),
+    [lead, sourceEmail],
+  );
 
-  const noteInputRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const [contactDraft, setContactDraft] = React.useState(initialContact);
+  const [leadDraft, setLeadDraft] = React.useState(initialLeadInfo);
 
-  const leadName = getLeadName(lead);
-  const vehicle = lead?.vehicle;
+  React.useEffect(() => {
+    setContactDraft(initialContact);
+    setLeadDraft(initialLeadInfo);
+    setEditingContact(false);
+    setEditingLead(false);
+  }, [lead?._id, initialContact, initialLeadInfo]);
 
-  const vehicleLabel = vehicle
-    ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")
-    : "Vehicle not specified";
+  const phone = String(lead?.phone || "").trim();
+  const dialablePhone = phone.replace(/[^\d+]/g, "");
+  const contact = React.useMemo(() => leadToWorkspaceContact(lead), [lead]);
+  const details = React.useMemo(
+    () => leadDetailSections(lead, sourceEmail),
+    [lead, sourceEmail],
+  );
+  const activities = React.useMemo(() => leadActivityItems(lead), [lead]);
 
-  const activityItems = React.useMemo<ActivityItem[]>(() => {
-    const inquiryItem: ActivityItem = {
-      id: `inquiry-${lead?._id || "unknown"}`,
-      type: "inquiry",
-      title: "Lead inquiry received",
-      description:
-        lead?.subject ||
-        lead?.parsedContent ||
-        lead?.comments ||
-        vehicleLabel,
-      createdAt: lead?.createdAt,
-    };
-
-    const noteItems: ActivityItem[] = (lead?.notes || []).map(
-      (item: any, index: number) => ({
-        id:
-          item?._id ||
-          `note-${item?.createdAt || "unknown"}-${index}`,
-        type: "note",
-        title: "Note added",
-        description: item?.text || "Internal note",
-        createdAt: item?.createdAt,
+  const actions = React.useMemo(
+    () =>
+      leadQuickActions({
+        onCall: () => {
+          if (dialablePhone) window.location.href = `tel:${dialablePhone}`;
+        },
+        onPayment: onRequestPayment,
+        onAppointment,
+        onQuote: onCalculateQuote,
+        onNote: () => setNoteIntent((value) => value + 1),
+        hasPhone: Boolean(dialablePhone),
       }),
-    );
+    [dialablePhone, onAppointment, onCalculateQuote, onRequestPayment],
+  );
 
-    const statusItems: ActivityItem[] = (lead?.statusHistory || []).map(
-      (entry: any, index: number) => ({
-        id: `status-${entry?.changedAt || "unknown"}-${index}`,
-        type: "status",
-        title: `Status changed to ${entry?.to || "Updated"}`,
-        description:
-          entry?.reason ||
-          `Previous status: ${entry?.from || "Unknown"}`,
-        createdAt: entry?.changedAt,
-      }),
-    );
-
-    return [inquiryItem, ...noteItems, ...statusItems].sort((a, b) => {
-      const aTime = new Date(a.createdAt || 0).getTime();
-      const bTime = new Date(b.createdAt || 0).getTime();
-      return bTime - aTime;
-    });
-  }, [
-    lead?._id,
-    lead?.subject,
-    lead?.parsedContent,
-    lead?.comments,
-    lead?.createdAt,
-    lead?.notes,
-    lead?.statusHistory,
-    vehicleLabel,
-  ]);
-
-  const filteredActivityItems = React.useMemo(() => {
-    if (activityFilter === "status") {
-      return activityItems.filter((item) => item.type === "status");
-    }
-
-    if (activityFilter === "notes") {
-      return activityItems.filter((item) => item.type === "note");
-    }
-
-    return activityItems;
-  }, [activityFilter, activityItems]);
-
-  React.useEffect(() => {
-    setTab("details");
-    setActivityFilter("all");
-    setNoteOpen(false);
-    setNote("");
-    setNoteError("");
-    setIsSavingNote(false);
-  }, [lead?._id]);
-
-  React.useEffect(() => {
-    if (!noteOpen) return;
-
-    const timer = window.setTimeout(() => {
-      noteInputRef.current?.focus();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [noteOpen]);
-
-  React.useEffect(() => {
-    if (!noteOpen || isSavingNote) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setNoteOpen(false);
-        setNote("");
-        setNoteError("");
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [noteOpen, isSavingNote]);
-
-  const openNoteDialog = () => {
-    setNote("");
-    setNoteError("");
-    setNoteOpen(true);
-  };
-
-  const handleCallLead = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    const rawPhone = lead?.phone ? String(lead.phone).trim() : "";
-    const dialablePhone = rawPhone.replace(/[^\d+]/g, "");
-
-    if (!dialablePhone) {
-      event.preventDefault();
-      return;
-    }
-
+  const saveContact = async () => {
+    if (!contactDraft.firstName.trim()) return;
+    setSavingContact(true);
     try {
-      window.location.href = `tel:${dialablePhone}`;
-    } catch (error) {
-      console.error("Failed to initiate call:", error);
-    }
-
-    event.preventDefault();
-  };
-
-  const closeNoteDialog = () => {
-    if (isSavingNote) return;
-
-    setNoteOpen(false);
-    setNote("");
-    setNoteError("");
-  };
-
-  const handleSaveNote = async () => {
-    const trimmedNote = note.trim();
-
-    if (!trimmedNote) {
-      setNoteError("Please enter a note before saving.");
-      noteInputRef.current?.focus();
-      return;
-    }
-
-    if (trimmedNote.length > 5000) {
-      setNoteError("The note cannot exceed 5,000 characters.");
-      noteInputRef.current?.focus();
-      return;
-    }
-
-    try {
-      setIsSavingNote(true);
-      setNoteError("");
-
-      await onAddNote(trimmedNote);
-
-      setNote("");
-      setNoteOpen(false);
-      setTab("activity");
-      setActivityFilter("all");
-    } catch (error) {
-      console.error("Failed to save note:", error);
-      setNoteError("The note could not be saved. Please try again.");
+      await onUpdateDetails({
+        firstName: contactDraft.firstName.trim(),
+        lastName: contactDraft.lastName.trim(),
+        email: contactDraft.email.trim(),
+        phone: contactDraft.phone.trim(),
+        address: contactDraft.address.trim(),
+        tags: contactDraft.tags
+          .split(",")
+          .map((tag: string) => tag.trim())
+          .filter(Boolean),
+      });
+      setEditingContact(false);
     } finally {
-      setIsSavingNote(false);
+      setSavingContact(false);
     }
   };
 
-  const handleNoteKeyDown = (
-    event: React.KeyboardEvent<HTMLTextAreaElement>,
-  ) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-      event.preventDefault();
-      void handleSaveNote();
+  const saveLeadInformation = async () => {
+    setSavingLead(true);
+    try {
+      const rawValue = leadDraft.opportunityValue.trim();
+      const parsedValue = rawValue === "" ? null : Number(rawValue);
+      if (parsedValue !== null && (!Number.isFinite(parsedValue) || parsedValue < 0)) {
+        throw new Error("Opportunity value must be zero or greater");
+      }
+
+      await onUpdateDetails({
+        source: leadDraft.source.trim(),
+        opportunityValue: parsedValue,
+        vehicle: {
+          year: leadDraft.vehicleYear.trim(),
+          make: leadDraft.vehicleMake.trim(),
+          model: leadDraft.vehicleModel.trim(),
+        },
+      });
+      setEditingLead(false);
+    } finally {
+      setSavingLead(false);
     }
   };
 
   return (
-    <aside
-      className="suprah-details-panel"
-      data-panel="lead-details"
-    >
-      <div className="suprah-profile-header">
-        <Avatar
-          first={lead?.firstName}
-          last={lead?.lastName}
-          size="lg"
-        />
-
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate">{leadName}</h2>
-
-          <p className="truncate">
-            {lead?.phone ||
-              lead?.email ||
-              lead?.senderEmail ||
-              "No contact information"}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="ss4-icon-btn h-9 w-9 shrink-0"
-          aria-label="Collapse lead details"
-          title="Collapse lead details"
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </button>
-      </div>
-
-      <p className="suprah-contact-type">Contact type: Lead</p>
-
-      <div className="suprah-ai-summary">
-        <strong>Conversation summary</strong>
-
-        <p>
-          {lead?.aiSummary ||
-            `This lead submitted an inquiry about ${vehicleLabel}. Review the conversation and follow up with the next best action.`}
-        </p>
-      </div>
-
-      <div className="suprah-quick-actions">
-        <a
-          href={
-            lead?.phone
-              ? `tel:${String(lead.phone).trim().replace(/[^\d+]/g, "")}`
-              : undefined
-          }
-          onClick={handleCallLead}
-          aria-disabled={!lead?.phone}
-          tabIndex={lead?.phone ? 0 : -1}
-          title={lead?.phone ? "Call lead" : "No phone number on file"}
-        >
-          <Phone size={16} />
-          <span>Call</span>
-        </a>
-
-        <button
-          type="button"
-          onClick={onRequestPayment}
-          title="Request payment"
-        >
-          <CircleDollarSign size={16} />
-          <span>Request payment</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onAppointment}
-          title="Schedule appointment"
-        >
-          <CalendarDays size={16} />
-          <span>Schedule</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onCalculateQuote}
-          title="Calculate quote"
-        >
-          <Calculator size={16} />
-          <span>Calculate</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={openNoteDialog}
-          title="Add internal note"
-          aria-label="Add internal note"
-        >
-          <StickyNote size={16} />
-          <span>Note</span>
-        </button>
-      </div>
-
-      {noteOpen && (
-        <div
-          className="fixed inset-0 z-999 flex items-center justify-center p-4"
-          style={{ background: "rgba(0, 0, 0, 0.58)" }}
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeNoteDialog();
-            }
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="lead-note-dialog-title"
-            className="w-full max-w-105 rounded-xl border p-5"
-            style={{
-              background: "var(--bg-elevated)",
-              borderColor: "var(--border-2)",
-              boxShadow: "var(--shadow-lg)",
-            }}
-          >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3
-                  id="lead-note-dialog-title"
-                  className="text-lg font-semibold"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Add note
-                </h3>
-
-                <p
-                  className="mt-1 truncate text-sm"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Add an internal note for {leadName}.
-                </p>
+    <ContactDetailsPanel
+      contact={contact}
+      contactTypeLabel="Contact type: Lead"
+      summary={
+        lead?.aiSummary ||
+        `This lead submitted an inquiry about ${[
+          lead?.vehicle?.year,
+          lead?.vehicle?.make,
+          lead?.vehicle?.model,
+        ]
+          .filter(Boolean)
+          .join(" ") || "a vehicle"}. Review the conversation and follow up with the next best action.`
+      }
+      quickActions={actions}
+      detailSections={details}
+      activities={activities}
+      onClose={onClose}
+      status={lead?.status || "New"}
+      statusOptions={STATUS_OPTIONS}
+      onStatusChange={onStatusChange}
+      onAddNote={onAddNote}
+      activitySubtitle="Inquiry, notes, and status history"
+      openNoteSignal={noteIntent}
+      sectionEditors={{
+        contact: {
+          isEditing: editingContact,
+          onEdit: () => setEditingContact(true),
+          onCancel: () => {
+            setContactDraft(initialContact);
+            setEditingContact(false);
+          },
+          content: (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input value={contactDraft.firstName} onChange={(event) => setContactDraft((current) => ({ ...current, firstName: event.target.value }))} placeholder="First name" className={fieldClass} />
+                <input value={contactDraft.lastName} onChange={(event) => setContactDraft((current) => ({ ...current, lastName: event.target.value }))} placeholder="Last name" className={fieldClass} />
               </div>
-
-              <button
-                type="button"
-                onClick={closeNoteDialog}
-                disabled={isSavingNote}
-                className="ss4-icon-btn h-8 w-8 shrink-0"
-                aria-label="Close add note dialog"
-              >
-                <X className="h-4 w-4" />
+              <input type="email" value={contactDraft.email} onChange={(event) => setContactDraft((current) => ({ ...current, email: event.target.value }))} placeholder="Email" className={fieldClass} />
+              <input type="tel" value={contactDraft.phone} onChange={(event) => setContactDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="Phone" className={fieldClass} />
+              <input value={contactDraft.address} onChange={(event) => setContactDraft((current) => ({ ...current, address: event.target.value }))} placeholder="Address" className={fieldClass} />
+              <input value={contactDraft.tags} onChange={(event) => setContactDraft((current) => ({ ...current, tags: event.target.value }))} placeholder="Tags separated by commas" className={fieldClass} />
+              <button type="button" onClick={() => void saveContact()} disabled={savingContact || !contactDraft.firstName.trim()} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 text-xs font-semibold text-white disabled:opacity-45">
+                <Save className="h-3.5 w-3.5" />
+                {savingContact ? "Saving…" : "Save contact information"}
               </button>
             </div>
-
-            <textarea
-              ref={noteInputRef}
-              rows={6}
-              value={note}
-              disabled={isSavingNote}
-              maxLength={5000}
-              onChange={(event) => {
-                setNote(event.target.value);
-
-                if (noteError) {
-                  setNoteError("");
-                }
-              }}
-              onKeyDown={handleNoteKeyDown}
-              placeholder="Write an internal note..."
-              className="w-full resize-none rounded-lg border p-3 text-sm outline-none"
-              style={{
-                background: "var(--bg-base)",
-                borderColor: noteError
-                  ? "var(--danger, #ef4444)"
-                  : "var(--border-2)",
-                color: "var(--text-primary)",
-              }}
-              aria-invalid={Boolean(noteError)}
-              aria-describedby={
-                noteError ? "lead-note-error" : "lead-note-helper"
-              }
-            />
-
-            <div className="mt-2 flex items-center justify-between gap-3">
-              {noteError ? (
-                <p
-                  id="lead-note-error"
-                  className="text-sm"
-                  style={{ color: "var(--danger, #ef4444)" }}
-                >
-                  {noteError}
-                </p>
-              ) : (
-                <p
-                  id="lead-note-helper"
-                  className="text-xs"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  Press Ctrl + Enter or Command + Enter to save.
-                </p>
-              )}
-
-              <span
-                className="shrink-0 text-xs"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                {note.length}/5000
-              </span>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeNoteDialog}
-                disabled={isSavingNote}
-                className="rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  borderColor: "var(--border-2)",
-                  color: "var(--text-primary)",
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleSaveNote()}
-                disabled={isSavingNote || !note.trim()}
-                className="rounded-lg px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  background: "var(--accent)",
-                  color: "#ffffff",
-                }}
-              >
-                {isSavingNote ? "Saving..." : "Save note"}
+          ),
+        },
+        lead: {
+          isEditing: editingLead,
+          onEdit: () => setEditingLead(true),
+          onCancel: () => {
+            setLeadDraft(initialLeadInfo);
+            setEditingLead(false);
+          },
+          content: (
+            <div className="space-y-2">
+              <input value={leadDraft.source} onChange={(event) => setLeadDraft((current) => ({ ...current, source: event.target.value }))} placeholder="Lead source" className={fieldClass} />
+              <input type="number" min="0" step="0.01" value={leadDraft.opportunityValue} onChange={(event) => setLeadDraft((current) => ({ ...current, opportunityValue: event.target.value }))} placeholder="Opportunity value" className={fieldClass} />
+              <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-2">
+                <input value={leadDraft.vehicleYear} onChange={(event) => setLeadDraft((current) => ({ ...current, vehicleYear: event.target.value }))} placeholder="Year" className={fieldClass} />
+                <input value={leadDraft.vehicleMake} onChange={(event) => setLeadDraft((current) => ({ ...current, vehicleMake: event.target.value }))} placeholder="Make" className={fieldClass} />
+                <input value={leadDraft.vehicleModel} onChange={(event) => setLeadDraft((current) => ({ ...current, vehicleModel: event.target.value }))} placeholder="Model" className={fieldClass} />
+              </div>
+              <p className="text-[10px] leading-relaxed text-(--text-tertiary)">Created date is system-managed and cannot be edited.</p>
+              <button type="button" onClick={() => void saveLeadInformation()} disabled={savingLead} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 text-xs font-semibold text-white disabled:opacity-45">
+                <Save className="h-3.5 w-3.5" />
+                {savingLead ? "Saving…" : "Save lead information"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      <label
-        className="suprah-status-label"
-        htmlFor="lead-detail-status"
-      >
-        Lead status
-      </label>
-
-      <select
-        id="lead-detail-status"
-        className="suprah-status-select"
-        value={lead?.status || "New"}
-        onChange={(event) => onStatusChange(event.target.value)}
-      >
-        <option value="New">New</option>
-        <option value="Pending">Pending</option>
-        <option value="Contacted">Contacted</option>
-        <option value="Appointment Set">Appointment Set</option>
-        <option value="Closed">Closed</option>
-      </select>
-
-      <div className="suprah-stage-track" aria-hidden="true">
-        {[
-          "New",
-          "Pending",
-          "Contacted",
-          "Appointment Set",
-          "Closed",
-        ].map((status) => (
-          <span
-            key={status}
-            className={status === lead?.status ? "active" : ""}
-          />
-        ))}
-      </div>
-
-      <div className="suprah-tabs">
-        <button
-          type="button"
-          className={tab === "details" ? "active" : ""}
-          onClick={() => setTab("details")}
-        >
-          Details
-        </button>
-
-        <button
-          type="button"
-          className={tab === "activity" ? "active" : ""}
-          onClick={() => setTab("activity")}
-        >
-          Activity
-        </button>
-      </div>
-
-      <div
-        className="suprah-details-scroll"
-        style={{
-          minWidth: 0,
-          flex: 1,
-          overflowY: "auto",
-          overflowX: "hidden",
-        }}
-      >
-        {tab === "details" ? (
-          <>
-            <section className="suprah-detail-section">
-              <button
-                type="button"
-                className="suprah-detail-section-title"
-                onClick={() => setContactOpen((value) => !value)}
-              >
-                <span>Contact information</span>
-
-                {contactOpen ? (
-                  <ChevronUp size={16} />
-                ) : (
-                  <ChevronDown size={16} />
-                )}
-              </button>
-
-              {contactOpen && (
-                <div className="suprah-detail-section-body">
-                  <DetailRow
-                    icon={<UserRound size={15} />}
-                    label="Name"
-                    value={leadName}
-                  />
-
-                  <DetailRow
-                    icon={<Phone size={15} />}
-                    label="Phone"
-                    value={lead?.phone}
-                  />
-
-                  <DetailRow
-                    icon={<Mail size={15} />}
-                    label="Email"
-                    value={lead?.email || lead?.senderEmail}
-                  />
-
-                  <DetailRow
-                    icon={<MapPin size={15} />}
-                    label="Address"
-                    value={lead?.address}
-                  />
-
-                  <DetailRow
-                    icon={<Tag size={15} />}
-                    label="Tags"
-                    value={
-                      Array.isArray(lead?.tags)
-                        ? lead.tags.join(", ")
-                        : lead?.labels?.join(", ")
-                    }
-                  />
-                </div>
-              )}
-            </section>
-
-            <section className="suprah-detail-section">
-              <button
-                type="button"
-                className="suprah-detail-section-title"
-                onClick={() => setLeadOpen((value) => !value)}
-              >
-                <span>Lead information</span>
-
-                {leadOpen ? (
-                  <ChevronUp size={16} />
-                ) : (
-                  <ChevronDown size={16} />
-                )}
-              </button>
-
-              {leadOpen && (
-                <div className="suprah-detail-section-body">
-                  <DetailRow
-                    icon={<Tag size={15} />}
-                    label="Source"
-                    value={lead?.source || sourceEmail}
-                  />
-
-                  <DetailRow
-                    icon={<CircleDollarSign size={15} />}
-                    label="Opportunity value"
-                    value={
-                      lead?.opportunityValue
-                        ? `$${Number(
-                          lead.opportunityValue,
-                        ).toLocaleString()}`
-                        : undefined
-                    }
-                  />
-
-                  <DetailRow
-                    icon={<Calculator size={15} />}
-                    label="Vehicle"
-                    value={vehicleLabel}
-                  />
-
-                  <DetailRow
-                    icon={<Clock3 size={15} />}
-                    label="Created"
-                    value={formatDate(lead?.createdAt)}
-                  />
-                </div>
-              )}
-            </section>
-          </>
-        ) : (
-          <section className="suprah-activity">
-            <div className="suprah-activity-heading">
-              <h3>Activity timeline</h3>
-
-              <select
-                aria-label="Filter activity"
-                value={activityFilter}
-                onChange={(event) =>
-                  setActivityFilter(event.target.value as ActivityFilter)
-                }
-              >
-                <option value="all">All activity</option>
-                <option value="status">Status changes</option>
-                <option value="notes">Notes</option>
-              </select>
-            </div>
-
-            <div className="suprah-timeline">
-              {filteredActivityItems.length > 0 ? (
-                filteredActivityItems.map((item) => (
-                  <article
-                    key={item.id}
-                    className="suprah-activity-card"
-                  >
-                    <span className="suprah-timeline-dot" />
-
-                    <strong>{item.title}</strong>
-                    <p>{item.description}</p>
-                    <time>{formatDate(item.createdAt)}</time>
-                  </article>
-                ))
-              ) : (
-                <div
-                  className="rounded-lg border p-4 text-sm"
-                  style={{
-                    borderColor: "var(--border-1)",
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  No activity found for this filter.
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-      </div>
-    </aside>
+          ),
+        },
+      }}
+    />
   );
 }
