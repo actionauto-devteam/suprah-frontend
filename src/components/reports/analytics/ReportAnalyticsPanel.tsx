@@ -61,6 +61,22 @@ interface ChartThemeColors {
   surface: string;
 }
 
+const DARK_CHART_THEME: ChartThemeColors = {
+  axis: "#CBD5E1",
+  grid: "rgba(148, 163, 184, 0.34)",
+  cursor: "rgba(148, 163, 184, 0.18)",
+  foreground: "#F8FAFC",
+  surface: "#111827",
+};
+
+const LIGHT_CHART_THEME: ChartThemeColors = {
+  axis: "#334155",
+  grid: "rgba(71, 85, 105, 0.30)",
+  cursor: "rgba(37, 99, 235, 0.10)",
+  foreground: "#0F172A",
+  surface: "#FFFFFF",
+};
+
 interface SafeBarValueLabelProps {
   x?: number | string;
   y?: number | string;
@@ -72,53 +88,15 @@ interface SafeBarValueLabelProps {
   color: string;
 }
 
-function normalizeCssColor(rawValue: string, fallback: string): string {
-  const value = rawValue.trim();
-  if (!value) return fallback;
-  if (
-    value.startsWith("#") ||
-    value.startsWith("rgb") ||
-    value.startsWith("hsl") ||
-    value.startsWith("oklch") ||
-    value.startsWith("oklab") ||
-    value.startsWith("lab") ||
-    value.startsWith("lch") ||
-    value.startsWith("color(")
-  ) {
-    return value;
-  }
-  // Supports older shadcn variables stored as raw HSL channels.
-  return `hsl(${value})`;
-}
-
 function useChartThemeColors(): ChartThemeColors {
-  const [colors, setColors] = React.useState<ChartThemeColors>({
-    axis: "#64748B",
-    grid: "#CBD5E1",
-    cursor: "#E2E8F0",
-    foreground: "#0F172A",
-    surface: "#FFFFFF",
-  });
+  const [colors, setColors] = React.useState<ChartThemeColors>(
+    LIGHT_CHART_THEME,
+  );
 
   React.useEffect(() => {
     const update = () => {
-      const rootStyles = window.getComputedStyle(document.documentElement);
-      const bodyStyles = document.body
-        ? window.getComputedStyle(document.body)
-        : rootStyles;
-      const read = (name: string, fallback: string) =>
-        normalizeCssColor(
-          rootStyles.getPropertyValue(name) || bodyStyles.getPropertyValue(name),
-          fallback,
-        );
-
-      setColors({
-        axis: read("--muted-foreground", "#64748B"),
-        grid: read("--border", "#CBD5E1"),
-        cursor: read("--muted", "#E2E8F0"),
-        foreground: read("--foreground", "#0F172A"),
-        surface: read("--card", "#FFFFFF"),
-      });
+      const isDark = document.documentElement.classList.contains("dark");
+      setColors(isDark ? DARK_CHART_THEME : LIGHT_CHART_THEME);
     };
 
     update();
@@ -129,6 +107,7 @@ function useChartThemeColors(): ChartThemeColors {
     });
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     media.addEventListener?.("change", update);
+
     return () => {
       observer.disconnect();
       media.removeEventListener?.("change", update);
@@ -195,7 +174,7 @@ function SafeBarValueLabel({
       x={labelX}
       y={labelY}
       fill={color}
-      fontSize={10}
+      fontSize={12}
       textAnchor={horizontal ? "start" : "middle"}
       dominantBaseline={horizontal ? "middle" : "auto"}
     >
@@ -291,7 +270,7 @@ function AnalyticsTooltip({
   );
 
   return (
-    <div className="w-max min-w-44 max-w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover/98 px-3.5 py-3 text-xs text-popover-foreground shadow-2xl backdrop-blur-xl">
+    <div className="w-max min-w-44 max-w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover/98 px-3.5 py-3 text-sm text-popover-foreground shadow-2xl backdrop-blur-xl">
       {categoryLabel ? (
         <p className="mb-2 max-w-72 break-words font-semibold text-foreground">
           {categoryLabel}
@@ -309,7 +288,7 @@ function AnalyticsTooltip({
               key={`${key}-${index}`}
               className="flex items-start justify-between gap-4"
             >
-              <span className="flex min-w-0 flex-1 items-start gap-2 text-muted-foreground">
+              <span className="flex min-w-0 flex-1 items-start gap-2 text-slate-700 dark:text-slate-300">
                 <span
                   className="mt-0.5 size-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: entry.color || series?.color }}
@@ -332,7 +311,7 @@ function AnalyticsTooltip({
                 key={field.key}
                 className="flex max-w-72 items-start justify-between gap-4"
               >
-                <span className="min-w-0 flex-1 break-words leading-snug text-muted-foreground">
+                <span className="min-w-0 flex-1 break-words leading-snug text-slate-700 dark:text-slate-300">
                   {field.label}
                 </span>
                 <span
@@ -410,7 +389,7 @@ function DonutChartCard({
           <span className="text-3xl font-black tracking-tight text-foreground">
             {total.toLocaleString("en-US")}
           </span>
-          <span className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             records
           </span>
         </div>
@@ -437,12 +416,12 @@ function DonutChartCard({
                     ],
                 }}
               />
-              <span className="min-w-0 flex-1 break-words text-sm font-medium text-muted-foreground">
+              <span className="min-w-0 flex-1 break-words text-sm font-medium text-slate-700 dark:text-slate-300">
                 {item.label}
               </span>
               <span className="shrink-0 text-sm font-bold text-foreground">
                 {value.toLocaleString("en-US")}
-                <span className="ml-1 font-normal text-muted-foreground">
+                <span className="ml-1 font-normal text-slate-600 dark:text-slate-400">
                   ({percentage.toFixed(1)}%)
                 </span>
               </span>
@@ -471,14 +450,14 @@ function ChartInsights({
           key={`${insight.label}-${insight.value}`}
           className="min-w-0 rounded-lg border border-primary/10 bg-primary/[0.035] px-3 py-2.5"
         >
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
             {insight.label}
           </p>
           <p className="mt-1 break-words text-sm font-bold text-foreground">
             {insight.value}
           </p>
           {insight.description ? (
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-300">
               {insight.description}
             </p>
           ) : null}
@@ -501,7 +480,7 @@ function SeriesLegend({
       {series.map((item) => (
         <div
           key={item.key}
-          className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"
+          className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300"
         >
           <span
             className="size-2.5 shrink-0 rounded-full"
@@ -530,14 +509,14 @@ function ChartFooterItems({ chart }: { chart: ReportAnalyticsChart }) {
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="text-xs font-bold text-foreground">{item.label}</p>
+              <p className="text-sm font-bold text-foreground">{item.label}</p>
               <p className="max-w-full break-words text-right text-sm font-black text-foreground">
                 {item.displayValue ||
                   finiteNumber(item.value).toLocaleString("en-US")}
               </p>
             </div>
             {item.description ? (
-              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+              <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-300">
                 {item.description}
               </p>
             ) : null}
@@ -554,11 +533,11 @@ function BaselineCard({ chart }: { chart: ReportAnalyticsChart }) {
   return (
     <div className="mb-3 flex min-w-0 flex-col gap-1 rounded-lg border border-primary/15 bg-primary/[0.045] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
           {chart.baseline.label}
         </p>
         {chart.baseline.description ? (
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-300">
             {chart.baseline.description}
           </p>
         ) : null}
@@ -592,12 +571,12 @@ function ComparisonBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
               <div className="min-w-0">
                 <p className="font-bold text-foreground">{point.label}</p>
                 {point.detail ? (
-                  <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                  <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-300">
                     {String(point.detail)}
                   </p>
                 ) : null}
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
                 <span>
                   Conversion <strong className="text-foreground">{finiteNumber(point.conversionRate).toFixed(1)}%</strong>
                 </span>
@@ -613,7 +592,7 @@ function ComparisonBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
                 const width = (value / maxValue) * 100;
                 return (
                   <div key={series.key} className="grid min-w-0 grid-cols-[minmax(7.5rem,auto)_1fr_auto] items-center gap-3">
-                    <span className="text-[11px] font-semibold text-muted-foreground">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                       {series.label}
                     </span>
                     <div className="h-3 min-w-0 overflow-hidden rounded-full bg-muted">
@@ -670,7 +649,7 @@ function WorkloadBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
                       className="size-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: color }}
                     />
-                    <p className="break-words text-xs font-bold text-foreground">
+                    <p className="break-words text-sm font-bold text-foreground">
                       {point.label}
                     </p>
                   </div>
@@ -678,7 +657,7 @@ function WorkloadBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
                     {value.toLocaleString("en-US")}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                <span className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-xs font-bold text-slate-600 dark:text-slate-300">
                   {share.toFixed(1)}%
                 </span>
               </div>
@@ -691,15 +670,15 @@ function WorkloadBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
                   }}
                 />
               </div>
-              <p className="mt-2 min-h-10 text-[10px] leading-relaxed text-muted-foreground">
+              <p className="mt-2 min-h-16 text-sm leading-6 text-slate-700 dark:text-slate-300">
                 {String(point.detail || "No additional description available.")}
               </p>
             </div>
           );
         })}
       </div>
-      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-        Categories may overlap when the same lead is unread, pending a reply, and scheduled for follow-through.
+      <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
+        A lead may appear in more than one group.
       </p>
       <ChartFooterItems chart={chart} />
     </div>
@@ -715,7 +694,7 @@ function RankingBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
   return (
     <div className="min-w-0">
       {data.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
           No recognized lead sources are available for the selected filters.
         </div>
       ) : (
@@ -756,7 +735,7 @@ function RankingBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
                       className="size-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: color }}
                     />
-                    <p className="min-w-0 break-words text-xs font-bold text-foreground">
+                    <p className="min-w-0 break-words text-sm font-bold text-foreground">
                       {point.label}
                     </p>
                   </div>
@@ -774,7 +753,7 @@ function RankingBarsCard({ chart }: { chart: ReportAnalyticsChart }) {
                   <p className="text-sm font-black text-foreground">
                     {value.toLocaleString("en-US")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     {share.toFixed(1)}%
                   </p>
                 </div>
@@ -800,7 +779,7 @@ function StackedProgressCard({ chart }: { chart: ReportAnalyticsChart }) {
       <BaselineCard chart={chart} />
       <SeriesLegend series={chart.series} />
       {data.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
           No driver assignments match the selected filters.
         </div>
       ) : (
@@ -830,11 +809,11 @@ function StackedProgressCard({ chart }: { chart: ReportAnalyticsChart }) {
                     <p className="break-words text-sm font-bold text-foreground">
                       {point.label}
                     </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-300">
                       {String(point.rankLabel || `Driver ${index + 1}`)} · {completionRate.toFixed(1)}% completion
                     </p>
                   </div>
-                  <div className="grid shrink-0 grid-cols-3 gap-3 text-right text-[10px] text-muted-foreground">
+                  <div className="grid shrink-0 grid-cols-3 gap-3 text-right text-xs text-slate-600 dark:text-slate-300">
                     <span>
                       Delivered<br />
                       <strong className="text-sm text-foreground">{delivered}</strong>
@@ -873,7 +852,7 @@ function StackedProgressCard({ chart }: { chart: ReportAnalyticsChart }) {
                     />
                   ) : null}
                 </div>
-                <p className="mt-2 text-[10px] text-muted-foreground">
+                <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
                   {delivered.toLocaleString("en-US")} delivered + {remaining.toLocaleString("en-US")} still open = {assigned.toLocaleString("en-US")} assigned
                 </p>
               </div>
@@ -966,7 +945,7 @@ function CartesianChartCard({
                 axisLine={false}
                 allowDecimals={allowDecimals}
                 tick={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fill: theme.axis,
                 }}
                 tickFormatter={(value: number | string) =>
@@ -980,7 +959,7 @@ function CartesianChartCard({
                 tickLine={false}
                 axisLine={false}
                 tick={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fill: theme.axis,
                 }}
                 tickFormatter={(value: number | string) => truncateAxisLabel(value, 29)}
@@ -997,7 +976,7 @@ function CartesianChartCard({
                 textAnchor={chartData.length > 5 ? "end" : "middle"}
                 height={chartData.length > 5 ? 58 : 34}
                 tick={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fill: theme.axis,
                 }}
                 tickFormatter={(value: number | string) => truncateAxisLabel(value, 20)}
@@ -1007,7 +986,7 @@ function CartesianChartCard({
                 axisLine={false}
                 allowDecimals={allowDecimals}
                 tick={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fill: theme.axis,
                 }}
                 tickFormatter={(value: number | string) =>
@@ -1119,7 +1098,7 @@ function CartesianChartCard({
           tickLine={false}
           axisLine={false}
           tick={{
-            fontSize: 11,
+            fontSize: 12,
             fill: theme.axis,
           }}
           tickFormatter={(value: number | string) => truncateAxisLabel(value, 18)}
@@ -1130,7 +1109,7 @@ function CartesianChartCard({
           axisLine={false}
           allowDecimals={allowDecimals}
           tick={{
-            fontSize: 11,
+            fontSize: 12,
             fill: theme.axis,
           }}
           tickFormatter={(value: number | string) => formatAxisValue(value, chart.series)}
@@ -1236,11 +1215,11 @@ export function ReportAnalyticsPanel({
             <h2 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
               {model.title}
             </h2>
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
               Suprah Analytics
             </span>
           </div>
-          <p className="mt-1 max-w-4xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+          <p className="mt-1 max-w-4xl text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
             {model.description}
           </p>
         </div>
@@ -1262,10 +1241,10 @@ export function ReportAnalyticsPanel({
             }`}
           >
             <div className="mb-3">
-              <h3 className="text-sm font-bold text-foreground sm:text-base">
+              <h3 className="text-base font-bold text-foreground sm:text-lg">
                 {chart.title}
               </h3>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              <p className="mt-1 text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
                 {chart.description}
               </p>
             </div>

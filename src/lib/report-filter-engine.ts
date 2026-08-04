@@ -162,6 +162,94 @@ export function resolveReportPeriodRange(
   }
 }
 
+
+function formatDateInput(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function subtractCalendarMonths(value: Date, months: number): Date {
+  const day = value.getDate();
+  const result = new Date(value.getFullYear(), value.getMonth() - months, 1);
+  const lastDay = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0,
+  ).getDate();
+  result.setDate(Math.min(day, lastDay));
+
+  return result;
+}
+
+/**
+ * Creates the immediately preceding period using the same duration as the
+ * active report period. This keeps overview comparison cards accurate for
+ * weekly, bi-weekly, monthly, quarterly, semi-annual, annual, and custom
+ * ranges instead of always comparing against the previous calendar month.
+ */
+export function createPreviousReportPeriodFilters(
+  filters: ReportFilterState,
+): ReportFilterState | null {
+  if (filters.period === "all") return null;
+
+  if (filters.period === "custom") {
+    const { from, to } = resolveReportPeriodRange(filters);
+    if (!from || !to) return null;
+
+    const durationInDays =
+      Math.floor(
+        (startOfDay(to).getTime() - startOfDay(from).getTime()) /
+          86_400_000,
+      ) + 1;
+    const previousTo = addDays(startOfDay(from), -1);
+    const previousFrom = addDays(previousTo, -(durationInDays - 1));
+
+    return {
+      ...filters,
+      dateRange: {
+        from: formatDateInput(previousFrom),
+        to: formatDateInput(previousTo),
+      },
+    };
+  }
+
+  const reference =
+    parseDateOnly(filters.referenceDate) ?? startOfDay(new Date());
+  let previousReference = new Date(reference);
+
+  switch (filters.period) {
+    case "weekly":
+      previousReference = addDays(reference, -7);
+      break;
+    case "bi-weekly":
+      previousReference = addDays(reference, -14);
+      break;
+    case "monthly":
+      previousReference = subtractCalendarMonths(reference, 1);
+      break;
+    case "quarterly":
+      previousReference = subtractCalendarMonths(reference, 3);
+      break;
+    case "semi-annually":
+      previousReference = subtractCalendarMonths(reference, 6);
+      break;
+    case "annually":
+      previousReference = subtractCalendarMonths(reference, 12);
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    ...filters,
+    referenceDate: formatDateInput(previousReference),
+    dateRange: { from: undefined, to: undefined },
+  };
+}
+
 export function isDateInRange(
   value: Date | string | undefined,
   filters: ReportFilterState,

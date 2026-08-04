@@ -1,83 +1,70 @@
 "use client";
 
-import React from "react";
+import * as React from "react";
 import {
-  BarChart,
   Bar,
-  XAxis,
-  YAxis,
+  BarChart,
   CartesianGrid,
+  Cell,
   Pie,
   PieChart,
-  Cell,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
+import { BarChart2, PackageCheck, TrendingUp } from "lucide-react";
+
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
-import { TrendingUp, PackageCheck, BarChart2 } from "lucide-react";
+import type { Payment } from "@/types/billing";
+import type { Load } from "@/types/load";
 import { formatCurrency } from "@/utils/format";
-import { Payment } from "@/types/billing";
-import { Load } from "@/types/load";
 
 interface Props {
-  loads: Load[]
-  rawPayments: Payment[]
-  monthLabel: string
+  loads: Load[];
+  rawPayments: Payment[];
+  monthLabel: string;
 }
 
 interface ChartThemeColors {
   axis: string;
   grid: string;
   cursor: string;
+  revenueBar: string;
+  revenueBarActive: string;
 }
 
-function normalizeCssColor(rawValue: string, fallback: string): string {
-  const value = rawValue.trim();
-  if (!value) return fallback;
-  if (
-    value.startsWith("#") ||
-    value.startsWith("rgb") ||
-    value.startsWith("hsl") ||
-    value.startsWith("oklch") ||
-    value.startsWith("oklab") ||
-    value.startsWith("lab") ||
-    value.startsWith("lch") ||
-    value.startsWith("color(")
-  ) {
-    return value;
-  }
-  return `hsl(${value})`;
-}
+const DARK_CHART_THEME: ChartThemeColors = {
+  axis: "#CBD5E1",
+  grid: "rgba(148, 163, 184, 0.34)",
+  cursor: "rgba(148, 163, 184, 0.18)",
+  revenueBar: "#A78BFA",
+  revenueBarActive: "#C4B5FD",
+};
+
+const LIGHT_CHART_THEME: ChartThemeColors = {
+  axis: "#334155",
+  grid: "rgba(71, 85, 105, 0.30)",
+  cursor: "rgba(37, 99, 235, 0.10)",
+  revenueBar: "#6D28D9",
+  revenueBarActive: "#5B21B6",
+};
 
 function useChartThemeColors(): ChartThemeColors {
-  const [colors, setColors] = React.useState<ChartThemeColors>({
-    axis: "#64748B",
-    grid: "#CBD5E1",
-    cursor: "#E2E8F0",
-  });
+  const [colors, setColors] = React.useState<ChartThemeColors>(
+    LIGHT_CHART_THEME,
+  );
 
   React.useEffect(() => {
     const update = () => {
-      const rootStyles = window.getComputedStyle(document.documentElement);
-      const bodyStyles = document.body
-        ? window.getComputedStyle(document.body)
-        : rootStyles;
-      const read = (name: string, fallback: string) =>
-        normalizeCssColor(
-          rootStyles.getPropertyValue(name) || bodyStyles.getPropertyValue(name),
-          fallback,
-        );
-      setColors({
-        axis: read("--muted-foreground", "#64748B"),
-        grid: read("--border", "#CBD5E1"),
-        cursor: read("--muted", "#E2E8F0"),
-      });
+      const isDark = document.documentElement.classList.contains("dark");
+      setColors(isDark ? DARK_CHART_THEME : LIGHT_CHART_THEME);
     };
 
     update();
@@ -88,6 +75,7 @@ function useChartThemeColors(): ChartThemeColors {
     });
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     media.addEventListener?.("change", update);
+
     return () => {
       observer.disconnect();
       media.removeEventListener?.("change", update);
@@ -97,42 +85,31 @@ function useChartThemeColors(): ChartThemeColors {
   return colors;
 }
 
-
-// Suprah AI semantic status palette used consistently by chart slices,
-// legends, and tooltips across the Reports module.
 const STATUS_FILL: Record<string, string> = {
-  Draft: "#94A3B8",
-  draft: "#94A3B8",
-
-  Posted: "#F59E0B",
-  posted: "#F59E0B",
-
-  Assigned: "#8B5CF6",
-  assigned: "#8B5CF6",
-
-  Accepted: "#A855F7",
-  accepted: "#A855F7",
-
-  "Picked Up": "#06B6D4",
-  "picked up": "#06B6D4",
-
+  Draft: "#64748B",
+  draft: "#64748B",
+  Posted: "#D97706",
+  posted: "#D97706",
+  Assigned: "#7C3AED",
+  assigned: "#7C3AED",
+  Accepted: "#9333EA",
+  accepted: "#9333EA",
+  "Picked Up": "#0891B2",
+  "picked up": "#0891B2",
   "In-Transit": "#2563EB",
   "in-transit": "#2563EB",
-
-  Delivered: "#10B981",
-  delivered: "#10B981",
-
-  Cancelled: "#EF4444",
-  cancelled: "#EF4444",
+  Delivered: "#059669",
+  delivered: "#059669",
+  Cancelled: "#DC2626",
+  cancelled: "#DC2626",
 };
 
-
 function buildDeliveryData(loads: Load[]) {
-  const counts: Record<string, number> = {}
-  loads.forEach(s => {
-    counts[s.status] = (counts[s.status] || 0) + 1
-  })
-  return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  const counts: Record<string, number> = {};
+  loads.forEach((load) => {
+    counts[load.status] = (counts[load.status] || 0) + 1;
+  });
+  return Object.entries(counts).map(([name, value]) => ({ name, value }));
 }
 
 function parseSelectedPeriod(monthLabel: string): Date {
@@ -165,17 +142,17 @@ function parseSelectedPeriod(monthLabel: string): Date {
 
 function buildRevenueData(rawPayments: Payment[], monthLabel: string) {
   const selectedPeriod = parseSelectedPeriod(monthLabel);
-  const result = [];
+  const result: Array<{ month: string; revenue: number }> = [];
 
-  for (let offset = 5; offset >= 0; offset--) {
-    const d = new Date(
+  for (let offset = 5; offset >= 0; offset -= 1) {
+    const date = new Date(
       selectedPeriod.getFullYear(),
       selectedPeriod.getMonth() - offset,
       1,
     );
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("en-US", {
-      month: "long",
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const label = date.toLocaleDateString("en-US", {
+      month: "short",
       year: "numeric",
     });
     const revenue = rawPayments
@@ -195,15 +172,15 @@ function buildRevenueData(rawPayments: Payment[], monthLabel: string) {
   return result;
 }
 
-// ── Custom tooltips ───────────────────────────────────────────────────────────
-
 function RevenueTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-xl">
-      <p className="mb-1 text-muted-foreground">{label}</p>
+    <div className="w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover px-4 py-3 text-sm text-popover-foreground shadow-2xl">
+      <p className="mb-1 font-semibold text-slate-600 dark:text-slate-300">
+        {label}
+      </p>
       <p className="font-bold text-foreground">
-        {formatCurrency(payload[0].value)}
+        {formatCurrency(Number(payload[0].value || 0))}
       </p>
     </div>
   );
@@ -223,11 +200,8 @@ function DeliveryTooltip({ active, payload }: any) {
 
   return (
     <div
-      className="pointer-events-none relative z-[100] w-max min-w-[8.5rem] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border bg-card/98 px-4 py-3 text-sm shadow-2xl backdrop-blur-sm"
-      style={{
-        borderColor: accentColor,
-        boxShadow: `0 14px 32px color-mix(in srgb, ${accentColor} 24%, transparent)`,
-      }}
+      className="pointer-events-none relative z-[100] w-max min-w-[8.5rem] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-2xl"
+      style={{ borderColor: accentColor }}
     >
       <p className="font-bold" style={{ color: accentColor }}>
         {entry.name}
@@ -238,8 +212,6 @@ function DeliveryTooltip({ active, payload }: any) {
     </div>
   );
 }
-
-// ── Quick stat item ───────────────────────────────────────────────────────────
 
 function QuickStat({
   label,
@@ -259,8 +231,8 @@ function QuickStat({
       >
         {icon}
       </div>
-      <div>
-        <p className="mb-1 text-xs font-semibold leading-tight text-muted-foreground sm:text-sm">
+      <div className="min-w-0">
+        <p className="mb-1 break-words text-sm font-semibold leading-5 text-slate-700 dark:text-slate-300">
           {label}
         </p>
         <p className="text-xl font-bold leading-none text-foreground sm:text-2xl">
@@ -271,78 +243,78 @@ function QuickStat({
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+function ChartEmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300 sm:text-base">
+      {message}
+    </div>
+  );
+}
 
 export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
-  const deliveryData = React.useMemo(() => buildDeliveryData(loads), [loads])
+  const deliveryData = React.useMemo(() => buildDeliveryData(loads), [loads]);
   const revenueData = React.useMemo(
     () => buildRevenueData(rawPayments, monthLabel),
     [rawPayments, monthLabel],
-  )
-
+  );
   const chartTheme = useChartThemeColors();
 
-  const totalLoads = loads.length
-  const delivered = loads.filter(s => s.status === "Delivered").length
-  const successRate = totalLoads > 0 ? Math.round((delivered / totalLoads) * 100) : 0
-  const totalSixMoRev = revenueData.reduce((s, d) => s + d.revenue, 0)
-  const hasRevenueData = revenueData.some(d => d.revenue > 0)
+  const totalLoads = loads.length;
+  const delivered = loads.filter((load) => load.status === "Delivered").length;
+  const successRate =
+    totalLoads > 0 ? Math.round((delivered / totalLoads) * 100) : 0;
+  const totalSixMoRev = revenueData.reduce(
+    (sum, item) => sum + item.revenue,
+    0,
+  );
+  const hasRevenueData = revenueData.some((item) => item.revenue > 0);
 
   return (
     <div className="space-y-5">
-      {/* Section label */}
       <div className="flex items-center gap-3">
-        <BarChart2 className="size-5 text-muted-foreground" />
-        <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+        <BarChart2 className="size-5 text-slate-600 dark:text-slate-300" />
+        <span className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
           Analytics Overview
         </span>
-        <div className="flex-1 h-px bg-border" />
+        <div className="h-px flex-1 bg-border" />
       </div>
 
-      {/* Quick stats strip */}
       <div className="grid min-w-0 grid-cols-1 gap-4 rounded-xl border border-border bg-card px-4 py-4 sm:grid-cols-3 sm:px-5">
         <QuickStat
           label={`Total Managed Loads — ${monthLabel}`}
           value={totalLoads}
           icon={<PackageCheck className="size-5" />}
-          color="bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400"
+          color="bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
         />
-        
         <QuickStat
           label="Delivery Success Rate"
           value={`${successRate}%`}
           icon={<TrendingUp className="size-5" />}
-          color="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400"
+          color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
         />
-        
         <QuickStat
           label="6-Month Total Revenue"
           value={formatCurrency(totalSixMoRev)}
           icon={<TrendingUp className="size-5" />}
-          color="bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400"
+          color="bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
         />
       </div>
 
-      {/* Charts */}
       <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Delivery Success Rate — Donut */}
         <Card className="min-w-0 border-border shadow-sm lg:min-h-[390px]">
           <CardHeader className="space-y-1.5 pb-2 pt-5 sm:px-6">
             <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
               Delivery Performance
             </CardTitle>
-            <CardDescription className="text-sm leading-relaxed">
+            <CardDescription className="text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
               {monthLabel} — how effectively loads reached delivery
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-3 sm:px-6 sm:pb-6">
             {totalLoads === 0 ? (
-              <div className="flex h-56 items-center justify-center text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-                No load data for this period.
-              </div>
+              <ChartEmptyState message="No load data is available for this reporting period." />
             ) : (
               <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
-                {/* Fixed-size donut wrapper */}
                 <div className="relative isolate z-0 mx-auto size-[210px] shrink-0 overflow-visible sm:mx-0">
                   <PieChart width={210} height={210} style={{ overflow: "visible" }}>
                     <Tooltip
@@ -366,31 +338,34 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                       paddingAngle={2}
                       strokeWidth={0}
                     >
-                      {deliveryData.map((entry, i) => (
+                      {deliveryData.map((entry, index) => (
                         <Cell
-                          key={i}
+                          key={`${entry.name}-${index}`}
                           fill={STATUS_FILL[entry.name] ?? "#64748B"}
                         />
                       ))}
                     </Pie>
                   </PieChart>
-                  {/* Center label overlay */}
                   <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
                     <span className="text-3xl font-bold leading-none text-foreground sm:text-4xl">
                       {successRate}%
                     </span>
-                    <span className="mt-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
+                    <span className="mt-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300">
                       delivered
                     </span>
                   </div>
                 </div>
 
-                {/* Legend */}
                 <div className="flex w-full flex-col gap-3 sm:min-w-0 sm:flex-1">
-                  {deliveryData.map(entry => {
-                    const pct = Math.round((entry.value / totalLoads) * 100)
+                  {deliveryData.map((entry) => {
+                    const percentage = Math.round(
+                      (entry.value / totalLoads) * 100,
+                    );
                     return (
-                      <div key={entry.name} className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                      <div
+                        key={entry.name}
+                        className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5"
+                      >
                         <span
                           className="size-3 shrink-0 rounded-full"
                           style={{
@@ -398,13 +373,13 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                               STATUS_FILL[entry.name] ?? "#64748B",
                           }}
                         />
-                        <span className="min-w-0 flex-1 break-words text-sm font-medium text-muted-foreground">
+                        <span className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-700 dark:text-slate-300">
                           {entry.name}
                         </span>
                         <span className="shrink-0 text-sm font-bold text-foreground sm:text-base">
                           {entry.value}
-                          <span className="font-normal text-muted-foreground ml-1">
-                            ({pct}%)
+                          <span className="ml-1 font-medium text-slate-600 dark:text-slate-300">
+                            ({percentage}%)
                           </span>
                         </span>
                       </div>
@@ -416,23 +391,20 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
           </CardContent>
         </Card>
 
-        {/* Monthly Revenue — Bar */}
         <Card className="min-w-0 border-border shadow-sm lg:min-h-[390px]">
           <CardHeader className="space-y-1.5 pb-2 pt-5 sm:px-6">
             <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
               Monthly Revenue
             </CardTitle>
-            <CardDescription className="text-sm leading-relaxed">
+            <CardDescription className="text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
               Last 6 months — succeeded payments only
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-3 sm:px-6 sm:pb-6">
             {!hasRevenueData ? (
-              <div className="flex h-56 items-center justify-center text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-                No payment data available for the last 6 months.
-              </div>
+              <ChartEmptyState message="No succeeded-payment revenue is available for the last six months." />
             ) : (
-              <ResponsiveContainer width="100%" height={290}>
+              <ResponsiveContainer width="100%" height={290} minWidth={0}>
                 <BarChart
                   data={revenueData}
                   barSize={38}
@@ -440,31 +412,42 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                 >
                   <CartesianGrid
                     vertical={false}
-                    strokeDasharray="3 3"
+                    strokeDasharray="4 4"
                     stroke={chartTheme.grid}
+                    strokeWidth={1}
                   />
                   <XAxis
                     dataKey="month"
                     tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 13, fill: chartTheme.axis }}
+                    axisLine={{ stroke: chartTheme.grid }}
+                    tick={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fill: chartTheme.axis,
+                    }}
+                    tickMargin={10}
                   />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
-                    width={58}
-                    tick={{ fontSize: 13, fill: chartTheme.axis }}
-                    tickFormatter={(v) =>
-                      v === 0
+                    width={64}
+                    tick={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fill: chartTheme.axis,
+                    }}
+                    tickMargin={8}
+                    tickFormatter={(value) =>
+                      value === 0
                         ? "$0"
-                        : v >= 1000
-                          ? `$${(v / 1000).toFixed(0)}k`
-                          : `$${v}`
+                        : value >= 1000
+                          ? `$${(value / 1000).toFixed(0)}k`
+                          : `$${value}`
                     }
                   />
                   <Tooltip
                     content={<RevenueTooltip />}
-                    cursor={{ fill: chartTheme.cursor, fillOpacity: 0.22 }}
+                    cursor={{ fill: chartTheme.cursor }}
                     allowEscapeViewBox={{ x: false, y: false }}
                     offset={12}
                     wrapperStyle={{
@@ -475,9 +458,9 @@ export function ReportsAnalytics({ loads, rawPayments, monthLabel }: Props) {
                   />
                   <Bar
                     dataKey="revenue"
-                    fill="var(--chart-1)"
-                    radius={[4, 4, 0, 0]}
-                    activeBar={{ fill: "var(--chart-2)" }}
+                    fill={chartTheme.revenueBar}
+                    radius={[6, 6, 0, 0]}
+                    activeBar={{ fill: chartTheme.revenueBarActive }}
                   />
                 </BarChart>
               </ResponsiveContainer>

@@ -38,6 +38,7 @@ export interface ReportFiltersProps {
   onChange: (filters: ReportFilterState) => void;
   onReset: () => void;
   resultLabel?: string;
+  periodAttention?: boolean;
 }
 
 const inputClassName =
@@ -365,12 +366,14 @@ export default function ReportFilters({
   onChange,
   onReset,
   resultLabel,
+  periodAttention = false,
 }: ReportFiltersProps) {
   const [searchValue, setSearchValue] = React.useState(filters.search);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [advancedDraft, setAdvancedDraft] = React.useState(filters);
   const fromDateRef = React.useRef<HTMLInputElement | null>(null);
   const toDateRef = React.useRef<HTMLInputElement | null>(null);
+  const previousPeriodRef = React.useRef(filters.period);
 
   React.useEffect(() => {
     setSearchValue(filters.search);
@@ -389,6 +392,15 @@ export default function ReportFilters({
   React.useEffect(() => {
     if (advancedOpen) setAdvancedDraft(filters);
   }, [advancedOpen, filters]);
+
+  React.useEffect(() => {
+    const previousPeriod = previousPeriodRef.current;
+    previousPeriodRef.current = filters.period;
+
+    if (filters.period === "custom" && previousPeriod !== "custom") {
+      window.requestAnimationFrame(() => fromDateRef.current?.focus());
+    }
+  }, [filters.period]);
 
   const chips = React.useMemo(
     () => buildReportFilterChips(filters, defaultFilters, config),
@@ -459,7 +471,24 @@ export default function ReportFilters({
   );
 
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-border/80 bg-card p-3 shadow-sm sm:p-4">
+    <section
+      className={`min-w-0 scroll-mt-24 space-y-3 rounded-xl border bg-card p-3 shadow-sm transition-all duration-300 sm:p-4 ${
+        periodAttention
+          ? "border-primary ring-4 ring-primary/20"
+          : "border-border/80"
+      }`}
+    >
+      {periodAttention ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-foreground"
+        >
+          <Calendar className="size-4 shrink-0 text-primary" />
+          Choose a reporting period or enter a custom date range here.
+        </div>
+      ) : null}
+
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(15rem,1.6fr)_minmax(10rem,.8fr)_minmax(10rem,.9fr)_auto]">
         {config.search?.enabled && (
           <label className="relative min-w-0">

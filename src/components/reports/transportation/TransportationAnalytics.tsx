@@ -12,6 +12,7 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
+  Legend,
   AreaChart,
   Area,
 } from "recharts";
@@ -37,49 +38,47 @@ interface ChartThemeColors {
   axis: string;
   grid: string;
   cursor: string;
+  loadTotalBar: string;
+  deliveredBar: string;
+  quoteLine: string;
+  bookedLine: string;
+  quoteAreaFill: string;
+  bookedAreaFill: string;
 }
 
-function normalizeCssColor(rawValue: string, fallback: string): string {
-  const value = rawValue.trim();
-  if (!value) return fallback;
-  if (
-    value.startsWith("#") ||
-    value.startsWith("rgb") ||
-    value.startsWith("hsl") ||
-    value.startsWith("oklch") ||
-    value.startsWith("oklab") ||
-    value.startsWith("lab") ||
-    value.startsWith("lch") ||
-    value.startsWith("color(")
-  ) {
-    return value;
-  }
-  return `hsl(${value})`;
-}
+const DARK_CHART_THEME: ChartThemeColors = {
+  axis: "#CBD5E1",
+  grid: "rgba(148, 163, 184, 0.34)",
+  cursor: "rgba(148, 163, 184, 0.18)",
+  loadTotalBar: "#22D3EE",
+  deliveredBar: "#34D399",
+  quoteLine: "#93C5FD",
+  bookedLine: "#A78BFA",
+  quoteAreaFill: "rgba(147, 197, 253, 0.30)",
+  bookedAreaFill: "rgba(167, 139, 250, 0.24)",
+};
+
+const LIGHT_CHART_THEME: ChartThemeColors = {
+  axis: "#334155",
+  grid: "rgba(71, 85, 105, 0.30)",
+  cursor: "rgba(37, 99, 235, 0.10)",
+  loadTotalBar: "#0891B2",
+  deliveredBar: "#059669",
+  quoteLine: "#1D4ED8",
+  bookedLine: "#6D28D9",
+  quoteAreaFill: "rgba(29, 78, 216, 0.18)",
+  bookedAreaFill: "rgba(109, 40, 217, 0.14)",
+};
 
 function useChartThemeColors(): ChartThemeColors {
-  const [colors, setColors] = React.useState<ChartThemeColors>({
-    axis: "#64748B",
-    grid: "#CBD5E1",
-    cursor: "#E2E8F0",
-  });
+  const [colors, setColors] = React.useState<ChartThemeColors>(
+    LIGHT_CHART_THEME,
+  );
 
   React.useEffect(() => {
     const update = () => {
-      const rootStyles = window.getComputedStyle(document.documentElement);
-      const bodyStyles = document.body
-        ? window.getComputedStyle(document.body)
-        : rootStyles;
-      const read = (name: string, fallback: string) =>
-        normalizeCssColor(
-          rootStyles.getPropertyValue(name) || bodyStyles.getPropertyValue(name),
-          fallback,
-        );
-      setColors({
-        axis: read("--muted-foreground", "#64748B"),
-        grid: read("--border", "#CBD5E1"),
-        cursor: read("--muted", "#E2E8F0"),
-      });
+      const isDark = document.documentElement.classList.contains("dark");
+      setColors(isDark ? DARK_CHART_THEME : LIGHT_CHART_THEME);
     };
 
     update();
@@ -90,6 +89,7 @@ function useChartThemeColors(): ChartThemeColors {
     });
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     media.addEventListener?.("change", update);
+
     return () => {
       observer.disconnect();
       media.removeEventListener?.("change", update);
@@ -279,7 +279,7 @@ function ChartTooltip({ active, payload, label }: TrendTooltipProps) {
   );
   if (!hasPositiveValue) return null;
   return (
-    <div className="w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-card px-4 py-3 text-sm shadow-lg">
+    <div className="w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover px-4 py-3 text-sm text-popover-foreground shadow-2xl">
       <p className="mb-1.5 font-bold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }} className="font-semibold">
@@ -317,11 +317,11 @@ function PieTooltip({ active, payload }: PieTooltipProps) {
     entry.color ||
     entry.fill ||
     entry.payload?.fill ||
-    "var(--chart-1)";
+    "#2563EB";
 
   return (
     <div
-      className="pointer-events-none relative z-[100] w-max min-w-[8.5rem] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border bg-card/98 px-4 py-3 text-sm shadow-2xl backdrop-blur-sm"
+      className="pointer-events-none relative z-[100] w-max min-w-[8.5rem] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-2xl"
       style={{
         borderColor: accentColor,
         boxShadow: `0 14px 32px color-mix(in srgb, ${accentColor} 24%, transparent)`,
@@ -406,13 +406,13 @@ export function TransportationAnalytics({
           <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
             Load Status Distribution
           </CardTitle>
-          <CardDescription className="text-sm leading-relaxed">
+          <CardDescription className="text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
             {monthLabel} — where loads are concentrated by status
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-5 pt-3 sm:flex-row sm:items-center sm:gap-6 sm:px-6 sm:pb-6">
           {totalLoads === 0 ? (
-            <p className="w-full py-12 text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <p className="w-full py-12 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300 sm:text-base">
               No load data for this period.
             </p>
           ) : (
@@ -504,13 +504,13 @@ export function TransportationAnalytics({
           <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
             Quote Conversion
           </CardTitle>
-          <CardDescription className="text-sm leading-relaxed">
+          <CardDescription className="text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
             {monthLabel} — how many quotes progressed toward booking
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-5 pt-3 sm:flex-row sm:items-center sm:gap-6 sm:px-6 sm:pb-6">
           {totalQuotes === 0 ? (
-            <p className="w-full py-12 text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <p className="w-full py-12 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300 sm:text-base">
               No quotes for this period.
             </p>
           ) : (
@@ -604,34 +604,37 @@ export function TransportationAnalytics({
           <CardTitle className="text-base font-bold tracking-tight sm:text-lg">
             Delivery Throughput
           </CardTitle>
-          <CardDescription className="text-sm leading-relaxed">
+          <CardDescription className="text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
             Latest 4 months — completed loads compared with total volume
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-3 sm:px-6 sm:pb-6">
           {!hasLoadTrendData ? (
-            <p className="w-full py-12 text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <p className="w-full py-12 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300 sm:text-base">
               No trend data available.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <BarChart data={loadTrendData} barCategoryGap="24%" barGap={6} margin={{ top: 8, right: 36, left: 8, bottom: 12 }}>
                 <CartesianGrid
                   vertical={false}
                   strokeDasharray="3 3"
                   stroke={chartTheme.grid}
+                  strokeWidth={1}
                 />
                 <XAxis
                   dataKey="month"
                   tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 13, fill: chartTheme.axis }}
+                  axisLine={{ stroke: chartTheme.grid }}
+                  tick={{ fontSize: 13, fontWeight: 600, fill: chartTheme.axis }}
+                  tickMargin={10}
                 />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  width={42}
-                  tick={{ fontSize: 13, fill: chartTheme.axis }}
+                  width={48}
+                  tick={{ fontSize: 13, fontWeight: 600, fill: chartTheme.axis }}
+                  tickMargin={8}
                 />
                 <Tooltip
                   content={<ChartTooltip />}
@@ -644,16 +647,30 @@ export function TransportationAnalytics({
                     maxWidth: "min(18rem, calc(100vw - 1.5rem))",
                   }}
                 />
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  wrapperStyle={{
+                    paddingBottom: 12,
+                    color: chartTheme.axis,
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                  formatter={(value) => (
+                    <span style={{ color: chartTheme.axis }}>{value}</span>
+                  )}
+                />
                 <Bar
                   dataKey="total"
-                  fill="var(--chart-3)"
+                  fill={chartTheme.loadTotalBar}
                   radius={[5, 5, 0, 0]}
                   maxBarSize={34}
                   name="Total Loads"
                 />
                 <Bar
                   dataKey="delivered"
-                  fill="var(--chart-1)"
+                  fill={chartTheme.deliveredBar}
                   radius={[5, 5, 0, 0]}
                   maxBarSize={34}
                   name="Completed"
@@ -667,60 +684,37 @@ export function TransportationAnalytics({
       <Card className="min-w-0 border-border shadow-sm lg:min-h-[380px]">
         <CardHeader className="space-y-1.5 pb-2 pt-5 sm:px-6">
           <CardTitle className="text-base font-bold tracking-tight sm:text-lg">Revenue & Demand Trend</CardTitle>
-          <CardDescription className="text-sm leading-relaxed">
+          <CardDescription className="text-sm font-medium leading-6 text-slate-700 dark:text-slate-300">
             Latest 4 months — market engagement
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-3 sm:px-6 sm:pb-6">
           {!hasQuoteTrendData ? (
-            <p className="w-full py-12 text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <p className="w-full py-12 text-center text-sm font-medium leading-6 text-slate-700 dark:text-slate-300 sm:text-base">
               No engagement data.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <AreaChart data={quoteTrendData} margin={{ top: 8, right: 36, left: 8, bottom: 12 }}>
-                <defs>
-                  <linearGradient id="quoteGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor="var(--chart-4)"
-                      stopOpacity={0.3}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="var(--chart-4)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                  <linearGradient id="bookedGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor="var(--chart-2)"
-                      stopOpacity={0.3}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="var(--chart-2)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid
                   vertical={false}
                   strokeDasharray="3 3"
                   stroke={chartTheme.grid}
+                  strokeWidth={1}
                 />
                 <XAxis
                   dataKey="month"
                   tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 13, fill: chartTheme.axis }}
+                  axisLine={{ stroke: chartTheme.grid }}
+                  tick={{ fontSize: 13, fontWeight: 600, fill: chartTheme.axis }}
+                  tickMargin={10}
                 />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  width={42}
-                  tick={{ fontSize: 13, fill: chartTheme.axis }}
+                  width={48}
+                  tick={{ fontSize: 13, fontWeight: 600, fill: chartTheme.axis }}
+                  tickMargin={8}
                 />
                 <Tooltip
                   content={<ChartTooltip />}
@@ -733,19 +727,33 @@ export function TransportationAnalytics({
                     maxWidth: "min(18rem, calc(100vw - 1.5rem))",
                   }}
                 />
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  wrapperStyle={{
+                    paddingBottom: 12,
+                    color: chartTheme.axis,
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                  formatter={(value) => (
+                    <span style={{ color: chartTheme.axis }}>{value}</span>
+                  )}
+                />
                 <Area
                   type="monotone"
                   dataKey="total"
-                  stroke="var(--chart-4)"
-                  fill="url(#quoteGrad)"
+                  stroke={chartTheme.quoteLine}
+                  fill={chartTheme.quoteAreaFill}
                   strokeWidth={3}
                   name="Inquiries"
                 />
                 <Area
                   type="monotone"
                   dataKey="booked"
-                  stroke="var(--chart-2)"
-                  fill="url(#bookedGrad)"
+                  stroke={chartTheme.bookedLine}
+                  fill={chartTheme.bookedAreaFill}
                   strokeWidth={3}
                   name="Conversions"
                 />

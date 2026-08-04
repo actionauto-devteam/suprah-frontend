@@ -97,6 +97,84 @@ const PERIODS = new Set<ReportPeriod>([
   "custom",
 ]);
 
+export interface SharedReportPeriodState {
+  period: ReportPeriod;
+  referenceDate: string;
+  dateRange: ReportFilterState["dateRange"];
+}
+
+export const SHARED_REPORT_PERIOD_STORAGE_KEY =
+  "suprah-shared-report-period";
+
+function isDateInputValue(value: string | null): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+export function parseSharedReportPeriod(
+  params: URLSearchParams,
+  fallbackReferenceDate: string,
+): SharedReportPeriodState {
+  const periodValue = params.get("period");
+  const period = PERIODS.has(periodValue as ReportPeriod)
+    ? (periodValue as ReportPeriod)
+    : "monthly";
+
+  return {
+    period,
+    referenceDate: isDateInputValue(params.get("referenceDate"))
+      ? params.get("referenceDate")!
+      : fallbackReferenceDate,
+    dateRange: {
+      from: isDateInputValue(params.get("from"))
+        ? params.get("from")!
+        : undefined,
+      to: isDateInputValue(params.get("to"))
+        ? params.get("to")!
+        : undefined,
+    },
+  };
+}
+
+export function serializeSharedReportPeriod(
+  value: SharedReportPeriodState,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("period", value.period);
+  params.set("referenceDate", value.referenceDate);
+
+  if (value.period === "custom") {
+    setOptional(params, "from", value.dateRange.from);
+    setOptional(params, "to", value.dateRange.to);
+  }
+
+  return params;
+}
+
+export function sharedReportPeriodFromFilters(
+  filters: ReportFilterState,
+): SharedReportPeriodState {
+  return {
+    period: filters.period,
+    referenceDate: filters.referenceDate,
+    dateRange: { ...filters.dateRange },
+  };
+}
+
+export function applySharedReportPeriod(
+  filters: ReportFilterState,
+  shared: SharedReportPeriodState,
+): ReportFilterState {
+  return {
+    ...filters,
+    period: shared.period,
+    referenceDate: shared.referenceDate,
+    dateRange:
+      shared.period === "custom"
+        ? { ...shared.dateRange }
+        : { from: undefined, to: undefined },
+  };
+}
+
 function splitList(value: string | null): string[] {
   if (!value) return [];
 

@@ -812,7 +812,7 @@ function buildLoadAnalytics(
         ],
         insights: [
           {
-            label: "Peak creation period",
+            label: "Busiest period for new leads",
             value: peakCreated
               ? `${peakCreated.label}: ${Number(peakCreated.loads || 0).toLocaleString("en-US")}`
               : "No activity",
@@ -1062,25 +1062,25 @@ function buildLeadStatusAnalytics(
 
   const engagement: ReportAnalyticsPoint[] = [
     {
-      label: "Unread Conversations",
+      label: "Unread Customer Messages",
       value: unreadConversationCount,
       share: percentageValue(unreadConversationCount, totalLeads),
-      detail: "Conversations that have not yet been reviewed by the team.",
+      detail: "Customer messages that the team has not reviewed yet.",
       color: SUPRAH_ANALYTICS_COLORS[1],
     },
     {
-      label: "Pending Team Replies",
+      label: "Waiting for a Team Reply",
       value: pendingReplyCount,
       share: percentageValue(pendingReplyCount, totalLeads),
-      detail: "Lead records explicitly waiting for a response from the team.",
+      detail: "Leads marked as waiting for a response from the team.",
       color: SUPRAH_ANALYTICS_COLORS[3],
     },
     {
-      label: "Scheduled Follow-through",
+      label: "Scheduled Follow-up",
       value: scheduledFollowThroughCount,
       share: percentageValue(scheduledFollowThroughCount, totalLeads),
       detail:
-        "Leads with an appointment, an appointment status, or another scheduled follow-up indicator.",
+        "Leads with an appointment or another scheduled follow-up.",
       color: SUPRAH_ANALYTICS_COLORS[2],
     },
   ];
@@ -1095,14 +1095,14 @@ function buildLeadStatusAnalytics(
   return {
     title: "Suprah Lead Status Analytics",
     description:
-      "Pipeline distribution, follow-up workload, and lead-volume movement for the filtered records.",
+      "See where leads are in the sales process, which leads need attention, and how new leads change over time.",
     charts: [
       {
         id: "lead-status-distribution",
         pdfPriority: 3,
         kind: "donut",
-        title: "Pipeline Status Distribution",
-        description: "Share of leads in each normalized pipeline status.",
+        title: "Where Leads Are in the Sales Process",
+        description: "Shows how many leads are New, Pending, Contacted, or scheduled for an appointment.",
         data: distribution,
         series: [
           {
@@ -1118,14 +1118,14 @@ function buildLeadStatusAnalytics(
         kind: "bar",
         presentation: "workload",
         baseline: {
-          label: "Filtered Leads",
+          label: "Total Leads in This Report",
           value: totalLeads,
           description:
-            "Every workload percentage is calculated from this filtered lead total.",
+            "The percentages below are based on this total.",
         },
         footerItems: [
           {
-            label: "Follow-up Indicators Detected",
+            label: "Leads That Need Follow-up",
             value: followUpIndicatorCount,
             displayValue: `${followUpIndicatorCount.toLocaleString(
               "en-US",
@@ -1133,11 +1133,11 @@ function buildLeadStatusAnalytics(
               "en-US",
             )} leads · ${followUpIndicatorShare.toFixed(1)}%`,
             description:
-              "At least one unread conversation, pending team reply, or scheduled follow-through indicator was detected.",
+              "These leads have an unread customer message, are waiting for a team reply, or have a scheduled follow-up.",
             color: SUPRAH_ANALYTICS_COLORS[0],
           },
           {
-            label: "Leads Without a Follow-up Indicator",
+            label: "Leads Without a Current Follow-up",
             value: noCurrentFollowUpFlag,
             displayValue: `${noCurrentFollowUpFlag.toLocaleString(
               "en-US",
@@ -1145,18 +1145,18 @@ function buildLeadStatusAnalytics(
               "en-US",
             )} leads · ${noFollowUpIndicatorShare.toFixed(1)}%`,
             description:
-              "No unread conversation, pending team reply, or scheduled follow-through indicator was detected. These leads may still require review.",
+              "These leads have no unread customer message, pending team reply, or scheduled follow-up. They may still need review.",
             color: SUPRAH_ANALYTICS_COLORS[3],
           },
         ],
-        title: "Lead Follow-up Workload",
+        title: "Leads That Need Follow-up",
         description:
-          "Separates unread conversations, pending team replies, and scheduled follow-through. A lead may appear in more than one category when multiple follow-up conditions apply.",
+          "Shows customer messages and follow-up tasks that may need attention. A lead can appear in more than one group.",
         data: engagement,
         series: [
           {
             key: "value",
-            label: "Affected Leads",
+            label: "Leads",
             color: SUPRAH_ANALYTICS_COLORS[3],
           },
         ],
@@ -1165,7 +1165,7 @@ function buildLeadStatusAnalytics(
         tooltipFields: [
           {
             key: "share",
-            label: "Share of filtered leads",
+            label: "Share of all leads",
             format: "percentage",
           },
           {
@@ -1176,15 +1176,15 @@ function buildLeadStatusAnalytics(
         ],
         insights: [
           {
-            label: "Filtered leads",
+            label: "Total leads",
             value: totalLeads.toLocaleString("en-US"),
             description:
-              "The chart categories are follow-up subsets and do not need to total this number.",
+              "The groups below are parts of this total and may overlap.",
           },
           {
-            label: "Unread conversations",
+            label: "Unread customer messages",
             value: unreadConversationCount.toLocaleString("en-US"),
-            description: "Lead conversations that still require review.",
+            description: "Customer messages the team has not reviewed yet.",
           },
         ],
       },
@@ -1193,9 +1193,9 @@ function buildLeadStatusAnalytics(
         pdfPriority: 2,
         kind: "line",
         areaFill: true,
-        title: "Lead Creation Trend",
+        title: "New Leads Over Time",
         description:
-          "New lead records created in each bucket of the selected reporting period.",
+          "Shows how many new leads were added during each part of the selected date range.",
         data: trend,
         series: [
           {
@@ -1207,11 +1207,11 @@ function buildLeadStatusAnalytics(
         ],
         insights: [
           {
-            label: "Peak creation period",
+            label: "Busiest period for new leads",
             value: peakLeads
               ? `${peakLeads.label}: ${Number(peakLeads.leads || 0).toLocaleString("en-US")}`
               : "No lead activity",
-            description: "Period with the highest number of newly created leads.",
+            description: "The date range with the most new leads.",
           },
         ],
       },

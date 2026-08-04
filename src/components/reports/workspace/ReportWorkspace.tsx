@@ -3,6 +3,8 @@
 import * as React from "react";
 import {
   ArrowLeft,
+  Calendar,
+  Database,
   Copy,
   FileSpreadsheet,
   FileText,
@@ -33,6 +35,9 @@ import {
   parseReportFilters,
   serializeReportColumnPreferences,
   serializeReportFilters,
+  serializeSharedReportPeriod,
+  sharedReportPeriodFromFilters,
+  SHARED_REPORT_PERIOD_STORAGE_KEY,
   type ReportColumnPreferences,
 } from "@/lib/report-filter-query";
 import {
@@ -215,13 +220,13 @@ function SummaryCards({ metrics }: { metrics: SummaryMetric[] }) {
           key={metric.label}
           className="min-w-0 rounded-xl border border-border/80 bg-card p-4 shadow-sm"
         >
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             {metric.label}
           </p>
           <p className="mt-2 break-words text-2xl font-bold tracking-tight text-foreground">
             {metric.value}
           </p>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          <p className="mt-2 text-sm leading-5 text-slate-700 dark:text-slate-300">
             {metric.description}
           </p>
         </div>
@@ -261,10 +266,12 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [data, setData] = React.useState<WorkspaceData>(EMPTY_DATA);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [periodAttention, setPeriodAttention] = React.useState(false);
   const [downloading, setDownloading] = React.useState<"pdf" | "xlsx" | null>(
     null,
   );
   const lastWrittenQuery = React.useRef("");
+  const filtersSectionRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (searchString === lastWrittenQuery.current) return;
@@ -300,6 +307,21 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     router,
     searchString,
   ]);
+
+  React.useEffect(() => {
+    try {
+      const sharedParams = serializeSharedReportPeriod(
+        sharedReportPeriodFromFilters(filters),
+      );
+      window.sessionStorage.setItem(
+        SHARED_REPORT_PERIOD_STORAGE_KEY,
+        sharedParams.toString(),
+      );
+    } catch {
+      // Period sharing is a convenience. Storage failures must not interrupt
+      // the report workspace.
+    }
+  }, [filters.dateRange.from, filters.dateRange.to, filters.period, filters.referenceDate]);
 
   React.useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -668,6 +690,32 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     resultLabel,
   ]);
 
+  const openCustomDateRange = React.useCallback(() => {
+    setFilters((current) => ({
+      ...current,
+      period: "custom",
+    }));
+    setPeriodAttention(true);
+
+    window.requestAnimationFrame(() => {
+      filtersSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    window.setTimeout(() => setPeriodAttention(false), 5_000);
+  }, []);
+
+  const returnToReports = React.useCallback(() => {
+    const params = serializeSharedReportPeriod(
+      sharedReportPeriodFromFilters(filters),
+    );
+    const query = params.toString();
+
+    router.push(query ? `/reports?${query}` : "/reports");
+  }, [filters, router]);
+
   const resetFilters = React.useCallback(() => {
     setFilters(structuredClone(defaultFilters));
   }, [defaultFilters]);
@@ -788,7 +836,7 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
               variant="ghost"
               size="icon"
               className="shrink-0"
-              onClick={() => router.push("/reports")}
+              onClick={returnToReports}
               aria-label="Back to reports"
             >
               <ArrowLeft className="size-5" />
@@ -901,14 +949,17 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </div>
         </section>
 
-        <ReportFilters
-          config={config}
-          filters={filters}
-          defaultFilters={defaultFilters}
-          onChange={setFilters}
-          onReset={resetFilters}
-          resultLabel={resultLabel}
-        />
+        <div ref={filtersSectionRef}>
+          <ReportFilters
+            config={config}
+            filters={filters}
+            defaultFilters={defaultFilters}
+            onChange={setFilters}
+            onReset={resetFilters}
+            resultLabel={resultLabel}
+            periodAttention={periodAttention}
+          />
+        </div>
 
         {loading ? (
           <div className="flex min-h-72 items-center justify-center rounded-xl border border-border/80 bg-card">
@@ -924,16 +975,57 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </div>
         ) : (
           <>
+            {filteredCount === 0 ? (
+              <section className="rounded-2xl border border-amber-500/60 bg-amber-50 p-4 shadow-sm dark:border-amber-400/35 dark:bg-amber-950/35 sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Database className="size-5 shrink-0 text-amber-700 dark:text-amber-300" />
+                      <h3 className="text-base font-extrabold text-slate-950 dark:text-amber-50 sm:text-lg">
+                        No report data available for this date range
+                      </h3>
+                    </div>
+                    <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-800 dark:text-slate-200">
+                      No matching records were found for {periodLabel}. Refresh the report or choose another date range to continue.
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2 border-slate-300 bg-white font-semibold text-slate-900 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => fetchData(true)}
+                      disabled={refreshing}
+                    >
+                      <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+                      Refresh
+                    </Button>
+                    <Button
+                      type="button"
+                      className="gap-2 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+                      onClick={openCustomDateRange}
+                    >
+                      <Calendar className="size-4" />
+                      Change Date Range
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
             <SummaryCards metrics={summaryMetrics} />
-            <ReportAnalyticsPanel
+            {filteredCount > 0 ? (
+              <ReportAnalyticsPanel
               reportId={reportId}
               loads={filteredLoads}
               quotes={filteredQuotes}
               leads={filteredLeads}
               payments={filteredPayments}
               payouts={filteredPayouts}
-              periodContext={analyticsPeriodContext}
-            />
+                periodContext={analyticsPeriodContext}
+              />
+            ) : null}
             <ReportWorkspacePreview
               reportId={reportId}
               loads={filteredLoads}

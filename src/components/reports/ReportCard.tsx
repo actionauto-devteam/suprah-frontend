@@ -1,44 +1,170 @@
 "use client";
 
-import React from "react";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronDown, Download, Eye, FileSpreadsheet, FileText, Loader2, Minus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import * as React from "react";
+import {
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  Minus,
+} from "lucide-react";
 
-interface Highlight {
-  label: string;
-  value: string | number;
-  color: string;
-}
+import { Button } from "@/components/ui/button";
 
-interface StatMeta {
+type ExportFormat = "pdf" | "xlsx";
+type TrendDirection = "up" | "down" | "flat";
+
+interface ReportCardStat {
   icon: React.ReactNode;
   label: string;
 }
 
+interface ReportCardHighlight {
+  label: string;
+  value: React.ReactNode;
+  color?: string;
+}
+
+interface ReportCardTrend {
+  label: string;
+  direction: TrendDirection;
+}
+
 interface ReportCardProps {
+  className?: string;
   title: string;
   subtitle: string;
   description: string;
   category: string;
   categoryClass: string;
-  period?: string;
-  trend?: {
-    label: string;
-    direction: "up" | "down" | "flat";
-  };
-  stats: StatMeta[];
-  highlights: Highlight[];
+  period: string;
+  trend: ReportCardTrend;
+  stats: ReportCardStat[];
+  highlights: ReportCardHighlight[];
   isSelected: boolean;
-  selectionMode?: boolean;
+  selectionMode: boolean;
   isDownloading: boolean;
   onToggle: () => void;
-  onDownload: (format: "pdf" | "xlsx") => void;
+  onDownload: (format: ExportFormat) => void;
+  onOpen: () => void;
   onPreview: () => void;
-  onOpen?: () => void;
+}
+
+function DownloadMenu({
+  isDownloading,
+  onDownload,
+}: {
+  isDownloading: boolean;
+  onDownload: (format: ExportFormat) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="size-9 shrink-0"
+        disabled={isDownloading}
+        aria-label="Download report"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {isDownloading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Download className="size-4" />
+        )}
+        <ChevronDown className="absolute bottom-0.5 right-0.5 size-2.5 text-muted-foreground" />
+      </Button>
+
+      {open && !isDownloading ? (
+        <div
+          role="menu"
+          className="absolute bottom-[calc(100%+0.45rem)] right-0 z-50 w-44 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted"
+            onClick={() => {
+              setOpen(false);
+              onDownload("pdf");
+            }}
+          >
+            <FileText className="size-4 text-red-500" />
+            Download PDF
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted"
+            onClick={() => {
+              setOpen(false);
+              onDownload("xlsx");
+            }}
+          >
+            <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+            Download Excel
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TrendRow({ trend }: { trend: ReportCardTrend }) {
+  const TrendIcon =
+    trend.direction === "up"
+      ? ArrowUpRight
+      : trend.direction === "down"
+        ? ArrowDownRight
+        : trend.label.toLowerCase().includes("data")
+          ? Minus
+          : Minus;
+
+  const tone =
+    trend.direction === "up"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      : trend.direction === "down"
+        ? "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300"
+        : "border-border/80 bg-muted/45 text-slate-700 dark:text-slate-300";
+
+  return (
+    <div
+      className={`flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-center text-[13px] font-semibold leading-snug ${tone}`}
+    >
+      <TrendIcon className="size-3.5 shrink-0" />
+      <span className="break-words">{trend.label}</span>
+    </div>
+  );
 }
 
 export function ReportCard({
+  className,
   title,
   subtitle,
   description,
@@ -49,121 +175,77 @@ export function ReportCard({
   stats,
   highlights,
   isSelected,
-  selectionMode = false,
+  selectionMode,
   isDownloading,
   onToggle,
   onDownload,
-  onPreview,
   onOpen,
+  onPreview,
 }: ReportCardProps) {
-  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = React.useState(false);
-  const downloadMenuRef = React.useRef<HTMLDivElement | null>(null);
-
-  React.useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        downloadMenuRef.current &&
-        !downloadMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsDownloadMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, []);
-
-  const handleDownload = (format: "pdf" | "xlsx") => {
-    setIsDownloadMenuOpen(false);
-    onDownload(format);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-
-      if (selectionMode) {
-        onToggle();
-      } else {
-        (onOpen ?? onPreview)();
-      }
-    }
-  };
-
-  const handleCardClick = () => {
-    if (selectionMode) {
-      onToggle();
-      return;
-    }
-
-    (onOpen ?? onPreview)();
-  };
-
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={selectionMode ? `${isSelected ? "Deselect" : "Select"} ${title}` : `Open ${title}`}
-      onClick={handleCardClick}
-      onKeyDown={handleKeyDown}
-      className={`group relative flex h-full min-h-75 min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-4 shadow-sm outline-none transition-[border-color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-primary/40 sm:p-4.5 ${isSelected
-        ? "border-primary/70 bg-primary/3 ring-2 ring-primary/10"
-        : "border-border/80 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md"
-        }`}
+    <article
+      className={`relative flex h-full w-full max-w-[29rem] min-w-0 justify-self-center flex-col overflow-visible rounded-xl border bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md sm:p-4 ${
+        isSelected
+          ? "border-primary ring-2 ring-primary/20"
+          : "border-border/80"
+      } ${className ?? ""}`}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-primary via-primary/45 to-transparent opacity-70" />
+      {selectionMode ? (
+        <button
+          type="button"
+          aria-label={`${isSelected ? "Deselect" : "Select"} ${title}`}
+          onClick={onToggle}
+          className={`absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-lg border shadow-sm transition-colors ${
+            isSelected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"
+          }`}
+        >
+          {isSelected ? <Check className="size-4" /> : null}
+        </button>
+      ) : null}
 
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/10 text-primary">
-            <FileText className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h3 className="min-w-0 wrap-break-word text-base font-bold leading-snug text-foreground sm:text-[17px]">{title}</h3>
-              <Badge variant="outline" className={`shrink-0 px-2 py-0.5 text-[10px] font-semibold ${categoryClass}`}>{category}</Badge>
-            </div>
-            <p className="mt-1.5 text-xs font-semibold sm:text-sm text-primary">{subtitle}</p>
-            {period && (
-              <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {period}
-              </p>
-            )}
-          </div>
+      <div className="flex min-h-[6.25rem] min-w-0 items-start gap-2.5 pr-8">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+          <FileText className="size-4.5" />
         </div>
-        {(selectionMode || isSelected) && (
-          <div
-            onClick={(event) => event.stopPropagation()}
-            className="rounded-md p-0.5 hover:bg-muted"
-          >
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={onToggle}
-              aria-label={`${isSelected ? "Deselect" : "Select"} ${title}`}
-            />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="min-w-0 break-words text-base font-bold tracking-tight text-foreground">
+              {title}
+            </h3>
+            <span
+              className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${categoryClass}`}
+            >
+              {category}
+            </span>
           </div>
-        )}
+          <p className="mt-1 text-[13px] font-semibold leading-5 text-primary">
+            {subtitle}
+          </p>
+          <p className="mt-1 text-[13px] font-medium leading-5 text-slate-700 dark:text-slate-300">
+            {period}
+          </p>
+        </div>
       </div>
 
-      <p className="mt-3 line-clamp-2 min-h-10 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+      <p className="mt-3 min-h-[4.5rem] break-words text-sm leading-6 text-slate-800 dark:text-slate-200">
         {description}
       </p>
 
-      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2.5">
-        {highlights.map((highlight, index) => (
+      <div className="mt-2.5 grid min-h-[4.75rem] grid-cols-2 gap-2">
+        {highlights.map((highlight) => (
           <div
             key={highlight.label}
-            className={`flex min-h-16 min-w-0 flex-col items-center justify-center rounded-lg border px-3 py-2 text-center ${index === 0
-              ? "border-primary/25 bg-primary/[0.07]"
-              : "border-border/70 bg-muted/35"
-              }`}
+            className="min-w-0 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-2 text-center"
           >
-            <p className="w-full wrap-break-word text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[10px]">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
               {highlight.label}
             </p>
             <p
-              className={`mt-1 w-full wrap-break-word text-center font-bold leading-none ${index === 0 ? "text-lg sm:text-xl" : "text-base sm:text-lg"
-                } ${highlight.color}`}
+              className={`mt-1 break-words text-base font-bold ${highlight.color ?? "text-foreground"}`}
+              title={String(highlight.value)}
             >
               {highlight.value}
             </p>
@@ -171,137 +253,53 @@ export function ReportCard({
         ))}
       </div>
 
-      {selectionMode && (
-        <div
-          className={`mt-1.5 flex items-center justify-center rounded-md px-2 py-1 text-[8px] font-bold uppercase tracking-wide sm:text-[9px] ${isSelected
-            ? "bg-primary/12 text-primary"
-            : "bg-muted/70 text-muted-foreground"
-            }`}
-        >
-          {isSelected ? "Selected" : "Tap card to select"}
-        </div>
-      )}
+      <div className="mt-2 min-h-[2.75rem]">
+        <TrendRow trend={trend} />
+      </div>
 
-      {trend && (
-        <div
-          className={`mt-2.5 flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-center text-[9px] font-semibold sm:text-[10px] ${trend.direction === "up"
-            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-            : trend.direction === "down"
-              ? "bg-red-500/10 text-red-600 dark:text-red-400"
-              : "bg-muted text-muted-foreground"
-            }`}
-        >
-          {trend.direction === "up" ? (
-            <ArrowUpRight className="size-3.5 shrink-0" />
-          ) : trend.direction === "down" ? (
-            <ArrowDownRight className="size-3.5 shrink-0" />
-          ) : (
-            <Minus className="size-3.5 shrink-0" />
-          )}
-          <span className="min-w-0 wrap-break-word">{trend.label}</span>
-        </div>
-      )}
-
-      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground sm:text-[11px]">
+      <div className="mt-2.5 grid min-h-[3.75rem] min-w-0 grid-cols-2 items-center gap-2 border-y border-border/70 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         {stats.map((stat, index) => (
           <span
             key={`${stat.label}-${index}`}
-            className="flex items-center gap-1"
+            className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-slate-800 dark:text-slate-200"
           >
-            {stat.icon}
-            {stat.label}
+            <span className="shrink-0 text-muted-foreground">{stat.icon}</span>
+            <span className="break-words">{stat.label}</span>
           </span>
         ))}
-        <span className="font-semibold">PDF · XLSX</span>
+        <span className="col-span-2 shrink-0 text-[13px] font-semibold text-slate-700 dark:text-slate-300 sm:col-span-1 sm:justify-self-end">
+          PDF · Excel
+        </span>
       </div>
 
-      <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2 border-t border-border/70 pt-3">
-        <button
+      <div className="mt-auto flex items-center gap-2 pt-2.5">
+        <Button
           type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            (onOpen ?? onPreview)();
-          }}
-          className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:text-sm"
+          className="h-9 min-w-0 flex-1 gap-2 font-semibold"
+          onClick={selectionMode ? onToggle : onOpen}
         >
-          Open Report
-          <ArrowRight className="size-4" />
-        </button>
-
-        <button
+          {selectionMode ? (isSelected ? "Selected" : "Select Report") : "Open Report"}
+          {selectionMode && isSelected ? (
+            <Check className="size-4" />
+          ) : (
+            <ArrowRight className="size-4" />
+          )}
+        </Button>
+        <Button
           type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onPreview();
-          }}
-          className="inline-flex size-10 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-colors hover:border-primary/30 hover:bg-muted"
-          title="Quick preview"
-          aria-label={`Quick preview ${title}`}
+          variant="outline"
+          size="icon"
+          className="size-9 shrink-0"
+          onClick={onPreview}
+          aria-label={`Preview ${title}`}
         >
           <Eye className="size-4" />
-        </button>
-
-        <div
-          ref={downloadMenuRef}
-          className="relative min-w-0"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={() => setIsDownloadMenuOpen((current) => !current)}
-            disabled={isDownloading}
-            aria-haspopup="menu"
-            aria-expanded={isDownloadMenuOpen}
-            className="inline-flex size-10 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-colors hover:border-primary/30 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-            title="Quick download"
-            aria-label={`Download ${title}`}
-          >
-            {isDownloading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Download className="size-4" />
-            )}
-            {!isDownloading && <ChevronDown className="size-3" />}
-          </button>
-
-          {isDownloadMenuOpen && !isDownloading && (
-            <div
-              role="menu"
-              className="absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-52 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleDownload("pdf")}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
-              >
-                <FileText className="size-4 text-red-500" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">PDF document</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    Best for printing and sharing
-                  </span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleDownload("xlsx")}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
-              >
-                <FileSpreadsheet className="size-4 text-emerald-500" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">Excel workbook</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    Best for analysis and editing
-                  </span>
-                </span>
-              </button>
-            </div>
-          )}
-        </div>
+        </Button>
+        <DownloadMenu
+          isDownloading={isDownloading}
+          onDownload={onDownload}
+        />
       </div>
-    </div>
+    </article>
   );
 }
