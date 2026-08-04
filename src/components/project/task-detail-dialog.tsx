@@ -793,6 +793,9 @@ export function TaskDetailDialog({
     };
   }, [socket, taskId]);
 
+  const isOverdue =
+    !!task?.deadline && task.status !== "completed" && new Date(task.deadline) < new Date();
+
   // Mirror the backend rule: only the creator or an assignee can change the status.
   const canChangeStatus =
     !!task &&
@@ -966,65 +969,65 @@ export function TaskDetailDialog({
         ) : (
           <>
             {/* Header */}
-            <DialogHeader className="space-y-2.5 border-b border-border/40 px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                <DialogTitle className="min-w-0 text-base font-bold leading-snug">
+            <DialogHeader className="space-y-3 border-b border-border/40 px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
+              <div className="flex items-start justify-between gap-3">
+                <DialogTitle className="min-w-0 flex-1 text-base font-bold leading-snug">
                   {task.title}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <PrioritySelect
-                      priority={task.priority}
-                      loading={prioritySaving}
-                      onChange={changePriority}
-                    />
-                    <TaskStatusSelect
-                      status={task.status}
-                      disabled={!canChangeStatus}
-                      loading={statusSaving}
-                      onChange={changeStatus}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={openEdit}
-                      disabled={editLoading}
-                      title="Edit task"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
-                    >
-                      {editLoading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Pencil className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setDeleteOpen(true)}
-                      title="Delete task"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                    <span className="mx-0.5 h-5 w-px shrink-0 bg-border/60" />
-                    <button
-                      onClick={onClose}
-                      title="Close"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={openEdit}
+                    disabled={editLoading}
+                    title="Edit task"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
+                  >
+                    {editLoading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Pencil className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setDeleteOpen(true)}
+                    title="Delete task"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="mx-0.5 h-5 w-px shrink-0 bg-border/60" />
+                  <button
+                    onClick={onClose}
+                    title="Close"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <PrioritySelect
+                  priority={task.priority}
+                  loading={prioritySaving}
+                  onChange={changePriority}
+                />
+                <TaskStatusSelect
+                  status={task.status}
+                  disabled={!canChangeStatus}
+                  loading={statusSaving}
+                  onChange={changeStatus}
+                />
+              </div>
+
               <DialogDescription asChild>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground/70">
-                  <span className="inline-flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground/70">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-muted/40 px-2 py-1">
                     Created by <MemberAvatar member={task.createdBy} size="xs" />
                     <span className="font-medium text-foreground/80">
                       {displayName(task.createdBy)}
                     </span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-muted/40 px-2 py-1">
                     Assignees{" "}
                     {task.assigneeIds?.length ? (
                       <>
@@ -1046,13 +1049,21 @@ export function TaskDetailDialog({
                     )}
                   </span>
                   {task.startDate && (
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3 w-3" /> Starts {fmtDate(task.startDate)}
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-muted/40 px-2 py-1">
+                      <Clock className="h-3 w-3 shrink-0" /> Starts {fmtDate(task.startDate)}
                     </span>
                   )}
                   {task.deadline && (
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3 w-3" /> Due {fmtDate(task.deadline)}
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1",
+                        isOverdue
+                          ? "bg-rose-500/10 font-medium text-rose-600 dark:text-rose-400"
+                          : "bg-muted/40",
+                      )}
+                    >
+                      <CalendarDays className="h-3 w-3 shrink-0" />
+                      {isOverdue ? "Overdue" : "Due"} {fmtDate(task.deadline)}
                     </span>
                   )}
                 </div>

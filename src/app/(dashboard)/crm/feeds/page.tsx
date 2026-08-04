@@ -2212,7 +2212,7 @@ export default function FeedsPage() {
 
       {/* -- Sticky header -- */}
       <header className="sticky top-0 z-40 w-full border-b border-border/30 bg-background/80 backdrop-blur-xl">
-        <div className="flex items-center gap-4 h-14 px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
+        <div className="flex items-center gap-4 h-14 px-6 max-w-screen-2xl mx-auto">
           <Button
             variant="ghost"
             size="icon"
@@ -2269,13 +2269,13 @@ export default function FeedsPage() {
           )}
         </div>
 
-        <div className="px-6 max-w-6xl 2xl:max-w-7xl mx-auto">
+        <div className="px-6 max-w-screen-2xl mx-auto">
           <TabBar active={activeTab} onChange={setActiveTab} />
         </div>
       </header>
 
       {/* -- Main content -- */}
-      <main className="relative max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pb-20">
+      <main className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 pb-20">
         {/* Ambient background glow */}
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(800px_circle_at_20%_0%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(700px_circle_at_80%_10%,rgba(16,185,129,0.035),transparent_55%)]" />
 

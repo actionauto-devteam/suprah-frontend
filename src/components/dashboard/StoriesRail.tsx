@@ -76,6 +76,10 @@ const NOTE_MAX = 100;
 const QUICK_REACTIONS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
 
+function firstName(n?: string) {
+  return (n || "Unknown").trim().split(" ")[0];
+}
+
 function ini(n?: string) {
   return (n || "U").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -222,11 +226,11 @@ function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-          <h3 className="text-sm font-black tracking-tight">Share a note</h3>
+          <h3 className="text-base font-black tracking-tight">Share a note</h3>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60"><X className="size-4" /></button>
         </div>
         <div className="p-5 space-y-4">
@@ -240,7 +244,7 @@ function NoteEditor({
               placeholder="What's on your mind?"
               className="w-full resize-none bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground/40"
             />
-            <span className="absolute bottom-1.5 right-3 text-[9px] tabular-nums text-muted-foreground/40">{draft.length}/{NOTE_MAX}</span>
+            <span className="absolute bottom-1.5 right-3 text-[11px] tabular-nums text-muted-foreground/40">{draft.length}/{NOTE_MAX}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -337,7 +341,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-          <h3 className="text-sm font-black tracking-tight">Add to your day</h3>
+          <h3 className="text-base font-black tracking-tight">Add to your day</h3>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60"><X className="size-4" /></button>
         </div>
 
@@ -349,8 +353,8 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
             >
               <ImagePlus className="size-8 text-muted-foreground/50" />
               <div className="text-center">
-                <p className="text-sm font-semibold text-foreground/80">Upload photo or video</p>
-                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Video up to 2 min · disappears in 24h</p>
+                <p className="text-base font-semibold text-foreground/80">Upload photo or video</p>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">Video up to 2 min · disappears in 24h</p>
               </div>
             </button>
           ) : (
@@ -381,7 +385,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
             />
           )}
 
-          {error && <p className="text-xs text-rose-500">{error}</p>}
+          {error && <p className="text-sm text-rose-500">{error}</p>}
 
           {progress !== null && (
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
@@ -609,14 +613,14 @@ function StoryViewer({
         <div className="flex items-center gap-2.5 px-4 py-3">
           <Avatar className="size-8 ring-2 ring-white/20">
             <AvatarImage src={author.avatar} />
-            <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-bold">{ini(author.fullName)}</AvatarFallback>
+            <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(author.fullName)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white truncate">{author.fullName}</p>
-            <p className="text-[10px] text-white/50">{mdtTime(story.createdAt)} MDT</p>
+            <p className="text-base font-semibold text-white truncate">{author.fullName}</p>
+            <p className="text-xs text-white/50">{mdtTime(story.createdAt)} MDT</p>
           </div>
           {mediaDuration > 0 && (
-            <span className="rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white/90">
+            <span className="rounded-full bg-black/40 px-2 py-0.5 text-xs font-bold tabular-nums text-white/90">
               {fmtTime(remaining)}
             </span>
           )}
@@ -658,7 +662,7 @@ function StoryViewer({
           )}
           {story.caption && (
             <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
-              <p className="text-sm text-white/90">{story.caption}</p>
+              <p className="text-base text-white/90">{story.caption}</p>
             </div>
           )}
 
@@ -673,7 +677,7 @@ function StoryViewer({
 
           {/* Paused hint */}
           {paused && !panel && (
-            <div className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/90">
+            <div className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white/90">
               <Pause className="size-3" /> Paused
             </div>
           )}
@@ -682,7 +686,7 @@ function StoryViewer({
           {panel && (
             <div className="absolute inset-x-0 bottom-0 top-1/3 z-20 flex flex-col rounded-t-3xl border-t border-white/10 bg-neutral-950/95 backdrop-blur-xl animate-in slide-in-from-bottom duration-200">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                <p className="text-sm font-bold text-white">
+                <p className="text-base font-bold text-white">
                   {panel === "comments" ? `Comments · ${commentCount}` : `Seen by · ${viewCount}`}
                 </p>
                 <button onClick={() => setPanel(null)} className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white">
@@ -693,36 +697,36 @@ function StoryViewer({
               <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
                 {panel === "comments" ? (
                   (detail?.comments?.length ?? 0) === 0 ? (
-                    <p className="py-8 text-center text-xs text-white/40">No comments yet. Be the first.</p>
+                    <p className="py-8 text-center text-sm text-white/40">No comments yet. Be the first.</p>
                   ) : (
                     detail!.comments.map((c) => (
                       <div key={c._id} className="flex items-start gap-2.5">
                         <Avatar className="size-7 shrink-0">
                           <AvatarImage src={c.authorAvatar} />
-                          <AvatarFallback className="bg-neutral-700 text-white text-[9px] font-bold">{ini(c.authorName)}</AvatarFallback>
+                          <AvatarFallback className="bg-neutral-700 text-white text-xs font-bold">{ini(c.authorName)}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs text-white/90">
+                          <p className="text-sm text-white/90">
                             <span className="font-semibold">{c.authorName}</span>{" "}
                             <span className="text-white/80">{c.text}</span>
                           </p>
-                          <p className="mt-0.5 text-[9px] text-white/35">{mdtDateTime(c.createdAt)}</p>
+                          <p className="mt-0.5 text-xs text-white/35">{mdtDateTime(c.createdAt)}</p>
                         </div>
                       </div>
                     ))
                   )
                 ) : (detail?.viewers?.length ?? 0) === 0 ? (
-                  <p className="py-8 text-center text-xs text-white/40">No views yet.</p>
+                  <p className="py-8 text-center text-sm text-white/40">No views yet.</p>
                 ) : (
                   detail!.viewers!.map((v) => (
                     <div key={v.userId} className="flex items-center gap-2.5">
                       <Avatar className="size-7 shrink-0">
                         <AvatarImage src={v.avatar} />
-                        <AvatarFallback className="bg-neutral-700 text-white text-[9px] font-bold">{ini(v.name)}</AvatarFallback>
+                        <AvatarFallback className="bg-neutral-700 text-white text-xs font-bold">{ini(v.name)}</AvatarFallback>
                       </Avatar>
-                      <p className="min-w-0 flex-1 truncate text-xs font-medium text-white/90">{v.name}</p>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium text-white/90">{v.name}</p>
                       {v.emoji && <span className="text-base">{v.emoji}</span>}
-                      <span className="text-[9px] text-white/35">{mdtTime(v.viewedAt)}</span>
+                      <span className="text-xs text-white/35">{mdtTime(v.viewedAt)}</span>
                     </div>
                   ))
                 )}
@@ -750,14 +754,14 @@ function StoryViewer({
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={() => setPanel(panel === "comments" ? null : "comments")}
-              className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/20"
+              className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
             >
               <MessageCircle className="size-3.5" /> {commentCount} Comments
             </button>
             {isMine && (
               <button
                 onClick={() => setPanel(panel === "viewers" ? null : "viewers")}
-                className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/20"
+                className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
               >
                 <Eye className="size-3.5" /> {viewCount} Seen{reactionCount ? ` · ${reactionCount} ❤` : ""}
               </button>
@@ -852,11 +856,11 @@ function NoteDetail({
           <div className="flex items-center gap-2.5 border-b border-border/40 px-5 py-3.5">
             <Avatar className="size-9">
               <AvatarImage src={note?.authorAvatar} />
-              <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-bold">{ini(note?.authorName)}</AvatarFallback>
+              <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(note?.authorName)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">{note?.authorName || "Note"}</p>
-              {note && <p className="text-[10px] text-muted-foreground/60">{mdtDateTime(note.updatedAt)}</p>}
+              <p className="truncate text-base font-bold">{note?.authorName || "Note"}</p>
+              {note && <p className="text-xs text-muted-foreground/60">{mdtDateTime(note.updatedAt)}</p>}
             </div>
             {note?.isOwner && (
               <button onClick={onEdit} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted/60 hover:text-foreground" aria-label="Edit note">
@@ -888,7 +892,7 @@ function NoteDetail({
                 ))}
               </div>
               {(note?.reactionCount ?? 0) > 0 && (
-                <p className="mt-1.5 text-center text-[10px] font-medium text-muted-foreground/60">
+                <p className="mt-1.5 text-center text-xs font-medium text-muted-foreground/60">
                   {note!.reactionCount} reaction{note!.reactionCount === 1 ? "" : "s"}
                 </p>
               )}
@@ -896,24 +900,24 @@ function NoteDetail({
 
             {/* Comments */}
             <div className="space-y-3 border-t border-border/30 pt-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground/60">
                 Comments · {note?.commentCount ?? 0}
               </p>
               {(note?.comments?.length ?? 0) === 0 ? (
-                <p className="py-2 text-center text-xs text-muted-foreground/50">No comments yet. Be the first.</p>
+                <p className="py-2 text-center text-sm text-muted-foreground/50">No comments yet. Be the first.</p>
               ) : (
                 note!.comments.map((c) => (
                   <div key={c._id} className="flex items-start gap-2.5">
                     <Avatar className="size-7 shrink-0">
                       <AvatarImage src={c.authorAvatar} />
-                      <AvatarFallback className="bg-muted text-[9px] font-bold">{ini(c.authorName)}</AvatarFallback>
+                      <AvatarFallback className="bg-muted text-xs font-bold">{ini(c.authorName)}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs">
+                      <p className="text-sm">
                         <span className="font-semibold">{c.authorName}</span>{" "}
                         <span className="text-foreground/80">{c.text}</span>
                       </p>
-                      <p className="mt-0.5 text-[9px] text-muted-foreground/40">{mdtDateTime(c.createdAt)}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground/40">{mdtDateTime(c.createdAt)}</p>
                     </div>
                   </div>
                 ))
@@ -1077,7 +1081,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
                 <Plus className="size-3" />
               </button>
             </div>
-            <span className="text-[10px] font-semibold text-muted-foreground max-w-16 truncate">Your day</span>
+            <span className="text-xs font-semibold text-muted-foreground max-w-16 truncate">Your day</span>
           </div>
 
           <div className="w-px shrink-0 self-center bg-border/40" style={{ height: "3.5rem" }} />
@@ -1097,17 +1101,20 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
                   </Avatar>
                 </StoryRing>
               </button>
-              <span className="flex min-w-0 max-w-16 items-center gap-1" title={u.fullName}>
+              <span
+                className="flex min-w-0 max-w-16 items-center gap-1"
+                title={`${u.fullName} • ${S.label[u.onlineStatus ?? "offline"]}`}
+              >
                 <StatusDot s={u.onlineStatus ?? "offline"} />
-                <span className="truncate text-[10px] font-medium text-muted-foreground">
-                  {S.label[u.onlineStatus ?? "offline"]}
+                <span className="truncate text-xs font-medium text-muted-foreground">
+                  {firstName(u.fullName)}
                 </span>
               </span>
             </div>
           ))}
 
           {ready && users.filter((u) => !u.isMe).length === 0 && (
-            <p className="self-center text-[11px] text-muted-foreground/50 font-medium pl-1">
+            <p className="self-center text-xs text-muted-foreground/50 font-medium pl-1">
               No teammates to show yet.
             </p>
           )}
@@ -1170,7 +1177,7 @@ function NoteBubble({
       className={`group relative max-w-26 ${clickable ? "cursor-pointer" : "cursor-default"} ${show ? "" : "invisible pointer-events-none"}`}
     >
       <div
-        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-[10px] font-medium leading-tight shadow-sm transition-colors ${hasText
+        className={`truncate rounded-2xl rounded-bl-md px-2.5 py-1 text-xs font-medium leading-tight shadow-sm transition-colors ${hasText
           ? "bg-muted/80 text-foreground/80 border border-border/40 group-hover:border-emerald-500/40"
           : "bg-emerald-500/10 text-emerald-600 border border-dashed border-emerald-500/40"
           }`}

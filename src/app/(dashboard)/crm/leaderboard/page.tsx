@@ -817,7 +817,7 @@ export default function LeaderboardPage() {
     <div className="min-h-screen w-full bg-background">
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/90 backdrop-blur-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 sm:min-h-14">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 sm:min-h-14">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"

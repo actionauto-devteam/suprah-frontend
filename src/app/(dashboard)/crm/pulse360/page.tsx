@@ -83,11 +83,11 @@ function StatTile({
   return (
     <div className="rounded-2xl border border-border/40 bg-card/60 p-4 backdrop-blur-sm">
       <div className="flex items-center justify-between">
-        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">{label}</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">{label}</p>
         <Icon className="h-3.5 w-3.5 text-muted-foreground/25" />
       </div>
-      <p className={cn("mt-2 font-mono text-2xl font-black tabular-nums tracking-tight", toneText)}>{value}</p>
-      {sub && <p className="mt-0.5 text-[10px] font-medium text-muted-foreground/50">{sub}</p>}
+      <p className={cn("mt-2 font-mono text-3xl font-black tabular-nums tracking-tight", toneText)}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs font-medium text-muted-foreground/50">{sub}</p>}
     </div>
   );
 }
@@ -157,18 +157,18 @@ function UserDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end">
+    <div className="fixed inset-0 z-200 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden />
       <div className="relative z-10 flex h-full w-full max-w-lg flex-col border-l border-border/40 bg-background shadow-2xl">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/30 px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-9 w-9 shrink-0">
               <AvatarImage src={health?.avatar} />
-              <AvatarFallback className="text-[11px] font-bold">{health?.fullName?.[0] ?? "U"}</AvatarFallback>
+              <AvatarFallback className="text-sm font-bold">{health?.fullName?.[0] ?? "U"}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate text-sm font-black tracking-tight">{health?.fullName ?? "Loading…"}</p>
-              <p className="truncate text-[11px] text-muted-foreground/60">
+              <p className="truncate text-base font-black tracking-tight">{health?.fullName ?? "Loading…"}</p>
+              <p className="truncate text-sm text-muted-foreground/60">
                 {health?.department ?? "No department"} · {health?.role ?? ""}
               </p>
             </div>
@@ -189,8 +189,8 @@ function UserDrawer({
         ) : !health ? (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
             <Gauge className="h-8 w-8 text-muted-foreground/25" />
-            <p className="mt-2 text-sm font-bold">No pulse data yet</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">
+            <p className="mt-2 text-base font-bold">No pulse data yet</p>
+            <p className="mt-1 text-sm text-muted-foreground/60">
               Their score appears after the next evaluation sweep.
             </p>
           </div>
@@ -212,14 +212,14 @@ function UserDrawer({
 
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-border/30 bg-muted/10 px-3 py-2.5">
-                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">Open</p>
-                <p className="mt-0.5 font-mono text-lg font-black tabular-nums">{health.stats.openTasks}</p>
+                <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/40">Open</p>
+                <p className="mt-0.5 font-mono text-xl font-black tabular-nums">{health.stats.openTasks}</p>
               </div>
               <div className="rounded-xl border border-border/30 bg-muted/10 px-3 py-2.5">
-                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">Overdue</p>
+                <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/40">Overdue</p>
                 <p
                   className={cn(
-                    "mt-0.5 font-mono text-lg font-black tabular-nums",
+                    "mt-0.5 font-mono text-xl font-black tabular-nums",
                     health.stats.overdueTasks > 0 ? "text-red-500" : "text-emerald-500"
                   )}
                 >
@@ -227,8 +227,8 @@ function UserDrawer({
                 </p>
               </div>
               <div className="rounded-xl border border-border/30 bg-muted/10 px-3 py-2.5">
-                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">Done 14d</p>
-                <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-emerald-500">
+                <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/40">Done 14d</p>
+                <p className="mt-0.5 font-mono text-xl font-black tabular-nums text-emerald-500">
                   {health.stats.completedInWindow}
                 </p>
               </div>
@@ -236,7 +236,7 @@ function UserDrawer({
 
             {alerts.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
                   Open alerts
                 </p>
                 {alerts.map((alert) => {
@@ -246,9 +246,9 @@ function UserDrawer({
                       key={alert._id}
                       className={cn("rounded-xl border px-3 py-2.5", meta.pill)}
                     >
-                      <p className={cn("text-[9px] font-black uppercase tracking-widest", meta.text)}>{meta.label}</p>
-                      <p className="mt-0.5 text-xs font-bold text-foreground">{alert.title}</p>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground/70">{alert.reason}</p>
+                      <p className={cn("text-[11px] font-black uppercase tracking-widest", meta.text)}>{meta.label}</p>
+                      <p className="mt-0.5 text-sm font-bold text-foreground">{alert.title}</p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground/70">{alert.reason}</p>
                     </div>
                   );
                 })}
@@ -257,25 +257,25 @@ function UserDrawer({
 
             {nextActions.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
                   Recommended next
                 </p>
                 {nextActions.map((action) => (
                   <div key={action.taskId} className="rounded-xl border border-border/30 bg-muted/10 px-3 py-2.5">
-                    <p className="truncate text-xs font-bold text-foreground">{action.title}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">{action.why}</p>
+                    <p className="truncate text-sm font-bold text-foreground">{action.title}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground/60">{action.why}</p>
                   </div>
                 ))}
               </div>
             )}
 
             <div className="space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
                 Activity timeline
               </p>
               <div className="space-y-0">
                 {timeline.length === 0 ? (
-                  <p className="py-6 text-center text-xs text-muted-foreground/50">
+                  <p className="py-6 text-center text-sm text-muted-foreground/50">
                     Nothing recorded in this window.
                   </p>
                 ) : (
@@ -293,13 +293,13 @@ function UserDrawer({
                       <div className="min-w-0 flex-1 pb-3">
                         <p
                           className={cn(
-                            "truncate text-[11px] font-semibold",
+                            "truncate text-sm font-semibold",
                             signal.passive ? "text-muted-foreground/50" : "text-foreground/85"
                           )}
                         >
                           {signal.title}
                         </p>
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/35">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/35">
                           {signal.module} · {formatRelative(signal.occurredAt)}
                         </p>
                       </div>
@@ -313,7 +313,7 @@ function UserDrawer({
 
         {canManage && health && (
           <div className="shrink-0 space-y-2 border-t border-border/30 bg-muted/10 px-5 py-4">
-            <label htmlFor="pulse-nudge" className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
+            <label htmlFor="pulse-nudge" className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
               Ask for an update
             </label>
             <div className="flex gap-2">
@@ -325,12 +325,12 @@ function UserDrawer({
                   if (e.key === "Enter" && !sending) void sendNudge();
                 }}
                 placeholder="What do you need from them?"
-                className="h-10 flex-1 rounded-xl border border-border/40 bg-background px-3 text-xs outline-none transition focus:border-violet-500/50"
+                className="h-10 flex-1 rounded-xl border border-border/40 bg-background px-3 text-sm outline-none transition focus:border-violet-500/50"
               />
               <Button
                 onClick={sendNudge}
                 disabled={sending || !nudge.trim()}
-                className="h-10 shrink-0 gap-1.5 rounded-xl bg-violet-600 px-3 text-xs font-bold text-white hover:bg-violet-500"
+                className="h-10 shrink-0 gap-1.5 rounded-xl bg-violet-600 px-3 text-sm font-bold text-white hover:bg-violet-500"
               >
                 {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 Send
@@ -472,11 +472,11 @@ export default function Pulse360Page() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
-            <h1 className="flex items-center gap-2 truncate text-lg font-black tracking-tight sm:text-xl">
+            <h1 className="flex items-center gap-2 truncate text-xl font-black tracking-tight sm:text-2xl">
               <Gauge className="h-5 w-5 text-violet-500" />
               Suprah Pulse360
             </h1>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground/60">
+            <p className="mt-0.5 truncate text-sm text-muted-foreground/60">
               Operational health across every department
             </p>
           </div>
@@ -485,7 +485,7 @@ export default function Pulse360Page() {
               onClick={runEvaluation}
               disabled={evaluating}
               size="sm"
-              className="ml-auto h-9 shrink-0 gap-1.5 rounded-xl border border-border/40 bg-card text-[11px] font-bold text-muted-foreground hover:bg-muted/50"
+              className="ml-auto h-9 shrink-0 gap-1.5 rounded-xl border border-border/40 bg-card text-sm font-bold text-muted-foreground hover:bg-muted/50"
             >
               {evaluating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">Re-evaluate now</span>
@@ -509,7 +509,7 @@ export default function Pulse360Page() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-widest",
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-widest",
                       WORK_STATE_META[myHealth.workState].text,
                       "border-border/40 bg-muted/20"
                     )}
@@ -520,7 +520,7 @@ export default function Pulse360Page() {
                   {myHealth.delta !== 0 && (
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 text-[10px] font-bold",
+                        "inline-flex items-center gap-1 text-xs font-bold",
                         myHealth.delta > 0 ? "text-emerald-500" : "text-orange-500"
                       )}
                     >
@@ -539,13 +539,13 @@ export default function Pulse360Page() {
               </div>
 
               <div className="w-full space-y-2 sm:w-64">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
                   Do this next
                 </p>
                 {nextActions.length === 0 ? (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-4 text-center">
                     <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-500/60" />
-                    <p className="mt-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <p className="mt-1.5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                       Nothing outstanding
                     </p>
                   </div>
@@ -556,8 +556,8 @@ export default function Pulse360Page() {
                       onClick={() => router.push(action.url)}
                       className="w-full rounded-xl border border-border/30 bg-muted/10 px-3 py-2.5 text-left transition hover:border-violet-500/30 hover:bg-violet-500/5"
                     >
-                      <p className="truncate text-[11px] font-bold text-foreground">{action.title}</p>
-                      <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/60">{action.why}</p>
+                      <p className="truncate text-sm font-bold text-foreground">{action.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground/60">{action.why}</p>
                     </button>
                   ))
                 )}
@@ -568,7 +568,7 @@ export default function Pulse360Page() {
 
         {!canManage ? (
           <div className="rounded-2xl border border-border/30 bg-muted/10 px-5 py-4">
-            <p className="text-xs font-semibold text-muted-foreground/70">
+            <p className="text-sm font-semibold text-muted-foreground/70">
               Department and org-wide analytics are available to admins and managers.
             </p>
           </div>
@@ -621,7 +621,7 @@ export default function Pulse360Page() {
             {/* Bottlenecks — the "look here first" panel */}
             {overview.bottlenecks.length > 0 && (
               <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-orange-500/70">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-500/70">
                   Needs attention first
                 </p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -633,15 +633,15 @@ export default function Pulse360Page() {
                     >
                       <Avatar className="h-8 w-8 shrink-0">
                         <AvatarImage src={item.avatar} />
-                        <AvatarFallback className="text-[10px] font-bold">{item.fullName[0]}</AvatarFallback>
+                        <AvatarFallback className="text-xs font-bold">{item.fullName[0]}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold">{item.fullName}</p>
-                        <p className="truncate text-[10px] text-muted-foreground/60">{item.reason}</p>
+                        <p className="truncate text-sm font-bold">{item.fullName}</p>
+                        <p className="truncate text-xs text-muted-foreground/60">{item.reason}</p>
                       </div>
                       <span
                         className={cn(
-                          "shrink-0 font-mono text-sm font-black tabular-nums",
+                          "shrink-0 font-mono text-base font-black tabular-nums",
                           BAND_META[item.band].text
                         )}
                       >
@@ -657,8 +657,8 @@ export default function Pulse360Page() {
             <div className="rounded-2xl border border-border/40 bg-card/50">
               <div className="flex items-center gap-2 border-b border-border/30 px-5 py-3.5">
                 <Building2 className="h-4 w-4 text-muted-foreground/40" />
-                <p className="text-xs font-black tracking-tight">Departments</p>
-                <p className="ml-auto text-[10px] text-muted-foreground/40">Weakest first</p>
+                <p className="text-sm font-black tracking-tight">Departments</p>
+                <p className="ml-auto text-xs text-muted-foreground/40">Weakest first</p>
               </div>
               <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 {overview.departments.map((dept) => (
@@ -673,12 +673,12 @@ export default function Pulse360Page() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-xs font-bold capitalize">{dept.department}</p>
-                      <span className={cn("font-mono text-sm font-black tabular-nums", BAND_META[dept.band].text)}>
+                      <p className="truncate text-sm font-bold capitalize">{dept.department}</p>
+                      <span className={cn("font-mono text-base font-black tabular-nums", BAND_META[dept.band].text)}>
                         {dept.averageScore}
                       </span>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground/60">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground/60">
                       <span>{dept.headcount} people</span>
                       <span>{dept.working} working</span>
                       {dept.overdueTasks > 0 && (
@@ -694,7 +694,7 @@ export default function Pulse360Page() {
             <div className="rounded-2xl border border-border/40 bg-card/50">
               <div className="flex flex-wrap items-center gap-2 border-b border-border/30 px-5 py-3.5">
                 <Users className="h-4 w-4 text-muted-foreground/40" />
-                <p className="text-xs font-black tracking-tight">Workforce</p>
+                <p className="text-sm font-black tracking-tight">Workforce</p>
 
                 <div className="relative ml-auto">
                   <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/40" />
@@ -703,7 +703,7 @@ export default function Pulse360Page() {
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Find someone"
                     aria-label="Search the workforce"
-                    className="h-8 w-40 rounded-lg border border-border/40 bg-background pl-7 pr-2 text-[11px] outline-none transition focus:border-violet-500/50 sm:w-52"
+                    className="h-8 w-40 rounded-lg border border-border/40 bg-background pl-7 pr-2 text-sm outline-none transition focus:border-violet-500/50 sm:w-52"
                   />
                 </div>
 
@@ -711,7 +711,7 @@ export default function Pulse360Page() {
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
                   aria-label="Filter by department"
-                  className="h-8 rounded-lg border border-border/40 bg-background px-2 text-[11px] font-semibold outline-none"
+                  className="h-8 rounded-lg border border-border/40 bg-background px-2 text-sm font-semibold outline-none"
                 >
                   {departments.map((d) => (
                     <option key={d} value={d}>
@@ -724,7 +724,7 @@ export default function Pulse360Page() {
                   value={workState}
                   onChange={(e) => setWorkState(e.target.value)}
                   aria-label="Filter by state"
-                  className="h-8 rounded-lg border border-border/40 bg-background px-2 text-[11px] font-semibold outline-none"
+                  className="h-8 rounded-lg border border-border/40 bg-background px-2 text-sm font-semibold outline-none"
                 >
                   <option value="all">Any state</option>
                   <option value="working">Working</option>
@@ -736,7 +736,7 @@ export default function Pulse360Page() {
 
               <div className="divide-y divide-border/20">
                 {filteredUsers.length === 0 ? (
-                  <p className="py-12 text-center text-xs text-muted-foreground/50">
+                  <p className="py-12 text-center text-sm text-muted-foreground/50">
                     Nobody matches those filters.
                   </p>
                 ) : (
@@ -751,17 +751,17 @@ export default function Pulse360Page() {
                       >
                         <Avatar className="h-9 w-9 shrink-0">
                           <AvatarImage src={user.avatar} />
-                          <AvatarFallback className="text-[11px] font-bold">{user.fullName[0]}</AvatarFallback>
+                          <AvatarFallback className="text-sm font-bold">{user.fullName[0]}</AvatarFallback>
                         </Avatar>
 
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-bold">{user.fullName}</p>
+                          <p className="truncate text-sm font-bold">{user.fullName}</p>
                           <div className="mt-0.5 flex items-center gap-2">
-                            <span className={cn("flex items-center gap-1 text-[10px] font-semibold", stateMeta.text)}>
+                            <span className={cn("flex items-center gap-1 text-xs font-semibold", stateMeta.text)}>
                               <span className={cn("h-1.5 w-1.5 rounded-full", stateMeta.dot)} />
                               {stateMeta.label}
                             </span>
-                            <span className="truncate text-[10px] capitalize text-muted-foreground/50">
+                            <span className="truncate text-xs capitalize text-muted-foreground/50">
                               {user.department ?? "—"}
                             </span>
                           </div>
@@ -769,29 +769,29 @@ export default function Pulse360Page() {
 
                         <div className="hidden shrink-0 items-center gap-4 sm:flex">
                           <div className="text-right">
-                            <p className="font-mono text-xs font-bold tabular-nums">{user.stats.openTasks}</p>
-                            <p className="text-[8px] uppercase tracking-wider text-muted-foreground/40">Open</p>
+                            <p className="font-mono text-sm font-bold tabular-nums">{user.stats.openTasks}</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">Open</p>
                           </div>
                           <div className="text-right">
                             <p
                               className={cn(
-                                "font-mono text-xs font-bold tabular-nums",
+                                "font-mono text-sm font-bold tabular-nums",
                                 user.stats.overdueTasks > 0 ? "text-red-500" : "text-muted-foreground/50"
                               )}
                             >
                               {user.stats.overdueTasks}
                             </p>
-                            <p className="text-[8px] uppercase tracking-wider text-muted-foreground/40">Late</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">Late</p>
                           </div>
                         </div>
 
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className={cn("font-mono text-base font-black tabular-nums", bandMeta.text)}>
+                          <span className={cn("font-mono text-lg font-black tabular-nums", bandMeta.text)}>
                             {user.score}
                           </span>
                           <span
                             className={cn(
-                              "hidden rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider sm:inline-block",
+                              "hidden rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider sm:inline-block",
                               bandMeta.pill,
                               bandMeta.text
                             )}

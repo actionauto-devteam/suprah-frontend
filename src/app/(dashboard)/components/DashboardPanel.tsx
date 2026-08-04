@@ -51,12 +51,12 @@ export function Panel({
       <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-border/20">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className={`size-4 shrink-0 ${accent}`} />
-          <h2 className="text-sm font-black tracking-tight truncate">{title}</h2>
+          <h2 className="text-base font-black tracking-tight truncate">{title}</h2>
         </div>
         {action && (
           <button
             onClick={onAction}
-            className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground/60 hover:text-primary transition-colors shrink-0"
+            className="flex items-center gap-1 text-xs font-bold text-muted-foreground/60 hover:text-primary transition-colors shrink-0"
           >
             {action}
             <ChevronRight className="size-3" />

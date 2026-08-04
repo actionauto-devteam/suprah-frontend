@@ -131,13 +131,18 @@ export function YapLineDock() {
   const [dockPos, setDockPos] = React.useState<{ x: number; y: number } | null>(null);
   const dragRef = React.useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
 
+  // Below the fixed h-16 (64px) app header, with breathing room — keeps a
+  // dragged dock from ever landing on the header or in-page action toolbars
+  // (e.g. the Lead Inbox "Reply together" banner) that sit directly under it.
+  const TOP_SAFE_ZONE = 80;
+
   const clampToViewport = React.useCallback((x: number, y: number) => {
     const el = containerRef.current;
     const w = el?.offsetWidth ?? 220;
     const h = el?.offsetHeight ?? 60;
     const maxX = Math.max(8, window.innerWidth - w - 8);
-    const maxY = Math.max(8, window.innerHeight - h - 8);
-    return { x: Math.min(Math.max(8, x), maxX), y: Math.min(Math.max(8, y), maxY) };
+    const maxY = Math.max(TOP_SAFE_ZONE, window.innerHeight - h - 8);
+    return { x: Math.min(Math.max(8, x), maxX), y: Math.min(Math.max(TOP_SAFE_ZONE, y), maxY) };
   }, []);
 
   // Load the saved position once and clamp it against whatever's on screen

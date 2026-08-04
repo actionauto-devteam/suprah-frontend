@@ -58,6 +58,12 @@ interface Conv {
 /** Channels per page in the rail. */
 const CHANNELS_PER_PAGE = 10;
 
+// Module-level so the rail's conversations survive a route-away-and-back
+// remount within the same tab — repeat navigation renders the last known
+// list immediately instead of flashing the skeleton, while the effect below
+// still revalidates against the network in the background.
+let convsCache: Conv[] | null = null;
+
 /** Best-effort "last activity" timestamp for latest-first ordering. */
 function convRecency(c: Conv): number {
   const t =
@@ -111,8 +117,8 @@ function StageScreen({ userId, version }: { userId: string; version: number }) {
 
 export default function YapLinePage() {
   const s = useYapLine();
-  const [convs, setConvs] = React.useState<Conv[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [convs, setConvs] = React.useState<Conv[]>(() => convsCache ?? []);
+  const [loading, setLoading] = React.useState(() => convsCache === null);
   const [query, setQuery] = React.useState("");
   const [page, setPage] = React.useState(1);
 
@@ -129,7 +135,11 @@ export default function YapLinePage() {
     const controller = new AbortController();
     apiClient
       .get("/api/supraspace/conversations", { signal: controller.signal })
-      .then((res) => setConvs(res.data?.data || []))
+      .then((res) => {
+        const data: Conv[] = res.data?.data || [];
+        convsCache = data;
+        setConvs(data);
+      })
       .catch(() => { })
       .finally(() => setLoading(false));
     return () => controller.abort();

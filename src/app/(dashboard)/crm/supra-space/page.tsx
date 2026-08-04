@@ -2165,14 +2165,19 @@ function Bubble({
     const isMobileMode = mode === 'mobile';
     const BAR_W = isMobileMode ? 262 : 175;
     const PAD = 8;
+    const chatBoundary = bubbleRowRef.current
+      ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
+      ?.getBoundingClientRect();
+    const minLeft = Math.max(PAD, (chatBoundary?.left ?? 0) + PAD);
+    const maxLeft = Math.min(window.innerWidth - BAR_W - PAD, (chatBoundary?.right ?? window.innerWidth) - BAR_W - PAD);
     const below = isMobileMode ? rect.top < 62 : rect.top < 120;
     const barLeft = isOwn
-      ? Math.min(window.innerWidth - BAR_W - PAD, rect.left, rect.right - BAR_W)
-      : Math.max(PAD, rect.left, rect.right - BAR_W);
+      ? Math.min(maxLeft, rect.left, rect.right - BAR_W)
+      : Math.max(minLeft, rect.left, rect.right - BAR_W);
     setActionsBelow(below);
     setActionBarPos({
       top: below ? rect.bottom + (isMobileMode ? 8 : 4) : rect.top - (isMobileMode ? 48 : 36),
-      left: Math.max(PAD, Math.min(window.innerWidth - BAR_W - PAD, barLeft)),
+      left: Math.max(minLeft, Math.min(maxLeft, barLeft)),
     });
   }, [isOwn]);
 

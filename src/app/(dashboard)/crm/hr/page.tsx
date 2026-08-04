@@ -609,7 +609,7 @@ export default function TeamEngagementPage() {
   return (
     <div className="min-h-screen w-full bg-background">
       {/* ── Page Content ── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Page header */}
         <div className="flex items-center gap-3 sm:gap-4">
           <Button

@@ -153,7 +153,6 @@ const REACTIONS = [
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
 
 const PAGE_PANEL = "rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl"
-const PAGE_SECTION = "rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl"
 const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 
 // DayPulse -> SupraSpace report channel
@@ -1602,8 +1601,9 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
 
   return (
     <div
-      className={`rounded-3xl border bg-card/60 backdrop-blur-xl transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}
+      className={`relative rounded-3xl border transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}
     >
+      <div className="absolute inset-0 -z-10 rounded-3xl bg-card/60 backdrop-blur-xl" aria-hidden />
       {previewAttachment && (
         <AttachmentPreviewModal
           attachment={previewAttachment.attachment}
@@ -2153,7 +2153,8 @@ export default function DayPulsePage({ currentUser, token }: {
         </div>
       </section>
 
-      <section className={`${PAGE_SECTION} p-4 sm:p-5 space-y-4`}>
+      <section className="relative rounded-3xl border border-border/40 p-4 sm:p-5 space-y-4">
+        <div className="absolute inset-0 -z-10 rounded-3xl bg-card/60 backdrop-blur-xl" aria-hidden />
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-0.5">
             <p className="text-[11px] font-medium text-muted-foreground/50">Viewing reports for</p>

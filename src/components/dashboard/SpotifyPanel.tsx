@@ -96,7 +96,7 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
   const changeBtn = (
     <button
       onClick={() => { setDraft(""); setError(null); setEditing((v) => !v); }}
-      className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 transition-colors hover:text-green-600"
+      className="flex items-center gap-1 text-xs font-medium text-muted-foreground/60 transition-colors hover:text-green-600"
     >
       <Pencil className="size-3" /> Change
     </button>
@@ -114,7 +114,7 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
             if (e.key === "Escape") { setEditing(false); setError(null); }
           }}
           placeholder="Paste a Spotify link…"
-          className="min-w-0 flex-1 rounded-lg border border-border/40 bg-background/50 px-2.5 py-1.5 text-xs focus:border-green-500/40 focus:outline-none placeholder:text-muted-foreground/40"
+          className="min-w-0 flex-1 rounded-lg border border-border/40 bg-background/50 px-2.5 py-1.5 text-sm focus:border-green-500/40 focus:outline-none placeholder:text-muted-foreground/40"
         />
         <button onClick={() => apply(draft)} className="rounded-lg bg-green-600 p-1.5 text-white hover:bg-green-500" aria-label="Apply">
           <Check className="size-3.5" />
@@ -128,13 +128,13 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
           <button
             key={p.label}
             onClick={() => apply(p.url)}
-            className="rounded-full border border-border/40 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-green-500/40 hover:text-green-600"
+            className="rounded-full border border-border/40 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-green-500/40 hover:text-green-600"
           >
             {p.label}
           </button>
         ))}
       </div>
-      {error && <p className="text-[11px] text-rose-500">{error}</p>}
+      {error && <p className="text-xs text-rose-500">{error}</p>}
     </div>
   );
 
@@ -145,7 +145,7 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
     return (
       <div className="w-full min-w-0">
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">
+          <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-muted-foreground/50">
             <SpotifyIcon className="size-3 text-green-500 shrink-0" /> Team Jams
           </span>
           {changeBtn}
@@ -164,7 +164,7 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
       <div className="flex items-center justify-between gap-2 border-b border-border/20 px-5 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <SpotifyIcon className="size-4 text-green-500 shrink-0" />
-          <h2 className="text-sm font-black tracking-tight">Spotify</h2>
+          <h2 className="text-base font-black tracking-tight">Spotify</h2>
         </div>
         {changeBtn}
       </div>
