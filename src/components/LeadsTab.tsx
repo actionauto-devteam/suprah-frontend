@@ -30,6 +30,8 @@ import { ShippingQuoteModal } from "@/components/shipping-quote-modal"
 import { Vehicle } from "@/types/inventory"
 import { useTheme } from "@/context/ThemeContext"
 import { injectLeadDetailsPanelStyles, injectSS4Styles } from "@/lib/ss4-styles"
+import { ConversationWorkspace } from "@/components/conversation-workspace/ConversationWorkspace"
+import { injectConversationWorkspaceStyles } from "@/components/conversation-workspace/workspace-styles"
 import { cn } from "@/lib/utils"
 import type { CreatePaymentData } from "@/types/billing"
 import {
@@ -55,6 +57,7 @@ import {
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
+import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
 
 
 // Constants
@@ -110,6 +113,7 @@ export function LeadsTab({
   React.useEffect(() => {
     injectSS4Styles();
     injectLeadDetailsPanelStyles();
+    injectConversationWorkspaceStyles();
   }, []);
 
   // -- Filters & Pagination --
@@ -1128,6 +1132,43 @@ export function LeadsTab({
     }
   };
 
+  const handleUpdateSelectedLeadDetails = async (changes: any) => {
+    if (!selectedLead?._id) {
+      throw new Error("No lead selected");
+    }
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Authentication required");
+
+      const response = await apiClient.patch(
+        `/api/leads/${selectedLead._id}/details`,
+        changes,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      const updatedLead =
+        response.data?.data?.lead ||
+        response.data?.data ||
+        response.data?.lead ||
+        response.data;
+
+      if (updatedLead?._id) {
+        _setSelectedLead(updatedLead);
+      }
+
+      await refetch();
+      addToast("success", "Lead details updated");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Lead details could not be updated";
+      addToast("error", message);
+      throw error;
+    }
+  };
+
   // ── Dot colour per lead status ─────────────────────────────────────────────
   const TAB_DOTS: Record<string, string> = {
     New: "bg-emerald-500",
@@ -1329,174 +1370,24 @@ export function LeadsTab({
           <InboundCallsTab />
         </div>
       ) : (
-        <div className="suprah-responsive-workspace relative flex min-h-0 flex-1 overflow-hidden bg-(--bg-base)">
-          {/* PODIUM-LIKE LEFT CONVERSATION SIDEBAR */}
+        <ConversationWorkspace
+          viewportMode={viewportMode}
+          hasSelection={Boolean(selectedLead)}
+          detailsExpanded={showLeadDetails}
+          className="bg-(--bg-base)"
+        >
+          {/* SHARED CONVERSATION LIST PANEL */}
           {showLeadsPanel && (
             <aside
-              className="suprah-leads-panel flex min-h-0 shrink-0 flex-col border-r"
-
+              className="cw-list-slot flex min-h-0 min-w-0 shrink-0 flex-col border-r"
               style={{
                 background: "var(--bg-elevated)",
                 borderColor: "var(--border-1)",
               }}
             >
-              {/* Compact conversations heading */}
-              <div
-                className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-3 py-2 sm:min-h-14.5 sm:px-4 sm:py-3"
-                style={{ borderColor: "var(--border-1)" }}
-              >
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <h2
-                      className="truncate font-bold tracking-tight"
-                      style={{ color: "var(--text-primary)", fontSize: 15 }}
-                    >
-                      All Conversations
-                    </h2>
-
-                    {!isLoading && total > 0 && (
-                      <span
-                        className="ss4-badge inline-flex shrink-0 items-center tabular-nums sm:hidden"
-                        style={{ borderRadius: 10 }}
-                      >
-                        {total}
-                      </span>
-                    )}
-                  </div>
-
-                  <p
-                    className="mt-0.5 hidden text-[11px] sm:block"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    Lead Inbox
-                  </p>
-                </div>
-
-                <button
-                  onClick={toggleSelectMode}
-                  className="ss4-pill-btn flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9"
-                  title={
-                    selectMode ? "Cancel select mode" : "Select conversations"
-                  }
-                >
-                  {selectMode ? (
-                    <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  ) : (
-                    <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  )}
-                </button>
-              </div>
-
-              {/* Podium-style status and sorting filters */}
-              <div
-                className="grid shrink-0 grid-cols-2 gap-1.5 px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
-                style={{
-                  borderBottom: "1px solid var(--border-1)",
-                  background: "var(--bg-elevated)",
-                }}
-              >
-                <label className="relative min-w-0">
-                  <Filter
-                    className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                    style={{ color: "var(--text-tertiary)" }}
-                  />
-
-                  <select
-                    value={statusFilter ?? ""}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setStatusFilter(value === "" ? null : value);
-                      setCurrentPage(1);
-                      setSelectedLead(null);
-                    }}
-                    className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
-                    style={{
-                      background: "var(--input-bg)",
-                      border: "1px solid var(--input-border)",
-                      color: "var(--text-primary)",
-                    }}
-                    aria-label="Filter conversations by status"
-                  >
-                    {TABS.map((tab) => (
-                      <option key={tab.label} value={tab.key ?? ""}>
-                        {tab.key === null ? "All statuses" : tab.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <ChevronDown
-                    className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                    style={{ color: "var(--text-tertiary)" }}
-                  />
-                </label>
-
-                <label className="relative min-w-0">
-                  <ArrowUpDown
-                    className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                    style={{ color: "var(--text-tertiary)" }}
-                  />
-
-                  <select
-                    value={sortBy}
-                    onChange={(event) => {
-                      setSortBy(event.target.value as LeadSortOption);
-                      setCurrentPage(1);
-                    }}
-                    className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
-                    style={{
-                      background: "var(--input-bg)",
-                      border: "1px solid var(--input-border)",
-                      color: "var(--text-primary)",
-                    }}
-                    aria-label="Sort conversations"
-                  >
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="waiting_longest">Longest waiting</option>
-                  </select>
-
-                  <ChevronDown
-                    className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                    style={{ color: "var(--text-tertiary)" }}
-                  />
-                </label>
-              </div>
-
-              {isFetching && !isLoading && (
-                <div
-                  className="shrink-0 px-3 py-1 text-[10px]"
-                  style={{
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  Updating…
-                </div>
-              )}
-
-              {/* Existing list component keeps pagination, search, read status, selection */}
-              {selectMode && (
-                <div
-                  className="flex items-center justify-between gap-2 px-3 py-2 shrink-0"
-                  style={{
-                    borderBottom: "1px solid var(--border-1)",
-                    background: "var(--bg-elevated)",
-                  }}
-                >
-                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                    {selectedLeadIds.size} selected
-                  </span>
-
-                  <button
-                    onClick={() => setBulkModalOpen(true)}
-                    disabled={selectedLeadIds.size === 0}
-                    className="ss4-pill-btn px-3 h-8 text-[12px] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Reply to all
-                  </button>
-                </div>
-              )}
-
               <LeadsList
+                title="Inquiries & Leads"
+                subtitle="Lead Inbox"
                 leads={leads}
                 isLoading={isLoading}
                 total={total}
@@ -1516,6 +1407,124 @@ export function LeadsTab({
                 selectMode={selectMode}
                 selectedIds={selectedLeadIds}
                 onToggleSelect={toggleLeadSelected}
+                headerAction={
+                  <button
+                    type="button"
+                    onClick={toggleSelectMode}
+                    className="ss4-icon-btn h-9 w-9"
+                    title={selectMode ? "Cancel select mode" : "Select conversations"}
+                    aria-label={selectMode ? "Cancel select mode" : "Select conversations"}
+                  >
+                    {selectMode ? (
+                      <X className="h-4 w-4" />
+                    ) : (
+                      <CheckSquare className="h-4 w-4" />
+                    )}
+                  </button>
+                }
+                topContent={
+                  <>
+                    <div
+                      className="grid shrink-0 grid-cols-2 gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
+                      style={{
+                        borderColor: "var(--border-1)",
+                        background: "var(--bg-elevated)",
+                      }}
+                    >
+                      <label className="relative min-w-0">
+                        <Filter
+                          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
+                          style={{ color: "var(--text-tertiary)" }}
+                        />
+                        <select
+                          value={statusFilter ?? ""}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setStatusFilter(value === "" ? null : value);
+                            setCurrentPage(1);
+                            setSelectedLead(null);
+                          }}
+                          className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
+                          style={{
+                            background: "var(--input-bg)",
+                            border: "1px solid var(--input-border)",
+                            color: "var(--text-primary)",
+                          }}
+                          aria-label="Filter conversations by status"
+                        >
+                          {TABS.map((tab) => (
+                            <option key={tab.label} value={tab.key ?? ""}>
+                              {tab.key === null ? "All statuses" : tab.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
+                          style={{ color: "var(--text-tertiary)" }}
+                        />
+                      </label>
+
+                      <label className="relative min-w-0">
+                        <ArrowUpDown
+                          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
+                          style={{ color: "var(--text-tertiary)" }}
+                        />
+                        <select
+                          value={sortBy}
+                          onChange={(event) => {
+                            setSortBy(event.target.value as LeadSortOption);
+                            setCurrentPage(1);
+                          }}
+                          className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
+                          style={{
+                            background: "var(--input-bg)",
+                            border: "1px solid var(--input-border)",
+                            color: "var(--text-primary)",
+                          }}
+                          aria-label="Sort conversations"
+                        >
+                          <option value="newest">Newest</option>
+                          <option value="oldest">Oldest</option>
+                          <option value="waiting_longest">Longest waiting</option>
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
+                          style={{ color: "var(--text-tertiary)" }}
+                        />
+                      </label>
+                    </div>
+
+                    {isFetching && !isLoading ? (
+                      <div
+                        className="shrink-0 px-3 py-1 text-[10px]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Updating…
+                      </div>
+                    ) : null}
+
+                    {selectMode ? (
+                      <div
+                        className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2"
+                        style={{
+                          borderColor: "var(--border-1)",
+                          background: "var(--bg-elevated)",
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                          {selectedLeadIds.size} selected
+                        </span>
+                        <button
+                          onClick={() => setBulkModalOpen(true)}
+                          disabled={selectedLeadIds.size === 0}
+                          className="ss4-pill-btn h-8 px-3 text-[12px] font-medium disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          Reply to all
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                }
               />
             </aside>
           )}
@@ -1523,7 +1532,7 @@ export function LeadsTab({
           {/* PODIUM-LIKE CENTER CONVERSATION PANEL */}
           {showConversationPanel && (
             <main
-              className="suprah-center-panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              className="cw-center-slot relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
               style={{
                 background: "var(--bg-base)",
               }}
@@ -1709,9 +1718,9 @@ export function LeadsTab({
           {showDetailsPanel && (
             <div
               className={cn(
-                "suprah-details-slot",
+                "cw-details-slot",
                 viewportMode === "narrow" &&
-                "suprah-details-slot-overlay",
+                "cw-details-overlay",
               )}
             >
               <LeadDetailsPanel
@@ -1738,10 +1747,11 @@ export function LeadsTab({
                     note,
                   });
                 }}
+                onUpdateDetails={handleUpdateSelectedLeadDetails}
               />
             </div>
           )}
-        </div>
+        </ConversationWorkspace>
       )}
 
       <CreateAppointmentModal

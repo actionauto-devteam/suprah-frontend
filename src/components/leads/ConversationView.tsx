@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "./atomic/Avatar";
+import { ConversationHeader } from "@/components/conversation-workspace/ConversationHeader";
+import { leadToWorkspaceContact } from "@/components/conversation-workspace/adapters/lead-inbox-adapter";
 
 interface ConversationViewProps {
   lead: any;
@@ -528,43 +530,15 @@ export function ConversationView({
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden">
       {!hideConversationChrome && (
-        <>
-          <header className="suprah-conversation-header">
-            <div className="flex min-w-0 items-center gap-3">
-              <Avatar
-                first={lead?.firstName}
-                last={lead?.lastName}
-                size="md"
-              />
-
-              <div className="min-w-0">
-                <h2 className="truncate">
-                  {leadName}
-                </h2>
-
-                <p className="truncate">
-                  {lead?.phone ||
-                    lead?.email ||
-                    lead?.senderEmail ||
-                    "No contact information"}
-                </p>
-              </div>
-            </div>
-          </header>
-
-          <div className="suprah-meta-bar">
-            <span>
-              {lead?.source || "Lead Inbox"}
-            </span>
-
-            <span>
-              {lead?.subject ||
-                "Lead conversation"}
-            </span>
-
-            <span>{sourceEmail}</span>
-          </div>
-        </>
+        <ConversationHeader
+          contact={leadToWorkspaceContact(lead)}
+          status={lead?.status}
+          meta={[
+            lead?.source || "Lead Inbox",
+            lead?.subject || "Lead conversation",
+            sourceEmail,
+          ]}
+        />
       )}
 
       {siblingCount > 0 && (

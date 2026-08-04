@@ -374,7 +374,7 @@ export const ReplySection = React.memo(
                 void handleSendReply();
               }
             }}
-            className="suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 leading-snug outline-none sm:px-4"
+            className="suprah-composer-field suprah-composer-message suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 leading-snug outline-none sm:px-4"
             style={{
               minHeight: 56,
               maxHeight: "34vh",
@@ -453,7 +453,7 @@ export const ReplySection = React.memo(
           )}
 
           <div
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2 sm:flex sm:flex-wrap sm:items-center"
+            className="grid select-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2 sm:flex sm:flex-wrap sm:items-center"
             style={{ borderTop: "1px solid var(--border-1)" }}
           >
             <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:flex sm:flex-1 sm:flex-wrap sm:items-center">
