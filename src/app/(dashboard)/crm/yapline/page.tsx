@@ -193,13 +193,13 @@ export default function YapLinePage() {
                   Suprah <span className="text-emerald-500">YapLine</span>
                 </span>
                 {Object.keys(s.sessions).length > 0 && (
-                  <span className="flex shrink-0 items-center gap-1 text-[10px] font-black text-emerald-500">
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-black text-emerald-500">
                     <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
                     Live
                   </span>
                 )}
               </h1>
-              <p className="truncate text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+              <p className="truncate text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
                 Push-to-talk · Screen share
               </p>
             </div>
@@ -245,15 +245,15 @@ export default function YapLinePage() {
                     {c.emoji || (c.type === "group" ? <Hash className="size-4" /> : <Users className="size-4" />)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-bold">{name}</p>
-                    <p className="truncate text-[10px] text-muted-foreground/50">
+                    <p className="truncate text-sm font-bold">{name}</p>
+                    <p className="truncate text-xs text-muted-foreground/60">
                       {live
                         ? `${live.participants.length} on the line`
                         : `${c.members?.length ?? 0} members`}
                     </p>
                   </div>
                   {live && (
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-rose-500">
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-rose-500">
                       <span className="size-1.5 animate-pulse rounded-full bg-rose-500" /> Live
                     </span>
                   )}
@@ -270,7 +270,7 @@ export default function YapLinePage() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
               aria-label="Previous page"
-              className="flex items-center gap-1 rounded-xl border border-border/40 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-500 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
+              className="flex items-center gap-1 rounded-xl border border-border/40 px-2.5 py-1.5 text-xs font-black uppercase tracking-widest text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-500 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
             >
               <ChevronLeft className="size-3.5" />
               <span className="hidden sm:inline">Prev</span>
@@ -280,7 +280,7 @@ export default function YapLinePage() {
             <div className="hidden items-center gap-1 sm:flex">
               {pageWindow(safePage, totalPages).map((p, i) =>
                 p === "…" ? (
-                  <span key={`gap-${i}`} className="px-1 text-[10px] font-bold text-muted-foreground/40">
+                  <span key={`gap-${i}`} className="px-1 text-xs font-bold text-muted-foreground/40">
                     …
                   </span>
                 ) : (
@@ -289,7 +289,7 @@ export default function YapLinePage() {
                     onClick={() => setPage(p)}
                     aria-current={p === safePage ? "page" : undefined}
                     className={cn(
-                      "size-7 rounded-lg text-[10px] font-black tabular-nums transition-all active:scale-95",
+                      "size-7 rounded-lg text-xs font-black tabular-nums transition-all active:scale-95",
                       p === safePage
                         ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30"
                         : "border border-border/40 text-muted-foreground/70 hover:border-emerald-500/30 hover:text-emerald-500"
@@ -300,7 +300,7 @@ export default function YapLinePage() {
                 )
               )}
             </div>
-            <span className="text-[10px] font-black tabular-nums text-muted-foreground/60 sm:hidden">
+            <span className="text-xs font-black tabular-nums text-muted-foreground/60 sm:hidden">
               {safePage} / {totalPages}
             </span>
 
@@ -308,7 +308,7 @@ export default function YapLinePage() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
               aria-label="Next page"
-              className="flex items-center gap-1 rounded-xl border border-border/40 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-500 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
+              className="flex items-center gap-1 rounded-xl border border-border/40 px-2.5 py-1.5 text-xs font-black uppercase tracking-widest text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-500 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
             >
               <span className="hidden sm:inline">Next</span>
               <ChevronRight className="size-3.5" />
@@ -321,7 +321,7 @@ export default function YapLinePage() {
           <label className="flex cursor-pointer items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold">Auto-listen</p>
-              <p className="text-[10px] leading-relaxed text-muted-foreground/50">
+              <p className="text-[11px] leading-relaxed text-muted-foreground/50">
                 Automatically tune in when a YapLine opens in one of your channels — from any page.
               </p>
             </div>
@@ -372,14 +372,14 @@ export default function YapLinePage() {
                 <h2 className="truncate text-sm font-black tracking-tight">
                   {cur.conversationName || "Direct YapLine"}
                 </h2>
-                <p className={cn("flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest", q.tone)}>
+                <p className={cn("flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest", q.tone)}>
                   <Signal className="size-3" /> {q.label}
                   <span className="text-muted-foreground/40">· {session.participants.length} on the line</span>
                 </p>
               </div>
               <button
                 onClick={() => yapline.leave()}
-                className="flex items-center gap-1.5 rounded-xl border border-border/40 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 transition-colors hover:border-rose-500/30 hover:text-rose-500"
+                className="flex items-center gap-1.5 rounded-xl border border-border/40 px-3 py-2 text-xs font-black uppercase tracking-widest text-muted-foreground/70 transition-colors hover:border-rose-500/30 hover:text-rose-500"
               >
                 <LogOut className="size-3.5" /> Leave
               </button>
@@ -390,7 +390,7 @@ export default function YapLinePage() {
               {remoteSharer && (
                 <div className="relative mb-4 h-72 sm:h-96">
                   <StageScreen userId={remoteSharer.userId} version={cur.screenVersion} />
-                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white/90">
+                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-white/90">
                     <MonitorUp className="size-3 text-cyan-400" /> {remoteSharer.fullName} is sharing
                   </div>
                 </div>
@@ -403,14 +403,18 @@ export default function YapLinePage() {
                   </p>
                   <button
                     onClick={() => yapline.stopScreenShare()}
-                    className="text-[10px] font-black uppercase tracking-widest text-cyan-400 hover:text-cyan-300"
+                    className="text-xs font-black uppercase tracking-widest text-cyan-400 hover:text-cyan-300"
                   >
                     Stop
                   </button>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {/* auto-fill instead of fixed breakpoint column counts — a hard "cols-4" cap
+                  stops adding columns past lg regardless of how wide the stage actually gets
+                  on larger monitors, leaving the grid visibly short of the available width.
+                  This keeps adding 150px-min columns for as long as the container has room. */}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
                 {session.participants.map((p) => (
                   <div
                     key={p.userId}
@@ -442,10 +446,10 @@ export default function YapLinePage() {
                         </span>
                       )}
                     </div>
-                    <p className="max-w-full truncate text-xs font-bold">
+                    <p className="max-w-full truncate text-sm font-bold">
                       {p.userId === s.myUserId ? "You" : p.fullName}
                     </p>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
                       {p.speaking ? "Speaking" : p.listenOnly ? "Listening" : "Standby"}
                     </p>
                   </div>
@@ -509,7 +513,7 @@ export default function YapLinePage() {
                   className="h-1 flex-1 cursor-pointer accent-emerald-500"
                   aria-label="Incoming volume"
                 />
-                <span className="hidden text-[9px] font-medium text-muted-foreground/40 md:block">
+                <span className="hidden text-[11px] font-medium text-muted-foreground/40 md:block">
                   Hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">`</kbd> to talk from any page
                 </span>
               </div>
