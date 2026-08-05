@@ -5353,6 +5353,285 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
   );
 }
 
+interface ConvRowProps {
+  conv: SSConversation;
+  compact?: boolean;
+  draggable?: boolean;
+  activeId: string | null;
+  activeConvId: string | null;
+  uid: string;
+  token: string;
+  presence: PresenceMap;
+  notifPrefs: Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>;
+  manualUnread: Set<string>;
+  msgs: Record<string, SSMessage[]>;
+  composerDraftPreviews: Record<string, string>;
+  ctxSpaces: { _id: string; name: string; emoji?: string | null }[];
+  dragConvId: string | null;
+  openConvMenuId: string | null;
+  setOpenConvMenuId: (id: string | null) => void;
+  isPinnedConv: (c: SSConversation) => boolean;
+  isArchivedConv: (c: SSConversation) => boolean;
+  ptrStartRef: React.MutableRefObject<{ x: number; y: number; type: 'conv' | 'space'; id: string; label: string; spaceId?: string | null } | null>;
+  convLongPressTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  openConversation: (conversationId: string | null) => void;
+  setConvMobileSheet: (id: string | null) => void;
+  markRead: (conversationId: string) => void;
+  setManualUnread: React.Dispatch<React.SetStateAction<Set<string>>>;
+  setConvos: React.Dispatch<React.SetStateAction<SSConversation[]>>;
+  togglePinConv: (c: SSConversation) => void;
+  saveNotificationPref: (conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => void;
+  setNotifModalConv: (c: SSConversation | null) => void;
+  handleMoveToSpace: (convId: string, spaceId: string | null) => void;
+  toggleArchiveConv: (c: SSConversation) => void;
+  setDeleteConfirmConv: (c: SSConversation | null) => void;
+  setActiveId: (id: string | null) => void;
+  setShowInfo: (show: boolean) => void;
+}
+
+// Hoisted to module scope on purpose: this used to be defined inside SupraSpacePage's
+// render body, which meant every parent re-render created a brand-new component
+// identity for it. React can't diff two different component types even with a stable
+// `key`, so it unmounted+remounted every row on every re-render, wiping ConvRow's own
+// local state (dropdown open/close, hover) — this page re-renders constantly from
+// socket traffic (typing, presence, message:new), so the 3-dot menu would open then
+// immediately get wiped by the next remount. Keeping this at module scope means the
+// component reference never changes, so re-renders just update props in place.
+function ConvRow({
+  conv, compact, draggable: isDraggable,
+  activeId, activeConvId, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
+  openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
+  openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
+  setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
+}: ConvRowProps) {
+  const isAct = conv._id === activeId;
+  const other = safeMembers(conv).find(m => m._id !== uid);
+  const otherPresence = other ? presence[other._id] : undefined;
+  const online = !!otherPresence?.onlineStatus && otherPresence.onlineStatus !== 'offline';
+  const cName = getConvName(conv, uid);
+  const cAvatar = getConvAvatar(conv, uid);
+  const pinned = isPinnedConv(conv);
+  const archived = isArchivedConv(conv);
+  const isMuted = notifPrefs[conv._id]?.muted ?? false;
+  const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
+  const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
+  const cachedConvMsgs = msgs[conv._id];
+  const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
+    ? conv.lastMessage
+    : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
+  const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
+    : !effectiveLastMsg ? 'No messages yet'
+      : effectiveLastMsg.isDeleted ? 'Message deleted'
+        : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
+          : effectiveLastMsg.type === 'gif' ? 'GIF'
+            : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
+              : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
+                : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
+  const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
+  const hasDraftPreview = Boolean(draftPreview);
+  const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
+  const [actionKeyboardFocus, setActionKeyboardFocus] = React.useState(false);
+  const ddOpen = openConvMenuId === conv._id;
+  const setDdOpen = (v: boolean) => setOpenConvMenuId(v ? conv._id : null);
+  const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
+  const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
+  return (
+    <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
+      style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
+      data-conv-before={isDraggable ? conv._id : undefined}
+      data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
+      onClick={() => openConversation(conv._id)}
+      onContextMenu={e => e.preventDefault()}
+      onMouseLeave={() => {
+        if (!ddTriggerRef.current?.matches(':focus-visible')) {
+          ddTriggerRef.current?.blur();
+          setActionKeyboardFocus(false);
+        }
+      }}
+      onTouchStart={startLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchCancel={cancelLongPress}
+      onTouchMove={cancelLongPress}>
+      { }
+      {isDraggable && (
+        <div
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: (conv as any).spaceId ?? null };
+          }}
+          className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:opacity-80! transition-opacity"
+          style={{ marginLeft: -6, padding: '0 1px' }}>
+          <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
+        </div>
+      )}
+      <div className="relative shrink-0">
+        <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
+          {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+        </div>
+        {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
+          : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
+          {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
+          <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
+          <span
+            className={cn(
+              'ss4-conv-time shrink-0 group-hover:hidden',
+              actionKeyboardFocus && 'hidden',
+            )}
+            style={{ fontSize: 11, color: 'var(--text-disabled)' }}
+          >
+            {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
+          </span>
+        </div>
+        <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
+          {hasDraftPreview ? (
+            <>
+              <span style={{ color: '#ef4444', fontWeight: 800 }}>Draft:</span>
+              {' '}
+              <span>{draftPreview}</span>
+            </>
+          ) : (
+            <>{senderPrefix}{lastPreview}</>
+          )}
+        </p>
+      </div>
+      {!compact && (
+        <div
+          className={cn(
+            'hidden md:flex items-center shrink-0 transition-opacity duration-150',
+            'opacity-0 pointer-events-none',
+            'group-hover:opacity-100 group-hover:pointer-events-auto',
+            actionKeyboardFocus && 'opacity-100 pointer-events-auto',
+          )}
+        >
+          <DropdownMenu open={ddOpen} onOpenChange={setDdOpen} modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                ref={ddTriggerRef}
+                type="button"
+                aria-label={`More actions for ${cName}`}
+                onFocus={event => {
+                  setActionKeyboardFocus(
+                    event.currentTarget.matches(':focus-visible'),
+                  );
+                }}
+                onBlur={() => setActionKeyboardFocus(false)}
+                onPointerDown={event => {
+                  event.stopPropagation();
+                  setActionKeyboardFocus(false);
+                }}
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+                className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="bottom"
+              align="end"
+              className="min-w-52 rounded-xl p-1"
+              onClick={e => e.stopPropagation()}
+              onPointerDown={e => e.stopPropagation()}
+              onMouseDown={e => e.stopPropagation()}
+              onCloseAutoFocus={e => e.preventDefault()}
+              onPointerDownOutside={e => {
+                if (ddTriggerRef.current?.contains(e.target as Node)) e.preventDefault();
+              }}
+              style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
+                onClick={() => {
+                  if (isUnread) {
+                    markRead(conv._id);
+                    setManualUnread(p => { const n = new Set(p); n.delete(conv._id); return n; });
+                    setConvos(prev => prev.map(c => c._id === conv._id ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
+                  } else {
+                    setManualUnread(p => new Set([...p, conv._id]));
+                  }
+                }}>
+                <MailOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                {isUnread ? 'Mark as read' : 'Mark as unread'}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => togglePinConv(conv)}>
+                {pinned ? <PinOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+                {pinned ? 'Unpin' : 'Pin'}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
+                onClick={() => saveNotificationPref(conv._id, { type: notifPrefs[conv._id]?.type ?? 'all', muted: !isMuted })}>
+                <VolumeX className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                {isMuted ? 'Unmute' : 'Mute'}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => setNotifModalConv(conv)}>
+                <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                <span className="flex flex-col">
+                  <span style={{ fontSize: 13, lineHeight: 1.3 }}>Notifications</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.3 }}>{(() => { const t = notifPrefs[conv._id]?.type; return t === 'foryou' ? 'For you' : t === 'none' ? 'None' : t === 'main' ? 'Main conversations' : 'All'; })()}</span>
+                </span>
+              </DropdownMenuItem>
+              {conv.type === 'group' && ctxSpaces.length > 0 && (
+                <>
+                  {(conv as any).spaceId && (
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, null)}>
+                      <ArrowLeft className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Remove from Space
+                    </DropdownMenuItem>
+                  )}
+                  {ctxSpaces.map(sp => (sp._id !== (conv as any).spaceId) && (
+                    <DropdownMenuItem key={sp._id} className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
+                      <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 4px' }} />
+              {conv.type === 'direct' && (
+                <>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
+                    <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toggleArchiveConv(conv)}>
+                    {archived ? <ArchiveRestore className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <EyeOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+                    {archived ? 'Unhide conversation' : 'Hide conversation'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
+                    <Trash2 className="h-3.5 w-3.5 shrink-0" /> Delete conversation
+                  </DropdownMenuItem>
+                </>
+              )}
+              {conv.type === 'group' && (
+                <>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#fb923c' }}
+                    onClick={async () => {
+                      try {
+                        await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [uid] }, { headers: { Authorization: `Bearer ${token}` } });
+                        setConvos(p => p.filter(c => c._id !== conv._id));
+                        if (activeConvId === conv._id) { setActiveId(null); setShowInfo(false); }
+                        toast.success('You left the conversation.');
+                      } catch { toast.error('Could not leave the conversation.'); }
+                    }}>
+                    <LogOut className="h-3.5 w-3.5 shrink-0" /> Leave
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
+                    <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+      {compact && (
+        <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Unarchive"><ArchiveRestore className="h-3 w-3" /></button>
+      )}
+    </div>
+  );
+}
+
 export default function SupraSpacePage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -5457,6 +5736,9 @@ export default function SupraSpacePage() {
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
+  // Keep one conversation menu open at a time. ConvRow is hoisted to module
+  // scope, so socket, typing, presence, and composer renders no longer remount it.
+  const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
 
@@ -8077,231 +8359,11 @@ export default function SupraSpacePage() {
     return result;
   }, [ctxSpaces, localSpaceOrder]);
 
-  const ConvRow = ({ conv, compact, draggable: isDraggable }: { conv: SSConversation; compact?: boolean; draggable?: boolean }) => {
-    const isAct = conv._id === activeId;
-    const other = safeMembers(conv).find(m => m._id !== uid);
-    const otherPresence = other ? presence[other._id] : undefined;
-    const online = !!otherPresence?.onlineStatus && otherPresence.onlineStatus !== 'offline';
-    const cName = getConvName(conv, uid);
-    const cAvatar = getConvAvatar(conv, uid);
-    const pinned = isPinnedConv(conv);
-    const archived = isArchivedConv(conv);
-    const isMuted = notifPrefs[conv._id]?.muted ?? false;
-    const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
-    const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
-    const cachedConvMsgs = msgs[conv._id];
-    const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
-      ? conv.lastMessage
-      : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
-    const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
-      : !effectiveLastMsg ? 'No messages yet'
-        : effectiveLastMsg.isDeleted ? 'Message deleted'
-          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
-            : effectiveLastMsg.type === 'gif' ? 'GIF'
-              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
-                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
-                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
-    const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
-    const hasDraftPreview = Boolean(draftPreview);
-    const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
-    const [ddOpen, setDdOpen] = React.useState(false);
-    const [actionKeyboardFocus, setActionKeyboardFocus] = React.useState(false);
-    const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
-    const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
-    const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
-    return (
-      <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
-        style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
-        data-conv-before={isDraggable ? conv._id : undefined}
-        data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
-        onClick={() => openConversation(conv._id)}
-        onContextMenu={e => e.preventDefault()}
-        onMouseLeave={() => {
-          if (!ddTriggerRef.current?.matches(':focus-visible')) {
-            ddTriggerRef.current?.blur();
-            setActionKeyboardFocus(false);
-          }
-        }}
-        onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
-        { }
-        {isDraggable && (
-          <div
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              e.preventDefault();
-              ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: (conv as any).spaceId ?? null };
-            }}
-            className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:opacity-80! transition-opacity"
-            style={{ marginLeft: -6, padding: '0 1px' }}>
-            <GripVertical className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
-          </div>
-        )}
-        <div className="relative shrink-0">
-          <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-            {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
-          </div>
-          {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
-            : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
-            {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
-            {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
-            <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
-            <span
-              className={cn(
-                'ss4-conv-time shrink-0 group-hover:hidden',
-                actionKeyboardFocus && 'hidden',
-              )}
-              style={{ fontSize: 11, color: 'var(--text-disabled)' }}
-            >
-              {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
-            </span>
-          </div>
-          <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
-            {hasDraftPreview ? (
-              <>
-                <span style={{ color: '#ef4444', fontWeight: 800 }}>Draft:</span>
-                {' '}
-                <span>{draftPreview}</span>
-              </>
-            ) : (
-              <>{senderPrefix}{lastPreview}</>
-            )}
-          </p>
-        </div>
-        {!compact && (
-          <div
-            className={cn(
-              'hidden md:flex items-center shrink-0 transition-opacity duration-150',
-              'opacity-0 pointer-events-none',
-              'group-hover:opacity-100 group-hover:pointer-events-auto',
-              actionKeyboardFocus && 'opacity-100 pointer-events-auto',
-            )}
-          >
-            <DropdownMenu
-              open={ddOpen}
-              onOpenChange={setDdOpen}
-              modal={false}
-            >
-              <DropdownMenuTrigger asChild>
-                <button
-                  ref={ddTriggerRef}
-                  type="button"
-                  aria-label={`More actions for ${cName}`}
-                  onFocus={event => {
-                    setActionKeyboardFocus(event.currentTarget.matches(':focus-visible'));
-                  }}
-                  onBlur={() => setActionKeyboardFocus(false)}
-                  onPointerDown={event => {
-                    event.stopPropagation();
-                    setActionKeyboardFocus(false);
-                  }}
-                  onMouseDown={e => e.stopPropagation()}
-                  onClick={e => e.stopPropagation()}
-                  className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="bottom"
-                align="end"
-                className="min-w-52 rounded-xl p-1"
-                onClick={e => e.stopPropagation()}
-                onPointerDown={e => e.stopPropagation()}
-                onMouseDown={e => e.stopPropagation()}
-                onCloseAutoFocus={e => e.preventDefault()}
-                onPointerDownOutside={e => {
-                  if (ddTriggerRef.current?.contains(e.target as Node)) e.preventDefault();
-                }}
-                style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
-                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
-                  onClick={() => {
-                    if (isUnread) {
-                      markRead(conv._id);
-                      setManualUnread(p => { const n = new Set(p); n.delete(conv._id); return n; });
-                      setConvos(prev => prev.map(c => c._id === conv._id ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
-                    } else {
-                      setManualUnread(p => new Set([...p, conv._id]));
-                    }
-                  }}>
-                  <MailOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                  {isUnread ? 'Mark as read' : 'Mark as unread'}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => togglePinConv(conv)}>
-                  {pinned ? <PinOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
-                  {pinned ? 'Unpin' : 'Pin'}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
-                  onClick={() => saveNotificationPref(conv._id, { type: notifPrefs[conv._id]?.type ?? 'all', muted: !isMuted })}>
-                  <VolumeX className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                  {isMuted ? 'Unmute' : 'Mute'}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => setNotifModalConv(conv)}>
-                  <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                  <span className="flex flex-col">
-                    <span style={{ fontSize: 13, lineHeight: 1.3 }}>Notifications</span>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.3 }}>{(() => { const t = notifPrefs[conv._id]?.type; return t === 'foryou' ? 'For you' : t === 'none' ? 'None' : t === 'main' ? 'Main conversations' : 'All'; })()}</span>
-                  </span>
-                </DropdownMenuItem>
-                {conv.type === 'group' && ctxSpaces.length > 0 && (
-                  <>
-                    {(conv as any).spaceId && (
-                      <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, null)}>
-                        <ArrowLeft className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Remove from Space
-                      </DropdownMenuItem>
-                    )}
-                    {ctxSpaces.map(sp => (sp._id !== (conv as any).spaceId) && (
-                      <DropdownMenuItem key={sp._id} className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
-                        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 4px' }} />
-                {conv.type === 'direct' && (
-                  <>
-                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
-                      <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toggleArchiveConv(conv)}>
-                      {archived ? <ArchiveRestore className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <EyeOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
-                      {archived ? 'Unhide conversation' : 'Hide conversation'}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
-                      <Trash2 className="h-3.5 w-3.5 shrink-0" /> Delete conversation
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {conv.type === 'group' && (
-                  <>
-                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#fb923c' }}
-                      onClick={async () => {
-                        try {
-                          await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [uid] }, { headers: { Authorization: `Bearer ${token}` } });
-                          setConvos(p => p.filter(c => c._id !== conv._id));
-                          if (activeConv?._id === conv._id) { setActiveId(null); setShowInfo(false); }
-                          toast.success('You left the conversation.');
-                        } catch { toast.error('Could not leave the conversation.'); }
-                      }}>
-                      <LogOut className="h-3.5 w-3.5 shrink-0" /> Leave
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
-                      <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-        {compact && (
-          <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Unarchive"><ArchiveRestore className="h-3 w-3" /></button>
-        )}
-      </div>
-    );
+  const sharedConvRowProps = {
+    activeId, activeConvId: activeConv?._id ?? null, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
+    openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
+    openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
+    setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
   };
 
   if (loading) return (
@@ -8510,7 +8572,7 @@ export default function SupraSpacePage() {
               {pinnedList.length > 0 && (
                 <div className="pt-1">
                   <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
-                  <div className="px-2 space-y-0.5">{pinnedList.map(c => <ConvRow key={c._id} conv={c} />)}</div>
+                  <div className="px-2 space-y-0.5">{pinnedList.map(c => <ConvRow key={c._id} conv={c} {...sharedConvRowProps} />)}</div>
                 </div>
               )}
 
@@ -8521,7 +8583,7 @@ export default function SupraSpacePage() {
                     <span className="ss4-section-label"><MessageSquare className="h-2.5 w-2.5 mr-1" /> Direct Messages</span>
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('dm') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
-                  {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} />)}</div>}
+                  {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} {...sharedConvRowProps} />)}</div>}
                 </div>
               )}
 
@@ -8582,7 +8644,7 @@ export default function SupraSpacePage() {
                               {spaceConvs.map(c => (
                                 <React.Fragment key={c._id}>
                                   {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
-                                  <ConvRow conv={c} draggable />
+                                  <ConvRow conv={c} draggable {...sharedConvRowProps} />
                                 </React.Fragment>
                               ))}
                               {spaceConvs.length === 0 && (
@@ -8611,7 +8673,7 @@ export default function SupraSpacePage() {
                       {channelList.map(c => (
                         <React.Fragment key={c._id}>
                           {dropConvBeforeId === c._id && <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '1px 4px' }} />}
-                          <ConvRow conv={c} draggable />
+                          <ConvRow conv={c} draggable {...sharedConvRowProps} />
                         </React.Fragment>
                       ))}
                       {channelList.length === 0 && dragConvId && (
@@ -8637,7 +8699,7 @@ export default function SupraSpacePage() {
                     <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
                     <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
                   </button>
-                  {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact />)}</div>}
+                  {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>}
                 </div>
               )}
             </div>
