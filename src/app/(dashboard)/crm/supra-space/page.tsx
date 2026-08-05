@@ -427,12 +427,55 @@ function getJwtType(token: string | null): string | null {
 
 function cssColorToHex(color: string | null | undefined): string | null {
   if (!color) return null;
-  const raw = color.trim();
-  const hex = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
-  if (hex) return hex.length === 3 ? `#${hex.split('').map(c => c + c).join('')}`.toLowerCase() : `#${hex}`.toLowerCase();
-  const rgb = raw.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-  if (!rgb) return null;
-  return `#${[rgb[1], rgb[2], rgb[3]].map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('')}`;
+
+  const raw = color.trim().toLowerCase();
+  if (!raw || raw === 'transparent') return null;
+
+  const namedColors: Record<string, string> = {
+    black: '#000000',
+    white: '#ffffff',
+  };
+  if (namedColors[raw]) return namedColors[raw];
+
+  const hexMatch = raw.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i)?.[1];
+  if (hexMatch) {
+    const expanded = hexMatch.length <= 4
+      ? hexMatch.split('').map(character => character + character).join('')
+      : hexMatch;
+    const alpha = expanded.length === 8
+      ? Number.parseInt(expanded.slice(6, 8), 16)
+      : 255;
+
+    if (alpha === 0) return null;
+    return `#${expanded.slice(0, 6)}`.toLowerCase();
+  }
+
+  const rgbMatch = raw.match(
+    /^rgba?\(\s*([+-]?(?:\d*\.?\d+)%?)\s*(?:,|\s)\s*([+-]?(?:\d*\.?\d+)%?)\s*(?:,|\s)\s*([+-]?(?:\d*\.?\d+)%?)(?:\s*(?:\/|,)\s*([+-]?(?:\d*\.?\d+)%?))?\s*\)$/i,
+  );
+  if (!rgbMatch) return null;
+
+  const parseChannel = (value: string): number => {
+    const numeric = Number.parseFloat(value);
+    const resolved = value.endsWith('%') ? (numeric / 100) * 255 : numeric;
+    return Math.max(0, Math.min(255, Math.round(resolved)));
+  };
+
+  const parseAlpha = (value?: string): number => {
+    if (!value) return 1;
+    const numeric = Number.parseFloat(value);
+    return Math.max(
+      0,
+      Math.min(1, value.endsWith('%') ? numeric / 100 : numeric),
+    );
+  };
+
+  if (parseAlpha(rgbMatch[4]) === 0) return null;
+
+  return `#${rgbMatch.slice(1, 4)
+    .map(parseChannel)
+    .map(value => value.toString(16).padStart(2, '0'))
+    .join('')}`;
 }
 
 function getCopiedElementVisibleText(element: HTMLElement): string {
@@ -504,6 +547,7 @@ function executeRichEditorCommandPreservingSelection(
   root: HTMLElement,
   savedRange: Range | null,
   command: () => void,
+  options: { normalizeListExit?: boolean } = {},
 ): Range | null {
   const sourceRange = getRichEditorSelectionRange(root, savedRange);
   const selection = window.getSelection();
@@ -676,6 +720,10 @@ function executeRichEditorCommandPreservingSelection(
   command();
   removeLeadingPhantomBlocks();
 
+  if (options.normalizeListExit) {
+    normalizeRichEditorListExitArtifacts(root);
+  }
+
   return restoreTextBookmark(bookmark);
 }
 
@@ -843,10 +891,12 @@ function htmlToMarkdown(el: HTMLElement): string {
   };
 
   const rootColor = cssColorToHex(el.style.color);
-  let markdown = Array.from(el.childNodes).map(child => walk(child, 0)).join('')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  let markdown = normalizeListExitLineSpacing(
+    Array.from(el.childNodes).map(child => walk(child, 0)).join('')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
+  );
   if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
   return markdown;
 }
@@ -1057,6 +1107,143 @@ function stripListMarkerNoise(value: string): string {
 }
 
 const SS4_SOURCE_BULLET_RE = /^([ \t]*)([\-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]{1,4})\s+(.+)$/u;
+
+function normalizeListExitLineSpacing(value: string): string {
+  const lines = value.replace(/\r\n?/g, '\n').split('\n');
+  const isListLine = (line: string): boolean =>
+    SS4_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line);
+
+  return lines.map((line, index) => {
+    let nextLine = line.replace(/^[\u200B-\u200D\u2060\uFEFF]+/, '');
+
+    if (
+      index > 0
+      && nextLine.trim()
+      && isListLine(lines[index - 1])
+      && !isListLine(nextLine)
+      && !/^\s*>/.test(nextLine)
+    ) {
+      // Chrome can leave one invisible/NBSP/normal-space character when a
+      // list item is converted back to a normal paragraph. Remove only that
+      // browser-created first character; preserve the rest of the user's
+      // alignment and spacing.
+      nextLine = nextLine.replace(/^\u00A0/, '');
+      if (/^ [^ \t]/.test(nextLine)) nextLine = nextLine.slice(1);
+    }
+
+    return nextLine;
+  }).join('\n');
+}
+
+function firstVisibleTextNode(element: Element): Text | null {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let current = walker.nextNode();
+
+  while (current) {
+    const textNode = current as Text;
+    if (textNode.data) return textNode;
+    current = walker.nextNode();
+  }
+
+  return null;
+}
+
+function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean {
+  if (!root) return false;
+
+  let changed = false;
+  const topLevelBlocks = Array.from(root.children);
+
+  topLevelBlocks.forEach((element, index) => {
+    if (['UL', 'OL'].includes(element.tagName)) return;
+
+    const previous = topLevelBlocks[index - 1];
+    if (!previous || !['UL', 'OL'].includes(previous.tagName)) return;
+
+    const htmlElement = element as HTMLElement;
+    ['margin-left', 'padding-left', 'text-indent'].forEach(property => {
+      if (htmlElement.style.getPropertyValue(property)) {
+        htmlElement.style.removeProperty(property);
+        changed = true;
+      }
+    });
+
+    const firstText = firstVisibleTextNode(element);
+    if (!firstText) return;
+
+    const original = firstText.data;
+    let normalized = original.replace(
+      /^[\u00A0\u200B-\u200D\u2060\uFEFF]+/,
+      '',
+    );
+
+    // Toggling a browser list off can leave exactly one ordinary leading
+    // space after its non-breaking placeholder. Remove one only.
+    if (/^ [^ \t]/.test(normalized)) normalized = normalized.slice(1);
+
+    if (normalized !== original) {
+      firstText.data = normalized;
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
+function isUnsafeNeutralPastedColor(color: string | null): boolean {
+  if (!color) return false;
+  const raw = color.replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(raw)) return false;
+
+  const red = Number.parseInt(raw.slice(0, 2), 16);
+  const green = Number.parseInt(raw.slice(2, 4), 16);
+  const blue = Number.parseInt(raw.slice(4, 6), 16);
+  const maximum = Math.max(red, green, blue);
+  const minimum = Math.min(red, green, blue);
+  const neutral = maximum - minimum <= 20;
+  const luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
+
+  // Very light neutral text disappears on the light composer. Very dark
+  // neutral text disappears in dark mode. Let those colors inherit the
+  // application theme instead.
+  return neutral && (luminance >= 222 || luminance <= 42);
+}
+
+function sanitizePastedEditorHtmlForTheme(html: string): string {
+  if (!html.trim()) return html;
+
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
+    const rawColor = element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.style.getPropertyValue('text-fill-color')
+      || element.getAttribute('color')
+      || '';
+    const normalizedColor = cssColorToHex(rawColor);
+
+    if (isUnsafeNeutralPastedColor(normalizedColor)) {
+      element.style.removeProperty('color');
+      element.style.removeProperty('-webkit-text-fill-color');
+      element.style.removeProperty('text-fill-color');
+      element.removeAttribute('color');
+    }
+
+    // Source backgrounds frequently carry the source application's theme and
+    // can make otherwise visible text unreadable in Suprah Space.
+    element.style.removeProperty('background');
+    element.style.removeProperty('background-color');
+    element.style.removeProperty('background-image');
+    element.style.removeProperty('text-shadow');
+    element.removeAttribute('bgcolor');
+
+    if (!element.getAttribute('style')?.trim()) {
+      element.removeAttribute('style');
+    }
+  });
+
+  return doc.body.innerHTML;
+}
 
 function plainTextHasListMarkers(text: string): boolean {
   const normalized = stripListMarkerNoise(text).replace(/\r\n?/g, '\n');
@@ -1432,22 +1619,36 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
     const markerPreservedListText = listAwareText
       ? applySourceBulletMarkers(listAwareText, text)
       : '';
+
     if (markerPreservedListText && plainTextHasListMarkers(markerPreservedListText)) {
-      return markdownTextToEditorHtml(markerPreservedListText);
+      return sanitizePastedEditorHtmlForTheme(
+        markdownTextToEditorHtml(markerPreservedListText),
+      );
     }
-    if (shouldUsePlainTextListLayout(text, editorHtml) || shouldPreferPlainTextLayout(text, editorHtml)) {
-      return markdownTextToEditorHtml(text);
+
+    if (
+      shouldUsePlainTextListLayout(text, editorHtml)
+      || shouldPreferPlainTextLayout(text, editorHtml)
+    ) {
+      return sanitizePastedEditorHtmlForTheme(
+        markdownTextToEditorHtml(text),
+      );
     }
-    if (editorHtml.trim()) return editorHtml;
+
+    if (editorHtml.trim()) {
+      return sanitizePastedEditorHtmlForTheme(editorHtml);
+    }
   }
 
   const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(text)
     ? clipboardHtmlToListAwareText(html)
     : text;
   const normalizedText = normalizeMessageMarkdownText(sourceText || '');
-  return hasMarkdownSyntax(normalizedText)
+  const editorHtml = hasMarkdownSyntax(normalizedText)
     ? markdownTextToEditorHtml(normalizedText)
     : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
+
+  return sanitizePastedEditorHtmlForTheme(editorHtml);
 }
 
 function hasMarkdownSyntax(text: string): boolean {
@@ -1674,10 +1875,12 @@ function normalizePastedListArtifacts(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  return normalizePastedListArtifacts(
-    text
-      .replace(/\r\n?/g, '\n')
-      .replace(/\u00a0/g, ' '),
+  return normalizeListExitLineSpacing(
+    normalizePastedListArtifacts(
+      text
+        .replace(/\r\n?/g, '\n')
+        .replace(/\u00a0/g, ' '),
+    ),
   ).trim();
 }
 
@@ -2533,6 +2736,7 @@ function Bubble({
   const [mobileEmojiSheetOpen, setMobileEmojiSheetOpen] = React.useState(false);
   const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionHoverLockRef = React.useRef(false);
   const [editMode, setEditMode] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState('');
   const [editSaving, setEditSaving] = React.useState(false);
@@ -2559,7 +2763,11 @@ function Bubble({
   const [moreActionsOpen, setMoreActionsOpen_] = React.useState(false);
   const moreActionsOpenRef = React.useRef(false);
   const moreActionsRef = React.useRef<HTMLDivElement>(null);
-  const setMoreActionsOpen = (v: boolean) => { moreActionsOpenRef.current = v; setMoreActionsOpen_(v); };
+  const setMoreActionsOpen = (value: boolean) => {
+    moreActionsOpenRef.current = value;
+    if (!value) actionHoverLockRef.current = false;
+    setMoreActionsOpen_(value);
+  };
   const [actionsBelow, setActionsBelow] = React.useState(false);
   const [dropdownFixedPos, setDropdownFixedPos] = React.useState<{ top?: number; bottom?: number; left?: number; right?: number; width?: number; maxHeight?: number } | null>(null);
   const dropdownPortalRef = React.useRef<HTMLDivElement>(null);
@@ -2628,6 +2836,13 @@ function Bubble({
       if (scrollEl) scrollEl.style.overflowY = previousScrollOverflow || '';
     };
   }, [mobileMenu, mobileMoreOpen, mobileEmojiSheetOpen, mobileOverlayHost]);
+
+
+  React.useEffect(() => () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    if (swipeRafRef.current !== null) cancelAnimationFrame(swipeRafRef.current);
+  }, []);
 
   React.useEffect(() => {
     if (!moreActionsOpen) return;
@@ -2785,6 +3000,7 @@ function Bubble({
           document.execCommand('fontName', false, codeIsActive ? 'Geist' : 'monospace');
         }
       },
+      { normalizeListExit: format === 'list' || format === 'numbered' },
     );
 
     if (nextRange) editSelectionRangeRef.current = nextRange;
@@ -2873,11 +3089,32 @@ function Bubble({
     pickerPosRef.current = null;
     setPickerPos(null);
   };
-  const scheduleHide = () => {
-    hideTimer.current = setTimeout(() => { if (!pickerPosRef.current && !moreActionsOpenRef.current) setHov(false); }, 180);
-  };
   const cancelHide = () => {
-    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+  const scheduleHide = (delay = 360) => {
+    cancelHide();
+    hideTimer.current = setTimeout(() => {
+      if (
+        !actionHoverLockRef.current
+        && !pickerPosRef.current
+        && !moreActionsOpenRef.current
+      ) {
+        setHov(false);
+      }
+    }, delay);
+  };
+  const holdActionHover = () => {
+    actionHoverLockRef.current = true;
+    cancelHide();
+    setHov(true);
+  };
+  const releaseActionHover = () => {
+    actionHoverLockRef.current = false;
+    scheduleHide(280);
   };
 
   const positionActionBar = React.useCallback((mode: 'desktop' | 'mobile' = 'desktop') => {
@@ -3073,6 +3310,7 @@ function Bubble({
 
   React.useEffect(() => {
     if (!suppressActionsDuringScroll) return;
+    if (actionHoverLockRef.current || moreActionsOpenRef.current || pickerPosRef.current) return;
     setHov(false);
     setOpenReactPop(null);
     if (pickerPosRef.current) closePicker();
@@ -3119,7 +3357,7 @@ function Bubble({
           transition: 'transform 180ms cubic-bezier(.2,.8,.2,1)',
         }}
         onMouseEnter={showDesktopActions}
-        onMouseLeave={scheduleHide}
+        onMouseLeave={() => scheduleHide()}
       >
         {swipeCueVisible && (
           <div
@@ -3144,7 +3382,7 @@ function Bubble({
         {showAvatar && !isOwn && (
           <div className="flex items-center gap-1.5 px-1">
             <span className="ss4-msg-sender font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</span>
-            {isPinned && <span className="px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 9, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>?? Pinned</span>}
+            {isPinned && <span className="px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 9, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>Pinned</span>}
           </div>
         )}
 
@@ -3306,6 +3544,26 @@ function Bubble({
                     && anchorElement.closest('li, blockquote')
                   );
 
+                  if (
+                    e.key === 'Enter'
+                    && e.altKey
+                    && !e.ctrlKey
+                    && !e.metaKey
+                  ) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const inserted = document.execCommand('insertLineBreak');
+                    if (!inserted) {
+                      document.execCommand('insertHTML', false, '<br>');
+                    }
+
+                    syncEditDraft();
+                    rememberEditSelection();
+                    refreshEditActiveFormats();
+                    return;
+                  }
+
                   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     saveEdit();
@@ -3380,6 +3638,7 @@ function Bubble({
                   );
                   requestAnimationFrame(() => {
                     normalizeContentEditableListArtifacts(editAreaRef.current);
+                    normalizeRichEditorListExitArtifacts(editAreaRef.current);
                     syncEditDraft();
                     rememberEditSelection();
                   });
@@ -3421,7 +3680,7 @@ function Bubble({
                 style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}
               >
                 <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>
-                  Enter saves outside lists/quotes · Ctrl/Cmd+Enter saves anytime · Esc cancels
+                  Alt+Enter or Shift+Enter adds a line break · Ctrl/Cmd+Enter saves · Esc cancels
                 </span>
 
                 <input
@@ -3475,10 +3734,33 @@ function Bubble({
             </div>
           ) : null}
           {hov && !disableActions && !editMode && actionBarPos && createPortal(
-            <div ref={menuRef}
+            <div
+              ref={menuRef}
+              data-supraspace-action-ui="true"
               className="ss4-msg-actions ss4-msg-actions-pop"
-              style={{ position: 'fixed', zIndex: 9999, top: actionBarPos.top, left: actionBarPos.left, display: 'flex', alignItems: 'center', borderRadius: 12, background: actionSurface, color: actionText, border: `1px solid ${actionBorder}`, boxShadow: '0 8px 28px rgba(0,0,0,0.38)', minWidth: 'max-content' }}
-              onMouseEnter={cancelHide} onMouseLeave={scheduleHide}>
+              style={{
+                position: 'fixed',
+                zIndex: 9999,
+                top: actionBarPos.top,
+                left: actionBarPos.left,
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 12,
+                background: actionSurface,
+                color: actionText,
+                border: `1px solid ${actionBorder}`,
+                boxShadow: '0 8px 28px rgba(0,0,0,0.38)',
+                minWidth: 'max-content',
+              }}
+              onPointerEnter={holdActionHover}
+              onPointerLeave={releaseActionHover}
+              onPointerDown={event => {
+                event.stopPropagation();
+                holdActionHover();
+              }}
+              onMouseDown={event => event.stopPropagation()}
+              onClick={event => event.stopPropagation()}
+            >
               {SS4_REACTIONS.slice(0, 6).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
                   className="ss4-action-emoji h-7 w-7 flex items-center justify-center text-base rounded-lg transition-all hover:scale-125 active:scale-95"
@@ -3533,17 +3815,34 @@ function Bubble({
               { }
               <div className="relative" ref={moreActionsRef}>
                 <button
-                  onClick={() => {
-                    if (!moreActionsOpen && moreActionsRef.current) {
+                  type="button"
+                  onPointerDown={event => {
+                    event.stopPropagation();
+                    holdActionHover();
+                  }}
+                  onMouseDown={event => event.stopPropagation()}
+                  onClick={event => {
+                    event.stopPropagation();
+                    holdActionHover();
+
+                    const willOpen = !moreActionsOpenRef.current;
+                    if (willOpen && moreActionsRef.current) {
                       const rect = moreActionsRef.current.getBoundingClientRect();
                       const PAD = 10;
                       const preferredWidth = 228;
                       const width = Math.min(preferredWidth, window.innerWidth - PAD * 2);
                       const openDown = rect.top < 320;
-                      const left = Math.max(PAD, Math.min(window.innerWidth - width - PAD, rect.left + rect.width / 2 - width / 2));
+                      const left = Math.max(
+                        PAD,
+                        Math.min(
+                          window.innerWidth - width - PAD,
+                          rect.left + rect.width / 2 - width / 2,
+                        ),
+                      );
                       const availableHeight = openDown
                         ? window.innerHeight - rect.bottom - PAD
                         : rect.top - PAD;
+
                       setDropdownFixedPos({
                         ...(openDown
                           ? { top: rect.bottom + 6 }
@@ -3552,10 +3851,11 @@ function Bubble({
                         width,
                         maxHeight: Math.max(180, Math.min(380, availableHeight)),
                       });
-                    } else if (moreActionsOpen) {
+                    } else {
                       setDropdownFixedPos(null);
                     }
-                    setMoreActionsOpen(!moreActionsOpen);
+
+                    setMoreActionsOpen(willOpen);
                   }}
                   className="ss4-action-btn h-7 w-7 rounded-lg flex items-center justify-center transition-colors"
                   title="More actions"
@@ -3568,7 +3868,18 @@ function Bubble({
                 {moreActionsOpen && dropdownFixedPos && createPortal(
                   <div
                     ref={dropdownPortalRef}
+                    data-supraspace-action-ui="true"
                     className="rounded-xl overflow-hidden"
+                    onPointerEnter={holdActionHover}
+                    onPointerLeave={() => {
+                      if (!moreActionsOpenRef.current) releaseActionHover();
+                    }}
+                    onPointerDown={event => {
+                      event.stopPropagation();
+                      holdActionHover();
+                    }}
+                    onMouseDown={event => event.stopPropagation()}
+                    onClick={event => event.stopPropagation()}
                     style={{
                       position: 'fixed',
                       zIndex: 9999,
@@ -5114,7 +5425,10 @@ export default function SupraSpacePage() {
   // otherwise every app-driven scroll slams open reaction tooltips shut mid-interaction.
   const userScrollGestureRef = React.useRef(false);
   const userScrollGestureTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const markUserScrollGesture = React.useCallback(() => {
+  const markUserScrollGesture = React.useCallback((event?: React.SyntheticEvent) => {
+    const target = event?.target as HTMLElement | null;
+    if (target?.closest('[data-supraspace-action-ui="true"]')) return;
+
     userScrollGestureRef.current = true;
     if (userScrollGestureTimerRef.current) clearTimeout(userScrollGestureTimerRef.current);
     userScrollGestureTimerRef.current = setTimeout(() => { userScrollGestureRef.current = false; }, 400);
@@ -6587,29 +6901,55 @@ export default function SupraSpacePage() {
   };
 
   const refreshActiveFormats = React.useCallback(() => {
-    const el = textareaRef.current;
-    const selection = window.getSelection();
-    if (!el || !selection || selection.rangeCount === 0 || !el.contains(selection.anchorNode)) {
-      return;
+    try {
+      const el = textareaRef.current;
+      const selection = window.getSelection();
+      if (
+        !el
+        || !selection
+        || selection.rangeCount === 0
+        || !selection.anchorNode
+        || !el.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+
+      const cursor = getCaretOffset(el);
+      const value = el.innerText.replace(/\n$/, '');
+      const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
+      const lineEndRaw = value.indexOf('\n', cursor);
+      const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
+      const line = value.slice(lineStart, lineEnd);
+      const beforeCursor = line.slice(0, Math.max(0, cursor - lineStart));
+      const blockValue = String(document.queryCommandValue('formatBlock') || '')
+        .toLowerCase()
+        .replace(/[<>]/g, '');
+      const fontValue = String(document.queryCommandValue('fontName') || '')
+        .toLowerCase();
+
+      setActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strike: document.queryCommandState('strikeThrough'),
+        list:
+          document.queryCommandState('insertUnorderedList')
+          || /^[•◦▪]\s/.test(line.trimStart()),
+        numbered:
+          document.queryCommandState('insertOrderedList')
+          || /^\d+\.\s/.test(line.trimStart()),
+        quote:
+          blockValue.includes('blockquote')
+          || line.trimStart().startsWith('> '),
+        code:
+          /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue)
+          || beforeCursor.split('`').length % 2 === 0,
+      });
+
+      setActiveTextColor(getActiveSelectionColor(el));
+    } catch {
+      // Browser formatting-state detection is best effort.
     }
-    const cursor = getCaretOffset(el);
-    const value = el.innerText.replace(/\n$/, '');
-    const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
-    const lineEndRaw = value.indexOf('\n', cursor);
-    const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
-    const line = value.slice(lineStart, lineEnd);
-    const beforeCursor = line.slice(0, cursor - lineStart);
-    setActiveFormats({
-      bold: document.queryCommandState('bold'),
-      italic: document.queryCommandState('italic'),
-      underline: document.queryCommandState('underline'),
-      strike: document.queryCommandState('strikethrough'),
-      list: /^[•◦▪]\s/.test(line.trimStart()),
-      numbered: /^\d+\.\s/.test(line.trimStart()),
-      quote: line.trimStart().startsWith('> '),
-      code: beforeCursor.split('`').length % 2 === 0,
-    });
-    setActiveTextColor(getActiveSelectionColor(el));
   }, []);
 
   React.useEffect(() => {
@@ -7243,7 +7583,7 @@ export default function SupraSpacePage() {
     }
     const bulletMatch = line.match(/^(\s*)([•◦▪])(\s+)(.*)$/);
     if (bulletMatch) {
-      const listIndent = leading || '  ';
+      const listIndent = leading;
       const insert = `\n${listIndent}${bulletMatch[2]} `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
       const caret = cursor + insert.length;
@@ -7289,39 +7629,129 @@ export default function SupraSpacePage() {
     return false;
   }, [refreshActiveFormats, setEditableTextAndCaret, syncComposerText]);
 
+  const insertComposerSoftLineBreak = React.useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return false;
+
+    el.focus();
+    const selection = window.getSelection();
+    if (
+      !selection
+      || selection.rangeCount === 0
+      || !selection.anchorNode
+      || !el.contains(selection.anchorNode)
+    ) {
+      focusComposerAtSavedCaret();
+    }
+
+    const inserted = document.execCommand('insertLineBreak');
+    if (!inserted) {
+      document.execCommand('insertHTML', false, '<br>');
+    }
+
+    const nextText = el.innerText.replace(/\n$/, '');
+    syncComposerText(nextText, true);
+    saveComposerSelection();
+    refreshActiveFormats();
+    return true;
+  }, [
+    focusComposerAtSavedCaret,
+    refreshActiveFormats,
+    saveComposerSelection,
+    syncComposerText,
+  ]);
+
   const applyFormat = React.useCallback((type: RichTextFormat | 'link' | 'codeblock') => {
     const el = textareaRef.current;
     if (!el) return;
+
     el.focus();
-    const sel = window.getSelection();
-    const selectedText = sel?.toString() || '';
-    switch (type) {
-      case 'bold': document.execCommand('bold', false); break;
-      case 'italic': document.execCommand('italic', false); break;
-      case 'underline': document.execCommand('underline', false); break;
-      case 'strike': document.execCommand('strikethrough', false); break;
-      case 'list':
-        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '  • ' + (selectedText || ''));
-        break;
-      case 'numbered':
-        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '1. ' + (selectedText || ''));
-        break;
-      case 'quote':
-        document.execCommand('insertText', false, (selectedText ? '\n' : '') + '> ' + (selectedText || 'quote'));
-        break;
-      case 'link':
-        document.execCommand('insertText', false, selectedText ? `[${selectedText}](url)` : '[text](url)');
-        break;
-      case 'code':
-        document.execCommand('insertText', false, '`' + (selectedText || 'code') + '`');
-        break;
-      case 'codeblock':
-        document.execCommand('insertText', false, '```\n' + (selectedText || 'code') + '\n```');
-        break;
+    const currentSelection = window.getSelection();
+    const selectedText = currentSelection?.toString() || '';
+
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      el,
+      composerSelectionRangeRef.current,
+      () => {
+        const commandMap: Partial<Record<RichTextFormat, string>> = {
+          bold: 'bold',
+          italic: 'italic',
+          underline: 'underline',
+          strike: 'strikeThrough',
+          list: 'insertUnorderedList',
+          numbered: 'insertOrderedList',
+        };
+
+        const command = commandMap[type as RichTextFormat];
+        if (command) {
+          document.execCommand(command, false);
+          return;
+        }
+
+        if (type === 'quote') {
+          const currentBlock = String(document.queryCommandValue('formatBlock') || '')
+            .toLowerCase()
+            .replace(/[<>]/g, '');
+          document.execCommand(
+            'formatBlock',
+            false,
+            currentBlock.includes('blockquote') ? 'div' : 'blockquote',
+          );
+          return;
+        }
+
+        if (type === 'code') {
+          document.execCommand('styleWithCSS', false, 'true');
+          const currentFont = String(document.queryCommandValue('fontName') || '')
+            .toLowerCase();
+          const codeIsActive = /(monospace|courier|consolas|menlo|monaco)/i
+            .test(currentFont);
+          document.execCommand(
+            'fontName',
+            false,
+            codeIsActive ? 'Geist' : 'monospace',
+          );
+          return;
+        }
+
+        if (type === 'codeblock') {
+          const currentBlock = String(document.queryCommandValue('formatBlock') || '')
+            .toLowerCase()
+            .replace(/[<>]/g, '');
+          document.execCommand(
+            'formatBlock',
+            false,
+            currentBlock === 'pre' ? 'div' : 'pre',
+          );
+          return;
+        }
+
+        if (type === 'link') {
+          document.execCommand(
+            'insertText',
+            false,
+            selectedText ? `[${selectedText}](url)` : '[text](url)',
+          );
+        }
+      },
+      {
+        normalizeListExit: type === 'list' || type === 'numbered',
+      },
+    );
+
+    if (nextRange) {
+      composerSelectionRangeRef.current = nextRange;
     }
-    syncComposerText(el.innerText.replace(/\n$/, ''), true);
+
+    const nextText = el.innerText.replace(/\n$/, '');
+    syncComposerText(nextText, true);
+    saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
-  }, [refreshActiveFormats, syncComposerText]);
+  }, [
+    refreshActiveFormats,
+    saveComposerSelection,
+    syncComposerText,
+  ]);
 
   // Tab/Shift+Tab on a bullet or numbered-list line: Tab nests one level deeper (cycling
   // bullet glyph •→◦→▪, or renumbering from the nearest sibling at the new indent),
@@ -7370,27 +7800,29 @@ export default function SupraSpacePage() {
   const applyTextColor = React.useCallback((color: string) => {
     const el = textareaRef.current;
     if (!el) return;
+
     el.focus();
-    restoreComposerSelection();
-    document.execCommand('foreColor', false, color);
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      el,
+      composerSelectionRangeRef.current,
+      () => {
+        applyTextColorToRichEditorSelection(el, color);
+      },
+    );
+
+    if (nextRange) {
+      composerSelectionRangeRef.current = nextRange;
+    }
+
     setActiveTextColor(color);
     syncComposerText(el.innerText.replace(/\n$/, ''), true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
-  }, [refreshActiveFormats, restoreComposerSelection, saveComposerSelection, syncComposerText]);
-
-  const handleColorBeforeInput = React.useCallback((e: React.FormEvent<HTMLDivElement>) => {
-    const inputEvent = e.nativeEvent as InputEvent;
-    if (activeTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
-    e.preventDefault();
-    document.execCommand('insertHTML', false, `<span style="color:${activeTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
-    const el = e.currentTarget;
-    requestAnimationFrame(() => {
-      syncComposerText(el.innerText.replace(/\n$/, ''));
-      saveComposerSelection();
-      refreshActiveFormats();
-    });
-  }, [activeTextColor, refreshActiveFormats, saveComposerSelection, syncComposerText]);
+  }, [
+    refreshActiveFormats,
+    saveComposerSelection,
+    syncComposerText,
+  ]);
 
   const chooseExpandedTextColor = React.useCallback((color: string) => {
     setTextPalette(prev => {
@@ -7672,8 +8104,8 @@ export default function SupraSpacePage() {
     const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
     const hasDraftPreview = Boolean(draftPreview);
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
-    const [rowHov, setRowHov] = React.useState(false);
     const [ddOpen, setDdOpen] = React.useState(false);
+    const [actionKeyboardFocus, setActionKeyboardFocus] = React.useState(false);
     const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
@@ -7684,7 +8116,12 @@ export default function SupraSpacePage() {
         data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
         onClick={() => openConversation(conv._id)}
         onContextMenu={e => e.preventDefault()}
-        onMouseEnter={() => setRowHov(true)} onMouseLeave={() => setRowHov(false)}
+        onMouseLeave={() => {
+          if (!ddTriggerRef.current?.matches(':focus-visible')) {
+            ddTriggerRef.current?.blur();
+            setActionKeyboardFocus(false);
+          }
+        }}
         onTouchStart={startLongPress} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}>
         { }
         {isDraggable && (
@@ -7711,7 +8148,15 @@ export default function SupraSpacePage() {
             {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
             {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
             <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
-            {!rowHov && <span className="ss4-conv-time shrink-0" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>}
+            <span
+              className={cn(
+                'ss4-conv-time shrink-0 group-hover:hidden',
+                actionKeyboardFocus && 'hidden',
+              )}
+              style={{ fontSize: 11, color: 'var(--text-disabled)' }}
+            >
+              {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
+            </span>
           </div>
           <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
             {hasDraftPreview ? (
@@ -7726,12 +8171,32 @@ export default function SupraSpacePage() {
           </p>
         </div>
         {!compact && (
-          <div className="hidden md:flex items-center shrink-0 transition-opacity" style={{ opacity: isAct || rowHov || ddOpen ? 1 : 0 }}>
-            <DropdownMenu open={ddOpen} onOpenChange={setDdOpen} modal={false}>
+          <div
+            className={cn(
+              'hidden md:flex items-center shrink-0 transition-opacity duration-150',
+              'opacity-0 pointer-events-none',
+              'group-hover:opacity-100 group-hover:pointer-events-auto',
+              actionKeyboardFocus && 'opacity-100 pointer-events-auto',
+            )}
+          >
+            <DropdownMenu
+              open={ddOpen}
+              onOpenChange={setDdOpen}
+              modal={false}
+            >
               <DropdownMenuTrigger asChild>
                 <button
                   ref={ddTriggerRef}
-                  onPointerDown={e => e.stopPropagation()}
+                  type="button"
+                  aria-label={`More actions for ${cName}`}
+                  onFocus={event => {
+                    setActionKeyboardFocus(event.currentTarget.matches(':focus-visible'));
+                  }}
+                  onBlur={() => setActionKeyboardFocus(false)}
+                  onPointerDown={event => {
+                    event.stopPropagation();
+                    setActionKeyboardFocus(false);
+                  }}
                   onMouseDown={e => e.stopPropagation()}
                   onClick={e => e.stopPropagation()}
                   className="h-6 w-6 rounded-lg flex items-center justify-center transition-colors hover:bg-(--bg-hover)"
@@ -8470,32 +8935,32 @@ export default function SupraSpacePage() {
                         )}
                         {showFormatBar && (
                           <div className="flex items-center gap-1 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
                               <Bold className="h-3.5 w-3.5" style={formatIconStyle('bold')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className={formatButtonClass('italic')} title="Italic" aria-pressed={activeFormats.italic}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className={formatButtonClass('italic')} title="Italic" aria-pressed={activeFormats.italic}>
                               <Italic className="h-3.5 w-3.5" style={formatIconStyle('italic')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className={formatButtonClass('underline')} title="Underline" aria-pressed={activeFormats.underline}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className={formatButtonClass('underline')} title="Underline" aria-pressed={activeFormats.underline}>
                               <Underline className="h-3.5 w-3.5" style={formatIconStyle('underline')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={formatButtonClass('strike')} title="Strikethrough" aria-pressed={activeFormats.strike}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={formatButtonClass('strike')} title="Strikethrough" aria-pressed={activeFormats.strike}>
                               <Strikethrough className="h-3.5 w-3.5" style={formatIconStyle('strike')} />
                             </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={formatButtonClass('list')} title="Bullet list (Tab to nest)" aria-pressed={activeFormats.list}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={formatButtonClass('list')} title="Bullet list (Tab to nest)" aria-pressed={activeFormats.list}>
                               <List className="h-3.5 w-3.5" style={formatIconStyle('list')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('numbered'); }} className={formatButtonClass('numbered')} title="Numbered list (Tab to nest)" aria-pressed={activeFormats.numbered}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('numbered'); }} className={formatButtonClass('numbered')} title="Numbered list (Tab to nest)" aria-pressed={activeFormats.numbered}>
                               <ListOrdered className="h-3.5 w-3.5" style={formatIconStyle('numbered')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className={formatButtonClass('quote')} title="Quote" aria-pressed={activeFormats.quote}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className={formatButtonClass('quote')} title="Quote" aria-pressed={activeFormats.quote}>
                               <TextQuote className="h-3.5 w-3.5" style={formatIconStyle('quote')} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)" title="Link">
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)" title="Link">
                               <Link2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
                             </button>
-                            <button onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className={formatButtonClass('code')} title="Inline code" aria-pressed={activeFormats.code}>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className={formatButtonClass('code')} title="Inline code" aria-pressed={activeFormats.code}>
                               <Code2 className="h-3.5 w-3.5" style={formatIconStyle('code')} />
                             </button>
                             <button
@@ -8604,48 +9069,270 @@ export default function SupraSpacePage() {
                               ref={textareaRef}
                               contentEditable
                               suppressContentEditableWarning
-                              onBeforeInput={handleColorBeforeInput}
-                              onInput={handleTyping}
-                              onFocus={() => { saveComposerSelection(); refreshActiveFormats(); }}
+                              onInput={event => {
+                                handleTyping(event);
+                                saveComposerSelection();
+                                refreshActiveFormats();
+                              }}
+                              onFocus={() => {
+                                saveComposerSelection();
+                                refreshActiveFormats();
+                              }}
+                              onSelect={() => {
+                                saveComposerSelection();
+                                refreshActiveFormats();
+                              }}
                               onMouseDown={e => e.stopPropagation()}
-                              onMouseUp={() => { saveComposerSelection(); refreshActiveFormats(); }}
+                              onMouseUp={() => {
+                                saveComposerSelection();
+                                refreshActiveFormats();
+                              }}
                               onKeyUp={() => {
-                                if (mentionQuery !== null) refreshActiveFormats();
+                                saveComposerSelection();
+                                refreshActiveFormats();
                               }}
                               onKeyDown={e => {
-                                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pastePlainTextShortcutRef.current = true; window.setTimeout(() => { pastePlainTextShortcutRef.current = false; }, 750); }
-                                if (mentionQuery !== null && mentionOptions.length > 0) {
-                                  if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
-                                  if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-                                  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
-                                  if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
+                                if (
+                                  (e.ctrlKey || e.metaKey)
+                                  && e.shiftKey
+                                  && e.key.toLowerCase() === 'v'
+                                ) {
+                                  pastePlainTextShortcutRef.current = true;
+                                  window.setTimeout(() => {
+                                    pastePlainTextShortcutRef.current = false;
+                                  }, 750);
                                 }
-                                if (channelMentionQuery !== null && channelMentionOptions.length > 0) {
-                                  if (e.key === 'ArrowDown') { e.preventDefault(); setChannelMentionIdx(i => Math.min(i + 1, channelMentionOptions.length - 1)); return; }
-                                  if (e.key === 'ArrowUp') { e.preventDefault(); setChannelMentionIdx(i => Math.max(i - 1, 0)); return; }
-                                  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertChannelMention(channelMentionOptions[channelMentionIdx].name); return; }
-                                  if (e.key === 'Escape') { setChannelMentionQuery(null); setChannelMentionAnchor(-1); return; }
-                                }
-                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                                if (e.key === 'Enter' && e.shiftKey) {
+
+                                if (
+                                  e.key === 'Enter'
+                                  && e.altKey
+                                  && !e.ctrlKey
+                                  && !e.metaKey
+                                ) {
                                   e.preventDefault();
-                                  if (!handleFormattedLineBreak()) document.execCommand('insertLineBreak');
+                                  e.stopPropagation();
+                                  insertComposerSoftLineBreak();
+                                  return;
                                 }
+
+                                if (
+                                  e.key === 'Enter'
+                                  && (e.ctrlKey || e.metaKey)
+                                ) {
+                                  e.preventDefault();
+                                  handleSend();
+                                  return;
+                                }
+
+                                if (
+                                  mentionQuery !== null
+                                  && mentionOptions.length > 0
+                                ) {
+                                  if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    setMentionIdx(index => Math.min(
+                                      index + 1,
+                                      mentionOptions.length - 1,
+                                    ));
+                                    return;
+                                  }
+                                  if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    setMentionIdx(index => Math.max(index - 1, 0));
+                                    return;
+                                  }
+                                  if (
+                                    e.key === 'Enter'
+                                    || e.key === 'Tab'
+                                  ) {
+                                    e.preventDefault();
+                                    insertMention(mentionOptions[mentionIdx].name);
+                                    return;
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setMentionQuery(null);
+                                    setMentionAnchor(-1);
+                                    return;
+                                  }
+                                }
+
+                                if (
+                                  channelMentionQuery !== null
+                                  && channelMentionOptions.length > 0
+                                ) {
+                                  if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    setChannelMentionIdx(index => Math.min(
+                                      index + 1,
+                                      channelMentionOptions.length - 1,
+                                    ));
+                                    return;
+                                  }
+                                  if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    setChannelMentionIdx(index => Math.max(index - 1, 0));
+                                    return;
+                                  }
+                                  if (
+                                    e.key === 'Enter'
+                                    || e.key === 'Tab'
+                                  ) {
+                                    e.preventDefault();
+                                    insertChannelMention(
+                                      channelMentionOptions[channelMentionIdx].name,
+                                    );
+                                    return;
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setChannelMentionQuery(null);
+                                    setChannelMentionAnchor(-1);
+                                    return;
+                                  }
+                                }
+
+                                const selection = window.getSelection();
+                                const anchorNode = selection?.anchorNode;
+                                const anchorElement = anchorNode instanceof HTMLElement
+                                  ? anchorNode
+                                  : anchorNode?.parentElement;
+                                const isInsideStructuredBlock = Boolean(
+                                  anchorElement
+                                  && textareaRef.current?.contains(anchorElement)
+                                  && anchorElement.closest('li, blockquote'),
+                                );
+
+                                if (
+                                  e.key === 'Enter'
+                                  && !e.shiftKey
+                                  && !e.altKey
+                                ) {
+                                  if (isInsideStructuredBlock) {
+                                    requestAnimationFrame(() => {
+                                      const el = textareaRef.current;
+                                      if (!el) return;
+
+                                      normalizeContentEditableListArtifacts(el);
+                                      normalizeRichEditorListExitArtifacts(el);
+                                      syncComposerText(
+                                        el.innerText.replace(/\n$/, ''),
+                                        true,
+                                      );
+                                      saveComposerSelection();
+                                      refreshActiveFormats();
+                                    });
+                                    return;
+                                  }
+
+                                  if (handleFormattedLineBreak()) {
+                                    e.preventDefault();
+                                    return;
+                                  }
+
+                                  e.preventDefault();
+                                  handleSend();
+                                  return;
+                                }
+
+                                if (
+                                  e.key === 'Enter'
+                                  && e.shiftKey
+                                ) {
+                                  e.preventDefault();
+                                  insertComposerSoftLineBreak();
+                                  return;
+                                }
+
                                 if (e.key === 'Tab') {
-                                  if (handleListIndent(e.shiftKey)) { e.preventDefault(); return; }
+                                  if (
+                                    anchorElement
+                                    && textareaRef.current?.contains(anchorElement)
+                                    && anchorElement.closest('li')
+                                  ) {
+                                    e.preventDefault();
+                                    document.execCommand(
+                                      e.shiftKey ? 'outdent' : 'indent',
+                                      false,
+                                    );
+                                    const el = textareaRef.current;
+                                    if (el) {
+                                      normalizeContentEditableListArtifacts(el);
+                                      syncComposerText(
+                                        el.innerText.replace(/\n$/, ''),
+                                        true,
+                                      );
+                                      saveComposerSelection();
+                                      requestAnimationFrame(refreshActiveFormats);
+                                    }
+                                    return;
+                                  }
+
+                                  if (handleListIndent(e.shiftKey)) {
+                                    e.preventDefault();
+                                    return;
+                                  }
                                 }
+
+                                if (e.key === 'Escape') {
+                                  setMentionQuery(null);
+                                  setMentionAnchor(-1);
+                                  setChannelMentionQuery(null);
+                                  setChannelMentionAnchor(-1);
+                                  setTextColorPickerOpen(false);
+                                  return;
+                                }
+
                                 if (e.ctrlKey || e.metaKey) {
-                                  const k = e.key.toLowerCase();
-                                  if (k === 'b') { e.preventDefault(); applyFormat('bold'); return; }
-                                  if (k === 'i') { e.preventDefault(); applyFormat('italic'); return; }
-                                  if (k === 'u') { e.preventDefault(); applyFormat('underline'); return; }
-                                  if (k === 'k') { e.preventDefault(); applyFormat('link'); return; }
-                                  if (k === 'e') { e.preventDefault(); applyFormat('code'); return; }
-                                  if (e.shiftKey && k === 'x') { e.preventDefault(); applyFormat('strike'); return; }
-                                  if (e.shiftKey && k === 'c') { e.preventDefault(); applyFormat('codeblock'); return; }
-                                  if (e.shiftKey && k === '7') { e.preventDefault(); applyFormat('numbered'); return; }
-                                  if (e.shiftKey && k === '8') { e.preventDefault(); applyFormat('list'); return; }
-                                  if (e.shiftKey && k === '9') { e.preventDefault(); applyFormat('quote'); return; }
+                                  const key = e.key.toLowerCase();
+
+                                  if (key === 'b') {
+                                    e.preventDefault();
+                                    applyFormat('bold');
+                                    return;
+                                  }
+                                  if (key === 'i') {
+                                    e.preventDefault();
+                                    applyFormat('italic');
+                                    return;
+                                  }
+                                  if (key === 'u') {
+                                    e.preventDefault();
+                                    applyFormat('underline');
+                                    return;
+                                  }
+                                  if (key === 'k') {
+                                    e.preventDefault();
+                                    applyFormat('link');
+                                    return;
+                                  }
+                                  if (key === 'e') {
+                                    e.preventDefault();
+                                    applyFormat('code');
+                                    return;
+                                  }
+                                  if (e.shiftKey && key === 'x') {
+                                    e.preventDefault();
+                                    applyFormat('strike');
+                                    return;
+                                  }
+                                  if (e.shiftKey && key === 'c') {
+                                    e.preventDefault();
+                                    applyFormat('codeblock');
+                                    return;
+                                  }
+                                  if (e.shiftKey && key === '7') {
+                                    e.preventDefault();
+                                    applyFormat('numbered');
+                                    return;
+                                  }
+                                  if (e.shiftKey && key === '8') {
+                                    e.preventDefault();
+                                    applyFormat('list');
+                                    return;
+                                  }
+                                  if (e.shiftKey && key === '9') {
+                                    e.preventDefault();
+                                    applyFormat('quote');
+                                  }
                                 }
                               }}
                               onPaste={e => {
@@ -8669,6 +9356,7 @@ export default function SupraSpacePage() {
                                     const el = textareaRef.current;
                                     if (el) {
                                       normalizeContentEditableListArtifacts(el);
+                                      normalizeRichEditorListExitArtifacts(el);
                                       const nextText = el.innerText.replace(/\n$/, '');
                                       syncComposerText(nextText, true);
                                       inspectMentionAnywhere(nextText);
@@ -8686,7 +9374,7 @@ export default function SupraSpacePage() {
                                 }
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
-                              className="ss4-composer-editor text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
+                              className="ss4-composer-editor ss4-rich-edit text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
                               style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', maxWidth: '100%', overflowX: 'hidden', outline: 'none' }}
                             />
                             <div ref={mobileEmojiRef} className="relative ss4-mobile-emoji flex md:hidden">

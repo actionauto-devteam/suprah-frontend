@@ -266,10 +266,12 @@ function normalizePastedListArtifacts(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  return normalizePastedListArtifacts(
-    text
-      .replace(/\r\n?/g, '\n')
-      .replace(/\u00a0/g, ' '),
+  return normalizeListExitLineSpacing(
+    normalizePastedListArtifacts(
+      text
+        .replace(/\r\n?/g, '\n')
+        .replace(/\u00a0/g, ' '),
+    ),
   ).trim();
 }
 
@@ -844,6 +846,7 @@ function executeRichEditorCommandPreservingSelection(
 
   command();
   removeLeadingPhantomBlocks();
+  normalizeRichEditorListExitArtifacts(root);
 
   return restoreTextBookmark(bookmark);
 }
@@ -1012,10 +1015,12 @@ function htmlToMarkdown(el: HTMLElement): string {
   };
 
   const rootColor = cssColorToHex(el.style.color);
-  let markdown = Array.from(el.childNodes).map(child => walk(child, 0)).join('')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  let markdown = normalizeListExitLineSpacing(
+    Array.from(el.childNodes).map(child => walk(child, 0)).join('')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
+  );
   if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
   return markdown;
 }
@@ -1028,6 +1033,140 @@ function htmlAppearsToContainLists(html: string): boolean {
 }
 
 const POPUP_SOURCE_BULLET_RE = /^([ \t]*)([\-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]{1,4})\s+(.+)$/u;
+
+function normalizeListExitLineSpacing(value: string): string {
+  const lines = value.replace(/\r\n?/g, '\n').split('\n');
+  const isListLine = (line: string): boolean =>
+    POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line);
+
+  return lines.map((line, index) => {
+    let nextLine = line.replace(/^[\u200B-\u200D\u2060\uFEFF]+/, '');
+
+    if (
+      index > 0
+      && nextLine.trim()
+      && isListLine(lines[index - 1])
+      && !isListLine(nextLine)
+      && !/^\s*>/.test(nextLine)
+    ) {
+      // Chrome can leave one invisible/NBSP/normal-space character when a
+      // list item is converted back to a normal paragraph. Remove only that
+      // browser-created first character; preserve the rest of the user's
+      // alignment and spacing.
+      nextLine = nextLine.replace(/^\u00A0/, '');
+      if (nextLine.startsWith(' ')) nextLine = nextLine.slice(1);
+    }
+
+    return nextLine;
+  }).join('\n');
+}
+
+function firstVisibleTextNode(element: Element): Text | null {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let current = walker.nextNode();
+
+  while (current) {
+    const textNode = current as Text;
+    if (textNode.data) return textNode;
+    current = walker.nextNode();
+  }
+
+  return null;
+}
+
+function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean {
+  if (!root) return false;
+
+  let changed = false;
+  const topLevelBlocks = Array.from(root.children);
+
+  topLevelBlocks.forEach((element, index) => {
+    if (['UL', 'OL'].includes(element.tagName)) return;
+
+    const previous = topLevelBlocks[index - 1];
+    if (!previous || !['UL', 'OL'].includes(previous.tagName)) return;
+
+    const htmlElement = element as HTMLElement;
+    ['margin-left', 'padding-left', 'text-indent'].forEach(property => {
+      if (htmlElement.style.getPropertyValue(property)) {
+        htmlElement.style.removeProperty(property);
+        changed = true;
+      }
+    });
+
+    const firstText = firstVisibleTextNode(element);
+    if (!firstText) return;
+
+    const original = firstText.data;
+    let normalized = original.replace(
+      /^[\u00A0\u200B-\u200D\u2060\uFEFF]+/,
+      '',
+    );
+
+    // Toggling a browser list off can leave exactly one ordinary leading
+    // space after its non-breaking placeholder. Remove one only.
+    if (normalized.startsWith(' ')) normalized = normalized.slice(1);
+
+    if (normalized !== original) {
+      firstText.data = normalized;
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
+function isUnsafeNeutralPastedColor(color: string | null): boolean {
+  if (!color) return false;
+  const raw = color.replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(raw)) return false;
+
+  const red = Number.parseInt(raw.slice(0, 2), 16);
+  const green = Number.parseInt(raw.slice(2, 4), 16);
+  const blue = Number.parseInt(raw.slice(4, 6), 16);
+  const maximum = Math.max(red, green, blue);
+  const minimum = Math.min(red, green, blue);
+  const neutral = maximum - minimum <= 20;
+  const luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
+
+  // Very light neutral text disappears on the light composer. Very dark
+  // neutral text disappears in dark mode. Let those colors inherit the
+  // application theme instead.
+  return neutral && (luminance >= 222 || luminance <= 42);
+}
+
+function sanitizePastedEditorHtmlForTheme(html: string): string {
+  if (!html.trim()) return html;
+
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
+    const rawColor = element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color')
+      || '';
+    const normalizedColor = cssColorToHex(rawColor);
+
+    if (isUnsafeNeutralPastedColor(normalizedColor)) {
+      element.style.removeProperty('color');
+      element.style.removeProperty('-webkit-text-fill-color');
+      element.removeAttribute('color');
+    }
+
+    // Source backgrounds frequently carry the source application's theme and
+    // can make otherwise visible text unreadable in Suprah Space.
+    element.style.removeProperty('background');
+    element.style.removeProperty('background-color');
+    element.style.removeProperty('background-image');
+    element.style.removeProperty('text-shadow');
+
+    if (!element.getAttribute('style')?.trim()) {
+      element.removeAttribute('style');
+    }
+  });
+
+  return doc.body.innerHTML;
+}
 
 function popupPlainTextHasListMarkers(text: string): boolean {
   return text
@@ -1280,18 +1419,31 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
     const markerPreservedListText = listAwareText
       ? applyPopupSourceBulletMarkers(listAwareText, text)
       : '';
+
     if (markerPreservedListText && popupPlainTextHasListMarkers(markerPreservedListText)) {
-      return markdownTextToEditorHtml(markerPreservedListText);
+      return sanitizePastedEditorHtmlForTheme(
+        markdownTextToEditorHtml(markerPreservedListText),
+      );
     }
 
     const editorHtml = clipboardHtmlToEditorHtml(html);
-    if (shouldPreferPlainTextLayout(text, editorHtml)) return markdownTextToEditorHtml(text);
-    if (editorHtml.trim()) return editorHtml;
+    if (shouldPreferPlainTextLayout(text, editorHtml)) {
+      return sanitizePastedEditorHtmlForTheme(
+        markdownTextToEditorHtml(text),
+      );
+    }
+
+    if (editorHtml.trim()) {
+      return sanitizePastedEditorHtmlForTheme(editorHtml);
+    }
   }
+
   const normalizedText = normalizeMessageMarkdownText(text || '');
-  return hasMarkdownSyntax(normalizedText)
+  const editorHtml = hasMarkdownSyntax(normalizedText)
     ? markdownTextToEditorHtml(normalizedText)
     : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
+
+  return sanitizePastedEditorHtmlForTheme(editorHtml);
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -1701,6 +1853,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [barPos, setBarPos] = React.useState<{ top: number; left: number; isOwn: boolean } | null>(null);
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isOverBar = React.useRef(false);
+  const actionHoverLockRef = React.useRef(false);
 
   // 3-dot more-actions dropdown
   const [moreMenuMsgId, setMoreMenuMsgId] = React.useState<string | null>(null);
@@ -1822,21 +1975,45 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       setBarPos(pos);
     }
   };
+  const cancelHoverTimer = () => {
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  };
   const handleMsgLeave = () => {
+    cancelHoverTimer();
     hoverTimer.current = setTimeout(() => {
-      if (!isOverBar.current) { setHovMsg(null); setBarPos(null); }
-    }, 220);
+      if (
+        !isOverBar.current
+        && !actionHoverLockRef.current
+        && !moreMenuMsgIdRef.current
+      ) {
+        setHovMsg(null);
+        setBarPos(null);
+      }
+    }, 360);
   };
   const handleBarEnter = () => {
     isOverBar.current = true;
+    actionHoverLockRef.current = true;
     pendingMsgRef.current = null;
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    cancelHoverTimer();
   };
   const handleBarLeave = () => {
     isOverBar.current = false;
+    actionHoverLockRef.current = false;
+    cancelHoverTimer();
     hoverTimer.current = setTimeout(() => {
-      if (!isOverBar.current && !moreMenuMsgIdRef.current) { setHovMsg(null); setBarPos(null); }
-    }, 100);
+      if (
+        !isOverBar.current
+        && !actionHoverLockRef.current
+        && !moreMenuMsgIdRef.current
+      ) {
+        setHovMsg(null);
+        setBarPos(null);
+      }
+    }, 280);
   };
   const clearBar = () => {
     setHovMsg(null); setBarPos(null);
@@ -2892,6 +3069,26 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                   && anchorElement.closest('li, blockquote')
                                 );
 
+                                if (
+                                  e.key === 'Enter'
+                                  && e.altKey
+                                  && !e.ctrlKey
+                                  && !e.metaKey
+                                ) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+
+                                  const inserted = document.execCommand('insertLineBreak');
+                                  if (!inserted) {
+                                    document.execCommand('insertHTML', false, '<br>');
+                                  }
+
+                                  syncEditDraft();
+                                  rememberEditSelection();
+                                  refreshPopupEditFormats();
+                                  return;
+                                }
+
                                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                                   e.preventDefault();
                                   saveEdit();
@@ -2938,6 +3135,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                   usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
                                 );
                                 requestAnimationFrame(() => {
+                                  normalizeRichEditorListExitArtifacts(editAreaRef.current);
                                   syncEditDraft();
                                   rememberEditSelection();
                                 });
@@ -2988,7 +3186,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                               </div>
                             )}
                             <div className="mt-1.5 flex flex-col gap-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-                              <span style={{ fontSize: 8, opacity: 0.5 }}>Enter saves outside lists/quotes · Ctrl/Cmd+Enter saves anytime · Esc cancels</span>
+                              <span style={{ fontSize: 8, opacity: 0.5 }}>Alt+Enter or Shift+Enter adds a line break · Ctrl/Cmd+Enter saves · Esc cancels</span>
                               <input
                                 ref={editFileRef}
                                 type="file"
@@ -3349,6 +3547,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                       requestAnimationFrame(() => {
                         const el = inputRef.current;
                         if (el) {
+                          normalizeRichEditorListExitArtifacts(el);
                           const nextText = el.innerText.replace(/\n$/, '');
                           syncComposerText(nextText, true);
                           inspectMentionAnywhere(nextText);
@@ -3382,13 +3581,20 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {/* ── Fixed action bar portal (FB Messenger style: 3 buttons) ── */}
       {barPos && hovMsg && typeof document !== 'undefined' && createPortal(
         <div
+          data-supraspace-action-ui="true"
           className={cn('fixed z-9998 flex items-center gap-0.5 px-0.5 py-0.5', barPos.isOwn && 'flex-row-reverse')}
           style={{
             top: barPos.top,
             left: barPos.left,
           }}
-          onMouseEnter={handleBarEnter}
-          onMouseLeave={handleBarLeave}
+          onPointerEnter={handleBarEnter}
+          onPointerLeave={handleBarLeave}
+          onPointerDown={event => {
+            event.stopPropagation();
+            handleBarEnter();
+          }}
+          onMouseDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
         >
           {/* Emoji react button — opens quick-react popup */}
           <button title="React"
@@ -3416,24 +3622,43 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             <Reply className="h-4 w-4" />
           </button>
           {/* More actions */}
-          <button title="More actions"
+          <button
+            type="button"
+            title="More actions"
             className="hover:bg-white/10 rounded-full p-1.5 transition-colors"
             style={{ color: moreMenuMsgId === hovMsg ? '#5b7cf6' : 'rgba(255,255,255,0.55)' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              if (moreMenuMsgId === hovMsg) {
+            onPointerDown={event => {
+              event.stopPropagation();
+              handleBarEnter();
+            }}
+            onMouseDown={event => event.stopPropagation()}
+            onClick={event => {
+              event.stopPropagation();
+              handleBarEnter();
+
+              const messageId = hovMsg;
+              if (!messageId) return;
+
+              const btn = (event.currentTarget as HTMLElement).getBoundingClientRect();
+              if (moreMenuMsgIdRef.current === messageId) {
                 moreMenuMsgIdRef.current = null;
-                setMoreMenuMsgId(null); setMoreMenuPos(null);
-              } else {
-                const ddH = 220;
-                const top = btn.bottom + 4 + ddH > window.innerHeight - 8
-                  ? btn.top - ddH - 4
-                  : btn.bottom + 4;
-                const left = Math.max(8, Math.min(btn.left, window.innerWidth - 208 - 8));
-                moreMenuMsgIdRef.current = hovMsg;
-                setMoreMenuMsgId(hovMsg); setMoreMenuPos({ top, left });
+                setMoreMenuMsgId(null);
+                setMoreMenuPos(null);
+                return;
               }
+
+              const ddH = 220;
+              const top = btn.bottom + 4 + ddH > window.innerHeight - 8
+                ? btn.top - ddH - 4
+                : btn.bottom + 4;
+              const left = Math.max(
+                8,
+                Math.min(btn.left, window.innerWidth - 208 - 8),
+              );
+
+              moreMenuMsgIdRef.current = messageId;
+              setMoreMenuMsgId(messageId);
+              setMoreMenuPos({ top, left });
             }}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -3446,6 +3671,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {quickReactMsgId && quickReactPos && typeof document !== 'undefined' && createPortal(
         <div
           ref={quickReactRef}
+          data-supraspace-action-ui="true"
           className="fixed z-9999 flex items-center gap-1 px-2 py-1.5 rounded-full"
           style={{
             top: quickReactPos.top,
@@ -3479,7 +3705,18 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       {moreMenuMsgId && moreMenuPos && typeof document !== 'undefined' && createPortal(
         <div
           ref={moreMenuRef}
+          data-supraspace-action-ui="true"
           className="rounded-xl overflow-hidden"
+          onPointerEnter={handleBarEnter}
+          onPointerLeave={() => {
+            if (!moreMenuMsgIdRef.current) handleBarLeave();
+          }}
+          onPointerDown={event => {
+            event.stopPropagation();
+            handleBarEnter();
+          }}
+          onMouseDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
           style={{
             position: 'fixed', zIndex: 9999,
             top: moreMenuPos.top, left: moreMenuPos.left,
@@ -3488,7 +3725,6 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             border: '1px solid rgba(255,255,255,0.09)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
           }}
-          onMouseDown={e => e.stopPropagation()}
         >
           {(() => {
             const msg = messages.find(m => m._id === moreMenuMsgId);
