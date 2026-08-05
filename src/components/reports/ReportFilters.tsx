@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { format } from "date-fns";
 import {
   Calendar,
   Check,
@@ -12,6 +13,12 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -43,6 +50,35 @@ export interface ReportFiltersProps {
 
 const inputClassName =
   "h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+function parseDateInput(value?: string): Date | undefined {
+  if (!value) return undefined;
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+
+  const date = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function formatDateInput(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function startOfLocalDay(value: Date): Date {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
 
 function numberOrUndefined(value: string): number | undefined {
   if (!value.trim()) return undefined;
@@ -169,12 +205,95 @@ function Field({
   className?: string;
 }) {
   return (
-    <label className={`min-w-0 space-y-1.5 ${className}`}>
+    <div className={`min-w-0 space-y-1.5 ${className}`}>
       <span className="block text-xs font-semibold text-foreground">
         {label}
       </span>
       {children}
-    </label>
+    </div>
+  );
+}
+
+function ReportDatePicker({
+  value,
+  onChange,
+  min,
+  max,
+  placeholder = "Select date",
+  buttonRef,
+  ariaInvalid = false,
+  compact = false,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  min?: string;
+  max?: string;
+  placeholder?: string;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
+  ariaInvalid?: boolean;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selectedDate = React.useMemo(() => parseDateInput(value), [value]);
+
+  const disabledMatcher = React.useMemo(() => {
+    const minimum = parseDateInput(min);
+    const maximum = parseDateInput(max);
+
+    if (!minimum && !maximum) return undefined;
+
+    return (date: Date) => {
+      const candidate = startOfLocalDay(date);
+
+      if (minimum && candidate < startOfLocalDay(minimum)) return true;
+      if (maximum && candidate > startOfLocalDay(maximum)) return true;
+
+      return false;
+    };
+  }, [max, min]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
+      <PopoverTrigger asChild>
+        <Button
+          ref={buttonRef}
+          type="button"
+          variant="outline"
+          aria-invalid={ariaInvalid}
+          className={`w-full justify-start gap-2 border-border bg-background text-left font-normal text-foreground shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/20 ${
+            compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-sm"
+          } ${ariaInvalid ? "border-destructive focus-visible:ring-destructive/20" : ""}`}
+        >
+          <Calendar className={compact ? "size-3.5" : "size-4"} />
+          <span
+            className={`min-w-0 truncate ${
+              selectedDate ? "text-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {selectedDate ? format(selectedDate, "MMM d, yyyy") : placeholder}
+          </span>
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        collisionPadding={12}
+        className="z-[220] w-auto overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
+      >
+        <CalendarPicker
+          mode="single"
+          selected={selectedDate}
+          onSelect={(date) => {
+            if (!date) return;
+            onChange(formatDateInput(date));
+            setOpen(false);
+          }}
+          disabled={disabledMatcher}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -371,8 +490,8 @@ export default function ReportFilters({
   const [searchValue, setSearchValue] = React.useState(filters.search);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [advancedDraft, setAdvancedDraft] = React.useState(filters);
-  const fromDateRef = React.useRef<HTMLInputElement | null>(null);
-  const toDateRef = React.useRef<HTMLInputElement | null>(null);
+  const fromDateRef = React.useRef<HTMLButtonElement | null>(null);
+  const toDateRef = React.useRef<HTMLButtonElement | null>(null);
   const previousPeriodRef = React.useRef(filters.period);
 
   React.useEffect(() => {
@@ -419,7 +538,7 @@ export default function ReportFilters({
     setAdvancedDraft((current) => ({ ...current, ...patch }));
   };
 
-  const focusDateInput = (input: { readonly current: HTMLInputElement | null }) => {
+  const focusDateInput = (input: React.RefObject<HTMLButtonElement | null>) => {
     window.requestAnimationFrame(() => input.current?.focus());
   };
 
@@ -560,16 +679,13 @@ export default function ReportFilters({
 
           <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1fr)_auto_minmax(12rem,1fr)] lg:items-end">
             <Field label="From date">
-              <input
-                ref={fromDateRef}
-                type="date"
-                value={filters.dateRange.from ?? ""}
+              <ReportDatePicker
+                buttonRef={fromDateRef}
+                value={filters.dateRange.from}
                 max={filters.dateRange.to}
-                onChange={(event) =>
-                  updateCustomDate("from", event.target.value)
-                }
-                aria-invalid={Boolean(customRangeError)}
-                className={inputClassName}
+                onChange={(value) => updateCustomDate("from", value)}
+                placeholder="Choose start date"
+                ariaInvalid={Boolean(customRangeError)}
               />
             </Field>
 
@@ -578,16 +694,13 @@ export default function ReportFilters({
             </span>
 
             <Field label="To date">
-              <input
-                ref={toDateRef}
-                type="date"
-                value={filters.dateRange.to ?? ""}
+              <ReportDatePicker
+                buttonRef={toDateRef}
+                value={filters.dateRange.to}
                 min={filters.dateRange.from}
-                onChange={(event) =>
-                  updateCustomDate("to", event.target.value)
-                }
-                aria-invalid={Boolean(customRangeError)}
-                className={inputClassName}
+                onChange={(value) => updateCustomDate("to", value)}
+                placeholder="Choose end date"
+                ariaInvalid={Boolean(customRangeError)}
               />
             </Field>
           </div>
@@ -632,17 +745,19 @@ export default function ReportFilters({
 
       {filters.period !== "all" && filters.period !== "custom" && (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <span className="text-xs font-semibold text-muted-foreground">
             Reference date
-            <input
-              type="date"
+          </span>
+          <div className="w-full max-w-56">
+            <ReportDatePicker
               value={filters.referenceDate}
-              onChange={(event) =>
-                updateImmediate({ referenceDate: event.target.value })
+              onChange={(value) =>
+                updateImmediate({ referenceDate: value })
               }
-              className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary"
+              placeholder="Choose reference date"
+              compact
             />
-          </label>
+          </div>
         </div>
       )}
 
