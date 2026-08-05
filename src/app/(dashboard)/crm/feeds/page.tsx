@@ -26,7 +26,14 @@ import {
   AtSign,
   Bell,
   Megaphone,
+  ThumbsUp,
+  Heart,
+  Laugh,
+  Meh,
+  Frown,
+  Angry,
 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -133,13 +140,13 @@ interface ReactionState {
   myReaction: ReactionType | null
 }
 
-const REACTIONS: { type: ReactionType; emoji: string; label: string; color: string; bg: string }[] = [
-  { type: "like", emoji: "\u{1f44d}", label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
-  { type: "love", emoji: "\u{2764}\u{fe0f}", label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
-  { type: "haha", emoji: "\u{1f602}", label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
-  { type: "wow", emoji: "\u{1f62e}", label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
-  { type: "sad", emoji: "\u{1f622}", label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
-  { type: "angry", emoji: "\u{1f620}", label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
+const REACTIONS: { type: ReactionType; Icon: LucideIcon; label: string; color: string; bg: string }[] = [
+  { type: "like", Icon: ThumbsUp, label: "Like", color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30" },
+  { type: "love", Icon: Heart, label: "Love", color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30" },
+  { type: "haha", Icon: Laugh, label: "Haha", color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30" },
+  { type: "wow", Icon: Meh, label: "Wow", color: "text-amber-400", bg: "bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/30" },
+  { type: "sad", Icon: Frown, label: "Sad", color: "text-sky-400", bg: "bg-sky-400/10 hover:bg-sky-400/20 border-sky-400/30" },
+  { type: "angry", Icon: Angry, label: "Angry", color: "text-orange-500", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30" },
 ]
 
 const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Record<ReactionType, typeof REACTIONS[0]>
@@ -227,12 +234,13 @@ function totalReactions(summary: ReactionSummary): number {
   return Object.values(summary).reduce((acc, v) => acc + v.count, 0)
 }
 
-function topReactionEmojis(summary: ReactionSummary): string[] {
+function topReactionTypes(summary: ReactionSummary): ReactionType[] {
   return Object.entries(summary)
     .filter(([, v]) => v.count > 0)
     .sort(([, a], [, b]) => b.count - a.count)
     .slice(0, 3)
-    .map(([type]) => REACTION_MAP[type as ReactionType]?.emoji ?? "")
+    .map(([type]) => type as ReactionType)
+    .filter((type) => REACTION_MAP[type])
 }
 
 // --- Mentions: tokens, rendering, autocomplete --------------------------------
@@ -740,17 +748,20 @@ function ReactionDetailsModal({ summary, onClose }: {
           >
             All <span className="tabular-nums opacity-70">{total}</span>
           </button>
-          {types.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
-                ${tab === t ? "bg-muted text-foreground ring-1 ring-border/60" : "text-muted-foreground/60 hover:bg-muted/50"}`}
-            >
-              <span className="text-sm leading-none">{REACTION_MAP[t].emoji}</span>
-              <span className="tabular-nums">{summary[t].count}</span>
-            </button>
-          ))}
+          {types.map((t) => {
+            const Icon = REACTION_MAP[t].Icon
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+                  ${tab === t ? "bg-muted text-foreground ring-1 ring-border/60" : "text-muted-foreground/60 hover:bg-muted/50"}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span className="tabular-nums">{summary[t].count}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* List */}
@@ -758,19 +769,22 @@ function ReactionDetailsModal({ summary, onClose }: {
           {entries.length === 0 ? (
             <p className="py-10 text-center text-xs text-muted-foreground/50">No reactions yet</p>
           ) : (
-            entries.map((e, i) => (
-              <div key={`${e.name}-${e.type}-${i}`} className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted/40 transition-colors">
-                <div className="relative shrink-0">
-                  <Avatar className="h-9 w-9 ring-1 ring-border/40">
-                    <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-semibold">{ini(e.name)}</AvatarFallback>
-                  </Avatar>
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-card text-[11px] leading-none ring-1 ring-border/40">
-                    {REACTION_MAP[e.type].emoji}
-                  </span>
+            entries.map((e, i) => {
+              const EntryIcon = REACTION_MAP[e.type].Icon
+              return (
+                <div key={`${e.name}-${e.type}-${i}`} className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted/40 transition-colors">
+                  <div className="relative shrink-0">
+                    <Avatar className="h-9 w-9 ring-1 ring-border/40">
+                      <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-semibold">{ini(e.name)}</AvatarFallback>
+                    </Avatar>
+                    <span className="absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-card ring-1 ring-border/40">
+                      <EntryIcon className="h-2.5 w-2.5" />
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-foreground/90 truncate">{e.name}</span>
                 </div>
-                <span className="text-sm font-medium text-foreground/90 truncate">{e.name}</span>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
@@ -822,8 +836,9 @@ function ReactionBar({
 
   const { summary, myReaction } = reactionState
   const total = totalReactions(summary)
-  const topEmojis = topReactionEmojis(summary)
+  const topTypes = topReactionTypes(summary)
   const myMeta = myReaction ? REACTION_MAP[myReaction] : null
+  const MyIcon = myMeta ? myMeta.Icon : ThumbsUp
 
   return (
     <>
@@ -841,7 +856,7 @@ function ReactionBar({
               ${myMeta ? `${myMeta.bg} ${myMeta.color} border-current` : "border-border/40 text-muted-foreground/50 hover:border-emerald-500/40 hover:text-emerald-600 hover:bg-emerald-500/5"}
               ${loading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={compact ? "text-sm leading-none" : "text-base leading-none"}>{myMeta ? myMeta.emoji : "\u{1f44d}"}</span>}
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <MyIcon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />}
             {!compact && <span>{myMeta ? myMeta.label : "React"}</span>}
           </button>
           {showPicker && (
@@ -858,7 +873,7 @@ function ReactionBar({
                   className={`group relative flex items-center justify-center rounded-full w-9 h-9 transition-all duration-150 hover:scale-125 active:scale-110
                     ${myReaction === r.type ? "bg-muted/60 ring-2 ring-current scale-110" : "hover:bg-muted/40"} ${r.color}`}
                 >
-                  <span className="text-xl leading-none select-none">{r.emoji}</span>
+                  <r.Icon className="h-4.5 w-4.5" />
                   <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover border border-border/40 px-2 py-0.5 text-[9px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity shadow-lg pointer-events-none">
                     {r.label}
                   </span>
@@ -876,11 +891,14 @@ function ReactionBar({
             className="flex items-center gap-1.5 rounded-full px-1.5 py-0.5 transition-colors hover:bg-muted/40 cursor-pointer"
           >
             <div className="flex -space-x-1">
-              {topEmojis.map((emoji, i) => (
-                <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted/70 border border-border/30 text-[11px] leading-none select-none" style={{ zIndex: topEmojis.length - i }}>
-                  {emoji}
-                </span>
-              ))}
+              {topTypes.map((type, i) => {
+                const TopIcon = REACTION_MAP[type].Icon
+                return (
+                  <span key={type} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted/70 border border-border/30 select-none" style={{ zIndex: topTypes.length - i }}>
+                    <TopIcon className="h-2.5 w-2.5" />
+                  </span>
+                )
+              })}
             </div>
             <span className="text-xs font-medium text-muted-foreground/60 tabular-nums">{total}</span>
           </button>

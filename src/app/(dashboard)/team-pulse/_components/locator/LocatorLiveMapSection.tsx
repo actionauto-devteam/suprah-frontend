@@ -305,6 +305,8 @@ export function LocatorLiveMapSection({
   myUserId, placePickMode, onPlacePicked, draftPlace,
 }: Props) {
   const { theme } = useTheme();
+  const themeRef = React.useRef(theme);
+  themeRef.current = theme;
 
   const { data: locations = [], isLoading } = useActiveEmployeeLocations(true);
   const { data: places = [] } = usePlaces();
@@ -453,7 +455,7 @@ export function LocatorLiveMapSection({
         });
         mapInstanceRef.current = map;
 
-        const tileLayer = L.tileLayer(TILE_URL[theme], {
+        const tileLayer = L.tileLayer(TILE_URL[themeRef.current], {
           subdomains: "abcd",
           maxZoom: MAX_ZOOM,
           attribution: TILE_ATTRIBUTION,

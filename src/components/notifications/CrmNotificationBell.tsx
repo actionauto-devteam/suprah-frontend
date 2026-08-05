@@ -82,7 +82,7 @@ function CrmNotificationDropdownContent() {
         </div>
       )}
 
-      <div className="notification-scrollbar flex-1 overflow-y-auto min-h-0 bg-card/80">
+      <div className="notification-scrollbar flex-1 overflow-y-auto min-h-0 bg-card/80 pr-1">
         <NotificationList
           notifications={notifications}
           isLoading={isLoading}
@@ -152,7 +152,7 @@ export function CrmNotificationBell() {
 
       <DropdownMenuContent
         align="end"
-        className="w-95 sm:w-105 p-0 shadow-xl border border-border/50 rounded-2xl overflow-hidden flex flex-col max-h-[min(70vh,540px)] bg-card/95"
+        className="w-95 sm:w-105 p-0 shadow-xl border border-border/50 rounded-2xl overflow-hidden flex flex-col max-h-[min(70vh,540px)] bg-card transform-gpu"
       >
         <NotificationErrorBoundary>
           {open && <CrmNotificationDropdownContent />}

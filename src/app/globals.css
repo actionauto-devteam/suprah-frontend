@@ -363,6 +363,7 @@ body.theme-switching *::after {
       var(--muted-foreground) 60%,
       transparent);
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
   scrollbar-color: var(--notification-scrollbar-thumb) var(--notification-scrollbar-track);
 }
 

@@ -334,14 +334,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-60 dark:opacity-80">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/2.5 via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/1.5k:to-emerald-500/[0.05]" />
+        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/2.5 via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/1.5 dark:to-emerald-500/[0.05]" />
 
         {/* digital grid — slowly drifts so the surface feels "live" */}
         <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.025)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.025)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.035)_1px,transparent_1px)]" />
 
         {/* drifting green glows */}
-        <div className="green-glow-a absolute -left-10 top-16 size-40 rounded-full bg-emerald-400 blur-3xl" />
-        <div className="green-glow-b absolute -right-12 bottom-24 size-44 rounded-full bg-emerald-500 blur-3xl" />
+        <div className="green-glow-a absolute -left-10 top-16 size-40 rounded-full bg-emerald-400 opacity-[0.035] blur-3xl" />
+        <div className="green-glow-b absolute -right-12 bottom-24 size-44 rounded-full bg-emerald-500 opacity-[0.035] blur-3xl" />
 
         {/* falling data streams — thin light trails, matrix-ish but restrained.
             left / duration / delay are staggered per line for an organic feel. */}

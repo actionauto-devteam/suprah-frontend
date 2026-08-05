@@ -16,6 +16,8 @@ const TILE_ATTRIBUTION =
 
 export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
   const { theme } = useTheme();
+  const themeRef = React.useRef(theme);
+  themeRef.current = theme;
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<LeafletMap | null>(null);
 
@@ -31,7 +33,7 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
 
       const map = L.map(mapRef.current, { zoomControl: false, attributionControl: true });
       mapInstanceRef.current = map;
-      L.tileLayer(TILE_URL[theme], { subdomains: "abcd", maxZoom: 20, attribution: TILE_ATTRIBUTION }).addTo(map);
+      L.tileLayer(TILE_URL[themeRef.current], { subdomains: "abcd", maxZoom: 20, attribution: TILE_ATTRIBUTION }).addTo(map);
 
       L.polyline(coords, { color: "#3b82f6", weight: 4, opacity: 0.9 }).addTo(map);
 

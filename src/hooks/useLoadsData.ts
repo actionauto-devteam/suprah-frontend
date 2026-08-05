@@ -14,6 +14,14 @@ import { PER_PAGE_OPTIONS, PerPageOption } from "./useTransportationData";
 
 const LOADS_LIMIT_STORAGE_KEY = "transportation:loads:limit";
 
+type LoadsCacheEntry = {
+  loads: Load[];
+  pagination: LoadsPagination | null;
+  stats: LoadStats;
+};
+
+let loadsCache: LoadsCacheEntry | null = null;
+
 function getPersistedLimit(fallback: PerPageOption): PerPageOption {
   if (typeof window === "undefined") return fallback;
   const rawValue = window.localStorage.getItem(LOADS_LIMIT_STORAGE_KEY);
@@ -24,11 +32,11 @@ function getPersistedLimit(fallback: PerPageOption): PerPageOption {
 }
 
 export function useLoadsData(searchQuery?: string, selectedStatus?: string) {
-  const [loads, setLoads] = React.useState<Load[]>([]);
+  const [loads, setLoads] = React.useState<Load[]>(() => loadsCache?.loads ?? []);
   const [pagination, setPagination] = React.useState<LoadsPagination | null>(
-    null,
+    () => loadsCache?.pagination ?? null,
   );
-  const [stats, setStats] = React.useState<LoadStats>({
+  const [stats, setStats] = React.useState<LoadStats>(() => loadsCache?.stats ?? {
     all: 0,
     Posted: 0,
     Assigned: 0,
@@ -61,7 +69,7 @@ export function useLoadsData(searchQuery?: string, selectedStatus?: string) {
 
   const fetchLoads = React.useCallback(
     async (p = 1, l = limitRef.current) => {
-      setIsLoading(true);
+      if (!loadsCache) setIsLoading(true);
       setError(null);
       try {
         const status =
@@ -82,18 +90,30 @@ export function useLoadsData(searchQuery?: string, selectedStatus?: string) {
           ]),
           timeoutGuard,
         ]);
-        setLoads(result?.loads ?? []);
-        setPagination(
-          result?.pagination ?? {
-            page: p,
-            limit: l,
-            total: 0,
-            totalPages: 1,
-            hasMore: false,
-          },
-        );
+        const nextLoads = result?.loads ?? [];
+        const nextPagination = result?.pagination ?? {
+          page: p,
+          limit: l,
+          total: 0,
+          totalPages: 1,
+          hasMore: false,
+        };
+        setLoads(nextLoads);
+        setPagination(nextPagination);
         if (statsData) setStats(statsData);
         setPage(p);
+        loadsCache = {
+          loads: nextLoads,
+          pagination: nextPagination,
+          stats: statsData ?? loadsCache?.stats ?? {
+            all: 0,
+            Posted: 0,
+            Assigned: 0,
+            "In-Transit": 0,
+            Delivered: 0,
+            Cancelled: 0,
+          },
+        };
       } catch (err: any) {
         setError(
           err?.response?.data?.message ||

@@ -418,7 +418,7 @@ export default function YapLinePage() {
                       "flex flex-col items-center gap-2 rounded-2xl border bg-background/40 p-4 transition-all",
                       p.speaking
                         ? "border-emerald-400/60 shadow-md shadow-emerald-500/20"
-                        : "border-border/30"
+                        : "border-zinc-300/80 shadow-sm dark:border-border/30 dark:shadow-none"
                     )}
                   >
                     <div className="relative">

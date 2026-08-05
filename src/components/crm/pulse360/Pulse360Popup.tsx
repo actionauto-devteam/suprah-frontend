@@ -149,15 +149,14 @@ function PulseAlertCard({ alert, onClose }: { alert: PulseAlert; onClose: () => 
           </p>
         </div>
 
-        {!isCritical && (
-          <button
-            onClick={onClose}
-            aria-label="Dismiss for now"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 transition-colors hover:bg-muted/50 hover:text-muted-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <button
+          onClick={onClose}
+          aria-label="Dismiss for now"
+          title={isCritical ? "Dismiss for now — this will reappear until resolved" : "Dismiss for now"}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 transition-colors hover:bg-muted/50 hover:text-muted-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div className="space-y-3 px-5 py-4 pl-6">

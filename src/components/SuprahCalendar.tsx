@@ -748,7 +748,7 @@ function TimeGridView({
                       )} (${formatDuration(o.start, o.end)})`}
                       className={`absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-1.5 text-left backdrop-blur-md transition duration-150 hover:z-10 hover:brightness-125 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${TYPE_STYLES[o.item.type]}`}
                     >
-                      <span className="flex min-w-0 flex-1 flex-col items-center justify-center text-center">
+                      <span className="flex min-w-0 flex-1 flex-col items-start justify-start text-left">
                         <span className="block w-full truncate text-[11px] font-semibold leading-tight">
                           {o.item.title}
                         </span>

@@ -171,12 +171,24 @@ function Lightbox({
   onClose: () => void;
 }) {
   const [idx, setIdx] = React.useState(startIndex);
-  const [loaded, setLoaded] = React.useState(false);
+  const [loadedIdx, setLoadedIdx] = React.useState<Set<number>>(new Set());
+  const loaded = loadedIdx.has(idx);
   const touchStart = React.useRef<number | null>(null);
 
+  const markLoaded = React.useCallback((i: number) => {
+    setLoadedIdx((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
+  }, []);
+
   React.useEffect(() => {
-    setLoaded(false);
-  }, [idx]);
+    [idx - 1, idx + 1].forEach((i) => {
+      if (i < 0 || i >= images.length || loadedIdx.has(i)) return;
+      const preload = new Image();
+      preload.onload = () => markLoaded(i);
+      preload.src = images[i];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, images]);
+
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") setIdx((p) => Math.max(0, p - 1));
@@ -231,16 +243,15 @@ function Lightbox({
           </div>
         )}
         <img
-          key={idx}
           src={images[idx]}
           alt=""
-          onLoad={() => setLoaded(true)}
+          onLoad={() => markLoaded(idx)}
           onError={(e) => {
             const target = e.currentTarget;
             if (!target.src.endsWith(FALLBACK)) {
               target.src = FALLBACK;
             } else {
-              setLoaded(true);
+              markLoaded(idx);
             }
           }}
           className={cn(
@@ -310,15 +321,26 @@ function Gallery({
   compact?: boolean;
 }) {
   const [idx, setIdx] = React.useState(0);
-  const [loaded, setLoaded] = React.useState(false);
+  const [loadedIdx, setLoadedIdx] = React.useState<Set<number>>(new Set());
+  const loaded = loadedIdx.has(idx);
   const [spinMode, setSpinMode] = React.useState(false);
   const spinRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const touchStart = React.useRef<number | null>(null);
   const dragStart = React.useRef<number | null>(null);
 
+  const markLoaded = React.useCallback((i: number) => {
+    setLoadedIdx((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
+  }, []);
+
   React.useEffect(() => {
-    setLoaded(false);
-  }, [idx]);
+    [idx - 1, idx + 1].forEach((i) => {
+      if (i < 0 || i >= images.length || loadedIdx.has(i)) return;
+      const preload = new Image();
+      preload.onload = () => markLoaded(i);
+      preload.src = images[i];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, images]);
 
   React.useEffect(() => {
     if (spinMode) {
@@ -393,16 +415,15 @@ function Gallery({
         )}
 
         <img
-          key={idx}
           src={images[idx]}
           alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-          onLoad={() => setLoaded(true)}
+          onLoad={() => markLoaded(idx)}
           onError={(e) => {
             const target = e.currentTarget;
             if (!target.src.endsWith(FALLBACK)) {
               target.src = FALLBACK;
             } else {
-              setLoaded(true);
+              markLoaded(idx);
             }
           }}
           className={cn(
@@ -509,7 +530,6 @@ function Gallery({
             onClick={(e) => {
               e.stopPropagation();
               setIdx((p) => p + 1);
-              setLoaded(false);
             }}
             className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-all hover:bg-black/75 sm:opacity-0 sm:group-hover:opacity-100"
           >
@@ -524,10 +544,7 @@ function Gallery({
           {images.map((img, i) => (
             <button
               key={i}
-              onClick={() => {
-                setIdx(i);
-                setLoaded(false);
-              }}
+              onClick={() => setIdx(i)}
               className={cn(
                 "relative h-14 w-20 shrink-0 overflow-hidden rounded-sm border-2 transition-all",
                 i === idx
