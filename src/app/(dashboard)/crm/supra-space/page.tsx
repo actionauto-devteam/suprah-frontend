@@ -5143,6 +5143,10 @@ export default function SupraSpacePage() {
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
+  // Lifted out of ConvRow: ConvRow is redefined every parent render, so state local to it
+  // (e.g. dropdown open) gets wiped by React's remount whenever the parent re-renders
+  // (frequent here due to socket/typing/presence updates) — this survives that.
+  const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
 
@@ -7673,7 +7677,8 @@ export default function SupraSpacePage() {
     const hasDraftPreview = Boolean(draftPreview);
     const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
     const [rowHov, setRowHov] = React.useState(false);
-    const [ddOpen, setDdOpen] = React.useState(false);
+    const ddOpen = openConvMenuId === conv._id;
+    const setDdOpen = (v: boolean) => setOpenConvMenuId(v ? conv._id : null);
     const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
     const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
     const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
