@@ -49,6 +49,7 @@ const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
 const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
+type PasteMode = 'formatted' | 'plain';
 
 const SS4_BULLET_GLYPHS = ['•', '◦', '▪'];
 const SS4_LIST_INDENT_STEP = '  ';
@@ -178,6 +179,52 @@ if (typeof document !== 'undefined') {
     .ss4[data-theme="light"] .ss4-bubble-other .ss4-readable-light-color { color:var(--text-primary)!important; }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:16px; line-height:1.55; }
+    .ss4-rich-edit { white-space:pre-wrap; }
+    .ss4-rich-edit ul,
+    .ss4-rich-edit ol {
+      display:block!important;
+      margin:.45rem 0!important;
+      padding-left:1.55rem!important;
+      list-style-position:outside!important;
+      white-space:normal;
+    }
+    .ss4-rich-edit ul { list-style-type:disc!important; }
+    .ss4-rich-edit ol { list-style-type:decimal!important; }
+    .ss4-rich-edit ul ul { list-style-type:circle!important; }
+    .ss4-rich-edit ul ul ul { list-style-type:square!important; }
+    .ss4-rich-edit li {
+      display:list-item!important;
+      margin:.18rem 0!important;
+      padding-left:.12rem;
+      white-space:pre-wrap;
+    }
+    .ss4-rich-edit blockquote {
+      display:block;
+      margin:.45rem 0!important;
+      padding:.45rem .7rem!important;
+      border-left:3px solid rgba(255,255,255,.72);
+      border-radius:0 8px 8px 0;
+      background:rgba(0,0,0,.14);
+      font-style:italic;
+      white-space:pre-wrap;
+    }
+    .ss4-rich-edit blockquote:empty::before {
+      content:'Quote';
+      opacity:.55;
+      pointer-events:none;
+    }
+    .ss4-rich-edit code,
+    .ss4-rich-edit font[face*="mono" i] {
+      display:inline;
+      padding:.08rem .3rem;
+      border-radius:5px;
+      background:rgba(0,0,0,.2);
+      font-family:'Geist Mono',monospace!important;
+    }
+    .ss4-list { display:flex; flex-direction:column; gap:3px; margin:.12em 0 .24em; padding:0; list-style:none; }
+    .ss4-list-item { display:flex; align-items:flex-start; gap:7px; margin:0; padding:0; list-style:none; }
+    .ss4-list-marker { width:1em; flex:0 0 1em; text-align:center; line-height:1.55; }
+    .ss4-list-marker-num { width:auto; min-width:1.35em; flex-basis:auto; text-align:right; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-composer-main { display:flex!important; flex-direction:column; width:100%; max-width:100%; min-width:0; }
@@ -426,32 +473,377 @@ function getActiveSelectionColor(root: HTMLElement): string {
   return '#ffffff';
 }
 
+
+function getRichEditorSelectionRange(root: HTMLElement, savedRange: Range | null): Range {
+  const currentSelection = window.getSelection();
+  if (currentSelection?.rangeCount) {
+    const currentRange = currentSelection.getRangeAt(0);
+    if (
+      root.contains(currentRange.startContainer)
+      && root.contains(currentRange.endContainer)
+    ) {
+      return currentRange.cloneRange();
+    }
+  }
+
+  if (
+    savedRange
+    && root.contains(savedRange.startContainer)
+    && root.contains(savedRange.endContainer)
+  ) {
+    return savedRange.cloneRange();
+  }
+
+  const fallbackRange = document.createRange();
+  fallbackRange.selectNodeContents(root);
+  fallbackRange.collapse(false);
+  return fallbackRange;
+}
+
+function executeRichEditorCommandPreservingSelection(
+  root: HTMLElement,
+  savedRange: Range | null,
+  command: () => void,
+): Range | null {
+  const sourceRange = getRichEditorSelectionRange(root, savedRange);
+  const selection = window.getSelection();
+  if (!selection) return null;
+
+  const createTextBookmark = (range: Range) => {
+    const startProbe = document.createRange();
+    startProbe.selectNodeContents(root);
+    startProbe.setEnd(range.startContainer, range.startOffset);
+
+    const endProbe = document.createRange();
+    endProbe.selectNodeContents(root);
+    endProbe.setEnd(range.endContainer, range.endOffset);
+
+    return {
+      start: startProbe.toString().length,
+      end: endProbe.toString().length,
+      collapsed: range.collapsed,
+    };
+  };
+
+  const restoreTextBookmark = (
+    bookmark: { start: number; end: number; collapsed: boolean },
+  ): Range | null => {
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+    let current = walker.nextNode();
+    while (current) {
+      const node = current as Text;
+      const parent = node.parentElement;
+      if (
+        node.data
+        && !parent?.closest('[data-rich-editor-selection-marker]')
+      ) {
+        textNodes.push(node);
+      }
+      current = walker.nextNode();
+    }
+
+    if (!textNodes.length) {
+      const fallback = document.createRange();
+      fallback.selectNodeContents(root);
+      fallback.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(fallback);
+      return fallback.cloneRange();
+    }
+
+    const locate = (target: number) => {
+      let consumed = 0;
+
+      for (let index = 0; index < textNodes.length; index += 1) {
+        const node = textNodes[index];
+        const nextConsumed = consumed + node.data.length;
+
+        if (target < nextConsumed) {
+          return {
+            node,
+            offset: Math.max(0, target - consumed),
+          };
+        }
+
+        if (target === nextConsumed) {
+          const nextNode = textNodes[index + 1];
+          return nextNode
+            ? { node: nextNode, offset: 0 }
+            : { node, offset: node.data.length };
+        }
+
+        consumed = nextConsumed;
+      }
+
+      const lastNode = textNodes[textNodes.length - 1];
+      return { node: lastNode, offset: lastNode.data.length };
+    };
+
+    const start = locate(bookmark.start);
+    const end = bookmark.collapsed
+      ? start
+      : locate(Math.max(bookmark.start, bookmark.end));
+
+    const restored = document.createRange();
+    restored.setStart(start.node, start.offset);
+    restored.setEnd(end.node, end.offset);
+
+    selection.removeAllRanges();
+    selection.addRange(restored);
+    return restored.cloneRange();
+  };
+
+  const isVisuallyEmpty = (element: Element): boolean => {
+    const visibleText = (element.textContent || '')
+      .replace(/[\u200B\u2060]/g, '')
+      .trim();
+
+    return (
+      !visibleText
+      && !element.querySelector(
+        'img,video,audio,canvas,svg,input,textarea,button,a[href]',
+      )
+    );
+  };
+
+  const removeLeadingPhantomBlocks = () => {
+    // Remove any legacy temporary markers left by an interrupted command.
+    root
+      .querySelectorAll('[data-rich-editor-selection-marker]')
+      .forEach(node => node.remove());
+
+    while (
+      root.firstChild?.nodeType === Node.TEXT_NODE
+      && !(root.firstChild.textContent || '').trim()
+    ) {
+      root.firstChild.remove();
+    }
+
+    let firstElement = root.firstElementChild;
+
+    // Repeated browser list toggles can leave an empty DIV/P before the
+    // original text. A saved message is already trimmed, so this leading
+    // empty block is always an editor artifact rather than message content.
+    while (
+      firstElement
+      && root.children.length > 1
+      && ['DIV', 'P'].includes(firstElement.tagName)
+      && isVisuallyEmpty(firstElement)
+    ) {
+      firstElement.remove();
+      firstElement = root.firstElementChild;
+    }
+
+    // Chrome can also create an empty first LI when a list is toggled
+    // repeatedly over the same selected lines.
+    if (
+      firstElement
+      && ['UL', 'OL'].includes(firstElement.tagName)
+    ) {
+      let firstItem = firstElement.firstElementChild;
+
+      while (
+        firstItem
+        && firstElement.children.length > 1
+        && firstItem.tagName === 'LI'
+        && isVisuallyEmpty(firstItem)
+      ) {
+        firstItem.remove();
+        firstItem = firstElement.firstElementChild;
+      }
+    }
+
+    // Remove an entirely empty list wrapper when meaningful content follows it.
+    firstElement = root.firstElementChild;
+    if (
+      firstElement
+      && root.children.length > 1
+      && ['UL', 'OL'].includes(firstElement.tagName)
+      && isVisuallyEmpty(firstElement)
+    ) {
+      firstElement.remove();
+    }
+  };
+
+  const bookmark = createTextBookmark(sourceRange);
+
+  root.focus();
+  selection.removeAllRanges();
+  selection.addRange(sourceRange);
+
+  command();
+  removeLeadingPhantomBlocks();
+
+  return restoreTextBookmark(bookmark);
+}
+
+
+function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): void {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+
+  const range = selection.getRangeAt(0);
+  if (
+    !root.contains(range.startContainer)
+    || !root.contains(range.endContainer)
+  ) {
+    return;
+  }
+
+  if (range.collapsed) {
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+    return;
+  }
+
+  const selectedTextNodes: Text[] = [];
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const textNode = node as Text;
+        const value = textNode.data;
+        const parent = textNode.parentElement;
+
+        if (
+          !value
+          || !parent
+          || parent.closest('[data-rich-editor-selection-marker]')
+          || !range.intersectsNode(textNode)
+        ) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+
+  let current = walker.nextNode();
+  while (current) {
+    selectedTextNodes.push(current as Text);
+    current = walker.nextNode();
+  }
+
+  // Process from the end so splitting a text node cannot invalidate a later node.
+  selectedTextNodes.reverse().forEach(textNode => {
+    const originalLength = textNode.data.length;
+    let startOffset = textNode === range.startContainer ? range.startOffset : 0;
+    let endOffset = textNode === range.endContainer ? range.endOffset : originalLength;
+
+    startOffset = Math.max(0, Math.min(startOffset, originalLength));
+    endOffset = Math.max(startOffset, Math.min(endOffset, originalLength));
+    if (startOffset === endOffset) return;
+
+    if (endOffset < textNode.data.length) {
+      textNode.splitText(endOffset);
+    }
+
+    const selectedNode = startOffset > 0
+      ? textNode.splitText(startOffset)
+      : textNode;
+
+    const parent = selectedNode.parentElement;
+    const parentColor = parent
+      ? cssColorToHex(parent.style.color || parent.getAttribute('color'))
+      : null;
+
+    if (
+      parent
+      && parent.tagName.toLowerCase() === 'span'
+      && parent.childNodes.length === 1
+      && parentColor
+    ) {
+      parent.style.color = color;
+      return;
+    }
+
+    const colorSpan = document.createElement('span');
+    colorSpan.style.color = color;
+    selectedNode.parentNode?.insertBefore(colorSpan, selectedNode);
+    colorSpan.appendChild(selectedNode);
+  });
+
+  // Remove empty wrappers created by repeated color changes, while preserving
+  // each block element and every line break.
+  root.querySelectorAll<HTMLElement>('span[style*="color"]').forEach(span => {
+    if (!span.textContent && !span.querySelector('br')) span.remove();
+  });
+}
+
 function htmlToMarkdown(el: HTMLElement): string {
-  const walk = (node: Node): string => {
+  const walk = (node: Node, listDepth = 0): string => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const element = node as HTMLElement;
+    if (element.hasAttribute('data-rich-editor-selection-marker')) return '';
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
 
-    let inner = Array.from(element.childNodes).map(walk).join('');
+    if (tag === 'ul' || tag === 'ol') {
+      return Array.from(element.children)
+        .filter(child => child.tagName.toLowerCase() === 'li')
+        .map(child => walk(child, listDepth))
+        .join('');
+    }
+
+    if (tag === 'li') {
+      const parent = element.parentElement;
+      const ordered = parent?.tagName.toLowerCase() === 'ol';
+      const siblings = parent
+        ? Array.from(parent.children).filter(child => child.tagName.toLowerCase() === 'li')
+        : [];
+      const itemIndex = Math.max(0, siblings.indexOf(element));
+      const startAt = ordered ? Number(parent?.getAttribute('start') || 1) : 1;
+      const marker = ordered ? `${startAt + itemIndex}.` : ss4BulletGlyphForDepth(listDepth);
+      const indent = SS4_LIST_INDENT_STEP.repeat(listDepth);
+
+      let ownContent = '';
+      let nestedContent = '';
+      Array.from(element.childNodes).forEach(child => {
+        if (
+          child.nodeType === Node.ELEMENT_NODE
+          && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
+        ) {
+          nestedContent += walk(child, listDepth + 1);
+        } else {
+          ownContent += walk(child, listDepth);
+        }
+      });
+
+      const itemText = ownContent.replace(/\n+/g, ' ').trim();
+      return `${indent}${marker}${itemText ? ` ${itemText}` : ''}\n${nestedContent}`;
+    }
+
+    let inner = Array.from(element.childNodes).map(child => walk(child, listDepth)).join('');
     if (!inner.trim()) inner = getCopiedElementVisibleText(element);
-    if (tag === 'strong' || tag === 'b') inner = `**${inner}**`;
+
+    const href = tag === 'a' ? element.getAttribute('href') : null;
+    const fontFamily = `${element.style?.fontFamily || ''} ${element.getAttribute('face') || ''}`.toLowerCase();
+    const isMonospace = /(monospace|courier|consolas|menlo|monaco)/i.test(fontFamily);
+
+    if (tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)) inner = `**${inner}**`;
     else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
     else if (tag === 'u') inner = `__${inner}__`;
     else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
-    else if (tag === 'code') inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
+    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'blockquote') inner = inner.split('\n').map(line => line ? `> ${line}` : '>').join('\n');
+    else if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
 
     const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    if (tag === 'div' || tag === 'p') inner = `\n${inner}`;
+    if (['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag) || /^h[1-6]$/.test(tag)) inner = `\n${inner}`;
     return inner;
   };
 
   const rootColor = cssColorToHex(el.style.color);
-  let markdown = Array.from(el.childNodes).map(walk).join('')
+  let markdown = Array.from(el.childNodes).map(child => walk(child, 0)).join('')
     .replace(/\u00a0/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -599,6 +991,7 @@ function canonicalizeColorMarkup(value: string): string {
     result += value.slice(cursor, match.index);
     const isClosing = Boolean(match[1]);
     const nextColor = match[2]?.toLowerCase() || null;
+
     if (isClosing) {
       if (activeColor) result += '{/color}';
       activeColor = null;
@@ -607,20 +1000,29 @@ function canonicalizeColorMarkup(value: string): string {
       result += `{color:${nextColor}}`;
       activeColor = nextColor;
     }
+
     cursor = match.index + match[0].length;
   }
 
   result += value.slice(cursor);
   if (activeColor) result += '{/color}';
-  result = result.replace(/\{color:(#[0-9a-f]{3,8})\}\s*\{\/color\}/gi, '');
+
+  result = result.replace(
+    /\{color:(#[0-9a-f]{3,8})\}[ \t]*\{\/color\}/gi,
+    '',
+  );
+
+  // Merge adjacent same-color fragments only across horizontal whitespace.
+  // Never consume \n or \r because those line boundaries are user content.
   let previous = '';
   while (previous !== result) {
     previous = result;
     result = result.replace(
-      /\{color:(#[0-9a-f]{3,8})\}([^{}]*)\{\/color\}\s*\{color:\1\}/gi,
-      '{color:$1}$2',
+      /\{color:(#[0-9a-f]{3,8})\}([^{}\r\n]*)\{\/color\}([ \t]*)\{color:\1\}/gi,
+      '{color:$1}$2$3',
     );
   }
+
   return result;
 }
 
@@ -654,12 +1056,37 @@ function stripListMarkerNoise(value: string): string {
     .replace(/\u00a0/g, ' ');
 }
 
+const SS4_SOURCE_BULLET_RE = /^([ \t]*)([\-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]{1,4})\s+(.+)$/u;
+
 function plainTextHasListMarkers(text: string): boolean {
-  return /(^|\n)\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/.test(stripListMarkerNoise(text).replace(/\r\n?/g, '\n'));
+  const normalized = stripListMarkerNoise(text).replace(/\r\n?/g, '\n');
+  return normalized.split('\n').some(line => SS4_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line));
+}
+
+function applySourceBulletMarkers(structuredText: string, sourceText: string): string {
+  const sourceMarkers = stripListMarkerNoise(sourceText)
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.match(SS4_SOURCE_BULLET_RE)?.[2])
+    .filter((marker): marker is string => Boolean(marker));
+
+  if (!sourceMarkers.length) return structuredText;
+
+  let markerIndex = 0;
+  return structuredText
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => {
+      const match = line.match(SS4_SOURCE_BULLET_RE);
+      if (!match) return line;
+      const sourceMarker = sourceMarkers[markerIndex++] || match[2];
+      return `${match[1]}${sourceMarker} ${match[3]}`;
+    })
+    .join('\n');
 }
 
 function editorHtmlHasListMarkers(html: string): boolean {
-  return /(^|<br\s*\/?>)\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
+  return /(^|<br\s*\/?>)\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/i.test(stripListMarkerNoise(html));
 }
 
 function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): boolean {
@@ -718,78 +1145,115 @@ function clipboardHtmlToListAwareText(html: string): string {
     if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
   };
 
-  const pushNormalLine = (line: string) => {
-    const clean = stripListMarkerNoise(line).replace(/[ \t]+/g, ' ').trim();
-    if (!clean) return;
-    lines.push(clean);
-  };
-
-  const pushLine = (line: string, forceBullet = false) => {
-    const clean = stripListMarkerNoise(line)
-      .replace(/[ \t]+/g, ' ')
-      .replace(/^(?:&bull;|&#8226;|&#x2022;|[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014])\s*/i, '')
+  const pushLine = (value: string) => {
+    const clean = value
+      .replace(/[\u200b-\u200d\ufeff]/g, '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]*\n[ \t]*/g, ' ')
+      .replace(/[ \t]{2,}/g, ' ')
       .trim();
-    if (!clean) return;
-    lines.push(forceBullet || !/^(?:[-*+\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+\.)\s+\S/.test(clean) ? `• ${clean}` : clean);
+    if (clean) lines.push(clean);
   };
 
-  const isListElement = (element: HTMLElement) => {
+  const wrapInlineStyle = (element: HTMLElement, innerValue: string): string => {
+    let inner = innerValue;
+    if (!inner) return inner;
+
     const tag = element.tagName.toLowerCase();
     const style = (element.getAttribute('style') || '').toLowerCase();
-    return tag === 'li'
-      || style.includes('display:list-item')
+    const href = tag === 'a' ? element.getAttribute('href') : null;
+    const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim() || '';
+    const isBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)
+      || weight === 'bold' || Number.parseInt(weight || '0', 10) >= 600;
+    const isItalic = tag === 'em' || tag === 'i' || /font-style\s*:\s*italic/.test(style);
+    const isUnderline = tag === 'u' || /text-decoration(?:-line)?\s*:[^;]*underline/.test(style);
+    const isStrike = tag === 's' || tag === 'strike' || tag === 'del'
+      || /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style);
+
+    if (tag === 'code') inner = isSerialLikeText(inner) ? inner : `\`${inner.replace(/`/g, '')}\``;
+    if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
+    if (isBold && !/^\*\*[\s\S]*\*\*$/.test(inner)) inner = `**${inner}**`;
+    if (isItalic && !/^_[\s\S]*_$/.test(inner)) inner = `_${inner}_`;
+    if (isUnderline && !/^__[\s\S]*__$/.test(inner)) inner = `__${inner}__`;
+    if (isStrike && !/^~~[\s\S]*~~$/.test(inner)) inner = `~~${inner}~~`;
+
+    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
+    return inner;
+  };
+
+  const renderInline = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'ul' || tag === 'ol') return '';
+    if (tag === 'br') return '\n';
+    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+
+    const visibleValue = getCopiedElementVisibleText(element);
+    if (visibleValue) return visibleValue;
+
+    const inner = Array.from(element.childNodes).map(renderInline).join('');
+    return wrapInlineStyle(element, inner);
+  };
+
+  const normalizeListItemText = (value: string): string => value
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/^(?:&bull;|&#8226;|&#x2022;|[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014])\s+/i, '')
+    .trim();
+
+  const directListItemText = (item: HTMLElement): string => normalizeListItemText(
+    Array.from(item.childNodes).map(renderInline).join(''),
+  );
+
+  const directNestedLists = (item: HTMLElement): HTMLElement[] =>
+    Array.from(item.querySelectorAll('ul,ol')).filter((list): list is HTMLElement => list.closest('li') === item);
+
+  const walkList = (list: HTMLElement, depth: number) => {
+    const ordered = list.tagName.toLowerCase() === 'ol';
+    const startAt = ordered ? Number.parseInt(list.getAttribute('start') || '1', 10) || 1 : 1;
+    const items = Array.from(list.children).filter((child): child is HTMLElement => child.tagName.toLowerCase() === 'li');
+
+    items.forEach((item, index) => {
+      const content = directListItemText(item);
+      const indent = SS4_LIST_INDENT_STEP.repeat(depth);
+      const marker = ordered ? `${startAt + index}.` : ss4BulletGlyphForDepth(depth);
+      if (content) lines.push(`${indent}${marker} ${content}`);
+
+      const nestedLists = directNestedLists(item);
+      nestedLists.forEach(nested => walkList(nested, depth + 1));
+
+      // ChatGPT/Docs commonly use a top-level bullet as a section heading with a
+      // nested list beneath it. Preserve the visible separation between groups.
+      if (depth === 0 && nestedLists.length > 0 && index < items.length - 1) pushBlankLine();
+    });
+  };
+
+  const isPseudoListItem = (element: HTMLElement): boolean => {
+    const style = (element.getAttribute('style') || '').toLowerCase();
+    return style.includes('display:list-item')
       || style.includes('display: list-item')
       || style.includes('mso-list:')
       || style.includes('list-style');
   };
 
-  const isBlockElement = (tag: string) =>
-    ['div', 'p', 'section', 'article', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
-
-  const hasBoldStyle = (element: HTMLElement) => {
-    const tag = element.tagName.toLowerCase();
+  const pseudoListDepth = (element: HTMLElement): number => {
     const style = (element.getAttribute('style') || '').toLowerCase();
-    const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim();
-    return tag === 'strong'
-      || tag === 'b'
-      || /^h[1-6]$/.test(tag)
-      || weight === 'bold'
-      || Number(weight) >= 600;
+    const level = style.match(/mso-list:[^;]*level(\d+)/)?.[1];
+    if (level) return Math.max(0, Number.parseInt(level, 10) - 1);
+    const margin = style.match(/margin-left\s*:\s*([\d.]+)(px|pt|in|cm)?/)?.[1];
+    if (!margin) return 0;
+    return Math.max(0, Math.round(Number.parseFloat(margin) / 36) - 1);
   };
 
-  const wrapMarkdown = (text: string, element: HTMLElement): string => {
-    const clean = text.trim();
-    if (!clean) return '';
-    const tag = element.tagName.toLowerCase();
-    const style = (element.getAttribute('style') || '').toLowerCase();
-    let result = clean;
-    if (hasBoldStyle(element) && !/^\*\*[\s\S]*\*\*$/.test(result)) result = `**${result.replace(/\*\*/g, '')}**`;
-    if ((tag === 'em' || tag === 'i' || /font-style\s*:\s*italic/.test(style)) && !/^_[\s\S]*_$/.test(result)) result = `_${result.replace(/^_+|_+$/g, '')}_`;
-    if ((tag === 'u' || /text-decoration[^;]*underline/.test(style)) && !/^__[\s\S]*__$/.test(result)) result = `__${result.replace(/__/g, '')}__`;
-    if ((tag === 's' || tag === 'strike' || tag === 'del' || /text-decoration[^;]*line-through/.test(style)) && !/^~~[\s\S]*~~$/.test(result)) result = `~~${result.replace(/~~/g, '')}~~`;
-    const color = cssColorToHex(element.style?.color || element.getAttribute('color') || '');
-    if (color && !/^\{color:/i.test(result)) result = `{color:${color}}${result}{/color}`;
-    return result;
-  };
-
-  const collectText = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
-    if (node.nodeType !== Node.ELEMENT_NODE) return '';
-    const element = node as HTMLElement;
-    const tag = element.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style') return '';
-    if (tag === 'br') return '\n';
-    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
-    const visibleValue = getCopiedElementVisibleText(element);
-    if (visibleValue) return visibleValue;
-    const inner = Array.from(element.childNodes).map(collectText).join('');
-    return wrapMarkdown(inner, element);
-  };
-
-  const walk = (node: Node) => {
+  const walkBlock = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = stripListMarkerNoise(node.textContent || '').trim();
-      if (text) lines.push(text);
+      pushLine(node.textContent || '');
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
@@ -797,51 +1261,68 @@ function clipboardHtmlToListAwareText(html: string): string {
     const element = node as HTMLElement;
     const tag = element.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style') return;
-
-    if (isListElement(element)) {
-      pushLine(collectText(element), true);
-      return;
-    }
-
     if (tag === 'ul' || tag === 'ol') {
-      Array.from(element.children).forEach(walk);
+      walkList(element, 0);
       return;
     }
 
-    if (isBlockElement(tag)) {
-      const directListChildren = Array.from(element.children).some(child => {
+    if (isPseudoListItem(element)) {
+      const raw = normalizeListItemText(renderInline(element));
+      if (!raw) return;
+      const numbered = raw.match(/^(\d+)[.)]\s+(.+)$/);
+      const depth = pseudoListDepth(element);
+      const indent = SS4_LIST_INDENT_STEP.repeat(depth);
+      lines.push(numbered
+        ? `${indent}${numbered[1]}. ${numbered[2]}`
+        : `${indent}${ss4BulletGlyphForDepth(depth)} ${raw}`);
+      return;
+    }
+
+    const isHeading = /^h[1-6]$/.test(tag);
+    const isBlock = ['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'pre'].includes(tag) || isHeading;
+    if (!isBlock) {
+      pushLine(renderInline(element));
+      return;
+    }
+
+    if (isHeading) pushBlankLine();
+
+    let inlineBuffer = '';
+    let producedContent = false;
+    const flushInline = () => {
+      const clean = normalizeListItemText(inlineBuffer);
+      inlineBuffer = '';
+      if (!clean) return;
+      pushLine(isHeading && !/^\*\*[\s\S]*\*\*$/.test(clean) ? `**${clean}**` : clean);
+      producedContent = true;
+    };
+
+    Array.from(element.childNodes).forEach(child => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
         const childElement = child as HTMLElement;
         const childTag = childElement.tagName.toLowerCase();
-        return childTag === 'ul' || childTag === 'ol' || isListElement(childElement);
-      });
-
-      if (directListChildren) {
-        const nonListText = Array.from(element.childNodes)
-          .filter(child => child.nodeType !== Node.ELEMENT_NODE || !['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase()) && !isListElement(child as HTMLElement))
-          .map(collectText)
-          .join('')
-          .trim();
-        if (nonListText) {
-          if (/^h[1-6]$/.test(tag) || hasBoldStyle(element)) pushBlankLine();
-          pushNormalLine(wrapMarkdown(nonListText, element));
+        const childIsBlock = ['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'pre'].includes(childTag) || /^h[1-6]$/.test(childTag);
+        if (childTag === 'ul' || childTag === 'ol' || isPseudoListItem(childElement) || childIsBlock) {
+          flushInline();
+          walkBlock(child);
+          producedContent = true;
+          return;
         }
-        Array.from(element.children).forEach(walk);
-        return;
       }
+      inlineBuffer += renderInline(child);
+    });
+    flushInline();
 
-      const text = collectText(element).trim();
-      if (text) {
-        if (/^h[1-6]$/.test(tag) || hasBoldStyle(element)) pushBlankLine();
-        pushNormalLine(wrapMarkdown(text, element));
-      }
-      return;
-    }
-    Array.from(element.childNodes).forEach(walk);
+    if (!producedContent && (tag === 'p' || tag === 'div')) pushBlankLine();
+    if (isHeading) pushBlankLine();
   };
 
-  Array.from(doc.body.childNodes).forEach(walk);
+  Array.from(doc.body.childNodes).forEach(walkBlock);
 
-  return lines.join('\n');
+  return lines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function clipboardHtmlToEditorHtml(html: string): string {
@@ -873,6 +1354,15 @@ function clipboardHtmlToEditorHtml(html: string): string {
         const codeText = childHtml().replace(/<[^>]*>/g, '');
         return isSerialLikeText(codeText) ? escapeHtmlText(codeText) : '`' + codeText.replace(/`/g, '') + '`';
       }
+      case 'pre': {
+        const codeText = childHtml().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+        return codeText.split('\n').map(line => line ? `\`${line.replace(/`/g, '')}\`` : '').join('<br>');
+      }
+      case 'a': {
+        const href = el.getAttribute('href') || '';
+        const inner = childHtml();
+        return /^https?:\/\//i.test(href) ? `<a href="${escapeHtmlText(href)}">${inner || escapeHtmlText(href)}</a>` : inner;
+      }
       case 'font': return wrapColor(childHtml());
       case 'li': return `${listMarker || '\u2022 '}${childHtml()}<br>`;
       case 'ul': return Array.from(el.children).map(li => walk(li, '\u2022 ')).join('');
@@ -881,20 +1371,21 @@ function clipboardHtmlToEditorHtml(html: string): string {
         return Array.from(el.children).map(li => walk(li, `${i++}. `)).join('');
       }
       case 'blockquote': return `&gt; ${childHtml()}<br>`;
-      case 'div': case 'p': case 'section': case 'article':
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
+        return `<strong>${childHtml()}</strong><br>`;
+      case 'div': case 'p': case 'section': case 'article':
         return `${childHtml()}<br>`;
       default: {
         const inner = childHtml();
         if (!inner) return inner;
         const fw = el.style?.fontWeight;
         const fi = el.style?.fontStyle;
-        const td = el.style?.textDecoration;
+        const td = `${el.style?.textDecoration || ''} ${el.style?.textDecorationLine || ''}`;
         let result = inner;
-        if (fw === 'bold' || Number(fw) >= 700) result = `<strong>${result}</strong>`;
+        if (fw === 'bold' || Number.parseInt(fw || '0', 10) >= 600) result = `<strong>${result}</strong>`;
         if (fi === 'italic') result = `<em>${result}</em>`;
-        if (td?.includes('underline')) result = `<u>${result}</u>`;
-        if (td?.includes('line-through')) result = `<s>${result}</s>`;
+        if (td.includes('underline')) result = `<u>${result}</u>`;
+        if (td.includes('line-through')) result = `<s>${result}</s>`;
         return wrapColor(result);
       }
     }
@@ -907,44 +1398,134 @@ function clipboardHtmlToEditorHtml(html: string): string {
     .replace(/^(<br>)+/g, ''));
 }
 
+function stripRichTextMarkupForPlainPaste(value: string): string {
+  return value
+    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2');
+}
+
+function clipboardPayloadToPlainText(text: string, html: string): string {
+  const structuredListText = html && htmlAppearsToContainLists(html)
+    ? clipboardHtmlToListAwareText(html)
+    : '';
+  const markerPreservedListText = structuredListText
+    ? applySourceBulletMarkers(structuredListText, text)
+    : '';
+  const raw = markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : '');
+  return normalizePastedListArtifacts(
+    stripRichTextMarkupForPlainPaste(raw)
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
+  );
+}
+
+function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
+  if (html) {
+    const editorHtml = clipboardHtmlToEditorHtml(html);
+    const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
+    const markerPreservedListText = listAwareText
+      ? applySourceBulletMarkers(listAwareText, text)
+      : '';
+    if (markerPreservedListText && plainTextHasListMarkers(markerPreservedListText)) {
+      return markdownTextToEditorHtml(markerPreservedListText);
+    }
+    if (shouldUsePlainTextListLayout(text, editorHtml) || shouldPreferPlainTextLayout(text, editorHtml)) {
+      return markdownTextToEditorHtml(text);
+    }
+    if (editorHtml.trim()) return editorHtml;
+  }
+
+  const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(text)
+    ? clipboardHtmlToListAwareText(html)
+    : text;
+  const normalizedText = normalizeMessageMarkdownText(sourceText || '');
+  return hasMarkdownSyntax(normalizedText)
+    ? markdownTextToEditorHtml(normalizedText)
+    : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
+}
+
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
 }
 
 function markdownTextToEditorHtml(text: string): string {
-  const lines = normalizeMessageMarkdownText(text).replace(/\r\n/g, '\n').split('\n');
-  const htmlLines = lines.map(line => {
+  const source = canonicalizeColorMarkup(
+    normalizeMessageMarkdownText(text).replace(/\r\n?/g, '\n'),
+  );
+  const lines = source.split('\n');
+  let activeColor: string | null = null;
+
+  const depthFromIndent = (indent: string, marker?: string): number => {
+    const expanded = indent.replace(/\t/g, '    ').length;
+    const indentDepth = expanded === 0 ? 0 : expanded <= 4 ? 1 : Math.ceil(expanded / 4);
+    const markerDepth = marker ? Math.max(0, SS4_BULLET_GLYPHS.indexOf(marker)) : 0;
+    return Math.max(indentDepth, markerDepth);
+  };
+
+  const applyInlineMarkdown = (value: string): string =>
+    escapeHtmlText(value)
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+
+  const renderColoredInline = (value: string): string => {
+    const colorTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}/g;
+    let result = activeColor ? `<span style="color:${activeColor}">` : '';
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = colorTag.exec(value)) !== null) {
+      result += applyInlineMarkdown(value.slice(cursor, match.index));
+
+      if (match[1]) {
+        if (activeColor) result += '</span>';
+        activeColor = match[1].toLowerCase();
+        result += `<span style="color:${activeColor}">`;
+      } else if (activeColor) {
+        result += '</span>';
+        activeColor = null;
+      }
+
+      cursor = match.index + match[0].length;
+    }
+
+    result += applyInlineMarkdown(value.slice(cursor));
+    if (activeColor) result += '</span>';
+    return result;
+  };
+
+  return lines.map(line => {
     let marker = '';
     let rest = line;
-    const bulletMatch = line.match(/^\s*[-*+\u2022\u00b7\u2023\u25e6\u25cf\u25cb\u25aa\u25ab]\s+(.+)$/);
-    const numberedMatch = !bulletMatch && line.match(/^\s*(\d+)\.\s+(.+)$/);
-    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.+)$/);
-    if (bulletMatch) { marker = '\u2022 '; rest = bulletMatch[1]; }
-    else if (numberedMatch) { marker = `${numberedMatch[1]}. `; rest = numberedMatch[2]; }
-    else if (quoteMatch) { marker = '&gt; '; rest = quoteMatch[1]; }
+    const bulletMatch = line.match(SS4_SOURCE_BULLET_RE);
+    const numberedMatch = !bulletMatch && line.match(/^([ \t]*)(\d+)\.\s+(.+)$/);
+    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.*)$/);
 
-    const applyInlineMarkdown = (s: string): string =>
-      escapeHtmlText(s)
-        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-        .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-        .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
-
-    const colorTagRe = /\{color:(#[0-9a-fA-F]{6})\}([\s\S]*?)\{\/color\}/g;
-    let result = '';
-    let lastIdx = 0;
-    let m: RegExpExecArray | null;
-    while ((m = colorTagRe.exec(rest)) !== null) {
-      result += applyInlineMarkdown(rest.slice(lastIdx, m.index));
-      result += `<span style="color:${m[1]}">${applyInlineMarkdown(m[2])}</span>`;
-      lastIdx = m.index + m[0].length;
+    if (bulletMatch) {
+      const depth = depthFromIndent(bulletMatch[1], bulletMatch[2]);
+      marker = `${'&nbsp;'.repeat(depth * SS4_LIST_INDENT_STEP.length)}${escapeHtmlText(bulletMatch[2])} `;
+      rest = bulletMatch[3];
+    } else if (numberedMatch) {
+      const depth = depthFromIndent(numberedMatch[1]);
+      marker = `${'&nbsp;'.repeat(depth * SS4_LIST_INDENT_STEP.length)}${numberedMatch[2]}. `;
+      rest = numberedMatch[3];
+    } else if (quoteMatch) {
+      rest = quoteMatch[1];
     }
-    result += applyInlineMarkdown(rest.slice(lastIdx));
 
-    return marker + result;
-  });
-  return htmlLines.join('<br>');
+    const rendered = renderColoredInline(rest) || '<br>';
+    if (quoteMatch) return `<blockquote>${rendered}</blockquote>`;
+    return `<div>${marker}${rendered}</div>`;
+  }).join('');
 }
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
@@ -1066,11 +1647,11 @@ function normalizePastedListArtifacts(text: string): string {
   if (!hasRealListItem && !hasMarkerOnly) return text;
 
   const cleaned: string[] = [];
-  let pendingBullet = false;
+  let pendingBullet: string | null = null;
 
   for (const line of lines) {
     if (isMarkerOnly(line)) {
-      pendingBullet = true;
+      pendingBullet = cleanLine(line).trim();
       continue;
     }
 
@@ -1079,8 +1660,8 @@ function normalizePastedListArtifacts(text: string): string {
         continue;
       }
 
-      cleaned.push(isRealListItem(line) ? trimLineStart(line) : `\u2022 ${trimLineStart(line)}`);
-      pendingBullet = false;
+      cleaned.push(isRealListItem(line) ? trimLineStart(line) : `${pendingBullet} ${trimLineStart(line)}`);
+      pendingBullet = null;
       continue;
     }
 
@@ -1296,106 +1877,156 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
   const normalized = normalizeMessageMarkdownForDisplay(content);
   const rawLines = normalized.split('\n');
 
-  // Block-level syntax the composer's toolbar/shortcuts actually produce (applyFormat,
-  // handleListIndent) — bullets nest via 2-space indents + a depth-cycled glyph
-  // (•→◦→▪), numbered lists via "N. ", quotes via "> ", code blocks via fenced
-  // ```. Grouped into real <ul>/<ol>/<blockquote>/<pre> blocks (previously bullets
-  // were single inline-block spans with no shared list container, and numbered/
-  // quote/fenced syntax weren't rendered as anything special at all — they just
-  // showed the raw markdown characters as plain text).
-  const BULLET_RE = /^(\s*)[•◦▪-]\s+(.+)$/;
+  // Block-level syntax the composer's toolbar and rich-paste conversion produce.
+  // Nested bullets use two-space indentation and cycle through •, ◦, and ▪.
+  const BULLET_RE = /^([ \t]*)([\-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]{1,4})\s+(.+)$/u;
   const NUMBERED_RE = /^(\s*)(\d+)\.\s+(.+)$/;
   const QUOTE_RE = /^>\s?(.*)$/;
   const FENCE_RE = /^```/;
 
   let blockIdx = 0;
-  let li = 0;
-  while (li < rawLines.length) {
-    const raw = rawLines[li];
-    if (/^\s*(?:\*\*|__|~~)\s*$/.test(raw)) { li++; continue; }
+  let lineIndex = 0;
+  let hasRenderedContent = false;
+  let hasPendingBlankLine = false;
+
+  const addSeparation = (kind: 'line' | 'block') => {
+    if (!hasRenderedContent) {
+      hasPendingBlankLine = false;
+      return;
+    }
+
+    if (hasPendingBlankLine) {
+      result.push(
+        <span
+          key={`gap-${blockIdx++}`}
+          aria-hidden="true"
+          style={{ display: 'block', height: '0.5em' }}
+        />
+      );
+    } else if (kind === 'line') {
+      result.push(<br key={`br-${blockIdx++}`} />);
+    } else {
+      result.push(
+        <span
+          key={`block-gap-${blockIdx++}`}
+          aria-hidden="true"
+          style={{ display: 'block', height: '0.16em' }}
+        />
+      );
+    }
+
+    hasPendingBlankLine = false;
+  };
+
+  while (lineIndex < rawLines.length) {
+    const raw = rawLines[lineIndex];
+
+    if (!raw.trim()) {
+      hasPendingBlankLine = hasRenderedContent;
+      lineIndex++;
+      continue;
+    }
+    if (/^\s*(?:\*\*|__|~~)\s*$/.test(raw)) {
+      lineIndex++;
+      continue;
+    }
 
     if (FENCE_RE.test(raw)) {
       const codeLines: string[] = [];
-      li++;
-      while (li < rawLines.length && !FENCE_RE.test(rawLines[li])) {
-        codeLines.push(rawLines[li]);
-        li++;
+      lineIndex++;
+      while (lineIndex < rawLines.length && !FENCE_RE.test(rawLines[lineIndex])) {
+        codeLines.push(rawLines[lineIndex]);
+        lineIndex++;
       }
-      li++; // consume the closing fence (or run to end if the block was never closed)
-      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+      if (lineIndex < rawLines.length) lineIndex++;
+      addSeparation('block');
       result.push(<pre key={`code-${blockIdx++}`} className="ss4-codeblock"><code>{codeLines.join('\n')}</code></pre>);
+      hasRenderedContent = true;
       continue;
     }
 
     const bulletMatch = raw.match(BULLET_RE);
     if (bulletMatch) {
-      const items: Array<{ depth: number; text: string }> = [];
-      while (li < rawLines.length) {
-        const m = rawLines[li].match(BULLET_RE);
-        if (!m) break;
-        items.push({ depth: Math.round(m[1].length / 2), text: m[2] });
-        li++;
+      const items: Array<{ depth: number; marker: string; text: string }> = [];
+      while (lineIndex < rawLines.length) {
+        const match = rawLines[lineIndex].match(BULLET_RE);
+        if (!match) break;
+        const indentDepth = Math.round(match[1].replace(/\t/g, '    ').length / 2);
+        const markerDepth = Math.max(0, SS4_BULLET_GLYPHS.indexOf(match[2]));
+        items.push({
+          depth: Math.max(indentDepth, markerDepth),
+          marker: match[2],
+          text: match[3],
+        });
+        lineIndex++;
       }
-      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+
+      addSeparation('block');
       result.push(
-        <ul key={`ul-${blockIdx}`} className="ss4-list">
-          {items.map((item, idx) => (
-            <li key={idx} style={{ marginLeft: `${item.depth * 1.1}em` }} className="ss4-list-item">
-              <span className="ss4-list-marker">•</span>
-              <span>{renderInline(item.text, `bul-${blockIdx}-${idx}`)}</span>
+        <ul key={`ul-${blockIdx++}`} className="ss4-list">
+          {items.map((item, index) => (
+            <li key={index} style={{ marginLeft: `${item.depth * 1.1}em` }} className="ss4-list-item">
+              <span className="ss4-list-marker">{item.marker}</span>
+              <span>{renderInline(item.text, `bullet-${blockIdx}-${index}`)}</span>
             </li>
           ))}
         </ul>
       );
-      blockIdx++;
+      hasRenderedContent = true;
       continue;
     }
 
     const numberedMatch = raw.match(NUMBERED_RE);
     if (numberedMatch) {
-      const items: Array<{ depth: number; num: string; text: string }> = [];
-      while (li < rawLines.length) {
-        const m = rawLines[li].match(NUMBERED_RE);
-        if (!m) break;
-        items.push({ depth: Math.round(m[1].length / 2), num: m[2], text: m[3] });
-        li++;
+      const items: Array<{ depth: number; number: string; text: string }> = [];
+      while (lineIndex < rawLines.length) {
+        const match = rawLines[lineIndex].match(NUMBERED_RE);
+        if (!match) break;
+        items.push({
+          depth: Math.round(match[1].replace(/\t/g, '    ').length / 2),
+          number: match[2],
+          text: match[3],
+        });
+        lineIndex++;
       }
-      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+
+      addSeparation('block');
       result.push(
-        <ol key={`ol-${blockIdx}`} className="ss4-list">
-          {items.map((item, idx) => (
-            <li key={idx} style={{ marginLeft: `${item.depth * 1.1}em` }} className="ss4-list-item">
-              <span className="ss4-list-marker ss4-list-marker-num">{item.num}.</span>
-              <span>{renderInline(item.text, `num-${blockIdx}-${idx}`)}</span>
+        <ol key={`ol-${blockIdx++}`} className="ss4-list">
+          {items.map((item, index) => (
+            <li key={index} style={{ marginLeft: `${item.depth * 1.1}em` }} className="ss4-list-item">
+              <span className="ss4-list-marker ss4-list-marker-num">{item.number}.</span>
+              <span>{renderInline(item.text, `number-${blockIdx}-${index}`)}</span>
             </li>
           ))}
         </ol>
       );
-      blockIdx++;
+      hasRenderedContent = true;
       continue;
     }
 
     const quoteMatch = raw.match(QUOTE_RE);
     if (quoteMatch) {
-      const qLines: string[] = [];
-      while (li < rawLines.length) {
-        const m = rawLines[li].match(QUOTE_RE);
-        if (!m) break;
-        qLines.push(m[1]);
-        li++;
+      const quoteLines: string[] = [];
+      while (lineIndex < rawLines.length) {
+        const match = rawLines[lineIndex].match(QUOTE_RE);
+        if (!match) break;
+        quoteLines.push(match[1]);
+        lineIndex++;
       }
-      if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+
+      addSeparation('block');
       result.push(
-        <blockquote key={`q-${blockIdx}`} className="ss4-blockquote">
-          {qLines.map((l, idx) => (
-            <React.Fragment key={idx}>
-              {idx > 0 && <br />}
-              {renderInline(l, `q-${blockIdx}-${idx}`)}
+        <blockquote key={`quote-${blockIdx++}`} className="ss4-blockquote">
+          {quoteLines.map((line, index) => (
+            <React.Fragment key={index}>
+              {index > 0 && <br />}
+              {renderInline(line, `quote-${blockIdx}-${index}`)}
             </React.Fragment>
           ))}
         </blockquote>
       );
-      blockIdx++;
+      hasRenderedContent = true;
       continue;
     }
 
@@ -1404,9 +2035,11 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       if (/^\s*\*\*/.test(raw) && !/\*\*.*\*\*/.test(raw)) return `**${raw.replace(/^\s*\*\*/, '').trimStart()}**`;
       return raw;
     })();
-    if (result.length > 0) result.push(<br key={`br-${blockIdx}`} />);
+
+    addSeparation('line');
     result.push(...renderInline(renderLine, `line-${blockIdx++}`));
-    li++;
+    hasRenderedContent = true;
+    lineIndex++;
   }
 
   return result;
@@ -1905,11 +2538,14 @@ function Bubble({
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLDivElement>(null);
+  const editSelectionRangeRef = React.useRef<Range | null>(null);
   const editFileInputRef = React.useRef<HTMLInputElement>(null);
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<File[]>([]);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const editPastePlainTextShortcutRef = React.useRef(false);
   const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
     italic: false,
@@ -2007,8 +2643,11 @@ function Bubble({
   }, [moreActionsOpen]);
 
   const enterEdit = () => {
-    const width = bubbleRef.current?.getBoundingClientRect().width;
-    setEditWidth(width ? Math.max(width, 220) : null);
+    const measuredWidth = bubbleRef.current?.getBoundingClientRect().width || 0;
+    const rowWidth = bubbleRowRef.current?.getBoundingClientRect().width
+      || (typeof window !== 'undefined' ? window.innerWidth : 560);
+    const maxResponsiveWidth = Math.max(280, Math.min(560, rowWidth - 72));
+    setEditWidth(Math.min(Math.max(measuredWidth, 360), maxResponsiveWidth));
     setEditDraft(message.content || '');
     setEditReplacementFiles([]);
     if (editFileInputRef.current) editFileInputRef.current.value = '';
@@ -2024,6 +2663,7 @@ function Bubble({
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
+      editSelectionRangeRef.current = range.cloneRange();
     });
   };
   const copyMessageText = async () => {
@@ -2042,22 +2682,64 @@ function Bubble({
     return next;
   }, []);
 
+  const rememberEditSelection = React.useCallback(() => {
+    const root = editAreaRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return;
+    editSelectionRangeRef.current = range.cloneRange();
+  }, []);
+
+  const restoreEditSelection = React.useCallback(() => {
+    const root = editAreaRef.current;
+    if (!root) return;
+
+    root.focus();
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const savedRange = editSelectionRangeRef.current;
+    if (
+      savedRange
+      && root.contains(savedRange.startContainer)
+      && root.contains(savedRange.endContainer)
+    ) {
+      selection.removeAllRanges();
+      selection.addRange(savedRange);
+      return;
+    }
+
+    const fallbackRange = document.createRange();
+    fallbackRange.selectNodeContents(root);
+    fallbackRange.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(fallbackRange);
+    editSelectionRangeRef.current = fallbackRange.cloneRange();
+  }, []);
+
   const refreshEditActiveFormats = React.useCallback(() => {
     try {
       const root = editAreaRef.current;
       const selection = window.getSelection();
       const insideEdit = !!root && !!selection?.anchorNode && root.contains(selection.anchorNode);
       if (!insideEdit) return;
+      const blockValue = String(document.queryCommandValue('formatBlock') || '')
+        .toLowerCase()
+        .replace(/[<>]/g, '');
+      const fontValue = String(document.queryCommandValue('fontName') || '').toLowerCase();
+
       setEditActiveFormats({
         bold: document.queryCommandState('bold'),
         italic: document.queryCommandState('italic'),
         underline: document.queryCommandState('underline'),
         strike: document.queryCommandState('strikeThrough'),
         list: document.queryCommandState('insertUnorderedList'),
-        numbered: false,
-        quote: false,
-        code: false,
+        numbered: document.queryCommandState('insertOrderedList'),
+        quote: blockValue.includes('blockquote'),
+        code: /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue),
       });
+
       setEditTextColor(getActiveSelectionColor(root));
     } catch { }
   }, []);
@@ -2067,33 +2749,67 @@ function Bubble({
   }, []);
 
   const applyEditFormat = React.useCallback((format: RichTextFormat) => {
-    focusEditComposer();
-    const commandMap: Partial<Record<RichTextFormat, string>> = {
-      bold: 'bold',
-      italic: 'italic',
-      underline: 'underline',
-      strike: 'strikeThrough',
-      list: 'insertUnorderedList',
-    };
-    const command = commandMap[format];
-    if (command) {
-      document.execCommand(command);
-    } else if (format === 'quote') {
-      document.execCommand('formatBlock', false, 'blockquote');
-    } else if (format === 'code') {
-      document.execCommand('fontName', false, 'monospace');
-    }
+    const root = editAreaRef.current;
+    if (!root) return;
+
+    root.focus();
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      root,
+      editSelectionRangeRef.current,
+      () => {
+        const commandMap: Partial<Record<RichTextFormat, string>> = {
+          bold: 'bold',
+          italic: 'italic',
+          underline: 'underline',
+          strike: 'strikeThrough',
+          list: 'insertUnorderedList',
+          numbered: 'insertOrderedList',
+        };
+
+        const command = commandMap[format];
+        if (command) {
+          document.execCommand(command, false);
+        } else if (format === 'quote') {
+          const currentBlock = String(document.queryCommandValue('formatBlock') || '')
+            .toLowerCase()
+            .replace(/[<>]/g, '');
+          document.execCommand(
+            'formatBlock',
+            false,
+            currentBlock.includes('blockquote') ? 'div' : 'blockquote',
+          );
+        } else if (format === 'code') {
+          document.execCommand('styleWithCSS', false, 'true');
+          const currentFont = String(document.queryCommandValue('fontName') || '').toLowerCase();
+          const codeIsActive = /(monospace|courier|consolas|menlo|monaco)/i.test(currentFont);
+          document.execCommand('fontName', false, codeIsActive ? 'Geist' : 'monospace');
+        }
+      },
+    );
+
+    if (nextRange) editSelectionRangeRef.current = nextRange;
     syncEditDraft();
     requestAnimationFrame(refreshEditActiveFormats);
-  }, [focusEditComposer, refreshEditActiveFormats, syncEditDraft]);
+  }, [refreshEditActiveFormats, syncEditDraft]);
 
   const applyEditTextColor = React.useCallback((color: string) => {
-    focusEditComposer();
-    document.execCommand('foreColor', false, color);
+    const root = editAreaRef.current;
+    if (!root) return;
+
+    root.focus();
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      root,
+      editSelectionRangeRef.current,
+      () => {
+        applyTextColorToRichEditorSelection(root, color);
+      },
+    );
+
+    if (nextRange) editSelectionRangeRef.current = nextRange;
     setEditTextColor(color);
     syncEditDraft();
     requestAnimationFrame(refreshEditActiveFormats);
-  }, [focusEditComposer, refreshEditActiveFormats, syncEditDraft]);
+  }, [refreshEditActiveFormats, syncEditDraft]);
 
   const chooseExpandedEditTextColor = React.useCallback((color: string) => {
     setEditTextPalette(prev => {
@@ -2116,6 +2832,7 @@ function Bubble({
   };
 
   const cancelEdit = () => {
+    editSelectionRangeRef.current = null;
     setEditMode(false);
     setEditDraft('');
     setEditWidth(null);
@@ -2135,7 +2852,11 @@ function Bubble({
     try {
       await onEditSave(message._id, trimmed, editReplacementFiles.length > 0 ? editReplacementFiles : undefined);
       cancelEdit();
-    } finally { setEditSaving(false); }
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not update message. Please try again.'));
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const editFormatButtonClass = (format: RichTextFormat) => cn(
@@ -2446,36 +3167,59 @@ function Bubble({
           {editMode ? (
             <div
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
-              style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 220, maxWidth: '100%' }}
+              style={{
+                width: editWidth ? `${editWidth}px` : 'min(34rem, calc(100vw - 3rem))',
+                minWidth: 0,
+                maxWidth: 'min(100%, calc(100vw - 3rem))',
+                overflow: 'visible',
+              }}
             >
               <div className="flex items-center gap-1 pb-2 mb-2 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('bold'); }} className={editFormatButtonClass('bold')} title="Bold" aria-pressed={editActiveFormats.bold}>
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('bold'); }} className={editFormatButtonClass('bold')} title="Bold" aria-pressed={editActiveFormats.bold}>
                   <Bold className="h-3.5 w-3.5" style={editFormatIconStyle('bold')} />
                 </button>
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('italic'); }} className={editFormatButtonClass('italic')} title="Italic" aria-pressed={editActiveFormats.italic}>
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('italic'); }} className={editFormatButtonClass('italic')} title="Italic" aria-pressed={editActiveFormats.italic}>
                   <Italic className="h-3.5 w-3.5" style={editFormatIconStyle('italic')} />
                 </button>
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('underline'); }} className={editFormatButtonClass('underline')} title="Underline" aria-pressed={editActiveFormats.underline}>
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('underline'); }} className={editFormatButtonClass('underline')} title="Underline" aria-pressed={editActiveFormats.underline}>
                   <Underline className="h-3.5 w-3.5" style={editFormatIconStyle('underline')} />
                 </button>
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('strike'); }} className={editFormatButtonClass('strike')} title="Strikethrough" aria-pressed={editActiveFormats.strike}>
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('strike'); }} className={editFormatButtonClass('strike')} title="Strikethrough" aria-pressed={editActiveFormats.strike}>
                   <Strikethrough className="h-3.5 w-3.5" style={editFormatIconStyle('strike')} />
                 </button>
                 <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('list'); }} className={editFormatButtonClass('list')} title="Bullet list" aria-pressed={editActiveFormats.list}>
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('list'); }} className={editFormatButtonClass('list')} title="Bullet list" aria-pressed={editActiveFormats.list}>
                   <List className="h-3.5 w-3.5" style={editFormatIconStyle('list')} />
                 </button>
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('quote'); }} className={editFormatButtonClass('quote')} title="Quote">
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('numbered'); }} className={editFormatButtonClass('numbered')} title="Numbered list" aria-pressed={editActiveFormats.numbered}>
+                  <ListOrdered className="h-3.5 w-3.5" style={editFormatIconStyle('numbered')} />
+                </button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('quote'); }} className={editFormatButtonClass('quote')} title="Quote" aria-pressed={editActiveFormats.quote}>
                   <TextQuote className="h-3.5 w-3.5" style={editFormatIconStyle('quote')} />
                 </button>
-                <button onMouseDown={e => { e.preventDefault(); applyEditFormat('code'); }} className={editFormatButtonClass('code')} title="Inline code">
+                <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('code'); }} className={editFormatButtonClass('code')} title="Inline code" aria-pressed={editActiveFormats.code}>
                   <Code2 className="h-3.5 w-3.5" style={editFormatIconStyle('code')} />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => setEditPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
+                  className={cn('h-9 px-2 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-white/10', editPasteMode === 'plain' && 'bg-white/10')}
+                  title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only'}
+                  aria-pressed={editPasteMode === 'plain'}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span style={{ fontSize: 10 }}>{editPasteMode === 'formatted' ? 'Format' : 'Text'}</span>
                 </button>
                 <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
                 <div className="relative flex items-center gap-2">
                   <button
                     type="button"
-                    onMouseDown={e => { e.preventDefault(); setEditColorPickerOpen(v => !v); }}
+                    onMouseDown={e => {
+                      e.preventDefault();
+                      rememberEditSelection();
+                      setEditColorPickerOpen(v => !v);
+                    }}
                     className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
                     title="More text colors"
                     aria-expanded={editColorPickerOpen}
@@ -2485,7 +3229,11 @@ function Bubble({
                   {editTextPalette.map(color => (
                     <button
                       key={color}
-                      onMouseDown={e => { e.preventDefault(); applyEditTextColor(color); }}
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        rememberEditSelection();
+                        applyEditTextColor(color);
+                      }}
                       className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
                       style={{
                         background: color,
@@ -2538,57 +3286,105 @@ function Bubble({
                 ref={editAreaRef}
                 contentEditable
                 suppressContentEditableWarning
-                onBeforeInput={handleEditColorBeforeInput}
-                onInput={() => { syncEditDraft(); refreshEditActiveFormats(); }}
-                onFocus={refreshEditActiveFormats}
-                onMouseUp={refreshEditActiveFormats}
-                onKeyUp={refreshEditActiveFormats}
+                onInput={() => { syncEditDraft(); rememberEditSelection(); refreshEditActiveFormats(); }}
+                onFocus={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
+                onSelect={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
+                onMouseUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
+                onKeyUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
-                  if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); syncEditDraft(); }
-                  if (e.key === 'Escape') cancelEdit();
+                  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+                    editPastePlainTextShortcutRef.current = true;
+                    window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
+                  }
+
+                  const selection = window.getSelection();
+                  const anchorNode = selection?.anchorNode;
+                  const anchorElement = anchorNode instanceof HTMLElement ? anchorNode : anchorNode?.parentElement;
+                  const isInsideStructuredBlock = Boolean(
+                    anchorElement
+                    && editAreaRef.current?.contains(anchorElement)
+                    && anchorElement.closest('li, blockquote')
+                  );
+
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    saveEdit();
+                    return;
+                  }
+
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    if (isInsideStructuredBlock) {
+                      requestAnimationFrame(() => {
+                        syncEditDraft();
+                        rememberEditSelection();
+                        refreshEditActiveFormats();
+                      });
+                      return;
+                    }
+                    e.preventDefault();
+                    saveEdit();
+                    return;
+                  }
+
+                  if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
+                    document.execCommand('insertLineBreak');
+                    syncEditDraft();
+                    rememberEditSelection();
+                    return;
+                  }
+
+                  if (e.key === 'Escape') {
+                    cancelEdit();
+                    return;
+                  }
+
                   if (e.ctrlKey || e.metaKey) {
                     const k = e.key.toLowerCase();
-                    const cmd = k === 'b' ? 'bold' : k === 'i' ? 'italic' : k === 'u' ? 'underline' : (e.shiftKey && k === 'x') ? 'strikethrough' : null;
-                    if (cmd) { e.preventDefault(); document.execCommand(cmd, false); syncEditDraft(); refreshEditActiveFormats(); }
-                    if (k === 'e') { e.preventDefault(); document.execCommand('insertText', false, '`code`'); syncEditDraft(); refreshEditActiveFormats(); }
+                    const cmd = k === 'b'
+                      ? 'bold'
+                      : k === 'i'
+                        ? 'italic'
+                        : k === 'u'
+                          ? 'underline'
+                          : (e.shiftKey && k === 'x')
+                            ? 'strikethrough'
+                            : null;
+                    if (cmd) {
+                      e.preventDefault();
+                      document.execCommand(cmd, false);
+                      syncEditDraft();
+                      rememberEditSelection();
+                      refreshEditActiveFormats();
+                    }
+                    if (k === 'e') {
+                      e.preventDefault();
+                      applyEditFormat('code');
+                    }
                   }
                 }}
                 onPaste={e => {
                   const text = e.clipboardData?.getData('text/plain') || '';
                   const html = e.clipboardData?.getData('text/html') || '';
-                  const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
-                  if (html && (hasRichFormatting(html) || htmlAppearsToContainLists(html)) && !shouldUsePlainText) {
-                    e.preventDefault();
-                    const editorHtml = clipboardHtmlToEditorHtml(html);
-                    const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
-                    const htmlToInsert = listAwareText && plainTextHasListMarkers(listAwareText)
-                      ? markdownTextToEditorHtml(listAwareText)
-                      : (shouldUsePlainTextListLayout(text, editorHtml) || shouldPreferPlainTextLayout(text, editorHtml))
-                        ? markdownTextToEditorHtml(text)
-                        : editorHtml;
-                    document.execCommand('insertHTML', false, htmlToInsert);
-                    requestAnimationFrame(() => {
-                      normalizeContentEditableListArtifacts(editAreaRef.current);
-                      syncEditDraft();
-                    });
-                    return;
-                  }
-                  const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
-                  if (richText) {
-                    e.preventDefault();
-                    const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(richText)
-                      ? clipboardHtmlToListAwareText(html)
-                      : richText;
-                    const normalizedText = normalizeMessageMarkdownText(sourceText);
-                    document.execCommand(hasMarkdownSyntax(normalizedText) ? 'insertHTML' : 'insertText', false, hasMarkdownSyntax(normalizedText) ? markdownTextToEditorHtml(normalizedText) : normalizedText);
-                    requestAnimationFrame(() => {
-                      normalizeContentEditableListArtifacts(editAreaRef.current);
-                      syncEditDraft();
-                    });
-                  }
+                  const shortcutPlainText = editPastePlainTextShortcutRef.current;
+                  editPastePlainTextShortcutRef.current = false;
+                  const plainText = clipboardPayloadToPlainText(text, html);
+                  if (!plainText && !html) return;
+
+                  e.preventDefault();
+                  const usePlainText = editPasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                  document.execCommand(
+                    usePlainText ? 'insertText' : 'insertHTML',
+                    false,
+                    usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                  );
+                  requestAnimationFrame(() => {
+                    normalizeContentEditableListArtifacts(editAreaRef.current);
+                    syncEditDraft();
+                    rememberEditSelection();
+                  });
                 }}
-                className="ss4-copyable-text min-h-7 max-h-56 overflow-y-auto outline-none"
+                className="ss4-copyable-text ss4-rich-edit min-h-7 max-h-56 overflow-y-auto outline-none"
                 style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--accent)' }}
               />
               {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
@@ -2620,9 +3416,14 @@ function Bubble({
                   )}
                 </div>
               )}
-              <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}>
-                <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>Enter to save · Esc to cancel</span>
-                <div className="flex-1" />
+              <div
+                className="mt-2 flex flex-col gap-2 pt-2 sm:flex-row sm:items-center"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}
+              >
+                <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>
+                  Enter saves outside lists/quotes · Ctrl/Cmd+Enter saves anytime · Esc cancels
+                </span>
+
                 <input
                   ref={editFileInputRef}
                   type="file"
@@ -2633,29 +3434,43 @@ function Bubble({
                     syncEditDraft();
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => editFileInputRef.current?.click()}
-                  className="h-7 px-2.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
-                  style={{ background: 'rgba(255,255,255,0.12)', color: 'inherit' }}
-                  title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
-                >
-                  <Paperclip className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
-                </button>
-                <button onClick={cancelEdit} className="h-7 px-3 rounded-lg text-xs font-medium" style={{ background: 'rgba(255,255,255,0.14)', color: 'inherit' }}>Cancel</button>
-                <button onClick={saveEdit} disabled={!canSaveEdit}
-                  className="h-7 px-3 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
-                  style={{ background: 'var(--positive,#34c97d)' }}>
-                  {editSaving ? '...' : 'Update'}
-                </button>
+
+                <div className="grid w-full grid-cols-3 gap-2 sm:ml-auto sm:flex sm:w-auto sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium"
+                    style={{ background: 'rgba(255,255,255,0.12)', color: 'inherit' }}
+                    title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
+                  >
+                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
+                  </button>
+
+                  <button
+                    onClick={cancelEdit}
+                    className="h-8 min-w-0 rounded-lg px-2 text-xs font-medium"
+                    style={{ background: 'rgba(255,255,255,0.14)', color: 'inherit' }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={saveEdit}
+                    disabled={!canSaveEdit}
+                    className="h-8 min-w-0 rounded-lg px-2 text-xs font-semibold text-white disabled:opacity-40"
+                    style={{ background: 'var(--positive,#34c97d)' }}
+                  >
+                    {editSaving ? '...' : 'Update'}
+                  </button>
+                </div>
               </div>
             </div>
           ) : message.content ? (
             <div
               onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
-              <p className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</p>
+              <div className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</div>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
           ) : null}
@@ -4334,6 +5149,8 @@ export default function SupraSpacePage() {
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const pastePlainTextShortcutRef = React.useRef(false);
   const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
     italic: false,
@@ -7681,6 +8498,17 @@ export default function SupraSpacePage() {
                             <button onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className={formatButtonClass('code')} title="Inline code" aria-pressed={activeFormats.code}>
                               <Code2 className="h-3.5 w-3.5" style={formatIconStyle('code')} />
                             </button>
+                            <button
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => setPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
+                              className={cn('h-9 px-2.5 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-(--bg-hover)', pasteMode === 'plain' && 'ss4-video-btn')}
+                              title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only'}
+                              aria-pressed={pasteMode === 'plain'}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              <span className="font-semibold" style={{ fontSize: 10 }}>{pasteMode === 'formatted' ? 'Keep format' : 'Text only'}</span>
+                            </button>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
                             <div className="relative flex items-center gap-2 px-1" title="Text color">
                               <button
@@ -7785,6 +8613,7 @@ export default function SupraSpacePage() {
                                 if (mentionQuery !== null) refreshActiveFormats();
                               }}
                               onKeyDown={e => {
+                                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pastePlainTextShortcutRef.current = true; window.setTimeout(() => { pastePlainTextShortcutRef.current = false; }, 750); }
                                 if (mentionQuery !== null && mentionOptions.length > 0) {
                                   if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
                                   if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
@@ -7823,19 +8652,19 @@ export default function SupraSpacePage() {
                                 const items = e.clipboardData?.items;
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
+                                const shortcutPlainText = pastePlainTextShortcutRef.current;
+                                pastePlainTextShortcutRef.current = false;
                                 if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
 
-                                const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
-                                if (html && (hasRichFormatting(html) || htmlAppearsToContainLists(html)) && !shouldUsePlainText) {
+                                const plainText = clipboardPayloadToPlainText(text, html);
+                                if (plainText || html) {
                                   e.preventDefault();
-                                  const editorHtml = clipboardHtmlToEditorHtml(html);
-                                  const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
-                                  const htmlToInsert = listAwareText && plainTextHasListMarkers(listAwareText)
-                                    ? markdownTextToEditorHtml(listAwareText)
-                                    : (shouldUsePlainTextListLayout(text, editorHtml) || shouldPreferPlainTextLayout(text, editorHtml))
-                                      ? markdownTextToEditorHtml(text)
-                                      : editorHtml;
-                                  document.execCommand('insertHTML', false, htmlToInsert);
+                                  const usePlainText = pasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                                  document.execCommand(
+                                    usePlainText ? 'insertText' : 'insertHTML',
+                                    false,
+                                    usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                                  );
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
                                     if (el) {
@@ -7843,40 +8672,17 @@ export default function SupraSpacePage() {
                                       const nextText = el.innerText.replace(/\n$/, '');
                                       syncComposerText(nextText, true);
                                       inspectMentionAnywhere(nextText);
+                                      saveComposerSelection();
                                     }
                                   });
                                   return;
                                 }
 
-                                const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
-                                if (richText) {
-                                  e.preventDefault();
-                                  const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(richText)
-                                    ? clipboardHtmlToListAwareText(html)
-                                    : richText;
-                                  const normalizedRichText = normalizeMessageMarkdownText(sourceText);
-                                  if (hasMarkdownSyntax(normalizedRichText)) {
-                                    document.execCommand('insertHTML', false, markdownTextToEditorHtml(normalizedRichText));
-                                  } else {
-                                    document.execCommand('insertText', false, normalizedRichText);
-                                  }
-                                  requestAnimationFrame(() => {
-                                    const el = textareaRef.current;
-                                    if (el) {
-                                      normalizeContentEditableListArtifacts(el);
-                                      const nextText = el.innerText.replace(/\n$/, '');
-                                      syncComposerText(nextText, true);
-                                      inspectMentionAnywhere(nextText);
-                                    }
-                                  });
-                                  return;
-                                }
                                 const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
                                 if (imgItems.length > 0) {
                                   e.preventDefault();
                                   const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
                                   if (files.length > 0) { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); handleUpload(dt.files); }
-                                  return;
                                 }
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
