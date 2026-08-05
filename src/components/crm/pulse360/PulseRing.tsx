@@ -83,6 +83,14 @@ export function PulseRing({
 
   const bandMeta = BAND_META[band] ?? BAND_META.watch;
 
+  // Score/label text was fixed at text-4xl/text-xs regardless of `size` — fine at the
+  // default 176px, but callers render this as small as 112px (see PulseHealthCard), where
+  // that same fixed-size text no longer fits inside the ring and the label spills past its
+  // edge. Scale both proportionally to the ring's own diameter instead, floored so text
+  // never becomes illegibly small at very small sizes.
+  const scoreFontSize = Math.max(size * (36 / 176), 18);
+  const labelFontSize = Math.max(size * (12 / 176), 8);
+
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
       <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90" role="img" aria-label={`${label}: ${score} out of 100`}>
@@ -120,13 +128,17 @@ export function PulseRing({
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
         <span
           className={cn(
-            "font-mono text-4xl font-black tabular-nums leading-none tracking-tighter",
+            "font-mono font-black tabular-nums leading-none tracking-tighter",
             bandMeta.text
           )}
+          style={{ fontSize: scoreFontSize }}
         >
           {Math.round(score)}
         </span>
-        <span className="text-xs font-black uppercase tracking-[0.22em] text-muted-foreground/80">
+        <span
+          className="font-black uppercase tracking-[0.22em] text-muted-foreground/80"
+          style={{ fontSize: labelFontSize }}
+        >
           {bandMeta.label}
         </span>
       </div>
