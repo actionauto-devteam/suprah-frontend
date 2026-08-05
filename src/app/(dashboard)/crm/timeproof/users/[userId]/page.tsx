@@ -1340,7 +1340,7 @@ export default function AdminUserTimeprofPage() {
                           <div key={i} className={`rounded-xl border p-3 space-y-1.5 ${isPeriodic ? "border-border/30 bg-muted/10" : "border-border/40 bg-muted/20"}`}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] font-bold">{new Date(entry.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span>
+                                <span className="text-[11px] font-bold">{toMDTDate(new Date(entry.at)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "UTC" })}</span>
                                 <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isPeriodic ? "bg-muted text-muted-foreground/60" : "bg-rose-500/10 text-rose-500"}`}>
                                   {isPeriodic ? "Periodic check" : "Flagged idle"}
                                 </span>

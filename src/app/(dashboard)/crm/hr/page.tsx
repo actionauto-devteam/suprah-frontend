@@ -21,8 +21,21 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { AxiosRequestConfig } from "axios";
 import { apiClient } from "@/lib/api-client";
 import { OffboardModal, type OffboardUser } from "@/components/crm/OffboardModal";
+
+// This page authenticates with the standalone CRM token (crm_token in localStorage), not the
+// main app's window.__AUTH_TOKEN__. Without _skipAuthRefresh, a 401 here makes api-client's
+// interceptor try to refresh the MAIN app's session and retry with that (wrong) token — which
+// then 401s again, and on the retry api-client treats it as a real auth failure and force-logs
+// the user out of the main app, even though the actual problem was just the CRM token. That's
+// what was making Onboarding/Offboarding look permanently stuck: the request never settles
+// cleanly, it gets tangled in an unrelated refresh/retry loop. Same fix already used in
+// timeproof-clock/page.tsx and supra-space/page.tsx for the same reason.
+function crmAuthConfig(token: string): AxiosRequestConfig & { _skipAuthRefresh?: boolean } {
+  return { headers: { Authorization: `Bearer ${token}` }, _skipAuthRefresh: true };
+}
 
 
 interface CrmUserData {
@@ -131,7 +144,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
       const res = await apiClient.post(
         "/api/crm/hr/milestones/trigger",
         {},
-        { headers: { Authorization: `Bearer ${token}` } },
+        crmAuthConfig(token),
       );
       const count: number = res.data?.data?.announcementsSent ?? 0;
       setTriggerCount(count);
@@ -149,9 +162,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
     if (!token) return;
     setLoading(true);
     apiClient
-      .get("/api/crm/hr/milestones?window=30", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get("/api/crm/hr/milestones?window=30", crmAuthConfig(token))
 
       .then((res) => {
         const data = res.data?.data || res.data;
@@ -315,9 +326,10 @@ function OnboardingTab({ token }: { token: string }) {
     if (!token) return;
     setLoading(true);
     apiClient
-      .get("/api/crm/users?limit=100&sortBy=hireDate&sortOrder=desc&status=active", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get(
+        "/api/crm/users?limit=100&sortBy=hireDate&sortOrder=desc&status=active",
+        crmAuthConfig(token),
+      )
       .then((res) => {
 
         const data = res.data?.data || res.data;
@@ -404,9 +416,7 @@ function OffboardingTab({
     const done = () => { if (++settled === 2) setLoading(false); };
 
     apiClient
-      .get("/api/crm/users?limit=50&status=active", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get("/api/crm/users?limit=50&status=active", crmAuthConfig(token))
       .then((res) => {
         const data = res.data?.data || res.data;
         setActive(data?.users || []);
@@ -415,9 +425,7 @@ function OffboardingTab({
       .finally(done);
 
     apiClient
-      .get("/api/crm/hr/offboarded", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get("/api/crm/hr/offboarded", crmAuthConfig(token))
       .then((res) => {
         const data = res.data?.data || res.data;
         setOffboarded(data?.users || []);
@@ -569,7 +577,7 @@ export default function TeamEngagementPage() {
       return;
     }
     apiClient
-      .get("/api/crm/me", { headers: { Authorization: `Bearer ${token}` } })
+      .get("/api/crm/me", crmAuthConfig(token))
       .then((res) => {
         const data = res.data?.data || res.data;
         setUser(data);

@@ -793,7 +793,7 @@ export default function Dashboard() {
           <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
             <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
           </Panel>
-          <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/loads")}>
+          <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/transportation")}>
             <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
           </Panel>
         </div>

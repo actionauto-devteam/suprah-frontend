@@ -21,6 +21,7 @@ import {
   MapPin,
   Gauge,
   Anchor,
+  ImageOff,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -31,6 +32,11 @@ interface Screenshot {
   idleDetected: boolean
   url: string
   isBlurred?: boolean
+  // Not a real capture — macOS blocked it outright (Screen Recording
+  // permission missing). Still has a real (generic) image behind `url` so
+  // it renders fine either way, but callers should label it distinctly
+  // rather than presenting it as an actual screenshot.
+  isPlaceholder?: boolean
 }
 
 interface BreakSegment {
@@ -337,7 +343,13 @@ const Lightbox = ({
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        {s.isBlurred ? (
+        {s.isPlaceholder ? (
+          <div className="w-full max-w-md rounded-lg bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-2 px-6 py-16 text-center" style={{ aspectRatio: "16/9" }}>
+            <ImageOff className="h-8 w-8 text-white/40" />
+            <p className="text-sm font-semibold text-white/60">Screenshot unavailable</p>
+            <p className="text-xs text-white/35">Screen Recording permission not granted on this Mac</p>
+          </div>
+        ) : s.isBlurred ? (
           <FakeLoadingThumb className="w-full max-w-md rounded-lg" style={{ aspectRatio: "16/9" }} />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1058,9 +1070,14 @@ export default function ScreenshotGalleryPage() {
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openLightbox(i) }}
                       className="group flex flex-col gap-1.5 text-left focus:outline-none cursor-pointer"
                     >
-                      {/* Timestamp + idle badge — outside the image, top-right */}
+                      {/* Timestamp + idle/placeholder badge — outside the image, top-right */}
                       <div className="flex items-center justify-end gap-2 px-0.5">
-                        {s.idleDetected && (
+                        {s.isPlaceholder ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
+                            <ImageOff className="h-2.5 w-2.5" />
+                            No Capture
+                          </span>
+                        ) : s.idleDetected && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/30">
                             <AlertTriangle className="h-2.5 w-2.5" />
                             Idle
@@ -1073,7 +1090,14 @@ export default function ScreenshotGalleryPage() {
 
                       {/* Screenshot thumbnail */}
                       <div className="relative aspect-video rounded-xl overflow-hidden border border-border/40 group-hover:border-primary/40 group-hover:shadow-lg transition-all bg-muted/20">
-                        {s.isBlurred ? (
+                        {s.isPlaceholder ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-muted/40 px-3 text-center">
+                            <ImageOff className="h-5 w-5 text-muted-foreground/50" />
+                            <p className="text-[10px] font-semibold text-muted-foreground/60 leading-snug">
+                              Screenshot unavailable — Screen Recording permission not granted on this Mac
+                            </p>
+                          </div>
+                        ) : s.isBlurred ? (
                           <FakeLoadingThumb className="w-full h-full" />
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -1086,7 +1110,7 @@ export default function ScreenshotGalleryPage() {
                         )}
 
                         {/* Idle overlay */}
-                        {s.idleDetected && (
+                        {!s.isPlaceholder && s.idleDetected && (
                           <div className="absolute inset-0 bg-rose-500/20 border-2 border-rose-500/40 rounded-xl" />
                         )}
 
