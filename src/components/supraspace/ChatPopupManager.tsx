@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, TextQuote, Code2, Paperclip } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -22,6 +22,9 @@ const POPUP_W = 400;
 const POPUP_GAP = 8;
 const POPUP_RIGHT = 16;
 const POPUP_H = 520;
+const POPUP_BULLET_GLYPHS = ['•', '◦', '▪'];
+const POPUP_LIST_INDENT_STEP = '  ';
+const popupBulletGlyphForDepth = (depth: number) => POPUP_BULLET_GLYPHS[((depth % POPUP_BULLET_GLYPHS.length) + POPUP_BULLET_GLYPHS.length) % POPUP_BULLET_GLYPHS.length];
 const HEADER_H = 48;
 const MAX_VISIBLE_POPUPS = 3;
 const TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
@@ -33,7 +36,63 @@ const MORE_TEXT_COLORS = [
   '#6366f1', '#818cf8', '#8b5cf6', '#a78bfa', '#d946ef',
   '#f472b6', '#ec4899', '#be185d',
 ];
+
+const POPUP_RICH_EDIT_CSS = `
+  .ss-popup-rich-edit { white-space: pre-wrap; }
+  .ss-popup-rich-edit ul,
+  .ss-popup-rich-edit ol {
+    display: block !important;
+    margin: .42rem 0 !important;
+    padding-left: 1.45rem !important;
+    list-style-position: outside !important;
+    white-space: normal;
+  }
+  .ss-popup-rich-edit ul { list-style-type: disc !important; }
+  .ss-popup-rich-edit ol { list-style-type: decimal !important; }
+  .ss-popup-rich-edit ul ul { list-style-type: circle !important; }
+  .ss-popup-rich-edit ul ul ul { list-style-type: square !important; }
+  .ss-popup-rich-edit li {
+    display: list-item !important;
+    margin: .16rem 0 !important;
+    padding-left: .08rem;
+    white-space: pre-wrap;
+  }
+  .ss-popup-rich-edit blockquote {
+    display: block;
+    margin: .42rem 0 !important;
+    padding: .42rem .62rem !important;
+    border-left: 3px solid rgba(255,255,255,.74);
+    border-radius: 0 7px 7px 0;
+    background: rgba(0,0,0,.16);
+    font-style: italic;
+    white-space: pre-wrap;
+  }
+  .ss-popup-rich-edit blockquote:empty::before {
+    content: 'Quote';
+    opacity: .55;
+    pointer-events: none;
+  }
+  .ss-popup-rich-edit code,
+  .ss-popup-rich-edit font[face*="mono" i] {
+    display: inline;
+    padding: .06rem .26rem;
+    border-radius: 4px;
+    background: rgba(0,0,0,.22);
+    font-family: monospace !important;
+  }
+`;
 type PendingPopupAttachment = { file: File; previewUrl: string };
+type PasteMode = 'formatted' | 'plain';
+type PopupEditFormatState = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  list: boolean;
+  numbered: boolean;
+  quote: boolean;
+  code: boolean;
+};
 
 const AVATAR_COLORS = ['#5b7cf6', '#34c97d', '#f0a855', '#e05b8a', '#5bbdf6', '#a05bf6', '#f65b5b', '#5bf6c8'];
 async function copyImageToClipboard(url: string): Promise<void> {
@@ -277,43 +336,71 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
 function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   const label = MEDIA_LABELS[msg.type];
   if (label) return label;
-  const raw = msg.content ?? '';
-  const text = normalizeMessageMarkdownForDisplay(raw);
+
+  const text = normalizeMessageMarkdownForDisplay(msg.content ?? '');
   const lines = text.split('\n');
-  const nodes: React.ReactNode[] = [];
-  lines.forEach((line, li) => {
-    if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return;
-    const renderLine = (() => {
-      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
-      if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
-      return line;
-    })();
-    if (li > 0) nodes.push(<br key={`br-${li}`} />);
-    if (line.startsWith('• ') || line.startsWith('• ')) {
-      nodes.push(
-        <span key={`l-${li}`} style={{ display: 'block', paddingLeft: 12 }}>
-          {'• '}{renderInlineMd(line.slice(2), isOwn, `l-${li}`)}
-        </span>
-      );
-    } else if (/^\d+\.\s/.test(renderLine)) {
-      const m = renderLine.match(/^(\d+\.\s)(.*)/);
-      nodes.push(
-        <span key={`l-${li}`} style={{ display: 'block', paddingLeft: 12 }}>
-          {m![1]}{renderInlineMd(m![2], isOwn, `l-${li}`)}
-        </span>
-      );
-    } else if (renderLine.startsWith('> ')) {
-      nodes.push(
-        <span key={`l-${li}`} style={{ display: 'block', borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, opacity: 0.8 }}>
-          {renderInlineMd(renderLine.slice(2), isOwn, `l-${li}`)}
-        </span>
-      );
-    } else {
-      nodes.push(...renderInlineMd(renderLine, isOwn, `l-${li}`));
-    }
-  });
-  return <>{nodes}</>;
+  const bulletRe = POPUP_SOURCE_BULLET_RE;
+  const numberedRe = /^(\s*)(\d+)\.\s+(.+)$/;
+
+  const depthFrom = (indent: string, marker?: string) => {
+    const indentDepth = Math.round(indent.replace(/\t/g, '    ').length / 2);
+    const markerDepth = marker ? Math.max(0, POPUP_BULLET_GLYPHS.indexOf(marker)) : 0;
+    return Math.max(indentDepth, markerDepth);
+  };
+
+  return (
+    <span className="block">
+      {lines.map((line, index) => {
+        if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return null;
+        if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: 8 }} aria-hidden="true" />;
+
+        const bullet = line.match(bulletRe);
+        if (bullet) {
+          const depth = depthFrom(bullet[1], bullet[2]);
+          return (
+            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 6, marginTop: index > 0 ? 2 : 0 }}>
+              <span aria-hidden="true" style={{ width: 12, flex: '0 0 12px', textAlign: 'center' }}>{bullet[2]}</span>
+              <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`)}</span>
+            </span>
+          );
+        }
+
+        const numbered = line.match(numberedRe);
+        if (numbered) {
+          const depth = depthFrom(numbered[1]);
+          return (
+            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 6, marginTop: index > 0 ? 2 : 0 }}>
+              <span aria-hidden="true" style={{ minWidth: 16, flexShrink: 0, textAlign: 'right' }}>{numbered[2]}.</span>
+              <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`)}</span>
+            </span>
+          );
+        }
+
+        if (/^\s*>\s?/.test(line)) {
+          return (
+            <span key={`quote-${index}`} className="block" style={{ borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, marginTop: index > 0 ? 3 : 0, opacity: 0.88 }}>
+              {renderInlineMd(line.replace(/^\s*>\s?/, ''), isOwn, `quote-${index}`)}
+            </span>
+          );
+        }
+
+        const renderLine = (() => {
+          if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
+          if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
+          return line;
+        })();
+
+        return (
+          <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 2 : 0 }}>
+            {renderInlineMd(renderLine, isOwn, `line-${index}`)}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
+
+// ─── Paste helpers
 
 // ─── Paste helpers (mirror of SupraSpace, adapted for plain <input>) ─────────
 
@@ -364,7 +451,7 @@ function clipboardHtmlToPlainText(html: string): string {
   return Array.from(doc.body.childNodes)
     .map(walk)
     .join('')
-    .replace(/ /g, ' ')
+    .replace(/ /g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trimEnd();
 }
@@ -482,6 +569,7 @@ function canonicalizeColorMarkup(value: string): string {
     result += value.slice(cursor, match.index);
     const isClosing = Boolean(match[1]);
     const nextColor = match[2]?.toLowerCase() || null;
+
     if (isClosing) {
       if (activeColor) result += '{/color}';
       activeColor = null;
@@ -490,20 +578,29 @@ function canonicalizeColorMarkup(value: string): string {
       result += `{color:${nextColor}}`;
       activeColor = nextColor;
     }
+
     cursor = match.index + match[0].length;
   }
 
   result += value.slice(cursor);
   if (activeColor) result += '{/color}';
-  result = result.replace(/\{color:(#[0-9a-f]{3,8})\}\s*\{\/color\}/gi, '');
+
+  result = result.replace(
+    /\{color:(#[0-9a-f]{3,8})\}[ \t]*\{\/color\}/gi,
+    '',
+  );
+
+  // Merge adjacent same-color fragments only across horizontal whitespace.
+  // Never consume \n or \r because those line boundaries are user content.
   let previous = '';
   while (previous !== result) {
     previous = result;
     result = result.replace(
-      /\{color:(#[0-9a-f]{3,8})\}([^{}]*)\{\/color\}\s*\{color:\1\}/gi,
-      '{color:$1}$2',
+      /\{color:(#[0-9a-f]{3,8})\}([^{}\r\n]*)\{\/color\}([ \t]*)\{color:\1\}/gi,
+      '{color:$1}$2$3',
     );
   }
+
   return result;
 }
 
@@ -524,7 +621,10 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 }
 
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{color:#[0-9a-fA-F]{6}\}/m.test(text)
+    || text.replace(/\r\n?/g, '\n').split('\n').some(line =>
+      POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
+    );
 }
 
 function escapeHtmlText(s: string): string {
@@ -542,36 +642,554 @@ function cssColorToHex(color: string | null | undefined): string | null {
   return `#${[rgb[1], rgb[2], rgb[3]].map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('')}`;
 }
 
+
+function getRichEditorSelectionRange(root: HTMLElement, savedRange: Range | null): Range {
+  const currentSelection = window.getSelection();
+  if (currentSelection?.rangeCount) {
+    const currentRange = currentSelection.getRangeAt(0);
+    if (
+      root.contains(currentRange.startContainer)
+      && root.contains(currentRange.endContainer)
+    ) {
+      return currentRange.cloneRange();
+    }
+  }
+
+  if (
+    savedRange
+    && root.contains(savedRange.startContainer)
+    && root.contains(savedRange.endContainer)
+  ) {
+    return savedRange.cloneRange();
+  }
+
+  const fallbackRange = document.createRange();
+  fallbackRange.selectNodeContents(root);
+  fallbackRange.collapse(false);
+  return fallbackRange;
+}
+
+function executeRichEditorCommandPreservingSelection(
+  root: HTMLElement,
+  savedRange: Range | null,
+  command: () => void,
+): Range | null {
+  const sourceRange = getRichEditorSelectionRange(root, savedRange);
+  const selection = window.getSelection();
+  if (!selection) return null;
+
+  const createTextBookmark = (range: Range) => {
+    const startProbe = document.createRange();
+    startProbe.selectNodeContents(root);
+    startProbe.setEnd(range.startContainer, range.startOffset);
+
+    const endProbe = document.createRange();
+    endProbe.selectNodeContents(root);
+    endProbe.setEnd(range.endContainer, range.endOffset);
+
+    return {
+      start: startProbe.toString().length,
+      end: endProbe.toString().length,
+      collapsed: range.collapsed,
+    };
+  };
+
+  const restoreTextBookmark = (
+    bookmark: { start: number; end: number; collapsed: boolean },
+  ): Range | null => {
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+    let current = walker.nextNode();
+    while (current) {
+      const node = current as Text;
+      const parent = node.parentElement;
+      if (
+        node.data
+        && !parent?.closest('[data-rich-editor-selection-marker]')
+      ) {
+        textNodes.push(node);
+      }
+      current = walker.nextNode();
+    }
+
+    if (!textNodes.length) {
+      const fallback = document.createRange();
+      fallback.selectNodeContents(root);
+      fallback.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(fallback);
+      return fallback.cloneRange();
+    }
+
+    const locate = (target: number) => {
+      let consumed = 0;
+
+      for (let index = 0; index < textNodes.length; index += 1) {
+        const node = textNodes[index];
+        const nextConsumed = consumed + node.data.length;
+
+        if (target < nextConsumed) {
+          return {
+            node,
+            offset: Math.max(0, target - consumed),
+          };
+        }
+
+        if (target === nextConsumed) {
+          const nextNode = textNodes[index + 1];
+          return nextNode
+            ? { node: nextNode, offset: 0 }
+            : { node, offset: node.data.length };
+        }
+
+        consumed = nextConsumed;
+      }
+
+      const lastNode = textNodes[textNodes.length - 1];
+      return { node: lastNode, offset: lastNode.data.length };
+    };
+
+    const start = locate(bookmark.start);
+    const end = bookmark.collapsed
+      ? start
+      : locate(Math.max(bookmark.start, bookmark.end));
+
+    const restored = document.createRange();
+    restored.setStart(start.node, start.offset);
+    restored.setEnd(end.node, end.offset);
+
+    selection.removeAllRanges();
+    selection.addRange(restored);
+    return restored.cloneRange();
+  };
+
+  const isVisuallyEmpty = (element: Element): boolean => {
+    const visibleText = (element.textContent || '')
+      .replace(/[\u200B\u2060]/g, '')
+      .trim();
+
+    return (
+      !visibleText
+      && !element.querySelector(
+        'img,video,audio,canvas,svg,input,textarea,button,a[href]',
+      )
+    );
+  };
+
+  const removeLeadingPhantomBlocks = () => {
+    // Remove any legacy temporary markers left by an interrupted command.
+    root
+      .querySelectorAll('[data-rich-editor-selection-marker]')
+      .forEach(node => node.remove());
+
+    while (
+      root.firstChild?.nodeType === Node.TEXT_NODE
+      && !(root.firstChild.textContent || '').trim()
+    ) {
+      root.firstChild.remove();
+    }
+
+    let firstElement = root.firstElementChild;
+
+    // Repeated browser list toggles can leave an empty DIV/P before the
+    // original text. A saved message is already trimmed, so this leading
+    // empty block is always an editor artifact rather than message content.
+    while (
+      firstElement
+      && root.children.length > 1
+      && ['DIV', 'P'].includes(firstElement.tagName)
+      && isVisuallyEmpty(firstElement)
+    ) {
+      firstElement.remove();
+      firstElement = root.firstElementChild;
+    }
+
+    // Chrome can also create an empty first LI when a list is toggled
+    // repeatedly over the same selected lines.
+    if (
+      firstElement
+      && ['UL', 'OL'].includes(firstElement.tagName)
+    ) {
+      let firstItem = firstElement.firstElementChild;
+
+      while (
+        firstItem
+        && firstElement.children.length > 1
+        && firstItem.tagName === 'LI'
+        && isVisuallyEmpty(firstItem)
+      ) {
+        firstItem.remove();
+        firstItem = firstElement.firstElementChild;
+      }
+    }
+
+    // Remove an entirely empty list wrapper when meaningful content follows it.
+    firstElement = root.firstElementChild;
+    if (
+      firstElement
+      && root.children.length > 1
+      && ['UL', 'OL'].includes(firstElement.tagName)
+      && isVisuallyEmpty(firstElement)
+    ) {
+      firstElement.remove();
+    }
+  };
+
+  const bookmark = createTextBookmark(sourceRange);
+
+  root.focus();
+  selection.removeAllRanges();
+  selection.addRange(sourceRange);
+
+  command();
+  removeLeadingPhantomBlocks();
+
+  return restoreTextBookmark(bookmark);
+}
+
+
+function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): void {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+
+  const range = selection.getRangeAt(0);
+  if (
+    !root.contains(range.startContainer)
+    || !root.contains(range.endContainer)
+  ) {
+    return;
+  }
+
+  if (range.collapsed) {
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+    return;
+  }
+
+  const selectedTextNodes: Text[] = [];
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const textNode = node as Text;
+        const value = textNode.data;
+        const parent = textNode.parentElement;
+
+        if (
+          !value
+          || !parent
+          || parent.closest('[data-rich-editor-selection-marker]')
+          || !range.intersectsNode(textNode)
+        ) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+
+  let current = walker.nextNode();
+  while (current) {
+    selectedTextNodes.push(current as Text);
+    current = walker.nextNode();
+  }
+
+  // Process from the end so splitting a text node cannot invalidate a later node.
+  selectedTextNodes.reverse().forEach(textNode => {
+    const originalLength = textNode.data.length;
+    let startOffset = textNode === range.startContainer ? range.startOffset : 0;
+    let endOffset = textNode === range.endContainer ? range.endOffset : originalLength;
+
+    startOffset = Math.max(0, Math.min(startOffset, originalLength));
+    endOffset = Math.max(startOffset, Math.min(endOffset, originalLength));
+    if (startOffset === endOffset) return;
+
+    if (endOffset < textNode.data.length) {
+      textNode.splitText(endOffset);
+    }
+
+    const selectedNode = startOffset > 0
+      ? textNode.splitText(startOffset)
+      : textNode;
+
+    const parent = selectedNode.parentElement;
+    const parentColor = parent
+      ? cssColorToHex(parent.style.color || parent.getAttribute('color'))
+      : null;
+
+    if (
+      parent
+      && parent.tagName.toLowerCase() === 'span'
+      && parent.childNodes.length === 1
+      && parentColor
+    ) {
+      parent.style.color = color;
+      return;
+    }
+
+    const colorSpan = document.createElement('span');
+    colorSpan.style.color = color;
+    selectedNode.parentNode?.insertBefore(colorSpan, selectedNode);
+    colorSpan.appendChild(selectedNode);
+  });
+
+  // Remove empty wrappers created by repeated color changes, while preserving
+  // each block element and every line break.
+  root.querySelectorAll<HTMLElement>('span[style*="color"]').forEach(span => {
+    if (!span.textContent && !span.querySelector('br')) span.remove();
+  });
+}
+
 function htmlToMarkdown(el: HTMLElement): string {
-  const walk = (node: Node): string => {
+  const walk = (node: Node, listDepth = 0): string => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
     const element = node as HTMLElement;
+    if (element.hasAttribute('data-rich-editor-selection-marker')) return '';
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
 
-    let inner = Array.from(element.childNodes).map(walk).join('');
+    if (tag === 'ul' || tag === 'ol') {
+      return Array.from(element.children)
+        .filter(child => child.tagName.toLowerCase() === 'li')
+        .map(child => walk(child, listDepth))
+        .join('');
+    }
+
+    if (tag === 'li') {
+      const parent = element.parentElement;
+      const ordered = parent?.tagName.toLowerCase() === 'ol';
+      const siblings = parent
+        ? Array.from(parent.children).filter(child => child.tagName.toLowerCase() === 'li')
+        : [];
+      const itemIndex = Math.max(0, siblings.indexOf(element));
+      const startAt = ordered ? Number(parent?.getAttribute('start') || 1) : 1;
+      const marker = ordered ? `${startAt + itemIndex}.` : popupBulletGlyphForDepth(listDepth);
+      const indent = POPUP_LIST_INDENT_STEP.repeat(listDepth);
+
+      let ownContent = '';
+      let nestedContent = '';
+      Array.from(element.childNodes).forEach(child => {
+        if (
+          child.nodeType === Node.ELEMENT_NODE
+          && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
+        ) {
+          nestedContent += walk(child, listDepth + 1);
+        } else {
+          ownContent += walk(child, listDepth);
+        }
+      });
+
+      const itemText = ownContent.replace(/\n+/g, ' ').trim();
+      return `${indent}${marker}${itemText ? ` ${itemText}` : ''}\n${nestedContent}`;
+    }
+
+    let inner = Array.from(element.childNodes).map(child => walk(child, listDepth)).join('');
     if (!inner.trim()) inner = getCopiedElementVisibleText(element);
-    if (tag === 'strong' || tag === 'b') inner = `**${inner}**`;
+
+    const href = tag === 'a' ? element.getAttribute('href') : null;
+    const fontFamily = `${element.style?.fontFamily || ''} ${element.getAttribute('face') || ''}`.toLowerCase();
+    const isMonospace = /(monospace|courier|consolas|menlo|monaco)/i.test(fontFamily);
+
+    if (tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)) inner = `**${inner}**`;
     else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
     else if (tag === 'u') inner = `__${inner}__`;
     else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
-    else if (tag === 'code') inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
+    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'blockquote') inner = inner.split('\n').map(line => line ? `> ${line}` : '>').join('\n');
+    else if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
 
     const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    if (tag === 'div' || tag === 'p') inner = `\n${inner}`;
+    if (['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag) || /^h[1-6]$/.test(tag)) inner = `\n${inner}`;
     return inner;
   };
 
   const rootColor = cssColorToHex(el.style.color);
-  let markdown = Array.from(el.childNodes).map(walk).join('')
+  let markdown = Array.from(el.childNodes).map(child => walk(child, 0)).join('')
     .replace(/\u00a0/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
   return markdown;
+}
+
+function htmlAppearsToContainLists(html: string): boolean {
+  return /<(?:ul|ol|li)\b/i.test(html)
+    || /display\s*:\s*list-item/i.test(html)
+    || /mso-list\s*:/i.test(html)
+    || /list-style(?:-type)?\s*:/i.test(html);
+}
+
+const POPUP_SOURCE_BULLET_RE = /^([ \t]*)([\-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]{1,4})\s+(.+)$/u;
+
+function popupPlainTextHasListMarkers(text: string): boolean {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .some(line => POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line));
+}
+
+function applyPopupSourceBulletMarkers(structuredText: string, sourceText: string): string {
+  const sourceMarkers = sourceText
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.match(POPUP_SOURCE_BULLET_RE)?.[2])
+    .filter((marker): marker is string => Boolean(marker));
+
+  if (!sourceMarkers.length) return structuredText;
+
+  let markerIndex = 0;
+  return structuredText
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => {
+      const match = line.match(POPUP_SOURCE_BULLET_RE);
+      if (!match) return line;
+      const sourceMarker = sourceMarkers[markerIndex++] || match[2];
+      return `${match[1]}${sourceMarker} ${match[3]}`;
+    })
+    .join('\n');
+}
+
+function clipboardHtmlToListAwareText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const lines: string[] = [];
+  const pushBlankLine = () => {
+    if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
+  };
+
+  const normalizeInline = (value: string): string => value
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+
+  const renderInline = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'ul' || tag === 'ol') return '';
+    if (tag === 'br') return '\n';
+    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+
+    let inner = Array.from(element.childNodes).map(renderInline).join('');
+    if (!inner.trim()) inner = getCopiedElementVisibleText(element);
+    const style = (element.getAttribute('style') || '').toLowerCase();
+    const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim() || '';
+    const href = tag === 'a' ? element.getAttribute('href') : null;
+    const isBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag) || weight === 'bold' || Number.parseInt(weight || '0', 10) >= 600;
+    const isItalic = tag === 'em' || tag === 'i' || /font-style\s*:\s*italic/.test(style);
+    const isUnderline = tag === 'u' || /text-decoration(?:-line)?\s*:[^;]*underline/.test(style);
+    const isStrike = tag === 's' || tag === 'strike' || tag === 'del' || /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style);
+
+    if (tag === 'code') inner = isSerialLikeText(inner) ? inner : `\`${inner.replace(/`/g, '')}\``;
+    if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
+    if (isBold && !/^\*\*[\s\S]*\*\*$/.test(inner)) inner = `**${inner}**`;
+    if (isItalic && !/^_[\s\S]*_$/.test(inner)) inner = `_${inner}_`;
+    if (isUnderline && !/^__[\s\S]*__$/.test(inner)) inner = `__${inner}__`;
+    if (isStrike && !/^~~[\s\S]*~~$/.test(inner)) inner = `~~${inner}~~`;
+    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
+    return inner;
+  };
+
+  const itemText = (item: HTMLElement) => normalizeInline(Array.from(item.childNodes).map(renderInline).join(''))
+    .replace(/^(?:[-*+•·‣⁃◦▪▫●○–—])\s+/, '')
+    .trim();
+  const nestedLists = (item: HTMLElement) =>
+    Array.from(item.querySelectorAll('ul,ol')).filter((list): list is HTMLElement => list.closest('li') === item);
+
+  const walkList = (list: HTMLElement, depth: number) => {
+    const ordered = list.tagName.toLowerCase() === 'ol';
+    const startAt = ordered ? Number.parseInt(list.getAttribute('start') || '1', 10) || 1 : 1;
+    const items = Array.from(list.children).filter((child): child is HTMLElement => child.tagName.toLowerCase() === 'li');
+    items.forEach((item, index) => {
+      const text = itemText(item);
+      const indent = POPUP_LIST_INDENT_STEP.repeat(depth);
+      const marker = ordered ? `${startAt + index}.` : popupBulletGlyphForDepth(depth);
+      if (text) lines.push(`${indent}${marker} ${text}`);
+      const nested = nestedLists(item);
+      nested.forEach(child => walkList(child, depth + 1));
+      if (depth === 0 && nested.length > 0 && index < items.length - 1) pushBlankLine();
+    });
+  };
+
+  const walkBlock = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = normalizeInline(node.textContent || '');
+      if (text) lines.push(text);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style') return;
+    if (tag === 'ul' || tag === 'ol') {
+      walkList(element, 0);
+      return;
+    }
+
+    const isHeading = /^h[1-6]$/.test(tag);
+    const isBlock = ['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'pre'].includes(tag) || isHeading;
+    if (!isBlock) {
+      const text = normalizeInline(renderInline(element));
+      if (text) lines.push(text);
+      return;
+    }
+
+    if (isHeading) pushBlankLine();
+    let buffer = '';
+    let produced = false;
+    const flush = () => {
+      const text = normalizeInline(buffer);
+      buffer = '';
+      if (!text) return;
+      lines.push(isHeading && !/^\*\*[\s\S]*\*\*$/.test(text) ? `**${text}**` : text);
+      produced = true;
+    };
+
+    Array.from(element.childNodes).forEach(child => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const childElement = child as HTMLElement;
+        const childTag = childElement.tagName.toLowerCase();
+        const childIsBlock = ['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'pre'].includes(childTag) || /^h[1-6]$/.test(childTag);
+        if (childTag === 'ul' || childTag === 'ol' || childIsBlock) {
+          flush();
+          walkBlock(child);
+          produced = true;
+          return;
+        }
+      }
+      buffer += renderInline(child);
+    });
+    flush();
+    if (!produced && (tag === 'p' || tag === 'div')) pushBlankLine();
+    if (isHeading) pushBlankLine();
+  };
+
+  Array.from(doc.body.childNodes).forEach(walkBlock);
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function stripRichTextMarkupForPlainPaste(value: string): string {
+  return value
+    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2');
 }
 
 // Converts source HTML (from another app's clipboard) into the editor's HTML dialect
@@ -601,25 +1219,35 @@ function clipboardHtmlToEditorHtml(html: string): string {
         const codeText = childHtml().replace(/<[^>]*>/g, '');
         return isSerialLikeText(codeText) ? escapeHtmlText(codeText) : '`' + codeText.replace(/`/g, '') + '`';
       }
+      case 'pre': {
+        const codeText = childHtml().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+        return codeText.split('\n').map(line => line ? `\`${line.replace(/`/g, '')}\`` : '').join('<br>');
+      }
+      case 'a': {
+        const href = el.getAttribute('href') || '';
+        const inner = childHtml();
+        return /^https?:\/\//i.test(href) ? `<a href="${escapeHtmlText(href)}">${inner || escapeHtmlText(href)}</a>` : inner;
+      }
       case 'font': return wrapColor(childHtml());
       case 'li': return `• ${childHtml()}<br>`;
       case 'ul': return Array.from(el.children).map(li => walk(li)).join('');
-      case 'ol': { let i = 1; return Array.from(el.children).map(() => '').join('') || Array.from(el.children).map(li => { const s = walk(li); return s.replace('• ', `${i++}. `); }).join(''); }
+      case 'ol': { let i = 1; return Array.from(el.children).map(li => walk(li).replace('• ', `${i++}. `)).join(''); }
       case 'blockquote': return `&gt; ${childHtml()}<br>`;
-      case 'div': case 'p': case 'section': case 'article':
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
+        return `<strong>${childHtml()}</strong><br>`;
+      case 'div': case 'p': case 'section': case 'article':
         return `${childHtml()}<br>`;
       default: {
         const inner = childHtml();
         if (!inner) return inner;
         const fw = el.style?.fontWeight;
         const fi = el.style?.fontStyle;
-        const td = el.style?.textDecoration;
+        const td = `${el.style?.textDecoration || ''} ${el.style?.textDecorationLine || ''}`;
         let result = inner;
-        if (fw === 'bold' || Number(fw) >= 700) result = `<strong>${result}</strong>`;
+        if (fw === 'bold' || Number.parseInt(fw || '0', 10) >= 600) result = `<strong>${result}</strong>`;
         if (fi === 'italic') result = `<em>${result}</em>`;
-        if (td?.includes('underline')) result = `<u>${result}</u>`;
-        if (td?.includes('line-through')) result = `<s>${result}</s>`;
+        if (td.includes('underline')) result = `<u>${result}</u>`;
+        if (td.includes('line-through')) result = `<s>${result}</s>`;
         return wrapColor(result);
       }
     }
@@ -631,41 +1259,116 @@ function clipboardHtmlToEditorHtml(html: string): string {
     .replace(/^(<br>)+/g, '');
 }
 
+function clipboardPayloadToPlainText(text: string, html: string): string {
+  const structuredListText = html && htmlAppearsToContainLists(html)
+    ? clipboardHtmlToListAwareText(html)
+    : '';
+  const markerPreservedListText = structuredListText
+    ? applyPopupSourceBulletMarkers(structuredListText, text)
+    : '';
+  const raw = markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : '');
+  return normalizePastedListArtifacts(
+    stripRichTextMarkupForPlainPaste(raw)
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
+  );
+}
+
+function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
+  if (html) {
+    const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
+    const markerPreservedListText = listAwareText
+      ? applyPopupSourceBulletMarkers(listAwareText, text)
+      : '';
+    if (markerPreservedListText && popupPlainTextHasListMarkers(markerPreservedListText)) {
+      return markdownTextToEditorHtml(markerPreservedListText);
+    }
+
+    const editorHtml = clipboardHtmlToEditorHtml(html);
+    if (shouldPreferPlainTextLayout(text, editorHtml)) return markdownTextToEditorHtml(text);
+    if (editorHtml.trim()) return editorHtml;
+  }
+  const normalizedText = normalizeMessageMarkdownText(text || '');
+  return hasMarkdownSyntax(normalizedText)
+    ? markdownTextToEditorHtml(normalizedText)
+    : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
+}
+
 function markdownTextToEditorHtml(text: string): string {
-  const lines = normalizeMessageMarkdownText(text).replace(/\r\n/g, '\n').split('\n');
-  const htmlLines = lines.map(line => {
+  const source = canonicalizeColorMarkup(
+    normalizeMessageMarkdownText(text).replace(/\r\n?/g, '\n'),
+  );
+  const lines = source.split('\n');
+  let activeColor: string | null = null;
+
+  const depthFromIndent = (indent: string, marker?: string): number => {
+    const expanded = indent.replace(/\t/g, '    ').length;
+    const indentDepth = expanded === 0 ? 0 : expanded <= 4 ? 1 : Math.ceil(expanded / 4);
+    const markerDepth = marker ? Math.max(0, POPUP_BULLET_GLYPHS.indexOf(marker)) : 0;
+    return Math.max(indentDepth, markerDepth);
+  };
+
+  const applyInlineMarkdown = (value: string): string =>
+    escapeHtmlText(value)
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+
+  const renderColoredInline = (value: string): string => {
+    const colorTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}/g;
+    let result = activeColor ? `<span style="color:${activeColor}">` : '';
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = colorTag.exec(value)) !== null) {
+      result += applyInlineMarkdown(value.slice(cursor, match.index));
+
+      if (match[1]) {
+        if (activeColor) result += '</span>';
+        activeColor = match[1].toLowerCase();
+        result += `<span style="color:${activeColor}">`;
+      } else if (activeColor) {
+        result += '</span>';
+        activeColor = null;
+      }
+
+      cursor = match.index + match[0].length;
+    }
+
+    result += applyInlineMarkdown(value.slice(cursor));
+    if (activeColor) result += '</span>';
+    return result;
+  };
+
+  return lines.map(line => {
     let marker = '';
     let rest = line;
-    const bulletMatch = line.match(/^\s*[-*+]\s+(.+)$/);
-    const numberedMatch = !bulletMatch && line.match(/^\s*(\d+)\.\s+(.+)$/);
-    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.+)$/);
-    if (bulletMatch) { marker = '• '; rest = bulletMatch[1]; }
-    else if (numberedMatch) { marker = `${numberedMatch[1]}. `; rest = numberedMatch[2]; }
-    else if (quoteMatch) { marker = '&gt; '; rest = quoteMatch[1]; }
+    const bulletMatch = line.match(POPUP_SOURCE_BULLET_RE);
+    const numberedMatch = !bulletMatch && line.match(/^([ \t]*)(\d+)\.\s+(.+)$/);
+    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.*)$/);
 
-    const applyInlineMarkdown = (s: string): string =>
-      escapeHtmlText(s)
-        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-        .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-        .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
-
-    const colorTagRe = /\{color:(#[0-9a-fA-F]{6})\}([\s\S]*?)\{\/color\}/g;
-    let result = '';
-    let lastIdx = 0;
-    let m: RegExpExecArray | null;
-    while ((m = colorTagRe.exec(rest)) !== null) {
-      result += applyInlineMarkdown(rest.slice(lastIdx, m.index));
-      result += `<span style="color:${m[1]}">${applyInlineMarkdown(m[2])}</span>`;
-      lastIdx = m.index + m[0].length;
+    if (bulletMatch) {
+      const depth = depthFromIndent(bulletMatch[1], bulletMatch[2]);
+      marker = `${'&nbsp;'.repeat(depth * POPUP_LIST_INDENT_STEP.length)}${escapeHtmlText(bulletMatch[2])} `;
+      rest = bulletMatch[3];
+    } else if (numberedMatch) {
+      const depth = depthFromIndent(numberedMatch[1]);
+      marker = `${'&nbsp;'.repeat(depth * POPUP_LIST_INDENT_STEP.length)}${numberedMatch[2]}. `;
+      rest = numberedMatch[3];
+    } else if (quoteMatch) {
+      rest = quoteMatch[1];
     }
-    result += applyInlineMarkdown(rest.slice(lastIdx));
 
-    return marker + result;
-  });
-  return htmlLines.join('<br>');
+    const rendered = renderColoredInline(rest) || '<br>';
+    if (quoteMatch) return `<blockquote>${rendered}</blockquote>`;
+    return `<div>${marker}${rendered}</div>`;
+  }).join('');
 }
+
+// ─── Forward modal
 
 // ─── Forward modal ───────────────────────────────────────────────────────────
 interface FwdUser { _id: string; fullName: string; username: string; avatar?: string; }
@@ -924,6 +1627,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const inputTextRef = React.useRef('');
   const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const pastePlainTextShortcutRef = React.useRef(false);
   const [sending, setSending] = React.useState(false);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
@@ -1299,18 +2004,33 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLDivElement>(null);
+  const editSelectionRangeRef = React.useRef<Range | null>(null);
   const editFileRef = React.useRef<HTMLInputElement>(null);
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<PendingPopupAttachment[]>([]);
   const [editColorOpen, setEditColorOpen] = React.useState(false);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const editPastePlainTextShortcutRef = React.useRef(false);
   const [editPalette, setEditPalette] = React.useState(TEXT_COLORS);
+  const [editActiveFormats, setEditActiveFormats] = React.useState<PopupEditFormatState>({
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    list: false,
+    numbered: false,
+    quote: false,
+    code: false,
+  });
 
   const startEdit = (msgId: string) => {
     const msg = messages.find(m => m._id === msgId);
     if (!msg) return;
     const bubble = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${msgId}"]`);
-    const width = bubble?.getBoundingClientRect().width;
-    setEditWidth(width ? Math.max(width, 190) : null);
+    const popupBody = bubble?.closest<HTMLElement>('[data-popup-chat-body="true"]');
+    const width = bubble?.getBoundingClientRect().width || 0;
+    const maxResponsiveWidth = Math.max(280, Math.min(348, (popupBody?.getBoundingClientRect().width || POPUP_W) - 28));
+    setEditWidth(Math.min(Math.max(width, 300), maxResponsiveWidth));
     setEditDraft(msg.content || '');
     setEditReplacementFiles(prev => {
       prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -1329,6 +2049,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
+      editSelectionRangeRef.current = range.cloneRange();
+      refreshPopupEditFormats();
     });
   };
 
@@ -1338,18 +2060,124 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     return next;
   }, [editDraft]);
 
+  const rememberEditSelection = React.useCallback(() => {
+    const root = editAreaRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return;
+    editSelectionRangeRef.current = range.cloneRange();
+  }, []);
+
+  const restoreEditSelection = React.useCallback(() => {
+    const root = editAreaRef.current;
+    if (!root) return;
+    root.focus();
+
+    const selection = window.getSelection();
+    if (!selection) return;
+    const savedRange = editSelectionRangeRef.current;
+    if (
+      savedRange
+      && root.contains(savedRange.startContainer)
+      && root.contains(savedRange.endContainer)
+    ) {
+      selection.removeAllRanges();
+      selection.addRange(savedRange);
+      return;
+    }
+
+    const fallbackRange = document.createRange();
+    fallbackRange.selectNodeContents(root);
+    fallbackRange.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(fallbackRange);
+    editSelectionRangeRef.current = fallbackRange.cloneRange();
+  }, []);
+
+  const refreshPopupEditFormats = React.useCallback(() => {
+    try {
+      const root = editAreaRef.current;
+      const selection = window.getSelection();
+      if (!root || !selection?.anchorNode || !root.contains(selection.anchorNode)) return;
+
+      const blockValue = String(document.queryCommandValue('formatBlock') || '')
+        .toLowerCase()
+        .replace(/[<>]/g, '');
+      const fontValue = String(document.queryCommandValue('fontName') || '').toLowerCase();
+
+      setEditActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strike: document.queryCommandState('strikeThrough'),
+        list: document.queryCommandState('insertUnorderedList'),
+        numbered: document.queryCommandState('insertOrderedList'),
+        quote: blockValue.includes('blockquote'),
+        code: /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue),
+      });
+    } catch {
+      // Formatting-state detection is best effort.
+    }
+  }, []);
+
+  const popupEditButtonClass = React.useCallback((active: boolean) => cn(
+    'h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/10',
+    active && 'bg-white/20 ring-1 ring-white/30',
+  ), []);
+
   const applyEditCommand = React.useCallback((command: string, value?: string) => {
-    editAreaRef.current?.focus();
-    document.execCommand(command, false, value);
+    const root = editAreaRef.current;
+    if (!root) return;
+
+    root.focus();
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      root,
+      editSelectionRangeRef.current,
+      () => {
+        if (command === 'formatBlock' && value === 'blockquote') {
+          const blockValue = String(document.queryCommandValue('formatBlock') || '')
+            .toLowerCase()
+            .replace(/[<>]/g, '');
+          document.execCommand(
+            'formatBlock',
+            false,
+            blockValue.includes('blockquote') ? 'div' : 'blockquote',
+          );
+        } else if (command === 'fontName' && value === 'monospace') {
+          document.execCommand('styleWithCSS', false, 'true');
+          const fontValue = String(document.queryCommandValue('fontName') || '').toLowerCase();
+          const isCodeActive = /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue);
+          document.execCommand('fontName', false, isCodeActive ? 'Geist' : 'monospace');
+        } else {
+          document.execCommand(command, false, value);
+        }
+      },
+    );
+
+    if (nextRange) editSelectionRangeRef.current = nextRange;
     syncEditDraft();
-  }, [syncEditDraft]);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
 
   const applyEditColor = React.useCallback((color: string) => {
-    editAreaRef.current?.focus();
-    document.execCommand('foreColor', false, color);
+    const root = editAreaRef.current;
+    if (!root) return;
+
+    root.focus();
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      root,
+      editSelectionRangeRef.current,
+      () => {
+        applyTextColorToRichEditorSelection(root, color);
+      },
+    );
+
+    if (nextRange) editSelectionRangeRef.current = nextRange;
     setEditTextColor(color);
     syncEditDraft();
-  }, [syncEditDraft]);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
 
   const chooseExpandedEditColor = React.useCallback((color: string) => {
     setEditPalette(prev => {
@@ -1372,6 +2200,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   };
 
   const cancelEdit = React.useCallback(() => {
+    editSelectionRangeRef.current = null;
     setEditingMsgId(null);
     setEditWidth(null);
     setEditColorOpen(false);
@@ -1412,7 +2241,12 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         setMessages(prev => prev.map(m => m._id === editingMsgId ? { ...m, content: nextDraft, isEdited: true } : m));
       }
       cancelEdit();
-    } catch { } finally { setEditSaving(false); }
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message || 'Could not update message. Please try again.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const openEmojiPickerForMsg = (msgId: string, e: React.MouseEvent) => {
@@ -1805,6 +2639,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pastePlainTextShortcutRef.current = true; window.setTimeout(() => { pastePlainTextShortcutRef.current = false; }, 750); }
     if (mentionQuery !== null && mentionOptions.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
@@ -1891,7 +2726,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         {/* Body */}
         {!isMinimized && (
           <>
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-1">
+            <div data-popup-chat-body="true" className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-1">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -1957,7 +2792,17 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                           )}
                         </div>
                       )}
-                      <div className={cn('min-w-0 flex flex-col', imageOnly ? 'max-w-[78%]' : 'max-w-[62%]')} style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                      <div
+                        className={cn(
+                          'min-w-0 flex flex-col',
+                          editingMsgId === msg._id
+                            ? 'w-[94%] max-w-[94%]'
+                            : imageOnly
+                              ? 'max-w-[78%]'
+                              : 'max-w-[62%]',
+                        )}
+                        style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}
+                      >
                         {showName && !isOwn && (
                           <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
                             {msg.sender?.fullName}
@@ -1965,21 +2810,50 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         )}
                         {/* Bubble */}
                         {editingMsgId === msg._id ? (
-                          <div className="px-3 py-1.5 rounded-2xl text-[15px] leading-relaxed min-w-0 bg-blue-500 text-white rounded-br-sm" style={{ width: editWidth ? `${editWidth}px` : undefined, minWidth: 190, maxWidth: '100%', overflowWrap: 'anywhere' }}>
+                          <div
+                            className="min-w-0 rounded-2xl rounded-br-sm bg-blue-500 px-3 py-1.5 text-[15px] leading-relaxed text-white"
+                            style={{
+                              width: editWidth ? `${editWidth}px` : '100%',
+                              minWidth: 0,
+                              maxWidth: '100%',
+                              overflow: 'visible',
+                              overflowWrap: 'anywhere',
+                            }}
+                          >
                             <div className="flex items-center gap-0.5 pb-1.5 mb-1.5 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('bold'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Bold"><Bold className="h-3.5 w-3.5" /></button>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('italic'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Italic"><Italic className="h-3.5 w-3.5" /></button>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Underline"><Underline className="h-3.5 w-3.5" /></button>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Strikethrough"><Strikethrough className="h-3.5 w-3.5" /></button>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('insertUnorderedList'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Bullet list"><List className="h-3.5 w-3.5" /></button>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('formatBlock', 'blockquote'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Quote"><TextQuote className="h-3.5 w-3.5" /></button>
-                              <button onMouseDown={e => { e.preventDefault(); applyEditCommand('fontName', 'monospace'); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="Inline code"><Code2 className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('bold'); }} className={popupEditButtonClass(editActiveFormats.bold)} title="Bold" aria-pressed={editActiveFormats.bold}><Bold className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('italic'); }} className={popupEditButtonClass(editActiveFormats.italic)} title="Italic" aria-pressed={editActiveFormats.italic}><Italic className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className={popupEditButtonClass(editActiveFormats.underline)} title="Underline" aria-pressed={editActiveFormats.underline}><Underline className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className={popupEditButtonClass(editActiveFormats.strike)} title="Strikethrough" aria-pressed={editActiveFormats.strike}><Strikethrough className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('insertUnorderedList'); }} className={popupEditButtonClass(editActiveFormats.list)} title="Bullet list" aria-pressed={editActiveFormats.list}><List className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('insertOrderedList'); }} className={popupEditButtonClass(editActiveFormats.numbered)} title="Numbered list" aria-pressed={editActiveFormats.numbered}><ListOrdered className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('formatBlock', 'blockquote'); }} className={popupEditButtonClass(editActiveFormats.quote)} title="Quote" aria-pressed={editActiveFormats.quote}><TextQuote className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('fontName', 'monospace'); }} className={popupEditButtonClass(editActiveFormats.code)} title="Inline code" aria-pressed={editActiveFormats.code}><Code2 className="h-3.5 w-3.5" /></button>
+                              <button
+                                type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => setEditPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
+                                className={cn('h-7 px-2 rounded-md flex items-center gap-1 hover:bg-white/10', editPasteMode === 'plain' && 'bg-white/10')}
+                                title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only'}
+                                aria-pressed={editPasteMode === 'plain'}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                                <span className="text-[9px] font-bold">{editPasteMode === 'formatted' ? 'FMT' : 'TXT'}</span>
+                              </button>
                               <div className="relative flex items-center gap-1">
-                                <button type="button" onMouseDown={e => { e.preventDefault(); setEditColorOpen(v => !v); }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="More text colors">
+                                <button type="button" onMouseDown={e => {
+                                  e.preventDefault();
+                                  rememberEditSelection();
+                                  setEditColorOpen(v => !v);
+                                }} className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10" title="More text colors">
                                   <Palette className="h-3.5 w-3.5" />
                                 </button>
                                 {editPalette.map(color => (
-                                  <button key={color} onMouseDown={e => { e.preventDefault(); applyEditColor(color); }} className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110" style={{ background: color, borderColor: editTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)', boxShadow: editTextColor === color ? '0 0 0 2px rgba(0,0,0,0.35), 0 0 0 4px #60a5fa' : undefined }} aria-pressed={editTextColor === color} title={`Text color ${color}`}>
+                                  <button key={color} onMouseDown={e => {
+                                    e.preventDefault();
+                                    rememberEditSelection();
+                                    applyEditColor(color);
+                                  }} className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110" style={{ background: color, borderColor: editTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)', boxShadow: editTextColor === color ? '0 0 0 2px rgba(0,0,0,0.35), 0 0 0 4px #60a5fa' : undefined }} aria-pressed={editTextColor === color} title={`Text color ${color}`}>
                                     {editTextColor === color && <Check className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2" style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }} />}
                                   </button>
                                 ))}
@@ -1998,31 +2872,77 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                               ref={editAreaRef}
                               contentEditable
                               suppressContentEditableWarning
-                              onBeforeInput={handleEditColorBeforeInput}
-                              onInput={syncEditDraft}
+                              onInput={() => { syncEditDraft(); rememberEditSelection(); refreshPopupEditFormats(); }}
+                              onFocus={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
+                              onSelect={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
+                              onMouseUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
+                              onKeyUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
-                                if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); syncEditDraft(); }
+                                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+                                  editPastePlainTextShortcutRef.current = true;
+                                  window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
+                                }
+
+                                const selection = window.getSelection();
+                                const anchorNode = selection?.anchorNode;
+                                const anchorElement = anchorNode instanceof HTMLElement ? anchorNode : anchorNode?.parentElement;
+                                const isInsideStructuredBlock = Boolean(
+                                  anchorElement
+                                  && editAreaRef.current?.contains(anchorElement)
+                                  && anchorElement.closest('li, blockquote')
+                                );
+
+                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                  e.preventDefault();
+                                  saveEdit();
+                                  return;
+                                }
+
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  if (isInsideStructuredBlock) {
+                                    requestAnimationFrame(() => {
+                                      syncEditDraft();
+                                      rememberEditSelection();
+                                      refreshPopupEditFormats();
+                                    });
+                                    return;
+                                  }
+                                  e.preventDefault();
+                                  saveEdit();
+                                  return;
+                                }
+
+                                if (e.key === 'Enter' && e.shiftKey) {
+                                  e.preventDefault();
+                                  document.execCommand('insertLineBreak');
+                                  syncEditDraft();
+                                  rememberEditSelection();
+                                  return;
+                                }
+
                                 if (e.key === 'Escape') cancelEdit();
                               }}
                               onPaste={e => {
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
-                                if (html && hasRichFormatting(html)) {
-                                  e.preventDefault();
-                                  const editorHtml = clipboardHtmlToEditorHtml(html);
-                                  document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
-                                  requestAnimationFrame(syncEditDraft);
-                                  return;
-                                }
-                                if (text) {
-                                  e.preventDefault();
-                                  const markdown = hasMarkdownSyntax(text);
-                                  document.execCommand(markdown ? 'insertHTML' : 'insertText', false, markdown ? markdownTextToEditorHtml(text) : text);
-                                  requestAnimationFrame(syncEditDraft);
-                                }
+                                const shortcutPlainText = editPastePlainTextShortcutRef.current;
+                                editPastePlainTextShortcutRef.current = false;
+                                const plainText = clipboardPayloadToPlainText(text, html);
+                                if (!plainText && !html) return;
+
+                                e.preventDefault();
+                                const usePlainText = editPasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                                document.execCommand(
+                                  usePlainText ? 'insertText' : 'insertHTML',
+                                  false,
+                                  usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                                );
+                                requestAnimationFrame(() => {
+                                  syncEditDraft();
+                                  rememberEditSelection();
+                                });
                               }}
-                              className="min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
+                              className="ss-popup-rich-edit min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
                               style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: '#fff' }}
                             />
                             {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
@@ -2067,9 +2987,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                 )}
                               </div>
                             )}
-                            <div className="flex items-center gap-1.5 mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-                              <span style={{ fontSize: 8, opacity: 0.5 }}>Enter · Esc</span>
-                              <div className="flex-1" />
+                            <div className="mt-1.5 flex flex-col gap-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                              <span style={{ fontSize: 8, opacity: 0.5 }}>Enter saves outside lists/quotes · Ctrl/Cmd+Enter saves anytime · Esc cancels</span>
                               <input
                                 ref={editFileRef}
                                 type="file"
@@ -2084,20 +3003,22 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                   syncEditDraft();
                                 }}
                               />
-                              <button
-                                type="button"
-                                onClick={() => editFileRef.current?.click()}
-                                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]"
-                                style={{ background: 'rgba(255,255,255,0.15)' }}
-                                title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
-                              >
-                                <Paperclip className="h-3 w-3" />
-                                {editableAttachmentCount > 0 ? 'Replace' : 'Attach'}
-                              </button>
-                              <button onClick={cancelEdit} className="text-[11px] px-2 py-1 rounded-md" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
-                              <button onClick={saveEdit} disabled={!canSaveThisEdit} className="text-[11px] px-2 py-1 rounded-md font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
-                                {editSaving ? '...' : 'Update'}
-                              </button>
+                              <div className="grid w-full grid-cols-3 gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => editFileRef.current?.click()}
+                                  className="inline-flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-1.5 text-[10.5px]"
+                                  style={{ background: 'rgba(255,255,255,0.15)' }}
+                                  title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
+                                >
+                                  <Paperclip className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
+                                </button>
+                                <button onClick={cancelEdit} className="min-w-0 rounded-md px-1.5 py-1.5 text-[10.5px]" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
+                                <button onClick={saveEdit} disabled={!canSaveThisEdit} className="min-w-0 rounded-md px-1.5 py-1.5 text-[10.5px] font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
+                                  {editSaving ? '...' : 'Update'}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -2386,6 +3307,17 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   ))}
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
+                  className={cn('shrink-0 h-8 min-w-8 px-2 rounded-full flex items-center justify-center gap-1 text-blue-500 hover:bg-blue-500/10 transition-colors', pasteMode === 'plain' && 'bg-blue-500/10')}
+                  title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only'}
+                  aria-pressed={pasteMode === 'plain'}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span className="text-[9px] font-bold">{pasteMode === 'formatted' ? 'FMT' : 'TXT'}</span>
+                </button>
+
                 {/* Text input */}
                 <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-full px-3" style={{ minHeight: 34 }}>
                   {!composerHasText && (
@@ -2401,39 +3333,27 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     onPaste={e => {
                       const text = e.clipboardData?.getData('text/plain') || '';
                       const html = e.clipboardData?.getData('text/html') || '';
+                      const shortcutPlainText = pastePlainTextShortcutRef.current;
+                      pastePlainTextShortcutRef.current = false;
                       if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
-                      const shouldUsePlainText = !!text && !!html && richPasteDropsVinLikeToken(text, html);
-                      if (html && hasRichFormatting(html) && !shouldUsePlainText) {
-                        e.preventDefault();
-                        const editorHtml = clipboardHtmlToEditorHtml(html);
-                        document.execCommand('insertHTML', false, shouldPreferPlainTextLayout(text, editorHtml) ? markdownTextToEditorHtml(text) : editorHtml);
-                        requestAnimationFrame(() => {
-                          const el = inputRef.current;
-                          if (el) {
-                            const nextText = el.innerText.replace(/\n$/, '');
-                            syncComposerText(nextText, true);
-                            inspectMentionAnywhere(nextText);
-                          }
-                        });
-                        return;
-                      }
-                      const richText = text || (html ? clipboardHtmlToPlainText(html) : '');
-                      if (richText) {
-                        e.preventDefault();
-                        if (hasMarkdownSyntax(richText)) {
-                          document.execCommand('insertHTML', false, markdownTextToEditorHtml(richText));
-                        } else {
-                          document.execCommand('insertText', false, richText);
+                      const plainText = clipboardPayloadToPlainText(text, html);
+                      if (!plainText && !html) return;
+
+                      e.preventDefault();
+                      const usePlainText = pasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                      document.execCommand(
+                        usePlainText ? 'insertText' : 'insertHTML',
+                        false,
+                        usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                      );
+                      requestAnimationFrame(() => {
+                        const el = inputRef.current;
+                        if (el) {
+                          const nextText = el.innerText.replace(/\n$/, '');
+                          syncComposerText(nextText, true);
+                          inspectMentionAnywhere(nextText);
                         }
-                        requestAnimationFrame(() => {
-                          const el = inputRef.current;
-                          if (el) {
-                            const nextText = el.innerText.replace(/\n$/, '');
-                            syncComposerText(nextText, true);
-                            inspectMentionAnywhere(nextText);
-                          }
-                        });
-                      }
+                      });
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                     className="w-full min-w-0 max-w-full overflow-x-hidden outline-none"
@@ -2954,6 +3874,7 @@ export function ChatPopupManager() {
 
   return (
     <>
+      <style>{POPUP_RICH_EDIT_CSS}</style>
       {visibleChatIds.map((convId, index) => {
         const conv = conversations.find((c) => c._id === convId);
         if (!conv) return null;
