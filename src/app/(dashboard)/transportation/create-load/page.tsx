@@ -2,198 +2,129 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, ChevronRight, Truck, CheckCircle2, Globe2, UserCheck } from "lucide-react"
+import { ArrowLeft, Globe, UserCheck, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { LoadFormLayout } from "@/components/create-load/LoadFormLayout"
-import {
-  emptyLocation,
-  emptyVehicle,
-  emptyDates,
-  emptyAdditionalInfo,
-  emptyContract,
-  LocationBlock,
-  LoadVehicle,
-  LoadDates,
-  LoadAdditionalInfo,
-  LoadContract,
-} from "@/components/create-load/types"
+import { PostType } from "@/components/create-load/types"
+import { cn } from "@/lib/utils"
 
-const POST_TYPES = [
+// ─── Create Load page ─────────────────────────────────────────────────────────
+// Hosts the two workflows on one route:
+//   /transportation/create-load                 → chooser
+//   /transportation/create-load?type=load-board → straight into that workflow
+//   /transportation/create-load?type=assign-carrier
+
+const WORKFLOWS: Array<{
+  key: PostType
+  title: string
+  description: string
+  icon: React.ElementType
+}> = [
   {
-    value: "load-board",
-    icon: Globe2,
-    title: "Load Board",
-    desc: "Post to your driver pool",
+    key: "load-board",
+    title: "Post to Load Board",
+    description:
+      "Publish the load publicly. Any carrier browsing the board can see it.",
+    icon: Globe,
   },
   {
-    value: "assign-carrier",
-    icon: UserCheck,
+    key: "assign-carrier",
     title: "Assign Carrier",
-    desc: "Direct dispatch to a driver",
+    description:
+      "Assign one of your organization's drivers directly — or publish it as an Available Load and let drivers request it.",
+    icon: UserCheck,
   },
-] as const
+]
 
-export default function CreateLoadPage() {
+function CreateLoadPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = React.useState<"load-board" | "assign-carrier">("load-board")
-  const [successInfo, setSuccessInfo] = React.useState<{ loadNumber: string } | null>(null)
 
-  const [lbPickup, setLbPickup] = React.useState<LocationBlock>(emptyLocation())
-  const [lbDelivery, setLbDelivery] = React.useState<LocationBlock>(emptyLocation())
-  const [lbVehicles, setLbVehicles] = React.useState<LoadVehicle[]>([emptyVehicle()])
-  const [lbDates, setLbDates] = React.useState<LoadDates>(emptyDates())
-  const [lbAdditionalInfo, setLbAdditionalInfo] = React.useState<LoadAdditionalInfo>(emptyAdditionalInfo())
-  const [lbContract, setLbContract] = React.useState<LoadContract>(emptyContract())
-  const [lbTrailerType, setLbTrailerType] = React.useState<string>("open_3car_wedge")
+  const typeParam = searchParams.get("type")
+  const initialType: PostType | null =
+    typeParam === "load-board" || typeParam === "assign-carrier"
+      ? typeParam
+      : null
 
-  const [acPickup, setAcPickup] = React.useState<LocationBlock>(emptyLocation())
-  const [acDelivery, setAcDelivery] = React.useState<LocationBlock>(emptyLocation())
-  const [acVehicles, setAcVehicles] = React.useState<LoadVehicle[]>([emptyVehicle()])
-  const [acDates, setAcDates] = React.useState<LoadDates>(emptyDates())
-  const [acAdditionalInfo, setAcAdditionalInfo] = React.useState<LoadAdditionalInfo>(emptyAdditionalInfo())
-  const [acContract, setAcContract] = React.useState<LoadContract>(emptyContract())
-  const [acTrailerType, setAcTrailerType] = React.useState<string>("open_3car_wedge")
-
-  const buildBackUrl = () => {
-    const params = new URLSearchParams()
-    const search = searchParams.get("search")
-    const status = searchParams.get("status")
-    const tab = searchParams.get("tab")
-    if (search) params.set("search", search)
-    if (status) params.set("status", status)
-    if (tab) params.set("tab", tab)
-    const query = params.toString()
-    return `/transportation${query ? `?${query}` : ""}`
-  }
-
-  const handleBack = () => router.push(buildBackUrl())
-
-  const handleSuccess = (_loadId: string, loadNumber: string) => {
-    setSuccessInfo({ loadNumber })
-    router.refresh()
-    setTimeout(() => router.push(buildBackUrl()), 2000)
-  }
-
-  if (successInfo) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <CheckCircle2 className="size-12 text-green-500" />
-          <p className="text-lg font-semibold text-foreground">Load Created!</p>
-          <p className="text-sm text-muted-foreground">
-            Load <span className="font-mono font-medium text-foreground">{successInfo.loadNumber}</span> has been posted.
-          </p>
-          <p className="text-xs text-muted-foreground">Redirecting to Transportation…</p>
-        </div>
-      </div>
-    )
-  }
+  const [postType, setPostType] = React.useState<PostType | null>(initialType)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh p-4 sm:p-6 lg:p-8">
+      {/* ── Header ── */}
+      <div className="max-w-3xl mx-auto mb-6">
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            onClick={() =>
+              postType ? setPostType(null) : router.push("/transportation")
+            }
+            aria-label="Back"
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <Truck className="size-5 text-emerald-500" />
+              Create Load
+            </h1>
+            <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mt-0.5">
+              {postType
+                ? WORKFLOWS.find((w) => w.key === postType)?.title
+                : "Choose a workflow"}
+            </p>
+          </div>
+        </div>
+      </div>
 
-      { }
-      <div className="sticky top-0 z-20 bg-card border-b border-border px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 border-none hover:bg-secondary"
-              onClick={handleBack}
-              aria-label="Go back to Transportation"
+      {/* ── Chooser or form ── */}
+      {!postType ? (
+        <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {WORKFLOWS.map(({ key, title, description, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPostType(key)}
+              className={cn(
+                "text-left rounded-2xl border border-border/60 bg-card/40 backdrop-blur-md p-5 relative overflow-hidden",
+                "transition-all duration-300 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
+              )}
             >
-              <ArrowLeft className="size-4" />
-            </Button>
-            <nav className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground min-w-0">
-              <button onClick={handleBack} className="hover:text-foreground transition-colors truncate">
-                Transport
-              </button>
-              <ChevronRight className="size-3 shrink-0" />
-              <span className="text-foreground font-medium truncate">Create Load</span>
-            </nav>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="bg-green-500 p-1.5 rounded shrink-0">
-              <Truck className="size-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-foreground hidden md:block">Create Load</span>
-          </div>
+              <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
+              <div className="size-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mb-3">
+                <Icon className="size-5 text-emerald-500" />
+              </div>
+              <p className="text-base font-black tracking-tight text-foreground">
+                {title}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                {description}
+              </p>
+            </button>
+          ))}
         </div>
-      </div>
-
-      { }
-      <div className="px-3 sm:px-4 md:px-6 pt-4 pb-0">
-        <div className="grid grid-cols-2 gap-2 max-w-5xl mx-auto">
-          {POST_TYPES.map(({ value, icon: Icon, title, desc }) => {
-            const active = activeTab === value
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setActiveTab(value)}
-                className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all ${active
-                    ? "border-green-500 bg-green-50/40 dark:bg-green-950/20"
-                    : "border-border bg-card hover:border-muted-foreground/30"
-                  }`}
-              >
-                <div className={`size-9 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
-                  }`}>
-                  <Icon className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-semibold leading-tight ${active ? "text-green-600 dark:text-green-400" : "text-foreground"}`}>
-                    {title}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{desc}</p>
-                </div>
-                {active && <CheckCircle2 className="size-4 text-green-500 shrink-0" />}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── Form content ────────────────────────────────────────────────────── */}
-      <div className="px-3 sm:px-4 md:px-6 pt-4 pb-2">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "load-board" | "assign-carrier")}>
-          <TabsContent value="load-board" className="mt-0 outline-none">
-            <LoadFormLayout
-              postType="load-board"
-              pickup={lbPickup} setPickup={setLbPickup}
-              delivery={lbDelivery} setDelivery={setLbDelivery}
-              vehicles={lbVehicles} setVehicles={setLbVehicles}
-              dates={lbDates} setDates={setLbDates}
-              additionalInfo={lbAdditionalInfo} setAdditionalInfo={setLbAdditionalInfo}
-              contract={lbContract} setContract={setLbContract}
-              trailerType={lbTrailerType} setTrailerType={setLbTrailerType}
-              onCancel={handleBack}
-              onSuccess={handleSuccess}
-              submitLabel="POST LOAD"
-            />
-          </TabsContent>
-
-          <TabsContent value="assign-carrier" className="mt-0 outline-none">
-            <LoadFormLayout
-              postType="assign-carrier"
-              pickup={acPickup} setPickup={setAcPickup}
-              delivery={acDelivery} setDelivery={setAcDelivery}
-              vehicles={acVehicles} setVehicles={setAcVehicles}
-              dates={acDates} setDates={setAcDates}
-              additionalInfo={acAdditionalInfo} setAdditionalInfo={setAcAdditionalInfo}
-              contract={acContract} setContract={setAcContract}
-              trailerType={acTrailerType} setTrailerType={setAcTrailerType}
-              onCancel={handleBack}
-              onSuccess={handleSuccess}
-              submitLabel="ASSIGN"
-            />
-          </TabsContent>
-        </Tabs>
-      </div>
-
+      ) : (
+        <LoadFormLayout postType={postType} />
+      )}
     </div>
+  )
+}
+
+// Next.js App Router requires useSearchParams inside a Suspense boundary
+// during prerender — without this, `next build` fails on this page.
+export default function CreateLoadPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-dvh flex items-center justify-center">
+          <Truck className="size-5 text-emerald-500 motion-safe:animate-pulse" />
+        </div>
+      }
+    >
+      <CreateLoadPageInner />
+    </React.Suspense>
   )
 }

@@ -1,210 +1,315 @@
 "use client"
 
 import * as React from "react"
-import { useAuth } from "@/providers/AuthProvider"
+import {
+  User, RefreshCw, Check, AlertTriangle, Radio, Megaphone,
+  Truck, Loader2, ShieldAlert, PackageX, WifiOff, UserX,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Search, CheckCircle2, Truck, AlertCircle, RefreshCw } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-interface ActiveDriver {
+// ─── Centralized driver directory types ──────────────────────────────────────
+// Mirrors GET /api/driver-tracking/org-drivers — the single source of truth
+// for org drivers, merged from User + DriverProfile + DriverLocation.
+
+export interface OrgDriver {
   id: string
-  status: "on-route" | "idle" | "on-break" | "waiting" | "offline"
-  lastSeenAt: string
-  driver: { id: string; name?: string; email: string; avatar?: string }
+  name: string
+  email: string
+  phone: string
+  avatar: string | null
+  isActive: boolean
   equipment: {
-    trailerType?: string
-    maxVehicleCapacity?: number
-    truckMake?: string
-    truckModel?: string
-    operationalStatus?: string
+    trailerType: string | null
+    maxVehicleCapacity: number | null
+    operationalStatus: string | null
+    truckMake: string | null
+    truckModel: string | null
+    isComplianceExpired: boolean
   } | null
-  shipments: { id: string; status: string; owned: boolean }[]
+  presence: {
+    status: string
+    lastSeenAt: string | null
+  }
+  activeLoadCount: number
+  remainingCapacity: number | null
+  assignable: boolean
+  warnings: string[]
 }
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  "on-route":  { label: "On Route",  color: "bg-emerald-500" },
-  idle:        { label: "Available", color: "bg-blue-500" },
-  "on-break":  { label: "On Break",  color: "bg-amber-500" },
-  waiting:     { label: "Waiting",   color: "bg-sky-500" },
-  offline:     { label: "Offline",   color: "bg-gray-400" },
+const WARNING_META: Record<string, { label: string; icon: React.ElementType }> = {
+  no_driver_profile: { label: "No profile", icon: UserX },
+  compliance_expired: { label: "Compliance expired", icon: ShieldAlert },
+  at_capacity: { label: "At capacity", icon: PackageX },
+  offline_or_stale_location: { label: "Offline", icon: WifiOff },
+  inactive_account: { label: "Inactive", icon: UserX },
 }
 
-const TRAILER_LABELS: Record<string, string> = {
-  open_3car_wedge: "Open 3-Car Wedge", open_2car: "Open 2-Car",
-  "5car_open": "5-Car Open", "9car_stinger": "9-Car Stinger",
-  "7car_stinger": "7-Car Stinger", enclosed_2car: "Enclosed 2-Car",
-  enclosed_3car: "Enclosed 3-Car", flatbed: "Flatbed",
-  dually_flatbed: "Dually Flatbed", hotshot: "Hotshot",
-  gooseneck: "Gooseneck", lowboy: "Lowboy", step_deck: "Step Deck",
-  rgn: "RGN", double_drop: "Double Drop", power_only: "Power Only",
-  other: "Other",
+const PRESENCE_DOT: Record<string, string> = {
+  "on-route": "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.55)]",
+  idle: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)]",
+  "on-break": "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.55)]",
+  waiting: "bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.55)]",
+  offline: "bg-slate-500",
 }
 
-function initials(name?: string, email?: string) {
-  if (name) return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
-  return (email?.[0] ?? "?").toUpperCase()
-}
-
-interface Props {
+interface DriverPickerSectionProps {
   selectedDriverId: string | null
-  onSelect: (driverId: string | null) => void
+  onSelectDriver: (driverId: string | null) => void
+  /** "Make it Available Load": publish without a driver */
+  makeAvailable: boolean
+  onMakeAvailableChange: (value: boolean) => void
 }
 
-export function DriverPickerSection({ selectedDriverId, onSelect }: Props) {
-  const { getToken } = useAuth()
-  const [drivers, setDrivers] = React.useState<ActiveDriver[]>([])
-  const [loading, setLoading] = React.useState(true)
+export function DriverPickerSection({
+  selectedDriverId,
+  onSelectDriver,
+  makeAvailable,
+  onMakeAvailableChange,
+}: DriverPickerSectionProps) {
+  const [drivers, setDrivers] = React.useState<OrgDriver[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [search, setSearch] = React.useState("")
 
   const fetchDrivers = React.useCallback(async () => {
-    setLoading(true)
+    setIsLoading(true)
     setError(null)
     try {
-      const token = await getToken()
-      const res = await apiClient.get<{ data: ActiveDriver[] }>("/api/driver-tracking/active", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      setDrivers(res.data.data || [])
-    } catch {
-      setError("Could not load drivers")
+      const res = await apiClient.get("/api/driver-tracking/org-drivers")
+      const data = res.data?.data ?? res.data
+      setDrivers(data?.drivers ?? [])
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to load drivers",
+      )
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
-  }, [getToken])
+  }, [])
 
-  React.useEffect(() => { fetchDrivers() }, [fetchDrivers])
+  React.useEffect(() => {
+    fetchDrivers()
+  }, [fetchDrivers])
 
-  const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return drivers
-    return drivers.filter((d) =>
-      d.driver.name?.toLowerCase().includes(q) ||
-      d.driver.email.toLowerCase().includes(q) ||
-      d.equipment?.truckMake?.toLowerCase().includes(q) ||
-      d.equipment?.truckModel?.toLowerCase().includes(q)
-    )
-  }, [drivers, search])
-
-  if (loading) {
-    return (
-      <div className="space-y-2.5">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3 rounded-lg border border-border/50 p-3">
-            <Skeleton className="size-9 rounded-full shrink-0" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton className="h-3.5 w-32" />
-              <Skeleton className="h-3 w-24" />
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-xs text-destructive">
-        <AlertCircle className="size-3.5 shrink-0" />
-        {error}
-        <button onClick={fetchDrivers} className="ml-auto flex items-center gap-1 text-[10px] hover:underline">
-          <RefreshCw className="size-3" />Retry
-        </button>
-      </div>
-    )
+  const handleMakeAvailable = (value: boolean) => {
+    onMakeAvailableChange(value)
+    if (value) onSelectDriver(null)
   }
 
   return (
-    <div className="space-y-3">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search drivers…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8 h-9 text-sm"
-        />
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-8 text-center text-muted-foreground">
-          <Truck className="size-7 mb-2 opacity-30" />
-          <p className="text-xs font-medium">
-            {drivers.length === 0 ? "No drivers online" : "No drivers match your search"}
-          </p>
-          <p className="text-[10px] mt-0.5 opacity-70">
-            {drivers.length === 0
-              ? "Drivers need to share their location to appear here."
-              : "Try a different name or email."}
-          </p>
+    <div className="space-y-4">
+      {/* ── "Make it Available Load" — publish without assigning ── */}
+      <button
+        type="button"
+        onClick={() => handleMakeAvailable(!makeAvailable)}
+        aria-pressed={makeAvailable}
+        className={cn(
+          "w-full text-left rounded-xl border p-4 transition-colors relative overflow-hidden",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
+          makeAvailable
+            ? "border-emerald-500/40 bg-linear-to-br from-emerald-500/10 to-cyan-500/10"
+            : "border-border/60 bg-background/40 hover:border-emerald-500/25",
+        )}
+      >
+        <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              "size-9 rounded-lg border flex items-center justify-center shrink-0",
+              makeAvailable
+                ? "bg-emerald-500/15 border-emerald-500/30"
+                : "bg-muted/60 border-border/60",
+            )}
+          >
+            <Megaphone
+              className={cn(
+                "size-4",
+                makeAvailable ? "text-emerald-500" : "text-muted-foreground",
+              )}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black tracking-tight text-foreground">
+              Make it Available Load
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Publish without assigning a driver. The load appears in every
+              driver's Available Loads, and drivers request it from their
+              account — you approve from the Transportation page.
+            </p>
+          </div>
+          <div
+            className={cn(
+              "size-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+              makeAvailable
+                ? "border-emerald-500 bg-emerald-500"
+                : "border-border",
+            )}
+          >
+            {makeAvailable && <Check className="size-3 text-white" />}
+          </div>
         </div>
-      ) : (
-        <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
-          {filtered.map((d) => {
-            const isSelected = selectedDriverId === d.driver.id
-            const meta = STATUS_META[d.status] ?? STATUS_META.offline
-            const activeCount = d.shipments.filter((s) => s.owned && s.status !== "Delivered").length
-            const trailerLabel = d.equipment?.trailerType ? (TRAILER_LABELS[d.equipment.trailerType] ?? d.equipment.trailerType) : null
+      </button>
 
-            return (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => onSelect(isSelected ? null : d.driver.id)}
-                className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all hover:shadow-sm ${
-                  isSelected
-                    ? "border-green-500 bg-green-50/60 dark:bg-green-950/20"
-                    : "border-border/60 bg-card hover:border-border"
-                }`}
-              >
-                {/* Avatar */}
-                <div className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-bold text-muted-foreground">
-                  {initials(d.driver.name, d.driver.email)}
-                </div>
+      {/* ── Driver directory ── */}
+      <div className={cn(makeAvailable && "opacity-40 pointer-events-none")}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
+            <Radio className="size-3" /> Assign Driver
+            {!isLoading && (
+              <span className="font-mono normal-case tracking-normal">
+                ({drivers.length})
+              </span>
+            )}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+            onClick={fetchDrivers}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn("size-3", isLoading && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-semibold truncate">{d.driver.name || d.driver.email}</span>
-                    <div className="flex items-center gap-1">
-                      <span className={`inline-block size-1.5 rounded-full ${meta.color}`} />
-                      <span className="text-[10px] text-muted-foreground">{meta.label}</span>
+        {isLoading ? (
+          <div className="flex items-center justify-center rounded-xl border border-border/60 bg-background/40 h-32">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 text-xs text-rose-500 font-medium">
+            {error}
+          </div>
+        ) : drivers.length === 0 ? (
+          <div className="rounded-xl border border-border/60 bg-background/40 p-6 text-center">
+            <Truck className="size-5 text-muted-foreground/50 mx-auto mb-2" />
+            <p className="text-xs font-bold text-muted-foreground">
+              No drivers in this organization yet
+            </p>
+            <p className="text-[10px] text-muted-foreground/70 mt-1">
+              Drivers created in Driver's Account appear here automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-96 overflow-y-auto overscroll-contain pr-1">
+            {/* BUSINESS RULE: every org driver is listed — warnings inform,
+                they never hide. The dispatcher decides. */}
+            {drivers.map((driver) => {
+              const isSelected = selectedDriverId === driver.id
+              const dot =
+                PRESENCE_DOT[driver.presence.status] ?? PRESENCE_DOT.offline
+              return (
+                <button
+                  key={driver.id}
+                  type="button"
+                  onClick={() =>
+                    onSelectDriver(isSelected ? null : driver.id)
+                  }
+                  aria-pressed={isSelected}
+                  className={cn(
+                    "w-full text-left rounded-xl border p-3 transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
+                    isSelected
+                      ? "border-emerald-500/40 bg-emerald-500/10"
+                      : "border-border/60 bg-background/40 hover:border-emerald-500/25",
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative shrink-0">
+                      {driver.avatar ? (
+                        <img
+                          src={driver.avatar}
+                          alt={driver.name}
+                          className="size-9 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="size-9 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center">
+                          <User className="size-4 text-emerald-500" />
+                        </div>
+                      )}
+                      <span
+                        className={cn(
+                          "absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background",
+                          dot,
+                        )}
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-sm font-black tracking-tight text-foreground truncate">
+                          {driver.name}
+                        </p>
+                        {driver.equipment?.trailerType && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-full shrink-0">
+                            {driver.equipment.trailerType.replace(/_/g, " ")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                          {driver.activeLoadCount} active
+                          {driver.remainingCapacity != null
+                            ? ` · ${driver.remainingCapacity} slots free`
+                            : ""}
+                        </span>
+                        {driver.warnings.map((w) => {
+                          const meta = WARNING_META[w]
+                          if (!meta) return null
+                          const Icon = meta.icon
+                          return (
+                            <span
+                              key={w}
+                              className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full"
+                            >
+                              <Icon className="size-2.5" /> {meta.label}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-500"
+                          : "border-border",
+                      )}
+                    >
+                      {isSelected && <Check className="size-3 text-white" />}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    {trailerLabel && (
-                      <span className="text-[10px] text-muted-foreground">{trailerLabel}</span>
-                    )}
-                    {d.equipment?.truckMake && (
-                      <span className="text-[10px] text-muted-foreground">
-                        · {d.equipment.truckMake} {d.equipment.truckModel || ""}
-                      </span>
-                    )}
-                    {activeCount > 0 && (
-                      <Badge className="text-[9px] px-1.5 py-0 h-4 bg-amber-500/10 text-amber-600 border-amber-200">
-                        {activeCount} active load{activeCount !== 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
-                {/* Check */}
-                {isSelected && (
-                  <CheckCircle2 className="size-4 text-green-500 shrink-0" />
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {selectedDriverId && (
-        <p className="text-[10px] text-muted-foreground text-center">
-          Driver will be notified and load status set to <span className="font-semibold text-foreground">Assigned</span> immediately.
-        </p>
-      )}
+        {/* Advisory note when the selected driver has warnings */}
+        {(() => {
+          const selected = drivers.find((d) => d.id === selectedDriverId)
+          if (!selected || selected.warnings.length === 0) return null
+          return (
+            <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5">
+              <AlertTriangle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                {selected.name} has advisory flags (
+                {selected.warnings
+                  .map((w) => WARNING_META[w]?.label ?? w)
+                  .join(", ")}
+                ). You can still assign — this is informational only.
+              </p>
+            </div>
+          )
+        })()}
+      </div>
     </div>
   )
 }

@@ -20,6 +20,11 @@ import { TRAILER_CAPACITY } from "./trailer-capacity"
 import { lookupVin, getInventoryVehicles, InventoryVehicle } from "@/lib/api/loads"
 
 // ─── VIN Picker (Manual | From Inventory) ────────────────────────────────────
+// BUILD FIX: LoadVehicle.vin is OPTIONAL (`vin?: string`) — intentionally so,
+// since loads.ts submits `vin: v.vin || undefined` and the backend treats an
+// empty VIN as absent. This component previously dereferenced value.vin
+// unguarded (`value.vin.length`, `lookupVin(value.vin)`); every read now goes
+// through a `?? ""` narrow instead of changing the shared type.
 
 type VinMode = "manual" | "inventory"
 
@@ -38,13 +43,16 @@ function VinPicker({ value, onChange }: VinPickerProps) {
   const valueRef = React.useRef(value)
   valueRef.current = value
 
+  // vin narrowed once for this render — all reads below use this
+  const vin = value.vin ?? ""
+
   // Manual mode — VIN lookup when 17 chars
   React.useEffect(() => {
     if (mode !== "manual") return
-    if (value.vin.length !== 17) { setVinStatus("idle"); return }
+    if (vin.length !== 17) { setVinStatus("idle"); return }
     let cancelled = false
     setVinStatus("loading")
-    lookupVin(value.vin)
+    lookupVin(vin)
       .then((data) => {
         if (cancelled) return
         const cur = valueRef.current
@@ -54,20 +62,7 @@ function VinPicker({ value, onChange }: VinPickerProps) {
       .catch(() => { if (!cancelled) setVinStatus("not-found") })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value.vin, mode])
-
-  // Inventory mode — fetch on open + debounced search
-  React.useEffect(() => {
-    if (mode !== "inventory" || !open) return
-    const t = setTimeout(() => {
-      setInventoryLoading(true)
-      getInventoryVehicles(searchQuery || undefined)
-        .then((data) => setInventory(data))
-        .catch(() => setInventory([]))
-        .finally(() => setInventoryLoading(false))
-    }, searchQuery ? 300 : 0)
-    return () => clearTimeout(t)
-  }, [mode, open, searchQuery])
+  }, [vin, mode])
 
   const applyInventoryVehicle = (v: InventoryVehicle) => {
     onChange({
@@ -82,6 +77,19 @@ function VinPicker({ value, onChange }: VinPickerProps) {
     setVinStatus("found")
     setOpen(false)
   }
+
+  // Inventory mode — fetch on open + debounced search
+  React.useEffect(() => {
+    if (mode !== "inventory" || !open) return
+    const t = setTimeout(() => {
+      setInventoryLoading(true)
+      getInventoryVehicles(searchQuery || undefined)
+        .then((data) => setInventory(data))
+        .catch(() => setInventory([]))
+        .finally(() => setInventoryLoading(false))
+    }, searchQuery ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [mode, open, searchQuery])
 
   const switchMode = (next: VinMode) => {
     setMode(next)
@@ -118,7 +126,7 @@ function VinPicker({ value, onChange }: VinPickerProps) {
         <div className="relative">
           <Input
             placeholder="1HGCM82633A123456"
-            value={value.vin}
+            value={vin}
             onChange={(e) => onChange({ ...value, vin: e.target.value })}
             maxLength={17}
             className="h-9 text-sm font-mono pr-8"
@@ -140,8 +148,8 @@ function VinPicker({ value, onChange }: VinPickerProps) {
               role="combobox"
               className="h-9 w-full justify-between text-sm font-mono font-normal border-border"
             >
-              <span className={value.vin ? "text-foreground" : "text-muted-foreground"}>
-                {value.vin || "Select from inventory…"}
+              <span className={vin ? "text-foreground" : "text-muted-foreground"}>
+                {vin || "Select from inventory…"}
               </span>
               <ChevronsUpDown className="size-3.5 ml-2 shrink-0 text-muted-foreground" />
             </Button>
@@ -322,10 +330,13 @@ export function VehicleSection({ vehicles, onChange, trailerType = "open_3car_we
   const maxCapacity = TRAILER_CAPACITY[trailerType] || 1;
   const canAddMore = vehicles.length < maxCapacity;
   
-  // Check for duplicate VINs
+  // Check for duplicate VINs.
+  // BUILD FIX: `.filter(Boolean)` doesn't narrow (string | undefined)[] for
+  // TypeScript — a type-predicate filter does, so the Map and Set below are
+  // cleanly string-keyed.
   const usedVins = vehicles
     .map(v => v.vin)
-    .filter(Boolean);
+    .filter((vin): vin is string => Boolean(vin));
   const vinCounts = new Map<string, number>();
   usedVins.forEach(vin => {
     vinCounts.set(vin, (vinCounts.get(vin) || 0) + 1);

@@ -25,6 +25,7 @@ import {
   ArrowDown,
   Search,
   Trash2,
+  Car,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
 
 type LeadStatus = "pending" | "contacted" | "converted" | "closed";
 type CallType = "voice" | "video";
+type AccountType = "customer" | "driver";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "response" in error) {
@@ -44,6 +46,10 @@ function getErrorMessage(error: unknown, fallback: string) {
     return response.response?.data?.message || fallback;
   }
   return error instanceof Error ? error.message || fallback : fallback;
+}
+
+function acctLabel(t: AccountType) {
+  return t === "driver" ? "Driver" : "Customer";
 }
 
 interface RegisteredUser {
@@ -140,6 +146,46 @@ function ini(name: string) {
 }
 
 
+// ─── Account type toggle (Customer / Driver) — dark modal variant ─────────────
+
+interface AccountTypeToggleProps {
+  value: AccountType;
+  onChange: (t: AccountType) => void;
+  disabled?: boolean;
+}
+
+function AccountTypeToggle({ value, onChange, disabled }: AccountTypeToggleProps) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {(["customer", "driver"] as AccountType[]).map((t) => {
+        const active = value === t;
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onChange(t)}
+            disabled={disabled}
+            className={cn(
+              "flex items-center justify-center gap-1.5 h-10 rounded-xl border text-xs font-bold transition-colors disabled:opacity-50",
+              active
+                ? t === "customer"
+                  ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400"
+                  : "bg-orange-500/10 border-orange-500/50 text-orange-400"
+                : "border-zinc-700 bg-zinc-800/40 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+            )}
+          >
+            {t === "customer"
+              ? <User className="h-3.5 w-3.5" />
+              : <Car className="h-3.5 w-3.5" />}
+            {acctLabel(t)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
 interface ConvertModalProps {
   lead: ReferralLead;
   token: string;
@@ -149,11 +195,13 @@ interface ConvertModalProps {
 
 function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) {
   const [email, setEmail] = React.useState(lead.email || "");
+  const [accountType, setAccountType] = React.useState<AccountType>("customer");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [result, setResult] = React.useState<{
     name: string;
     email: string;
+    accountType?: AccountType;
   } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,7 +213,7 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
     try {
       const res = await apiClient.post(
         `/api/referral-leads/crm-leads/${lead._id}/convert`,
-        { email: email.trim() },
+        { email: email.trim(), accountType },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = res.data?.data;
@@ -184,11 +232,21 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
         { }
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-5 border-b border-zinc-800">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-              <UserPlus className="h-4 w-4 text-emerald-400" />
+            <div className={cn(
+              "w-8 h-8 rounded-lg border flex items-center justify-center shrink-0",
+              accountType === "driver"
+                ? "bg-orange-500/10 border-orange-500/20"
+                : "bg-emerald-500/10 border-emerald-500/20"
+            )}>
+              <UserPlus className={cn(
+                "h-4 w-4",
+                accountType === "driver" ? "text-orange-400" : "text-emerald-400"
+              )} />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white truncate">Create Customer Account</p>
+              <p className="text-sm font-bold text-white truncate">
+                Create {acctLabel(accountType)} Account
+              </p>
               <p className="text-[11px] text-zinc-500 truncate">{lead.name} · {lead.phone}</p>
             </div>
           </div>
@@ -207,16 +265,18 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
                 <CheckCircle2 className="h-7 w-7 text-emerald-400" />
               </div>
               <div>
-                <p className="text-base font-bold text-white mb-1">Account Created!</p>
+                <p className="text-base font-bold text-white mb-1">
+                  {acctLabel(accountType)} Account Created!
+                </p>
                 <p className="text-sm text-zinc-400">{result.name}</p>
                 <p className="text-sm text-zinc-400">{result.email}</p>
               </div>
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-left">
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">
-                  Email Sent to Customer
+                  Email Sent to {acctLabel(accountType)}
                 </p>
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Login credentials have been sent directly to <span className="text-white font-medium">{result.email}</span>. The customer can log in using their email and the temporary password provided in the email.
+                  Login credentials have been sent directly to <span className="text-white font-medium">{result.email}</span>. The {acctLabel(accountType).toLowerCase()} can log in using their email and the temporary password provided in the email.
                 </p>
               </div>
               <Button
@@ -229,26 +289,42 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Verify the customer email below and click <strong className="text-zinc-300">Create Account</strong>. A temporary password will be sent directly to the customer via email — you won&apos;t see it.
+                Choose the account type, verify the email below, and click <strong className="text-zinc-300">Create Account</strong>. A temporary password will be sent directly to the {acctLabel(accountType).toLowerCase()} via email — you won&apos;t see it.
               </p>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-                  Customer Email <span className="text-red-500">*</span>
+                  Account Type
+                </label>
+                <AccountTypeToggle
+                  value={accountType}
+                  onChange={setAccountType}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                  {acctLabel(accountType)} Email <span className="text-red-500">*</span>
                 </label>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="customer@email.com"
+                  placeholder={accountType === "driver" ? "driver@email.com" : "customer@email.com"}
                   required
-                  className="h-10 rounded-xl bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 focus-visible:border-emerald-500/50 focus-visible:ring-0"
+                  className={cn(
+                    "h-10 rounded-xl bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 focus-visible:ring-0",
+                    accountType === "driver"
+                      ? "focus-visible:border-orange-500/50"
+                      : "focus-visible:border-emerald-500/50"
+                  )}
                 />
               </div>
 
               <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Password</p>
-                <p className="text-xs text-zinc-400">A temporary password will be auto-generated and sent <strong className="text-zinc-300">directly to the customer&apos;s email</strong> for security. You will not see it.</p>
+                <p className="text-xs text-zinc-400">A temporary password will be auto-generated and sent <strong className="text-zinc-300">directly to the {acctLabel(accountType).toLowerCase()}&apos;s email</strong> for security. You will not see it.</p>
               </div>
 
               {error && (
@@ -270,7 +346,12 @@ function ConvertModal({ lead, token, onClose, onConverted }: ConvertModalProps) 
                 <Button
                   type="submit"
                   disabled={loading || !email.trim()}
-                  className="flex-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50"
+                  className={cn(
+                    "flex-1 h-10 rounded-xl text-white text-sm font-semibold disabled:opacity-50",
+                    accountType === "driver"
+                      ? "bg-orange-600 hover:bg-orange-500"
+                      : "bg-emerald-600 hover:bg-emerald-500"
+                  )}
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Account"}
                 </Button>
@@ -694,10 +775,18 @@ const INVITE_SHARE_PLATFORMS = [
 ];
 
 function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
+  const [accountType, setAccountType] = React.useState<AccountType>("customer");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
-  const [invite, setInvite] = React.useState<{ shortCode: string; link: string; expiresAt: string } | null>(null);
+  const [invite, setInvite] = React.useState<{ shortCode: string; link: string; expiresAt: string; accountType?: AccountType } | null>(null);
   const [copied, setCopied] = React.useState(false);
+
+  const handleTypeChange = (t: AccountType) => {
+    setAccountType(t);
+    // A generated link is locked to its type — clear it when switching
+    setInvite(null);
+    setError("");
+  };
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -706,7 +795,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
     try {
       const res = await apiClient.post(
         "/api/crm/customer-invites/generate",
-        { count: 1, multiUse: true },
+        { count: 1, multiUse: true, accountType },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const list = res.data?.data?.invites ?? [];
@@ -731,7 +820,7 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
       try {
         await navigator.share({
           title: "You're invited!",
-          text: "Click the link below to create your account.",
+          text: `Click the link below to create your ${acctLabel(accountType).toLowerCase()} account.`,
           url: invite.link,
         });
       } catch { }
@@ -746,8 +835,16 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
         { }
         <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-              <Link2 className="h-4 w-4 text-emerald-400" />
+            <div className={cn(
+              "w-8 h-8 rounded-lg border flex items-center justify-center shrink-0",
+              accountType === "driver"
+                ? "bg-orange-500/10 border-orange-500/20"
+                : "bg-emerald-500/10 border-emerald-500/20"
+            )}>
+              <Link2 className={cn(
+                "h-4 w-4",
+                accountType === "driver" ? "text-orange-400" : "text-emerald-400"
+              )} />
             </div>
             <div>
               <p className="text-sm font-bold text-white">Generate Invite Link</p>
@@ -763,12 +860,36 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
         </div>
 
         <div className="p-4 sm:p-5 space-y-4">
+          { }
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+              Account Type
+            </p>
+            <AccountTypeToggle
+              value={accountType}
+              onChange={handleTypeChange}
+              disabled={loading}
+            />
+            <p className="text-[11px] text-zinc-600">
+              {accountType === "driver"
+                ? "People who open this link will sign up with a driver account."
+                : "People who open this link will sign up with a customer account."}
+            </p>
+          </div>
+
           <Button
             onClick={handleGenerate}
             disabled={loading}
-            className="w-full h-11 text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+            className={cn(
+              "w-full h-11 text-sm text-white font-semibold",
+              accountType === "driver"
+                ? "bg-orange-600 hover:bg-orange-500"
+                : "bg-emerald-600 hover:bg-emerald-500"
+            )}
           >
-            {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating…</> : "Generate"}
+            {loading
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating…</>
+              : `Generate ${acctLabel(accountType)} Link`}
           </Button>
 
           {error && (
@@ -779,6 +900,21 @@ function InviteLinkModal({ token, onClose }: InviteLinkModalProps) {
 
           {invite && (
             <div className="space-y-4">
+              { }
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-widest",
+                  accountType === "driver"
+                    ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                )}>
+                  {accountType === "driver"
+                    ? <Car className="h-3 w-3" />
+                    : <User className="h-3 w-3" />}
+                  {acctLabel(accountType)} Invite
+                </span>
+              </div>
+
               { }
               <div className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3">
                 <span className="flex-1 text-xs text-zinc-300 truncate font-mono">{invite.link}</span>
@@ -838,6 +974,7 @@ interface BulkCreateModalProps {
 type BulkResult = { email: string; status: "created" | "already_exists" | "error"; reason?: string };
 
 function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
+  const [accountType, setAccountType] = React.useState<AccountType>("customer");
   const [emailsRaw, setEmailsRaw] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -861,7 +998,7 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
     try {
       const res = await apiClient.post(
         "/api/crm/customer-invites/bulk-create",
-        { emails },
+        { emails, accountType },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = res.data?.data;
@@ -880,12 +1017,21 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
         { }
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
-              <Users className="h-4 w-4 text-violet-400" />
+            <div className={cn(
+              "w-8 h-8 rounded-lg border flex items-center justify-center shrink-0",
+              accountType === "driver"
+                ? "bg-orange-500/10 border-orange-500/20"
+                : "bg-violet-500/10 border-violet-500/20"
+            )}>
+              {accountType === "driver"
+                ? <Car className="h-4 w-4 text-orange-400" />
+                : <Users className="h-4 w-4 text-violet-400" />}
             </div>
             <div>
               <p className="text-sm font-bold text-white">Bulk Create Accounts</p>
-              <p className="text-[11px] text-zinc-500">Create accounts for existing customers</p>
+              <p className="text-[11px] text-zinc-500">
+                Create {acctLabel(accountType).toLowerCase()} accounts for existing {accountType === "driver" ? "drivers" : "customers"}
+              </p>
             </div>
           </div>
           <button
@@ -899,13 +1045,28 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
         <div className="p-5 space-y-4">
           {!summary ? (
             <>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-zinc-400">Account type</p>
+                <AccountTypeToggle
+                  value={accountType}
+                  onChange={setAccountType}
+                  disabled={loading}
+                />
+              </div>
+
               <div>
-                <p className="text-xs font-semibold text-zinc-400 mb-1.5">Customer emails</p>
+                <p className="text-xs font-semibold text-zinc-400 mb-1.5">
+                  {acctLabel(accountType)} emails
+                </p>
                 <p className="text-[11px] text-zinc-600 mb-2">One email per line (max 50). A temporary password will be sent to each.</p>
                 <textarea
                   value={emailsRaw}
                   onChange={(e) => setEmailsRaw(e.target.value)}
-                  placeholder={"customer1@email.com\ncustomer2@email.com\ncustomer3@email.com"}
+                  placeholder={
+                    accountType === "driver"
+                      ? "driver1@email.com\ndriver2@email.com\ndriver3@email.com"
+                      : "customer1@email.com\ncustomer2@email.com\ncustomer3@email.com"
+                  }
                   rows={8}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 text-white text-sm placeholder:text-zinc-700 p-3 resize-none focus:outline-none focus:border-zinc-500 transition-colors"
                   disabled={loading}
@@ -921,13 +1082,20 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
               <Button
                 onClick={handleCreate}
                 disabled={loading || !emailsRaw.trim()}
-                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-semibold"
+                className={cn(
+                  "w-full text-white font-semibold",
+                  accountType === "driver"
+                    ? "bg-orange-600 hover:bg-orange-500"
+                    : "bg-violet-600 hover:bg-violet-500"
+                )}
               >
-                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating accounts…</> : "Create accounts & send emails"}
+                {loading
+                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating accounts…</>
+                  : `Create ${acctLabel(accountType).toLowerCase()} accounts & send emails`}
               </Button>
 
               <p className="text-[10px] text-zinc-600 text-center">
-                Each customer will receive an email with their login credentials. Temporary password: <strong className="text-zinc-500">customersaccount</strong>
+                Each {acctLabel(accountType).toLowerCase()} will receive an email with their login credentials. Temporary password: <strong className="text-zinc-500">customersaccount</strong>
               </p>
             </>
           ) : (
@@ -980,6 +1148,13 @@ function BulkCreateModal({ token, onClose }: BulkCreateModalProps) {
 
 type SortField = "createdAt" | "name" | "email";
 type SortOrder = "asc" | "desc";
+type RoleFilter = "all" | "customer" | "driver";
+
+const ROLE_TABS: { key: RoleFilter; label: string; icon?: React.ReactNode }[] = [
+  { key: "all", label: "All" },
+  { key: "customer", label: "Customers", icon: <User className="h-3 w-3" /> },
+  { key: "driver", label: "Drivers", icon: <Car className="h-3 w-3" /> },
+];
 
 interface RegisteredUsersViewProps {
   token: string;
@@ -992,6 +1167,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
   const [refreshing, setRefreshing] = React.useState(false);
   const [error, setError] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("all");
   const [sortBy, setSortBy] = React.useState<SortField>("createdAt");
   const [sortOrder, setSortOrder] = React.useState<SortOrder>("desc");
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
@@ -1005,6 +1181,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
         sortBy,
         sortOrder,
         limit: "100",
+        role: roleFilter,
         ...(search.trim() && { search: search.trim() }),
       });
       const res = await apiClient.get(
@@ -1014,12 +1191,12 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
       setUsers(res.data?.data?.customers || []);
       setTotal(res.data?.data?.total ?? 0);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "Failed to load customer accounts."));
+      setError(getErrorMessage(err, "Failed to load accounts."));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, sortBy, sortOrder, search]);
+  }, [token, sortBy, sortOrder, search, roleFilter]);
 
   React.useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -1060,7 +1237,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <Loader2 className="h-7 w-7 text-violet-500 animate-spin" />
-        <p className="text-xs text-zinc-500">Loading customer accounts…</p>
+        <p className="text-xs text-zinc-500">Loading accounts…</p>
       </div>
     );
   }
@@ -1082,6 +1259,29 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
 
   return (
     <div className="space-y-4">
+      { }
+      <div className="flex gap-1.5 flex-wrap">
+        {ROLE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setRoleFilter(tab.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all duration-150",
+              roleFilter === tab.key
+                ? tab.key === "driver"
+                  ? "bg-orange-500/10 border-orange-500/40 text-orange-600 dark:text-orange-400"
+                  : tab.key === "customer"
+                    ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                    : "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-transparent"
+                : "bg-white dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200"
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       { }
       <div className="flex items-center gap-2 flex-wrap">
         { }
@@ -1133,16 +1333,24 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
       {users.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
           <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-            <Users className="h-6 w-6 text-violet-400" />
+            {roleFilter === "driver"
+              ? <Car className="h-6 w-6 text-violet-400" />
+              : <Users className="h-6 w-6 text-violet-400" />}
           </div>
           <div>
             <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-              {search ? "No results found" : "No customer accounts yet"}
+              {search
+                ? "No results found"
+                : roleFilter === "driver"
+                  ? "No driver accounts yet"
+                  : roleFilter === "customer"
+                    ? "No customer accounts yet"
+                    : "No accounts yet"}
             </p>
             <p className="text-xs text-zinc-500 mt-1">
               {search
                 ? "Try a different name or email."
-                : "Customer accounts created via invite link or bulk create will appear here."}
+                : "Accounts created via invite link or bulk create will appear here."}
             </p>
           </div>
         </div>
@@ -1152,7 +1360,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
           <div className="hidden sm:grid grid-cols-[2fr_2fr_1fr_110px_40px] gap-3 px-5 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/60 dark:bg-zinc-900/40">
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Name</span>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Email</span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Status</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Type / Status</span>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 text-right">Joined</span>
             <span />
           </div>
@@ -1165,6 +1373,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
               hour: "2-digit", minute: "2-digit", hour12: true,
             });
             const initials = u.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+            const isDriver = u.role === "driver";
             const isConfirming = confirmDeleteId === u._id;
             const isDeleting = deletingId === u._id;
             return (
@@ -1177,8 +1386,16 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                 >
                   { }
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
-                      <span className="text-[11px] font-black text-violet-500">{initials}</span>
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg border flex items-center justify-center shrink-0",
+                      isDriver
+                        ? "bg-orange-500/10 border-orange-500/20"
+                        : "bg-violet-500/10 border-violet-500/20"
+                    )}>
+                      <span className={cn(
+                        "text-[11px] font-black",
+                        isDriver ? "text-orange-500" : "text-violet-500"
+                      )}>{initials}</span>
                     </div>
                     <span className="text-sm font-semibold text-zinc-900 dark:text-white truncate">{u.name}</span>
                   </div>
@@ -1187,14 +1404,25 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                   <p className="text-xs text-zinc-500 truncate hidden sm:block">{u.email}</p>
 
                   { }
-                  <span className={cn(
-                    "shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border w-fit",
-                    u.isActive
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                      : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
-                  )}>
-                    {u.isActive ? "Active" : "Inactive"}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1 shrink-0">
+                    <span className={cn(
+                      "inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border w-fit",
+                      isDriver
+                        ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20"
+                        : "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20"
+                    )}>
+                      {isDriver ? <Car className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                      {isDriver ? "Driver" : "Customer"}
+                    </span>
+                    <span className={cn(
+                      "text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border w-fit",
+                      u.isActive
+                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                        : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
+                    )}>
+                      {u.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
 
                   { }
                   <div className="text-right shrink-0 hidden sm:block">
@@ -1218,7 +1446,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                       <button
                         onClick={() => setConfirmDeleteId(u._id)}
                         className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                        title="Delete customer account"
+                        title="Delete account"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1230,7 +1458,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
                 {isConfirming && (
                   <div className="flex items-center justify-between gap-3 px-5 py-2.5 bg-red-50/60 dark:bg-red-950/20 border-t border-red-200/50 dark:border-red-500/15">
                     <p className="text-xs text-zinc-600 dark:text-zinc-400 flex-1">
-                      Delete <strong className="text-zinc-900 dark:text-white">{u.name}</strong>? This is permanent and cannot be undone.
+                      Delete <strong className="text-zinc-900 dark:text-white">{u.name}</strong>&apos;s {isDriver ? "driver" : "customer"} account? This is permanent and cannot be undone.
                     </p>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -1398,7 +1626,7 @@ export default function ReferralsPage() {
               <>
                 <button
                   onClick={() => setShowBulkModal(true)}
-                  title="Bulk create customer accounts"
+                  title="Bulk create customer or driver accounts"
                   className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-violet-400 hover:text-violet-500 dark:hover:border-violet-500 dark:hover:text-violet-400 bg-white dark:bg-zinc-900/60 hover:bg-violet-50 dark:hover:bg-violet-500/5 transition-colors shrink-0"
                 >
                   <Users className="h-3.5 w-3.5" />
@@ -1406,7 +1634,7 @@ export default function ReferralsPage() {
                 </button>
                 <button
                   onClick={() => setShowInviteModal(true)}
-                  title="Generate invite link"
+                  title="Generate customer or driver invite link"
                   className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-emerald-400 hover:text-emerald-500 dark:hover:border-emerald-500 dark:hover:text-emerald-400 bg-white dark:bg-zinc-900/60 hover:bg-emerald-50 dark:hover:bg-emerald-500/5 transition-colors shrink-0"
                 >
                   <Link2 className="h-3.5 w-3.5" />
