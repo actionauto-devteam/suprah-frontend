@@ -32,7 +32,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import {
   DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar, MobileCalendarList,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
-  generateIdleLogHtml, type IdlePeriod,
+  generateIdleLogHtml, type IdlePeriod, computeExactPayout, PAYROLL_DE_MINIMIS_SECONDS,
 } from "@/components/crm/timeproof/shared"
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -436,8 +436,9 @@ export default function AdminUserTimeprofPage() {
   const calcSeconds = payoutPeriod === 1 ? calcCutoffSummary.p1Seconds : calcCutoffSummary.p2Seconds
   const calcWholeHours = Math.floor(calcSeconds / 3600)
   const calcRemainderMins = Math.floor((calcSeconds % 3600) / 60)
+  const calcDroppedMins = calcRemainderMins < PAYROLL_DE_MINIMIS_SECONDS / 60 ? calcRemainderMins : 0
   const rateNum = parseFloat(hourlyRate) || 0
-  const payoutUSD = calcWholeHours * rateNum
+  const payoutUSD = computeExactPayout(calcSeconds, rateNum)
   const payoutPHP = phpRate !== null ? payoutUSD * phpRate : null
   const calcPeriodLabel = payoutPeriod === 1
     ? `${calcMonthShort} 1–15`
@@ -468,13 +469,13 @@ export default function AdminUserTimeprofPage() {
       periodFull,
       payDayLabel,
       renderedFull: fmtHHMM(calcSeconds),
-      calcWholeHours,
+      billedLabel: `${calcWholeHours}h ${calcRemainderMins - calcDroppedMins}m`,
       rateNum,
       payoutUSD,
       phpPayout: showPhp && payoutPHP !== null && phpRate !== null ? { amountPHP: payoutPHP, rate: phpRate } : null,
     })
     openHtmlForPrint(html)
-  }, [data, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
+  }, [data, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, calcRemainderMins, calcDroppedMins, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
 
   /* ── Timecard preview + print (HR pay-period summary, arbitrary date range) ── */
   const timecardPreviewHtml = React.useMemo(() => {
@@ -907,13 +908,13 @@ export default function AdminUserTimeprofPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <span className="text-[11px] text-muted-foreground/50">Hours rendered ({calcPeriodLabel})</span>
-                    {calcRemainderMins > 0 && (
-                      <p className="text-[9px] text-muted-foreground/35 mt-0.5">{calcRemainderMins}m not counted — whole hours only</p>
+                    {calcDroppedMins > 0 && (
+                      <p className="text-[9px] text-muted-foreground/35 mt-0.5">{calcDroppedMins}m not counted — below minimum</p>
                     )}
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-[11px] font-bold font-mono text-foreground/80">{fmtHHMM(calcSeconds)}</span>
-                    <p className="text-[9px] font-bold font-mono text-muted-foreground/40">{calcWholeHours}h billed</p>
+                    <p className="text-[9px] font-bold font-mono text-muted-foreground/40">{calcWholeHours}h {calcRemainderMins - calcDroppedMins}m billed</p>
                   </div>
                 </div>
 
