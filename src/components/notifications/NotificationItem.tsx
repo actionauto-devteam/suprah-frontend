@@ -13,7 +13,7 @@ interface NotificationItemProps {
   notification: Notification;
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
-  onClick?: (notification: Notification) => void;
+  onClick?: (notification: Notification) => boolean | void;
   compact?: boolean;
 }
 
@@ -30,9 +30,9 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
 
   const handleClick = () => {
     if (!isClickable) return;
-    onClick?.(notification);
+    const handled = onClick?.(notification) === true;
     if (!notification.isRead) onMarkAsRead(notification._id);
-    if (route) router.push(route);
+    if (route && !handled) router.push(route);
   };
 
   return (
@@ -104,7 +104,7 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
           {!notification.isRead && (
             <Button
               variant="ghost"

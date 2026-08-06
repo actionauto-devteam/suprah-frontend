@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Notification } from '@/types/notification';
 import { useAuth } from "@/providers/AuthProvider";
-import { getSocket } from '@/lib/socket.client';
+import { initializeSocket } from '@/lib/socket.client';
+import { playShiftAlertSound } from '@/lib/notification-sound';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -253,15 +254,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         startPolling();
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        const socket = getSocket();
         const cleanups: Array<() => void> = [];
+        let cancelled = false;
 
-        if (socket) {
+        const attachSocketListeners = async () => {
+            const token = await getToken();
+            if (!token || cancelled) return;
+            const socket = initializeSocket(token);
+
             const onNew = (notification: Notification) => {
                 setNotifications(prev => {
                     if (prev.some(n => n._id === notification._id)) return prev;
                     return [notification, ...prev];
                 });
+                if (notification.type === 'driver_dispatch_alert') {
+                    playShiftAlertSound(notification.metadata?.soundFile);
+                }
                 fetchRef.current?.();
             };
 
@@ -278,10 +286,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 fetchRef.current?.();
             };
 
-            // A repeat occurrence of a "compiled" notification (see backend
-            // createNotification's grouping) — replace the existing row in
-            // place rather than treating it as a new one, or the same
-            // underlying event would visually duplicate in the feed.
             const onUpdated = (notification: Notification) => {
                 setNotifications(prev => {
                     const exists = prev.some(n => n._id === notification._id);
@@ -301,16 +305,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 () => socket.off('notification:new', onNew),
                 () => socket.off('notification:read', onRead),
                 () => socket.off('notification:readAll', onReadAll),
-                () => socket.off('notification:updated', onUpdated)
+                () => socket.off('notification:updated', onUpdated),
             );
-        }
+        };
+
+        attachSocketListeners().catch(() => {});
 
         return () => {
+            cancelled = true;
             stopPolling();
             document.removeEventListener('visibilitychange', onVisibilityChange);
             cleanups.forEach(fn => fn());
         };
-    }, [fetchNotifications, isLoaded, isSignedIn]);
+    }, [fetchNotifications, getToken, isLoaded, isSignedIn]);
 
     // Support for App Badge API (PWA)
     useEffect(() => {

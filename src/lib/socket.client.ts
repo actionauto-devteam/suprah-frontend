@@ -24,12 +24,15 @@ export const initializeSocket = (token: string): Socket => {
   // Only reuse the existing connection if it's still authenticated with the
   // SAME token — otherwise a mode switch (e.g. CRM <-> Lot Tech) would silently
   // keep using the old auth context instead of reconnecting with the new one.
-  if (socket && socket.connected && currentToken === token) {
+  if (socket && currentToken === token) {
+    if (!socket.connected) socket.connect();
     return socket;
   }
 
   if (socket) {
-    socket.removeAllListeners();
+    // A token change requires a new authenticated connection, but do not call
+    // removeAllListeners() for ordinary reconnects: multiple providers share
+    // this singleton and own their own listener cleanup.
     socket.disconnect();
     socket = null;
   }

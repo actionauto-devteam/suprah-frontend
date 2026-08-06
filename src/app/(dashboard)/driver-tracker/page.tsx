@@ -21,6 +21,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useUser } from "@/providers/AuthProvider";
 import { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
+import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 
 export interface AvailableItem {
   _id: string;
@@ -42,12 +43,12 @@ import { DriverTrackerListCard } from "@/components/driver-tracker/DriverTracker
 import { DriverAssignLoadModal } from "@/components/driver-tracker/DriverAssignLoadModal";
 import { DriverTrackerAvailableLoadsCard } from "@/components/driver-tracker/DriverTrackerAvailableLoadsCard";
 import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTrackerRequestsCard";
+import { DriverDispatchAlertDialog } from "@/components/driver-tracker/DriverDispatchAlertDialog";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
 import {
   initializeSocket,
   getSocket,
-  disconnectSocket,
 } from "@/lib/socket.client";
 
 const statusLabel: Record<DriverStatus, string> = {
@@ -89,6 +90,7 @@ export default function DriverTrackerPage() {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const { theme } = useTheme();
+  const { openDirectChat } = useSupraSpaceMessenger();
   const isDriver = user?.role === "driver";
   const [drivers, setDrivers] = React.useState<DriverTrackingItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -111,6 +113,8 @@ export default function DriverTrackerPage() {
   const [approvingId, setApprovingId] = React.useState<string | null>(null);
   const [rejectingId, setRejectingId] = React.useState<string | null>(null);
   const [loadsTab, setLoadsTab] = React.useState("assigned");
+  const [alertDriver, setAlertDriver] = React.useState<DriverTrackingItem | null>(null);
+  const [alertDialogOpen, setAlertDialogOpen] = React.useState(false);
   const [mapFilter, setMapFilter] = React.useState<
     "all" | "sharing" | "on-route" | "with-loads"
   >("all");
@@ -158,14 +162,37 @@ export default function DriverTrackerPage() {
     setError(null);
     try {
       const token = await getToken();
-      const response = await apiClient.get("/api/driver-tracking/active", {
+      const response = await apiClient.get("/api/driver-tracking/org-drivers", {
         headers: { Authorization: `Bearer ${token}` },
-        params: { status: "all" },
       });
-      const data = response.data?.data || [];
+      const directory = response.data?.data?.drivers || [];
       setDrivers(
-        data.map((item: DriverTrackingItem) => ({
-          ...item,
+        directory.map((item: any): DriverTrackingItem => ({
+          id: item.id,
+          status: item.presence?.status ?? "offline",
+          coords: item.presence?.coords ?? null,
+          lastSeenAt: item.presence?.lastSeenAt ?? null,
+          isSharing: Boolean(item.presence?.isSharing),
+          assignable: Boolean(item.assignable),
+          warnings: Array.isArray(item.warnings) ? item.warnings : [],
+          remainingCapacity: item.remainingCapacity ?? null,
+          driver: {
+            id: item.id,
+            name: item.name ?? "",
+            email: item.email ?? "",
+            phone: item.phone ?? "",
+            avatar: item.avatar ?? null,
+          },
+          equipment: item.equipment
+            ? {
+                ...item.equipment,
+                trailerType: item.equipment.trailerType ?? undefined,
+                maxVehicleCapacity: item.equipment.maxVehicleCapacity ?? undefined,
+                operationalStatus: item.equipment.operationalStatus ?? undefined,
+                truckMake: item.equipment.truckMake ?? undefined,
+                truckModel: item.equipment.truckModel ?? undefined,
+              }
+            : null,
           shipments: Array.isArray(item.shipments) ? item.shipments : [],
         })),
       );
@@ -198,7 +225,7 @@ export default function DriverTrackerPage() {
           origin: `${l.pickupLocation?.city || ""}${l.pickupLocation?.state ? `, ${l.pickupLocation.state}` : ""}`,
           destination: `${l.deliveryLocation?.city || ""}${l.deliveryLocation?.state ? `, ${l.deliveryLocation.state}` : ""}`,
           status: l.status,
-          trailerTypeRequired: l.vehicles?.[0]?.trailerType,
+          trailerTypeRequired: l.trailerType,
           vehicleCount: l.vehicles?.length || 0,
           carrierPayAmount: l.pricing?.carrierPayAmount,
           requestedPickupDate: l.dates?.firstAvailable,
@@ -218,7 +245,7 @@ export default function DriverTrackerPage() {
         const token = await getToken();
         await apiClient.post(
           "/api/driver-tracking/assign-load",
-          { shipmentId: item._id, driverId: assigningTo.driver.id },
+          { loadId: item._id, driverId: assigningTo.driver.id },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success(
@@ -240,7 +267,7 @@ export default function DriverTrackerPage() {
         const token = await getToken();
         await apiClient.post(
           "/api/driver-tracking/assign-load",
-          { shipmentId: item._id, driverId },
+          { loadId: item._id, driverId },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load assigned successfully");
@@ -260,7 +287,7 @@ export default function DriverTrackerPage() {
         const token = await getToken();
         await apiClient.post(
           "/api/driver-tracking/remove-load",
-          { shipmentId },
+          { loadId: shipmentId },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load removed from driver");
@@ -280,7 +307,7 @@ export default function DriverTrackerPage() {
         const token = await getToken();
         await apiClient.post(
           "/api/driver-tracking/reassign-load",
-          { shipmentId, newDriverId },
+          { loadId: shipmentId, driverId: newDriverId },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load reassigned successfully");
@@ -315,8 +342,8 @@ export default function DriverTrackerPage() {
       try {
         const token = await getToken();
         await apiClient.post(
-          "/api/driver-tracking/approve-request",
-          { loadId, driverId },
+          `/api/driver-tracking/loads/${loadId}/approve-request`,
+          { driverId },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load request approved — driver dispatched");
@@ -339,8 +366,8 @@ export default function DriverTrackerPage() {
       try {
         const token = await getToken();
         await apiClient.post(
-          "/api/driver-tracking/reject-request",
-          { loadId, driverId },
+          `/api/driver-tracking/loads/${loadId}/reject-request`,
+          { driverId },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load request rejected");
@@ -352,6 +379,23 @@ export default function DriverTrackerPage() {
       }
     },
     [getToken, fetchLoadRequests],
+  );
+
+  const handleMessageDriver = React.useCallback(
+    async (driver: DriverTrackingItem) => {
+      const targetUserId = driver.driver?.id;
+      if (!targetUserId) return;
+      try {
+        await openDirectChat(targetUserId);
+      } catch (error: any) {
+        toast.error(
+          error.response?.data?.message ||
+            error.message ||
+            "Messaging is unavailable for this driver",
+        );
+      }
+    },
+    [openDirectChat],
   );
 
   React.useEffect(() => {
@@ -382,7 +426,7 @@ export default function DriverTrackerPage() {
         socketRef.current = sock;
 
         sock.on(
-          "driver:location_update",
+          "driver:location",
           (data: {
             driverId: string;
             coords: { lat: number; lng: number };
@@ -424,6 +468,20 @@ export default function DriverTrackerPage() {
         sock.on("load:change", () => {
           fetchAvailableLoads();
         });
+
+        sock.on(
+          "driver:dispatch_alert_acknowledged",
+          (payload: { driverName?: string; response?: string; destinationName?: string }) => {
+            const label = payload.response === "on_my_way"
+              ? "On My Way"
+              : payload.response === "unable"
+                ? "Unable to Respond"
+                : "Acknowledged";
+            toast.success(
+              `${payload.driverName || "Driver"}: ${label}${payload.destinationName ? ` — ${payload.destinationName}` : ""}`,
+            );
+          },
+        );
       } catch { }
     };
 
@@ -431,11 +489,12 @@ export default function DriverTrackerPage() {
 
     return () => {
       cancelled = true;
-      socketRef.current?.off("driver:location_update");
+      socketRef.current?.off("driver:location");
       socketRef.current?.off("driver:loads_updated");
       socketRef.current?.off("driver:load_requested");
       socketRef.current?.off("driver:load_request_updated");
       socketRef.current?.off("load:change");
+      socketRef.current?.off("driver:dispatch_alert_acknowledged");
       socketRef.current = null;
     };
   }, [isSignedIn]);
@@ -693,7 +752,7 @@ export default function DriverTrackerPage() {
       if (!isSignedIn) return;
       const token = await getToken();
       await apiClient.post(
-        "/api/driver-tracking/location",
+        "/api/driver-tracking/heartbeat",
         {
           lat: coords.lat,
           lng: coords.lng,
@@ -987,6 +1046,11 @@ export default function DriverTrackerPage() {
             setAssigningTo(driver);
             setAssignModalOpen(true);
           }}
+          onAlertDriver={(driver) => {
+            setAlertDriver(driver);
+            setAlertDialogOpen(true);
+          }}
+          onMessageDriver={handleMessageDriver}
         />
       </div>
 
@@ -1003,7 +1067,7 @@ export default function DriverTrackerPage() {
                   key: "assigned",
                   label: "Assigned",
                   icon: <Package className="size-3 text-emerald-500 dark:text-emerald-400 shrink-0" />,
-                  count: driversWithLoads.length,
+                  count: totalLoads,
                   activeClass: "bg-emerald-500/20 border-emerald-500/40",
                   badgeClass: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
                 },
@@ -1107,6 +1171,12 @@ export default function DriverTrackerPage() {
         availableLoads={availableLoads}
         isLoading={loadsLoading}
         onAssign={handleAssignLoad}
+      />
+
+      <DriverDispatchAlertDialog
+        open={alertDialogOpen}
+        onOpenChange={setAlertDialogOpen}
+        driver={alertDriver}
       />
     </div>
   );

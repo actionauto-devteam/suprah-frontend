@@ -7,12 +7,17 @@ export interface DriverTrackingItem {
   coords: {
     lat: number;
     lng: number;
-  };
-  lastSeenAt: string;
+  } | null;
+  lastSeenAt: string | null;
+  isSharing: boolean;
+  assignable: boolean;
+  warnings: string[];
+  remainingCapacity: number | null;
   driver: {
     id: string;
     name: string;
     email: string;
+    phone?: string;
     avatar?: string | null;
   } | null;
   equipment?: {
@@ -30,5 +35,7 @@ export interface DriverTrackingItem {
     status?: string;
     origin?: string;
     destination?: string;
+    vehicleCount?: number;
+    trailerType?: string | null;
   }[];
 }

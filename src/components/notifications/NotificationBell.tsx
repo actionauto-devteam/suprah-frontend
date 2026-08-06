@@ -14,6 +14,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { Notification } from '@/types/notification';
 import { NotificationList } from './NotificationList';
 import { NotificationDriverModal } from './NotificationDriverModal';
+import { NotificationDetailsModal } from './NotificationDetailsModal';
 import { NotificationErrorBoundary } from './NotificationErrorBoundary';
 import { usePathname } from 'next/navigation';
 
@@ -25,7 +26,7 @@ function useNotificationsPath() {
   return '/notifications';
 }
 
-function NotificationDropdownContent({ onDriverRequestClick }: { onDriverRequestClick: (n: Notification) => void }) {
+function NotificationDropdownContent({ onNotificationClick }: { onNotificationClick: (n: Notification) => boolean | void }) {
   const {
     notifications,
     unreadCount,
@@ -100,7 +101,7 @@ function NotificationDropdownContent({ onDriverRequestClick }: { onDriverRequest
           isLoading={isLoading}
           onMarkAsRead={markAsRead}
           onDelete={deleteNotification}
-          onItemClick={onDriverRequestClick}
+          onItemClick={onNotificationClick}
           compact
         />
       </div>
@@ -137,13 +138,25 @@ export function NotificationBell() {
   const { unreadCount, markAsRead } = useNotifications();
   const [modalNotification, setModalNotification] = useState<Notification | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailsNotification, setDetailsNotification] = useState<Notification | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const handleDriverRequestClick = useCallback((notification: Notification) => {
+  const handleNotificationClick = useCallback((notification: Notification) => {
     if (notification.type === 'driver_request') {
       setModalNotification(notification);
       setModalOpen(true);
       if (!notification.isRead) markAsRead(notification._id);
+      return true;
     }
+
+    if (notification.type === 'driver_dispatch_alert') {
+      setDetailsNotification(notification);
+      setDetailsOpen(true);
+      if (!notification.isRead) markAsRead(notification._id);
+      return true;
+    }
+
+    return false;
   }, [markAsRead]);
 
   return (
@@ -182,7 +195,7 @@ export function NotificationBell() {
           className="w-95 sm:w-105 p-0 shadow-xl border border-border/50 rounded-2xl overflow-hidden flex flex-col max-h-[min(70vh,540px)] bg-card transform-gpu"
         >
           <NotificationErrorBoundary>
-            <NotificationDropdownContent onDriverRequestClick={handleDriverRequestClick} />
+            <NotificationDropdownContent onNotificationClick={handleNotificationClick} />
           </NotificationErrorBoundary>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -191,6 +204,12 @@ export function NotificationBell() {
         notification={modalNotification}
         open={modalOpen}
         onOpenChange={setModalOpen}
+      />
+
+      <NotificationDetailsModal
+        notification={detailsNotification}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
       />
     </>
   );

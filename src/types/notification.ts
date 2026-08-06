@@ -87,6 +87,7 @@ export type NotificationType =
   | 'driver_tracker_geofence_alert'
   | 'driver_tracker_offline_alert'
   | 'driver_tracker_place_visit'
+  | 'driver_dispatch_alert'
   | 'wallet_low_balance'
   | 'wallet_payout_failed'
   | 'admin_broadcast'
@@ -138,6 +139,12 @@ export interface Notification {
     vehicleName?: string;
     customerName?: string;
     driverName?: string;
+    alertId?: string;
+    destinationType?: 'site' | 'carshop' | 'specific-shop';
+    destinationName?: string;
+    address?: string;
+    dispatcherMessage?: string;
+    response?: 'pending' | 'acknowledged' | 'on_my_way' | 'unable';
     driverEmail?: string;
     trackingNumber?: string;
     amount?: number;

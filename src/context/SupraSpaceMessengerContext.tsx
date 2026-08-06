@@ -81,6 +81,7 @@ interface MessengerCtxValue {
   notifPrefs: Record<string, NotifPref>;
   setNotifPrefs: React.Dispatch<React.SetStateAction<Record<string, NotifPref>>>;
   openChatPopup: (convId: string) => void;
+  openDirectChat: (targetUserId: string) => Promise<SSConv>;
   closeChatPopup: (convId: string) => void;
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
@@ -526,6 +527,38 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
   }, []);
 
+  const openDirectChat = React.useCallback(async (targetUserId: string): Promise<SSConv> => {
+    if (!crmToken) {
+      throw new Error('Suprah Space is not available for this account yet.');
+    }
+
+    const response = await apiClient.post(
+      '/api/supraspace/conversations/direct',
+      { targetUserId },
+      authConfig(crmToken, true),
+    );
+    const conversation = response.data?.data as SSConv | undefined;
+    if (!conversation?._id) {
+      throw new Error('Could not open a direct conversation.');
+    }
+
+    setConversations((prev) => {
+      const exists = prev.some((item) => item._id === conversation._id);
+      const next = exists
+        ? prev.map((item) => item._id === conversation._id ? { ...item, ...conversation } : item)
+        : [conversation, ...prev];
+      return sortByLastMessage(next);
+    });
+
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      window.location.assign(`/crm/supra-space?conversationId=${conversation._id}`);
+    } else {
+      openChatPopup(conversation._id);
+    }
+
+    return conversation;
+  }, [crmToken, openChatPopup]);
+
   const closeChatPopup = React.useCallback((convId: string) => {
     setOpenChats((prev) => prev.filter((id) => id !== convId));
     setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
@@ -643,6 +676,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         notifPrefs,
         setNotifPrefs,
         openChatPopup,
+        openDirectChat,
         closeChatPopup,
         toggleMinimize,
         markAsRead,

@@ -12,6 +12,8 @@ import {
   WifiOff,
   ChevronDown,
   ChevronUp,
+  Bell,
+  MessageSquare,
 } from "lucide-react";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +36,8 @@ interface DriverTrackerListCardProps {
   statusText: Record<DriverStatus, string>;
   onAssignLoad?: (driver: DriverTrackingItem) => void;
   onDriverClick?: (driver: DriverTrackingItem) => void;
+  onAlertDriver?: (driver: DriverTrackingItem) => void;
+  onMessageDriver?: (driver: DriverTrackingItem) => void;
 }
 
 const trailerLabel = (val?: string) =>
@@ -92,6 +96,8 @@ export function DriverTrackerListCard({
   statusText,
   onAssignLoad,
   onDriverClick,
+  onAlertDriver,
+  onMessageDriver,
 }: DriverTrackerListCardProps) {
   const [filter, setFilter] = React.useState<DriverFilter>("all");
   const [query, setQuery] = React.useState("");
@@ -102,8 +108,8 @@ export function DriverTrackerListCard({
     return drivers.filter((d) => {
       if (filter === "active" && d.status === "offline") return false;
       if (filter === "offline" && d.status !== "offline") return false;
-      if (filter === "sharing" && d.status === "offline") return false;
-      if (filter === "not-sharing" && d.status !== "offline") return false;
+      if (filter === "sharing" && !d.isSharing) return false;
+      if (filter === "not-sharing" && d.isSharing) return false;
       if (!q) return true;
       const name = d.driver?.name?.toLowerCase() || "";
       const email = d.driver?.email?.toLowerCase() || "";
@@ -120,8 +126,8 @@ export function DriverTrackerListCard({
       all: drivers.length,
       active: drivers.filter((d) => d.status !== "offline").length,
       offline: drivers.filter((d) => d.status === "offline").length,
-      sharing: drivers.filter((d) => d.status !== "offline").length,
-      "not-sharing": drivers.filter((d) => d.status === "offline").length,
+      sharing: drivers.filter((d) => d.isSharing).length,
+      "not-sharing": drivers.filter((d) => !d.isSharing).length,
     }),
     [drivers],
   );
@@ -317,13 +323,48 @@ export function DriverTrackerListCard({
                       <span className="text-muted-foreground/30">|</span>
                       <span className="inline-flex items-center gap-1 text-muted-foreground/60">
                         <Clock className="size-2.5" />
-                        {new Date(driver.lastSeenAt).toLocaleTimeString('en-US', {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          timeZone: "America/Denver",
-                        })}
+                        {driver.lastSeenAt
+                          ? new Date(driver.lastSeenAt).toLocaleTimeString('en-US', {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              timeZone: "America/Denver",
+                            })
+                          : "Never"}
                       </span>
                     </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                      {onAlertDriver && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5 text-[10px] font-semibold border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onAlertDriver(driver);
+                          }}
+                        >
+                          <Bell className="size-3" />
+                          Alert
+                        </Button>
+                      )}
+                      {onMessageDriver && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5 text-[10px] font-semibold border-primary/30 hover:bg-primary/5"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onMessageDriver(driver);
+                          }}
+                        >
+                          <MessageSquare className="size-3" />
+                          Message
+                        </Button>
+                      )}
+                    </div>
+
                     {eq?.trailerType && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-semibold text-purple-600 dark:text-purple-400">
